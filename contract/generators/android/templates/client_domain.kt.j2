@@ -1,4 +1,11 @@
 package {{ package }}
+{% for constant in domain.constants %}
+
+{% for line in kdoc(constant.doc) %}
+{{ line }}
+{% endfor %}
+const val {{ constant.name }} = {{ constant.value|kstring }}
+{% endfor %}
 {% for enum in domain.enums %}
 
 {% for line in kdoc(enum.doc) %}

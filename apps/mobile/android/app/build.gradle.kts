@@ -8,7 +8,7 @@ plugins {
 }
 
 // Core is built from source from core/ in this repository, the same commit as the app. The app
-// uses only its C API (holder/holder.h); its schema and welcome resources are packaged as assets.
+// uses only its C API (holder/holder.h); its schema is packaged as an asset.
 val holderCoreDir = rootProject.projectDir.resolve("../../../core").canonicalFile
 val holderNdkVersion = "28.2.13676358"
 val localProperties = Properties().apply {
@@ -156,7 +156,6 @@ android {
     sourceSets {
         getByName("main") {
             assets.directories.add(holderCoreDir.resolve("schema").absolutePath)
-            assets.directories.add(holderCoreDir.resolve("resources").absolutePath)
         }
     }
     testOptions {

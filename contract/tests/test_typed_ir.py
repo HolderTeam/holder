@@ -109,3 +109,14 @@ def test_daemon_runtime_binding_is_validated_data():
     assert bindings()["get_ai_status"].services == ("db", "registry")
     with pytest.raises(ValidationError):
         RuntimeBinding(services=("unknown_service",))
+
+
+def test_a_constant_reaches_core_and_android_escaped():
+    raw = deepcopy(extract(CONTRACT, "interface"))
+    raw["constants"].append({"name": "PROOF_TEXT", "source": "interface/cards/models.py", "doc": "Proof.",
+                             "value": 'Line "one" \\ $x\nLine two\n'})
+    common = ContractView.model_validate(raw).model_dump(exclude_unset=True)
+    header = generate(common)["Contract.h"]
+    assert 'inline constexpr std::string_view PROOF_TEXT =\n    "Line \\"one\\" \\\\ $x\\n"\n    "Line two\\n";' in header
+    kotlin = generate_android(common)[CARDS_KOTLIN]
+    assert 'const val PROOF_TEXT = "Line \\"one\\" \\\\ \\$x\\nLine two\\n"' in kotlin

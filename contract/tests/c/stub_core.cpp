@@ -387,6 +387,13 @@ std::vector<ProjectListItem> list_projects(holder_context& context, std::optiona
   return out;
 }
 
+HomeProject ensure_home_project(holder_context& context) {
+  if (!context.projects.empty()) return {};
+  NewProject home;
+  home.name = std::string(HOME_PROJECT_NAME);
+  return {create_project(context, home)};
+}
+
 Project get_project(holder_context& context, std::string project_id) { return project_named(context, project_id); }
 
 Project create_project(holder_context& context, const NewProject& request) {

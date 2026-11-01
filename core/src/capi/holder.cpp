@@ -27,7 +27,6 @@
 #include "platform/Migrations.h"
 #include "privacy/PlatformKeyring.h"
 #include "privacy/ProjectPrivacy.h"
-#include "project/DefaultProject.h"
 #include "project/ProjectImport.h"
 #include "project/ProjectManifest.h"
 #include "project/ProjectPaths.h"
@@ -3687,60 +3686,6 @@ int holder_reindex(holder_context* context, holder_error** out_error) {
   try {
     holder::index::Reindexer reindexer(context->db);
     reindexer.run();
-    return HOLDER_OK;
-  } catch (const std::bad_alloc&) {
-    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
-  } catch (const std::exception& e) {
-    return set_exception(out_error, e);
-  } catch (...) {
-    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
-  } // LCOV_EXCL_LINE
-}
-
-int holder_ensure_default_project(
-    holder_context* context,
-    const char* name,
-    const char* welcome_title,
-    const char* welcome_content,
-    char** out_json,
-    holder_error** out_error
-) {
-  clear_error(out_error);
-  if (out_json == nullptr) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
-  }
-  *out_json = nullptr;
-
-  if (context == nullptr) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
-  }
-  if (name == nullptr || name[0] == '\0') {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "name must not be empty");
-  }
-  if (welcome_title == nullptr || welcome_title[0] == '\0') {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "welcome_title must not be empty");
-  }
-
-  try {
-    const auto created = holder::project::ensure_default_project(
-        context->db,
-        name,
-        "plain",
-        welcome_title,
-        welcome_content != nullptr ? std::string(welcome_content) : std::string(),
-        holder::identity::uuid_v4,
-        context->data_dir / "projects",
-        &context->fts
-    );
-
-    auto* out = duplicate_string(
-        created.has_value() ? project_to_json(created.value()).dump() : std::string("null")
-    );
-    if (out == nullptr) {
-      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
-    }
-
-    *out_json = out;
     return HOLDER_OK;
   } catch (const std::bad_alloc&) {
     return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE

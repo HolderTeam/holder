@@ -50,7 +50,6 @@ class ContractClientIntegrationTest {
             context = context,
             dataDir = dataDir,
             schemaSql = context.assets.open("schema.sql").bufferedReader().use { it.readText() },
-            welcomeContent = "# Welcome",
         )
     }
 

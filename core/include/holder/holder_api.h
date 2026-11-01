@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
+ * Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/home.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -654,6 +654,24 @@ typedef enum holder_project_privacy_mode {
     HOLDER_PROJECT_PRIVACY_MODE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_project_privacy_mode;
 
+/* A project on this device. */
+typedef struct holder_project {
+    const char* project_id; /* The project's ID. */
+    const char* name; /* The project's name. */
+    const char* root_path; /* The directory that holds the project's repository on this device. */
+    const char* git_remote_url; /* The Git remote the project syncs with; null when it has none. May be NULL. */
+    const char* git_provider; /* Who hosts the Git remote, such as github; null when unknown. May be NULL. */
+    holder_project_privacy_mode privacy_mode; /* How the project's files are stored. */
+    const char* project_key_id; /* The ID of an encrypted project's key; null for a plain project. May be NULL. */
+    int64_t created_at; /* When the project was made. */
+    int64_t updated_at; /* When the project's settings last changed. */
+} holder_project;
+
+/* What ensure_home_project did. */
+typedef struct holder_home_project {
+    const holder_project* project; /* The Home project it made; null when the device already had a project, which it left alone. May be NULL. */
+} holder_home_project;
+
 /* A project in a listing. */
 typedef struct holder_project_list_item {
     const char* project_id; /* The project's ID. */
@@ -673,19 +691,6 @@ typedef struct holder_project_list_item_list {
     const holder_project_list_item* items;
     size_t count;
 } holder_project_list_item_list;
-
-/* A project on this device. */
-typedef struct holder_project {
-    const char* project_id; /* The project's ID. */
-    const char* name; /* The project's name. */
-    const char* root_path; /* The directory that holds the project's repository on this device. */
-    const char* git_remote_url; /* The Git remote the project syncs with; null when it has none. May be NULL. */
-    const char* git_provider; /* Who hosts the Git remote, such as github; null when unknown. May be NULL. */
-    holder_project_privacy_mode privacy_mode; /* How the project's files are stored. */
-    const char* project_key_id; /* The ID of an encrypted project's key; null for a plain project. May be NULL. */
-    int64_t created_at; /* When the project was made. */
-    int64_t updated_at; /* When the project's settings last changed. */
-} holder_project;
 
 /* Whether an encrypted project's card files are safe to push. */
 typedef struct holder_encryption_safety_check {
@@ -1603,6 +1608,15 @@ int holder_attach_card_resource(holder_context* context, const char* project_id,
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_detach_card_resource(holder_context* context, const char* project_id, const char* card_id, const char* resource_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error);
+
+/* Make Home, with its welcome card, on a device that has no project; otherwise do nothing.
+ * Home is named HOME_PROJECT_NAME, is encrypted_git, and holds one card with WELCOME_CARD as its
+ * content. The check and the making happen together, so calling this again, or from a second
+ * context, never makes a second Home. Projects that already exist keep their privacy mode. The app
+ * decides when to call it: the daemon calls it when it starts, and does not serve it over HTTP.
+ * Errors: HOLDER_ERROR_KEYRING_UNAVAILABLE.
+ */
+int holder_ensure_home_project(holder_context* context, holder_arena* arena, const holder_home_project** out_home_project, holder_error** out_error);
 
 typedef enum holder_list_projects_order {
     HOLDER_LIST_PROJECTS_ORDER_NONE = 0, /* null */

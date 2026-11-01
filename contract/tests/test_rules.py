@@ -285,3 +285,23 @@ def test_base_error_codes_match_holder_h():
     header = (Path(__file__).resolve().parents[2] / "core" / "include" / "holder" / "holder.h").read_text()
     declared = {int(code) for code in re.findall(r"^#define HOLDER_ERROR_\w+ (\d+)$", header, flags=re.MULTILINE)}
     assert declared == set(BASE_ERROR_CODES)
+
+
+def test_a_documented_string_constant_is_declared(tmp_path):
+    package = "contract_constant"
+    directory = tmp_path / package
+    directory.mkdir()
+    (directory / "__init__.py").write_text("")
+    (directory / "m0.py").write_text('from typing import Final\n\nNAME: Final = "Home"\n"""The name."""\n')
+    ir = extract(tmp_path, package)
+    assert ir["constants"] == [{"name": "NAME", "source": f"{package}/m0.py", "doc": "The name.", "value": "Home"}]
+
+
+@pytest.mark.parametrize("body, message", [
+    ('NAME: Final = "Home"\n', "NAME has no docstring"),
+    ('name: Final = "Home"\n"""The name."""\n', "contract files hold no assignments"),
+    ('NAME: Final = 3\n"""The name."""\n', "contract files hold no assignments"),
+    ('NAME: str = "Home"\n"""The name."""\n', "contract files hold no assignments"),
+])
+def test_only_documented_capitalised_final_strings_are_constants(tmp_path, body, message):
+    assert message in problems(tmp_path, "from typing import Final\n\n" + body)

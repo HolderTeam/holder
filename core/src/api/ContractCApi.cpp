@@ -1,4 +1,4 @@
-// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
+// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/home.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -455,9 +455,10 @@ holder_resource_asset to_c(holder_arena* arena, const contract::ResourceAsset& v
 holder_resource_asset_list to_c_list(holder_arena* arena, const std::vector<contract::ResourceAsset>& values);
 holder_resource to_c(holder_arena* arena, const contract::Resource& value);
 holder_resource_list to_c_list(holder_arena* arena, const std::vector<contract::Resource>& values);
+holder_project to_c(holder_arena* arena, const contract::Project& value);
+holder_home_project to_c(holder_arena* arena, const contract::HomeProject& value);
 holder_project_list_item to_c(holder_arena* arena, const contract::ProjectListItem& value);
 holder_project_list_item_list to_c_list(holder_arena* arena, const std::vector<contract::ProjectListItem>& values);
-holder_project to_c(holder_arena* arena, const contract::Project& value);
 holder_encryption_safety_check to_c(holder_arena* arena, const contract::EncryptionSafetyCheck& value);
 holder_project_encryption_check to_c(holder_arena* arena, const contract::ProjectEncryptionCheck& value);
 holder_hierarchy_repair_move to_c(holder_arena* arena, const contract::HierarchyRepairMove& value);
@@ -848,6 +849,26 @@ holder_resource_list to_c_list(holder_arena* arena, const std::vector<contract::
   return {items, values.size()};
 }
 
+holder_project to_c(holder_arena* arena, const contract::Project& value) {
+  holder_project out{};
+  out.project_id = copy(arena, value.project_id);
+  out.name = copy(arena, value.name);
+  out.root_path = copy(arena, value.root_path);
+  out.git_remote_url = copy_text(arena, value.git_remote_url);
+  out.git_provider = copy_text(arena, value.git_provider);
+  out.privacy_mode = to_c_enum(value.privacy_mode);
+  out.project_key_id = copy_text(arena, value.project_key_id);
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  return out;
+}
+
+holder_home_project to_c(holder_arena* arena, const contract::HomeProject& value) {
+  holder_home_project out{};
+  out.project = copy_optional<holder_project>(arena, value.project, [&](const auto& item) { return to_c(arena, item); });
+  return out;
+}
+
 holder_project_list_item to_c(holder_arena* arena, const contract::ProjectListItem& value) {
   holder_project_list_item out{};
   out.project_id = copy(arena, value.project_id);
@@ -868,20 +889,6 @@ holder_project_list_item_list to_c_list(holder_arena* arena, const std::vector<c
   auto* items = make<holder_project_list_item>(arena, values.size());
   for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
   return {items, values.size()};
-}
-
-holder_project to_c(holder_arena* arena, const contract::Project& value) {
-  holder_project out{};
-  out.project_id = copy(arena, value.project_id);
-  out.name = copy(arena, value.name);
-  out.root_path = copy(arena, value.root_path);
-  out.git_remote_url = copy_text(arena, value.git_remote_url);
-  out.git_provider = copy_text(arena, value.git_provider);
-  out.privacy_mode = to_c_enum(value.privacy_mode);
-  out.project_key_id = copy_text(arena, value.project_key_id);
-  out.created_at = value.created_at;
-  out.updated_at = value.updated_at;
-  return out;
 }
 
 holder_encryption_safety_check to_c(holder_arena* arena, const contract::EncryptionSafetyCheck& value) {
@@ -2240,6 +2247,17 @@ int holder_detach_card_resource(holder_context* context, const char* project_id,
     auto* out = make<holder_resource_list>(arena);
     *out = to_c_list(arena, contract::detach_card_resource(*context, project_id_value, card_id_value, resource_id_value));
     *out_resource_list = out;
+  });
+}
+
+int holder_ensure_home_project(holder_context* context, holder_arena* arena, const holder_home_project** out_home_project, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_home_project != nullptr, "out_home_project must not be null");
+    *out_home_project = nullptr;
+    auto* out = make<holder_home_project>(arena);
+    *out = to_c(arena, contract::ensure_home_project(*context));
+    *out_home_project = out;
   });
 }
 

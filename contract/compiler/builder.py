@@ -28,6 +28,7 @@ from authoring.vocabulary import Bytes, HolderError, Native, OpenRecord, Record,
 from .errors import ContractError
 from .ir import (
     AliasView,
+    ConstantView,
     ContractView,
     EnumMemberView,
     EnumView,
@@ -79,11 +80,13 @@ class _Draft:
     operations: list[OperationView] = field(default_factory=list)
     http: list[HttpBindingView] = field(default_factory=list)
     http_errors: list[HttpErrorView] = field(default_factory=list)
+    constants: list[ConstantView] = field(default_factory=list)
 
     def finish(self) -> ContractView:
         return ContractView(ir_version=IR_VERSION, aliases=self.aliases, enums=self.enums,
                             records=self.records, errors=self.errors, interfaces=self.interfaces,
-                            operations=self.operations, http=self.http, http_errors=self.http_errors)
+                            operations=self.operations, http=self.http, http_errors=self.http_errors,
+                            **({"constants": self.constants} if self.constants else {}))
 
 
 @dataclass(frozen=True)
@@ -139,7 +142,13 @@ class _Builder:
     def declare(self, module: types.ModuleType, name: str, declarations: Declarations) -> None:
         obj = module.__dict__[name]
         source = self.where[0]
-        if isinstance(obj, typing.TypeAliasType):
+        if name in declarations.constants:
+            self.unique(name)
+            doc = declarations.alias_docs.get(name)
+            if not doc:
+                self.problem(f"{name} has no docstring")
+            self.draft.constants.append(ConstantView(name=name, source=source, doc=doc, value=obj))
+        elif isinstance(obj, typing.TypeAliasType):
             self.unique(name)
             self.draft.aliases.append(AliasView(name=name, source=source, doc=declarations.alias_docs.get(name),
                                                 type=self.ref(obj.__value__, name)))

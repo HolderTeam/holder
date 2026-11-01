@@ -1,4 +1,4 @@
-// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
+// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/home.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -9,6 +9,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -26,6 +27,29 @@ struct Error : std::runtime_error {
 struct InvalidArgument : Error {
   using Error::Error;
 };
+
+/// The name of the project Holder makes on a device that has none. Project lists put it first.
+inline constexpr std::string_view HOME_PROJECT_NAME = "Home";
+
+/// The content of Home's welcome card. Its first line, without the heading's hashes, is the card's title.
+inline constexpr std::string_view WELCOME_CARD =
+    "# Welcome to Holder\n"
+    "\n"
+    "Click here to edit your first card (tap if you are using a touchscreen).\n"
+    "\n"
+    "The first line is the card’s title. By Markdown convention, we declare the title with a hash (#), but you don't have to.\n"
+    "\n"
+    "Try changing the title above.\n"
+    "\n"
+    "Two square brackets create an internal link: [[MySecondCard]]\n"
+    "\n"
+    "Follow the link to it. Since it doesn’t exist yet, you’ll be prompted to create it.\n"
+    "\n"
+    "Create more cards whenever you like, or simply by making internal links.\n"
+    "\n"
+    "Explore the other tools when you’re ready, this is enough to get started.\n"
+    "\n"
+    "Happy card writing!\n";
 
 /// A field of a partial update: nullopt keeps it, an empty value clears it, and a value sets it.
 template <class T>
@@ -505,6 +529,11 @@ struct Project {
   std::optional<std::string> project_key_id;  ///< The ID of an encrypted project's key; null for a plain project.
   long long created_at{};  ///< When the project was made.
   long long updated_at{};  ///< When the project's settings last changed.
+};
+
+/// What ensure_home_project did.
+struct HomeProject {
+  std::optional<Project> project;  ///< The Home project it made; null when the device already had a project, which it left alone.
 };
 
 /// A project in a listing.
@@ -1195,6 +1224,14 @@ std::vector<Resource> attach_card_resource(holder_context& context, std::string 
 /// in the trash or in another project is not found.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
 std::vector<Resource> detach_card_resource(holder_context& context, std::string project_id, std::string card_id, std::string resource_id);
+
+/// Make Home, with its welcome card, on a device that has no project; otherwise do nothing.
+/// Home is named HOME_PROJECT_NAME, is encrypted_git, and holds one card with WELCOME_CARD as its
+/// content. The check and the making happen together, so calling this again, or from a second
+/// context, never makes a second Home. Projects that already exist keep their privacy mode. The app
+/// decides when to call it: the daemon calls it when it starts, and does not serve it over HTTP.
+/// @throws KeyringUnavailable
+HomeProject ensure_home_project(holder_context& context);
 
 enum class ListProjectsOrder { UpdatedAtDesc, UpdatedAtAsc, CreatedAtDesc, CreatedAtAsc, NameDesc, NameAsc };
 

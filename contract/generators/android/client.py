@@ -18,6 +18,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from compiler.builder import BASE_ERROR_CODES
 from compiler.ir import (
+    ConstantView,
     ContractView,
     FieldView,
     ListType,
@@ -211,6 +212,7 @@ class ErrorPlan:
 class DomainPlan:
     name: str
     kotlin_name: str
+    constants: list[ConstantView] = field(default_factory=list)
     enums: list[EnumPlan] = field(default_factory=list)
     unions: list[UnionPlan] = field(default_factory=list)
     records: list[RecordPlan] = field(default_factory=list)
@@ -476,6 +478,8 @@ class AndroidClient:
         # records the operations use get a Kotlin class.
         for name in dict.fromkeys(instance.record for instance in unique(self.types.outputs + self.types.inputs)):
             of(domain(self.types.records[name].source)).records.append(self.record_plan(name))
+        for constant in self.contract.constants:
+            of(domain(constant.source)).constants.append(constant)
         for error in self.contract.errors:
             of(domain(error.source)).errors.append(ErrorPlan(error.name + "Exception", error.code, error.doc))
         for enum in self.enums.values():

@@ -5077,7 +5077,7 @@ TEST_CASE("C API reports invalid reindex arguments", "[capi]") {
   holder_error_destroy(error);
 }
 
-TEST_CASE("C API ensure_default_project bootstraps once and then no-ops", "[capi]") {
+TEST_CASE("C API ensure_home_project makes Home once and then leaves projects alone", "[capi]") {
   const auto data_dir = holder::test::make_temp_dir();
   const auto schema = read_schema_sql();
 
@@ -5086,85 +5086,34 @@ TEST_CASE("C API ensure_default_project bootstraps once and then no-ops", "[capi
   REQUIRE(
       holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
   );
+  holder_arena* arena = holder_arena_new();
 
-  char* json = nullptr;
-  REQUIRE(
-      holder_ensure_default_project(
-          context,
-          "Home",
-          "Welcome",
-          "# Welcome to Holder\n",
-          &json,
-          &error
-      ) == HOLDER_OK
-  );
-  REQUIRE(json != nullptr);
-  REQUIRE(error == nullptr);
-
-  const auto body = nlohmann::json::parse(json);
-  REQUIRE(body["name"] == "Home");
-  REQUIRE(body["privacy_mode"] == "plain");
-  const std::string project_id = body["project_id"].get<std::string>();
-  holder_string_free(json);
+  const holder_home_project* home = nullptr;
+  REQUIRE(holder_ensure_home_project(context, arena, &home, &error) == HOLDER_OK);
+  REQUIRE(home->project != nullptr);
+  REQUIRE(std::string(home->project->name) == "Home");
+  REQUIRE(home->project->privacy_mode == HOLDER_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT);
+  const std::string project_id = home->project->project_id;
 
   char* card_list_json = nullptr;
   REQUIRE(holder_card_list(context, project_id.c_str(), &card_list_json, &error) == HOLDER_OK);
   const auto cards = nlohmann::json::parse(card_list_json);
   REQUIRE(cards.size() == 1);
-  REQUIRE(cards[0]["title"] == "Welcome");
+  REQUIRE(cards[0]["title"] == "Welcome to Holder");
   holder_string_free(card_list_json);
 
-  char* second_json = nullptr;
-  REQUIRE(
-      holder_ensure_default_project(
-          context,
-          "Home",
-          "Welcome",
-          "# Welcome to Holder\n",
-          &second_json,
-          &error
-      ) == HOLDER_OK
-  );
-  REQUIRE(second_json != nullptr);
-  REQUIRE(std::string(second_json) == "null");
-  holder_string_free(second_json);
+  const holder_home_project* again = nullptr;
+  REQUIRE(holder_ensure_home_project(context, arena, &again, &error) == HOLDER_OK);
+  REQUIRE(again->project == nullptr);
 
   char* project_list_json = nullptr;
   REQUIRE(holder_project_list(context, &project_list_json, &error) == HOLDER_OK);
   REQUIRE(nlohmann::json::parse(project_list_json).size() == 1);
   holder_string_free(project_list_json);
 
-  holder_context_destroy(context);
-}
-
-TEST_CASE("C API reports invalid ensure_default_project arguments", "[capi]") {
-  holder_error* error = nullptr;
-  char* json = nullptr;
-
-  REQUIRE(
-      holder_ensure_default_project(nullptr, "Home", "Welcome", nullptr, &json, &error) ==
-      HOLDER_ERROR_INVALID_ARGUMENT
-  );
-  REQUIRE(json == nullptr);
-  REQUIRE(error != nullptr);
+  REQUIRE(holder_ensure_home_project(nullptr, arena, &again, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
   holder_error_destroy(error);
-  error = nullptr;
-
-  const auto data_dir = holder::test::make_temp_dir();
-  const auto schema = read_schema_sql();
-  holder_context* context = nullptr;
-  REQUIRE(
-      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
-  );
-
-  REQUIRE(
-      holder_ensure_default_project(context, "Home", "", nullptr, &json, &error) ==
-      HOLDER_ERROR_INVALID_ARGUMENT
-  );
-  REQUIRE(error != nullptr);
-  REQUIRE(std::string(holder_error_message(error)).find("welcome_title") != std::string::npos);
-
-  holder_error_destroy(error);
+  holder_arena_free(arena);
   holder_context_destroy(context);
 }
 
@@ -8469,33 +8418,6 @@ TEST_CASE("C API reports remaining invalid card_search arguments", "[capi]") {
   holder_context_destroy(context);
 }
 
-TEST_CASE("C API reports remaining invalid ensure_default_project arguments", "[capi]") {
-  const auto data_dir = holder::test::make_temp_dir();
-  const auto schema = read_schema_sql();
-  holder_context* context = nullptr;
-  holder_error* error = nullptr;
-  REQUIRE(
-      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
-  );
-
-  REQUIRE(
-      holder_ensure_default_project(context, "Home", "Welcome", "body", nullptr, &error) ==
-      HOLDER_ERROR_INVALID_ARGUMENT
-  );
-  REQUIRE(std::string(holder_error_message(error)).find("out_json") != std::string::npos);
-  holder_error_destroy(error);
-  error = nullptr;
-
-  char* json = nullptr;
-  REQUIRE(
-      holder_ensure_default_project(context, "", "Welcome", "body", &json, &error) ==
-      HOLDER_ERROR_INVALID_ARGUMENT
-  );
-  REQUIRE(std::string(holder_error_message(error)).find("name") != std::string::npos);
-  holder_error_destroy(error);
-  holder_context_destroy(context);
-}
-
 TEST_CASE("C API reports remaining invalid git_set_ssh_signer arguments", "[capi]") {
   holder_error* error = nullptr;
   REQUIRE(
@@ -9391,10 +9313,12 @@ TEST_CASE(
   holder_error_destroy(error);
   error = nullptr;
 
-  REQUIRE(
-      holder_ensure_default_project(context, "Home", "Welcome", nullptr, &json, &error) ==
-      HOLDER_ERROR_RUNTIME
-  );
+  {
+    holder_arena* arena = holder_arena_new();
+    const holder_home_project* home = nullptr;
+    REQUIRE(holder_ensure_home_project(context, arena, &home, &error) == HOLDER_ERROR_RUNTIME);
+    holder_arena_free(arena);
+  }
   holder_error_destroy(error);
   error = nullptr;
 

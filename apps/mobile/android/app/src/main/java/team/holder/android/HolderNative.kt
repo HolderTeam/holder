@@ -18,6 +18,7 @@ import team.holder.android.contract.EmptyTrashType
 import team.holder.android.contract.ListCardsOrder
 import team.holder.android.contract.ListCardsParent
 import team.holder.android.contract.NewCard
+import team.holder.android.contract.HOME_PROJECT_NAME
 import team.holder.android.contract.Page
 import team.holder.android.contract.RecoverySnapshotPage
 import team.holder.android.contract.RecoverySnapshotRestore
@@ -413,12 +414,11 @@ data class RecoveryTokenImportGlobalResult(
  * app's lifetime instead of reopening the SQLite store on every call.
  */
 object HolderNative {
-    /** The project `ensure_default_project` seeds on first run -- see RestoreOffer/
+    /** The project `ensure_home_project` seeds on first run -- see RestoreOffer/
      * SnapshotProtection's doc comments. Not private: the share-in project picker (see
      * MainActivity's ProjectPickerDialog usage) sorts this project first since it's the one
      * most people land in most often. */
-    const val DEFAULT_PROJECT_NAME = "Home"
-    private const val WELCOME_CARD_TITLE_FALLBACK = "Welcome"
+    const val DEFAULT_PROJECT_NAME = HOME_PROJECT_NAME
 
     private val loadError: Throwable? = runCatching {
         System.loadLibrary("holder_jni")
@@ -459,12 +459,6 @@ object HolderNative {
     private external fun nativeContextOpen(dataDir: String, schemaSql: String): Long
     private external fun nativeContextClose(contextHandle: Long)
     private external fun nativeDatabaseRebuild(dataDir: String, schemaSql: String, dryRun: Boolean): String
-    private external fun nativeEnsureDefaultProject(
-        contextHandle: Long,
-        name: String,
-        welcomeTitle: String,
-        welcomeContent: String?,
-    ): String
 
     fun version(): String {
         loadError?.let {
@@ -479,11 +473,11 @@ object HolderNative {
     }
 
     /**
-     * Opens the native store (once; safe to call again) and, on first launch,
-     * bootstraps a default Home project with a welcome card.
+     * Opens the native store (once; safe to call again) and, on a device with no project,
+     * makes Home with core's welcome card (the contract's ensure_home_project).
      */
     @Synchronized
-    fun initialize(context: Context, dataDir: File, schemaSql: String, welcomeContent: String) {
+    fun initialize(context: Context, dataDir: File, schemaSql: String) {
         loadError?.let { throw it }
 
         if (!isOpen) {
@@ -513,14 +507,7 @@ object HolderNative {
                 runCatching { team.holder.android.git.GitIdentity.registerWithNative(it, dataDir) }
             }
         }
-        saveLane.call {
-            nativeEnsureDefaultProject(
-                it,
-                DEFAULT_PROJECT_NAME,
-                deriveWelcomeTitle(welcomeContent, WELCOME_CARD_TITLE_FALLBACK),
-                welcomeContent,
-            )
-        }
+        saveLane.call { Projects.ensureHomeProject(it) }
     }
 
     /**
@@ -533,7 +520,6 @@ object HolderNative {
         context: Context,
         dataDir: File,
         schemaSql: String,
-        welcomeContent: String,
         dryRun: Boolean = false,
     ): JSONObject {
         loadError?.let { throw it }
@@ -549,7 +535,7 @@ object HolderNative {
             throw failure
         } finally {
             try {
-                initialize(context, dataDir, schemaSql, welcomeContent)
+                initialize(context, dataDir, schemaSql)
             } catch (reopenFailure: Throwable) {
                 if (primaryFailure != null) {
                     primaryFailure.addSuppressed(reopenFailure)
@@ -1433,13 +1419,5 @@ object HolderNative {
         val map = mutableMapOf<String, String>()
         keys().forEach { key -> map[key] = getString(key) }
         return map
-    }
-
-    /** Mirrors holder-daemon's Bootstrap.cpp: first line, only if it's a markdown heading. */
-    private fun deriveWelcomeTitle(content: String, fallback: String): String {
-        val firstLine = content.substringBefore('\n').trimStart(' ', '\t', '\r')
-        if (firstLine.isEmpty() || firstLine[0] != '#') return fallback
-        val title = firstLine.trimStart('#', ' ', '\t')
-        return title.ifEmpty { fallback }
     }
 }

@@ -639,8 +639,9 @@ jobject to_java_holder_asset_file(JNIEnv* env, const holder_asset_file& value);
 jobject to_java_holder_asset_placement(JNIEnv* env, const holder_asset_placement& value);
 jobject to_java_holder_resource_asset(JNIEnv* env, const holder_resource_asset& value);
 jobject to_java_holder_resource(JNIEnv* env, const holder_resource& value);
-jobject to_java_holder_project_list_item(JNIEnv* env, const holder_project_list_item& value);
 jobject to_java_holder_project(JNIEnv* env, const holder_project& value);
+jobject to_java_holder_home_project(JNIEnv* env, const holder_home_project& value);
+jobject to_java_holder_project_list_item(JNIEnv* env, const holder_project_list_item& value);
 jobject to_java_holder_encryption_safety_check(JNIEnv* env, const holder_encryption_safety_check& value);
 jobject to_java_holder_project_encryption_check(JNIEnv* env, const holder_project_encryption_check& value);
 jobject to_java_holder_hierarchy_repair_move(JNIEnv* env, const holder_hierarchy_repair_move& value);
@@ -1156,6 +1157,44 @@ jobject to_java_holder_resource(JNIEnv* env, const holder_resource& value) {
   return env->NewObjectA(type, constructor, args);
 }
 
+jobject to_java_holder_project(JNIEnv* env, const holder_project& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/Project");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lteam/holder/android/contract/ProjectPrivacyMode;Ljava/lang/String;JJ)V");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[9] = {};
+  args[0].l = locals.add(string(env, value.project_id));
+  if (env->ExceptionCheck()) return nullptr;
+  args[1].l = locals.add(string(env, value.name));
+  if (env->ExceptionCheck()) return nullptr;
+  args[2].l = locals.add(string(env, value.root_path));
+  if (env->ExceptionCheck()) return nullptr;
+  args[3].l = locals.add(string(env, value.git_remote_url));
+  if (env->ExceptionCheck()) return nullptr;
+  args[4].l = locals.add(string(env, value.git_provider));
+  if (env->ExceptionCheck()) return nullptr;
+  args[5].l = locals.add(to_java_holder_project_privacy_mode(env, static_cast<int>(value.privacy_mode)));
+  if (env->ExceptionCheck()) return nullptr;
+  args[6].l = locals.add(string(env, value.project_key_id));
+  if (env->ExceptionCheck()) return nullptr;
+  args[7].j = static_cast<jlong>(value.created_at);
+  args[8].j = static_cast<jlong>(value.updated_at);
+  return env->NewObjectA(type, constructor, args);
+}
+
+jobject to_java_holder_home_project(JNIEnv* env, const holder_home_project& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/HomeProject");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Lteam/holder/android/contract/Project;)V");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[1] = {};
+  args[0].l = locals.add((value.project ? to_java_holder_project(env, *value.project) : nullptr));
+  if (env->ExceptionCheck()) return nullptr;
+  return env->NewObjectA(type, constructor, args);
+}
+
 jobject to_java_holder_project_list_item(JNIEnv* env, const holder_project_list_item& value) {
   static const jclass type = global_class(env, "team/holder/android/contract/ProjectListItem");
   if (!type) return nullptr;
@@ -1183,32 +1222,6 @@ jobject to_java_holder_project_list_item(JNIEnv* env, const holder_project_list_
   if (env->ExceptionCheck()) return nullptr;
   args[10].l = locals.add((value.root_card_count ? box_int32(env, *value.root_card_count) : nullptr));
   if (env->ExceptionCheck()) return nullptr;
-  return env->NewObjectA(type, constructor, args);
-}
-
-jobject to_java_holder_project(JNIEnv* env, const holder_project& value) {
-  static const jclass type = global_class(env, "team/holder/android/contract/Project");
-  if (!type) return nullptr;
-  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lteam/holder/android/contract/ProjectPrivacyMode;Ljava/lang/String;JJ)V");
-  if (!constructor) return nullptr;
-  Locals locals(env);
-  jvalue args[9] = {};
-  args[0].l = locals.add(string(env, value.project_id));
-  if (env->ExceptionCheck()) return nullptr;
-  args[1].l = locals.add(string(env, value.name));
-  if (env->ExceptionCheck()) return nullptr;
-  args[2].l = locals.add(string(env, value.root_path));
-  if (env->ExceptionCheck()) return nullptr;
-  args[3].l = locals.add(string(env, value.git_remote_url));
-  if (env->ExceptionCheck()) return nullptr;
-  args[4].l = locals.add(string(env, value.git_provider));
-  if (env->ExceptionCheck()) return nullptr;
-  args[5].l = locals.add(to_java_holder_project_privacy_mode(env, static_cast<int>(value.privacy_mode)));
-  if (env->ExceptionCheck()) return nullptr;
-  args[6].l = locals.add(string(env, value.project_key_id));
-  if (env->ExceptionCheck()) return nullptr;
-  args[7].j = static_cast<jlong>(value.created_at);
-  args[8].j = static_cast<jlong>(value.updated_at);
   return env->NewObjectA(type, constructor, args);
 }
 
@@ -3718,6 +3731,20 @@ Java_team_holder_android_contract_Resources_detachCardResource(JNIEnv* env, jobj
       arena.value, &out, &error);
   if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
   return to_java_list(env, ((*out)).items, ((*out)).count, [&](const auto& item) -> jobject { return to_java_holder_resource(env, item); });
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_contract_Projects_ensureHomeProject(JNIEnv* env, jobject, jlong context_handle) {
+  if (!context_handle) { fail(env, "context is required"); return nullptr; }
+  Keep keep;
+  Arena arena;
+  if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
+  const holder_home_project* out = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_ensure_home_project(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      arena.value, &out, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
+  return to_java_holder_home_project(env, (*out));
 }
 
 extern "C" JNIEXPORT jobject JNICALL

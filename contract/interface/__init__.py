@@ -24,6 +24,7 @@ DECLARATION_ORDER = (
     "maintenance.errors",
     "milestones.models",
     "projects.models",
+    "projects.home",
     "maintenance.rebuild",
     "recovery.models",
     "recovery.errors",

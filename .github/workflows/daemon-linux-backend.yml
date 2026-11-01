@@ -82,7 +82,6 @@ jobs:
           test -x "${stage_dir}/usr/bin/holderctl"
           test -e "${stage_dir}/usr/lib/${multiarch}/libcaste.so"
           test -f "${stage_dir}/usr/share/holder-daemon/schema/schema.sql"
-          test -f "${stage_dir}/usr/share/holder-daemon/config/WELCOME.md"
           test -f "${stage_dir}/usr/share/holder-daemon/config/ai_catalog.yaml"
           test -f "${stage_dir}/usr/share/holder-daemon/config/git_providers.yaml"
           test -f "${stage_dir}/usr/share/holder-daemon/openapi.yaml"

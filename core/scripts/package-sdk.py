@@ -31,8 +31,7 @@ def main():
         parser.error("installed SDK commit does not match the checkout")
     if manifest["build_type"] not in ("RelWithDebInfo", "Release"):
         parser.error("unsupported SDK build type")
-    for required in ("include/holder/holder.h", "share/holder/schema/schema.sql",
-                     "share/holder/resources/WELCOME.md"):
+    for required in ("include/holder/holder.h", "share/holder/schema/schema.sql"):
         if not (args.install / required).is_file():
             parser.error(f"installed SDK is missing {required}")
     platform = manifest["platform"]

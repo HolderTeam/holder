@@ -1,6 +1,12 @@
 // Generated from contract/interface by holder_contract. Do not edit; run make -C contract update.
 package team.holder.android.contract
 
+/** The name of the project Holder makes on a device that has none. Project lists put it first. */
+const val HOME_PROJECT_NAME = "Home"
+
+/** The content of Home's welcome card. Its first line, without the heading's hashes, is the card's title. */
+const val WELCOME_CARD = "# Welcome to Holder\n\nClick here to edit your first card (tap if you are using a touchscreen).\n\nThe first line is the card’s title. By Markdown convention, we declare the title with a hash (#), but you don't have to.\n\nTry changing the title above.\n\nTwo square brackets create an internal link: [[MySecondCard]]\n\nFollow the link to it. Since it doesn’t exist yet, you’ll be prompted to create it.\n\nCreate more cards whenever you like, or simply by making internal links.\n\nExplore the other tools when you’re ready, this is enough to get started.\n\nHappy card writing!\n"
+
 enum class ListProjectsOrder(val value: String) {
     UPDATED_AT_DESC("updated_at_desc"),
     UPDATED_AT_ASC("updated_at_asc"),
@@ -21,6 +27,34 @@ enum class NewProjectPrivacyMode(val value: String) {
     ENCRYPTED_GIT("encrypted_git"),
     PLAIN("plain"),
 }
+
+/** A project on this device. */
+data class Project(
+    /** The project's ID. */
+    val projectId: String,
+    /** The project's name. */
+    val name: String,
+    /** The directory that holds the project's repository on this device. */
+    val rootPath: String,
+    /** The Git remote the project syncs with; null when it has none. */
+    val gitRemoteUrl: String? = null,
+    /** Who hosts the Git remote, such as github; null when unknown. */
+    val gitProvider: String? = null,
+    /** How the project's files are stored. */
+    val privacyMode: ProjectPrivacyMode,
+    /** The ID of an encrypted project's key; null for a plain project. */
+    val projectKeyId: String? = null,
+    /** When the project was made. */
+    val createdAt: Long,
+    /** When the project's settings last changed. */
+    val updatedAt: Long,
+)
+
+/** What ensure_home_project did. */
+data class HomeProject(
+    /** The Home project it made; null when the device already had a project, which it left alone. */
+    val project: Project? = null,
+)
 
 /** A project in a listing. */
 data class ProjectListItem(
@@ -46,28 +80,6 @@ data class ProjectListItem(
     val cardCount: Int? = null,
     /** The project's live root cards; present when asked for. */
     val rootCardCount: Int? = null,
-)
-
-/** A project on this device. */
-data class Project(
-    /** The project's ID. */
-    val projectId: String,
-    /** The project's name. */
-    val name: String,
-    /** The directory that holds the project's repository on this device. */
-    val rootPath: String,
-    /** The Git remote the project syncs with; null when it has none. */
-    val gitRemoteUrl: String? = null,
-    /** Who hosts the Git remote, such as github; null when unknown. */
-    val gitProvider: String? = null,
-    /** How the project's files are stored. */
-    val privacyMode: ProjectPrivacyMode,
-    /** The ID of an encrypted project's key; null for a plain project. */
-    val projectKeyId: String? = null,
-    /** When the project was made. */
-    val createdAt: Long,
-    /** When the project's settings last changed. */
-    val updatedAt: Long,
 )
 
 /** A project to make. */
@@ -105,6 +117,17 @@ object Projects {
     init {
         System.loadLibrary("holder_jni")
     }
+
+    /**
+     * Make Home, with its welcome card, on a device that has no project; otherwise do nothing.
+     * Home is named HOME_PROJECT_NAME, is encrypted_git, and holds one card with WELCOME_CARD as its
+     * content. The check and the making happen together, so calling this again, or from a second
+     * context, never makes a second Home. Projects that already exist keep their privacy mode. The app
+     * decides when to call it: the daemon calls it when it starts, and does not serve it over HTTP.
+     */
+    external fun ensureHomeProject(
+        contextHandle: Long,
+    ): HomeProject
 
     /**
      * List the projects on this device.

@@ -10,6 +10,7 @@
 #include "git/GitOps.h"
 #include "identity/Uuid.h"
 #include "platform/Tx.h"
+#include "project/DefaultProject.h"
 #include "project/ProjectManifest.h"
 #include "project/ProjectRegistry.h"
 #include "project/ProjectRepo.h"
@@ -22,6 +23,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -47,11 +49,13 @@ holder::model::Project find(holder_context& context, const std::string& project_
   return std::move(*project);
 }
 
-bool is_home(const std::string& name) {
-  std::string lowered;
-  for (const char c : name) lowered.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
-  return lowered == "home";
+std::string lowered(std::string_view text) {
+  std::string out;
+  for (const char c : text) out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+  return out;
 }
+
+bool is_home(const std::string& name) { return lowered(name) == lowered(HOME_PROJECT_NAME); }
 
 std::vector<ProjectListItem> list(holder_context& context, const std::optional<std::string>& name,
                                   std::optional<long long> updated_after, std::optional<long long> updated_before,
@@ -192,6 +196,16 @@ std::vector<ProjectListItem> list_projects(holder_context& context, std::optiona
                                            std::int32_t offset, bool include_card_counts) {
   return with_contract_errors(
       [&] { return list(context, name, updated_after, updated_before, order, limit, offset, include_card_counts); });
+}
+
+HomeProject ensure_home_project(holder_context& context) {
+  return with_contract_errors([&] {
+    const auto created = holder::project::ensure_default_project(context.db, holder::identity::uuid_v4,
+                                                                 context.projects_root, &context.fts, context.git);
+    if (!created) return HomeProject{};
+    if (!context.registry_path.empty()) holder::core::ProjectRegistry(context.registry_path).restore(*created);
+    return HomeProject{to_project(*created)};
+  });
 }
 
 Project get_project(holder_context& context, std::string project_id) {

@@ -202,7 +202,6 @@ def fetch(selection, cache, system, architecture, build_type, assets_dir=None, i
                               "platform": system, "architecture": architecture, "build_type": build_type}.items():
             require(manifest[key] == expected, f"SDK manifest {key} mismatch")
         require((sdk / "share/holder/schema/schema.sql").is_file(), "SDK schema missing")
-        require((sdk / "share/holder/resources/WELCOME.md").is_file(), "SDK welcome resource missing")
         require((sdk / "lib/cmake/holder/holderConfig.cmake").is_file(), "SDK CMake package missing")
         if system == "windows":
             require((sdk / "vcpkg/scripts/buildsystems/vcpkg.cmake").is_file(),
