@@ -16,7 +16,7 @@ Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A recor
   - An operation with no result has no `out_` parameter.
   - An operation that returns a list returns it as a `{items, count}` struct, in `out_<record>_list`, such as `const holder_tag_count_list** out_tag_count_list`.
   - An operation on a card takes the card's `project_id` before its `card_id`, and does not find a card in another project.
-- **Error codes:** `HOLDER_ERROR_INVALID_ARGUMENT` (1) for anything the contract's checks reject, `HOLDER_ERROR_RUNTIME` (2) for an unexpected failure, and `HOLDER_ERROR_ALLOCATION` (3). Each error kind in the contract gets its own code from 100, in the contract's order, such as `HOLDER_ERROR_NOT_FOUND`.
+- **Error codes:** a code is the HTTP status it echoes and one more digit, so it reads as that status. `holder.h` declares `HOLDER_ERROR_INVALID_ARGUMENT` (4000) for anything the contract's checks reject, `HOLDER_ERROR_RUNTIME` (5000) for an unexpected failure, and `HOLDER_ERROR_ALLOCATION` (5001). Each error kind in the contract has the code its error table gives it, such as `HOLDER_ERROR_NOT_FOUND` (4040); a code keeps its meaning once released, wherever its declaration moves.
 - **Memory:** results live in the `holder_arena` the caller passes, until `holder_arena_free`. Nothing in a result needs freeing on its own.
 - **Strings** are NUL-terminated UTF-8. The glue rejects text that is not well-formed UTF-8, and length constraints count characters, not bytes.
 - **Numbers:** the glue rejects a `double` that is NaN or infinite.

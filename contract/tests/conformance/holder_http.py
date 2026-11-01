@@ -1,7 +1,7 @@
 """The daemon's HTTP routes for the contract's operations, for the conformance tests.
 
 Daemon starts a disposable holderd on temporary directories; Http calls the contract's operations
-on it through their routes in interface/operations/, taking and returning values as
+on it through their routes in each domain's operations.py, taking and returning values as
 holder_contract.values describes them, as holder_capi.Core does through the C API. A route the
 contract does not have yet sets up a project.
 
@@ -31,8 +31,8 @@ from fastapi.routing import APIRoute
 from pydantic import ValidationError
 
 from authoring.routes import Contract, ErrorResponse
+from generators.core.abi import snake
 from holder_capi import OperationError, Unrepresentable
-from holder_contract.generate import snake
 
 # The longest request target to send. The daemon reads at most 8 KB of request line and headers,
 # and drops a connection whose request is longer (#300), so a longer argument cannot be sent over HTTP.

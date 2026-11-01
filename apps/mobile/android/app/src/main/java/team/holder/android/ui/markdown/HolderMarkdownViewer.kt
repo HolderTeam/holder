@@ -365,7 +365,7 @@ fun HolderMarkdownViewer(
 
     Column(modifier = modifier) {
         for (node in document.children()) {
-            MarkdownBlock(node, onWikilinkClick, onUrlClick, cardTags, onNavigateToTag, translatedOnRequestEditAt)
+            MarkdownBlock(projectId, node, onWikilinkClick, onUrlClick, cardTags, onNavigateToTag, translatedOnRequestEditAt)
         }
     }
 
@@ -402,6 +402,7 @@ fun HolderMarkdownViewer(
 
 @Composable
 private fun MarkdownBlock(
+    projectId: String,
     node: Node,
     onWikilinkClick: (String) -> Unit,
     onUrlClick: (String) -> Unit,
@@ -444,6 +445,7 @@ private fun MarkdownBlock(
                 ?.removePrefix(HOLDER_RESOURCE_SCHEME)
             if (resourceId != null && soleChild != null) {
                 ResourceAttachment(
+                    projectId = projectId,
                     resourceId = resourceId,
                     label = plainText(soleChild),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -468,7 +470,7 @@ private fun MarkdownBlock(
                         }
                         Column {
                             for (child in item.children()) {
-                                MarkdownBlock(child, onWikilinkClick, onUrlClick, cardTags, onTagClick, onRequestEditAt)
+                                MarkdownBlock(projectId, child, onWikilinkClick, onUrlClick, cardTags, onTagClick, onRequestEditAt)
                             }
                         }
                     }
@@ -484,7 +486,7 @@ private fun MarkdownBlock(
                             Text("${number++}.  ", modifier = Modifier.padding(top = 4.dp))
                             Column {
                                 for (child in item.children()) {
-                                    MarkdownBlock(child, onWikilinkClick, onUrlClick, cardTags, onTagClick, onRequestEditAt)
+                                    MarkdownBlock(projectId, child, onWikilinkClick, onUrlClick, cardTags, onTagClick, onRequestEditAt)
                                 }
                             }
                         }
@@ -499,7 +501,7 @@ private fun MarkdownBlock(
                 .padding(8.dp),
         ) {
             for (child in node.children()) {
-                MarkdownBlock(child, onWikilinkClick, onUrlClick, cardTags, onTagClick, onRequestEditAt)
+                MarkdownBlock(projectId, child, onWikilinkClick, onUrlClick, cardTags, onTagClick, onRequestEditAt)
             }
         }
         is Alert -> {
@@ -515,7 +517,7 @@ private fun MarkdownBlock(
                 Column(modifier = Modifier.padding(8.dp)) {
                     Text(label, color = alertColor, fontWeight = FontWeight.Bold)
                     for (child in node.children()) {
-                        MarkdownBlock(child, onWikilinkClick, onUrlClick, cardTags, onTagClick, onRequestEditAt)
+                        MarkdownBlock(projectId, child, onWikilinkClick, onUrlClick, cardTags, onTagClick, onRequestEditAt)
                     }
                 }
             }
@@ -579,7 +581,7 @@ private fun MarkdownBlock(
             }
         }
         else -> for (child in node.children()) {
-            MarkdownBlock(child, onWikilinkClick, onUrlClick, cardTags, onTagClick, onRequestEditAt)
+            MarkdownBlock(projectId, child, onWikilinkClick, onUrlClick, cardTags, onTagClick, onRequestEditAt)
         }
     }
 }
@@ -882,6 +884,7 @@ private fun decodeSampledBitmap(path: String, maxDimensionPx: Int): android.grap
  * passes a much larger one since it's the one place actually meant to show full detail. */
 @Composable
 internal fun ResourceImage(
+    projectId: String,
     resourceId: String,
     altText: String,
     modifier: Modifier = Modifier,
@@ -897,7 +900,7 @@ internal fun ResourceImage(
             withContext(Dispatchers.IO) {
                 val cacheFile = resourceImageCacheFile(context, resourceId)
                 if (!cacheFile.exists()) {
-                    val resource = HolderNative.getResource(resourceId)
+                    val resource = HolderNative.getResource(projectId, resourceId)
                     val asset = resource.assets.firstOrNull() ?: error("resource has no asset")
                     val placement = asset.placements.firstOrNull() ?: error("asset has no placement")
                     cacheFile.parentFile?.mkdirs()
@@ -936,13 +939,14 @@ internal fun ResourceImage(
  * legitimate need to hold a 12MP+ bitmap in memory at once, and a phone screen couldn't
  * show that much detail anyway. */
 @Composable
-internal fun ResourceImageViewerDialog(resourceId: String, altText: String, onDismiss: () -> Unit) {
+internal fun ResourceImageViewerDialog(projectId: String, resourceId: String, altText: String, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(
             modifier = Modifier.fillMaxSize().background(Color.Black).clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center,
         ) {
             ResourceImage(
+                projectId = projectId,
                 resourceId = resourceId,
                 altText = altText,
                 maxDimensionPx = 2560,
@@ -973,12 +977,12 @@ internal sealed interface ResourceAttachmentKind {
  * recorded filename of its own.
  */
 @Composable
-internal fun rememberResourceAttachmentKind(resourceId: String, label: String): ResourceAttachmentKind {
+internal fun rememberResourceAttachmentKind(projectId: String, resourceId: String, label: String): ResourceAttachmentKind {
     var kind by remember(resourceId) { mutableStateOf<ResourceAttachmentKind>(ResourceAttachmentKind.Loading) }
     LaunchedEffect(resourceId) {
         kind = runCatching {
             withContext(Dispatchers.IO) {
-                HolderNative.getResource(resourceId).assets.firstOrNull() ?: error("resource has no asset")
+                HolderNative.getResource(projectId, resourceId).assets.firstOrNull() ?: error("resource has no asset")
             }
         }.fold(
             onSuccess = { asset ->
@@ -1002,8 +1006,8 @@ internal fun rememberResourceAttachmentKind(resourceId: String, label: String): 
  * not.
  */
 @Composable
-internal fun ResourceAttachment(resourceId: String, label: String, modifier: Modifier = Modifier) {
-    when (val current = rememberResourceAttachmentKind(resourceId, label)) {
+internal fun ResourceAttachment(projectId: String, resourceId: String, label: String, modifier: Modifier = Modifier) {
+    when (val current = rememberResourceAttachmentKind(projectId, resourceId, label)) {
         is ResourceAttachmentKind.Loading -> Box(
             modifier = modifier.height(48.dp).background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
@@ -1015,12 +1019,12 @@ internal fun ResourceAttachment(resourceId: String, label: String, modifier: Mod
         )
         is ResourceAttachmentKind.Image -> {
             var viewerOpen by remember(resourceId) { mutableStateOf(false) }
-            ResourceImage(resourceId = resourceId, altText = label, modifier = modifier, onClick = { viewerOpen = true })
+            ResourceImage(projectId = projectId, resourceId = resourceId, altText = label, modifier = modifier, onClick = { viewerOpen = true })
             if (viewerOpen) {
-                ResourceImageViewerDialog(resourceId = resourceId, altText = label, onDismiss = { viewerOpen = false })
+                ResourceImageViewerDialog(projectId = projectId, resourceId = resourceId, altText = label, onDismiss = { viewerOpen = false })
             }
         }
-        is ResourceAttachmentKind.File -> ResourceFileRow(resourceId = resourceId, displayName = current.displayName, modifier = modifier)
+        is ResourceAttachmentKind.File -> ResourceFileRow(projectId, resourceId = resourceId, displayName = current.displayName, modifier = modifier)
     }
 }
 
@@ -1029,7 +1033,7 @@ internal fun ResourceAttachment(resourceId: String, label: String, modifier: Mod
  * [openResourceExternally]. Failure (including "no app can open this") surfaces inline
  * rather than crashing or failing silently. */
 @Composable
-private fun ResourceFileRow(resourceId: String, displayName: String, modifier: Modifier = Modifier) {
+private fun ResourceFileRow(projectId: String, resourceId: String, displayName: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var opening by remember(resourceId) { mutableStateOf(false) }
@@ -1044,7 +1048,7 @@ private fun ResourceFileRow(resourceId: String, displayName: String, modifier: M
                     openError = null
                     opening = true
                     scope.launch {
-                        runCatching { openResourceExternally(context, resourceId) }
+                        runCatching { openResourceExternally(context, projectId, resourceId) }
                             .onFailure { failure -> openError = failure.message ?: failure::class.java.simpleName }
                         opening = false
                     }

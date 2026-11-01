@@ -64,8 +64,7 @@ private val SUGGESTED_KINDS =
  * start date (defaulting to today, or the existing milestone's start), optionally a specific time
  * (all-day otherwise) and an end (a span rather than a point), plus a free-text kind and
  * description -- mirroring MILESTONE_IDEA.md's own mockup ("Date becomes start" once End is
- * added). projectId is only needed for the edit path (HolderNative.updateCardMilestone's
- * ownership check); the add path derives it natively from cardId. */
+ * added). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddMilestoneScreen(
@@ -241,6 +240,7 @@ fun AddMilestoneScreen(
                                     )
                                 } else {
                                     HolderNative.addCardMilestone(
+                                        projectId = projectId,
                                         cardId = cardId,
                                         startAt = start,
                                         endAt = endAt,

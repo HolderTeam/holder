@@ -31,7 +31,7 @@ Declarations appear in the order of their modules' paths, then in source order. 
   - `omittable: true` when the field may be left out (`MISSING`).
   - `default` when it has one.
   - A field with neither is required.
-- **Error kind**: `name`, `source`, `doc`, and `fields`, which have no defaults.
+- **Error kind**: `name`, `source`, `doc`, `fields`, which have no defaults, and `code`, its C error code from the contract's error table (left out when the contract has no `app.py`).
 - **Interface**: `name`, `source`, `doc`, and `methods`, each a signature.
 - **Operation**: a signature, plus `source`, `errors` (the names of its error kinds) and `daemon_only`. Operations are read from domain modules registered by the contract's `app.py`, in registration order. `source` names the module that declares the operation.
 - **Signature**: `name`, `summary`, `description`, `parameters` and `returns`. Each parameter has a `name` and `type`, and may have a `doc` and a `default`.

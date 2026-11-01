@@ -1,4 +1,4 @@
-// Generated from contract/interface/ai.py, contract/interface/card_references.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/daemon_routes.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/locations.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/operations/ai.py, contract/interface/operations/git.py, contract/interface/operations/history.py, contract/interface/operations/links.py, contract/interface/operations/locations.py, contract/interface/operations/maintenance.py, contract/interface/operations/milestones.py, contract/interface/operations/resources.py, contract/interface/operations/search.py, contract/interface/operations/system.py, contract/interface/operations/trash.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -169,14 +169,14 @@ int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
     return contract::detail::fail(out_error, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, e.what());
   } catch (const contract::RevisionAmbiguous& e) {
     return contract::detail::fail(out_error, HOLDER_ERROR_REVISION_AMBIGUOUS, e.what());
-  } catch (const contract::NotTrashed& e) {
-    return contract::detail::fail(out_error, HOLDER_ERROR_NOT_TRASHED, e.what());
   } catch (const contract::HistoryResponseTooLarge& e) {
     return contract::detail::fail(out_error, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, e.what());
-  } catch (const contract::RecoveryTokenInvalid& e) {
-    return contract::detail::fail(out_error, HOLDER_ERROR_RECOVERY_TOKEN_INVALID, e.what());
   } catch (const contract::RebuildFailed& e) {
     return contract::detail::fail(out_error, HOLDER_ERROR_REBUILD_FAILED, e.what());
+  } catch (const contract::RecoveryTokenInvalid& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_RECOVERY_TOKEN_INVALID, e.what());
+  } catch (const contract::NotTrashed& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_NOT_TRASHED, e.what());
   } catch (const std::bad_alloc&) {
     return contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
   } catch (const std::exception& e) {
@@ -422,11 +422,11 @@ holder_project_encryption_check to_c(holder_arena* arena, const contract::Projec
 holder_hierarchy_repair_move to_c(holder_arena* arena, const contract::HierarchyRepairMove& value);
 holder_hierarchy_repair_move_list to_c_list(holder_arena* arena, const std::vector<contract::HierarchyRepairMove>& values);
 holder_hierarchy_repair to_c(holder_arena* arena, const contract::HierarchyRepair& value);
+holder_rebuild_result to_c(holder_arena* arena, const contract::RebuildResult& value);
+holder_reindex_result to_c(holder_arena* arena, const contract::ReindexResult& value);
 holder_project_recovery_token_export_result to_c(holder_arena* arena, const contract::ProjectRecoveryTokenExportResult& value);
 holder_project_recovery_token_import_result to_c(holder_arena* arena, const contract::ProjectRecoveryTokenImportResult& value);
 holder_recovery_token_global_import_result to_c(holder_arena* arena, const contract::RecoveryTokenGlobalImportResult& value);
-holder_rebuild_result to_c(holder_arena* arena, const contract::RebuildResult& value);
-holder_reindex_result to_c(holder_arena* arena, const contract::ReindexResult& value);
 holder_sync_state to_c(holder_arena* arena, const contract::SyncState& value);
 holder_pull_phase to_c(holder_arena* arena, const contract::PullPhase& value);
 holder_push_phase to_c(holder_arena* arena, const contract::PushPhase& value);
@@ -822,6 +822,22 @@ holder_hierarchy_repair to_c(holder_arena* arena, const contract::HierarchyRepai
   return out;
 }
 
+holder_rebuild_result to_c(holder_arena* arena, const contract::RebuildResult& value) {
+  holder_rebuild_result out{};
+  out.project_id = copy(arena, value.project_id);
+  out.cards = value.cards;
+  out.ai_messages = value.ai_messages;
+  out.ai_threads = value.ai_threads;
+  out.links = value.links;
+  return out;
+}
+
+holder_reindex_result to_c(holder_arena* arena, const contract::ReindexResult& value) {
+  holder_reindex_result out{};
+  out.message = copy(arena, value.message);
+  return out;
+}
+
 holder_project_recovery_token_export_result to_c(holder_arena* arena, const contract::ProjectRecoveryTokenExportResult& value) {
   holder_project_recovery_token_export_result out{};
   out.project_id = copy(arena, value.project_id);
@@ -845,22 +861,6 @@ holder_recovery_token_global_import_result to_c(holder_arena* arena, const contr
   out.remote_error = copy_text(arena, value.remote_error);
   out.pull_status = to_c_enum(value.pull_status);
   out.pull_error = copy_text(arena, value.pull_error);
-  return out;
-}
-
-holder_rebuild_result to_c(holder_arena* arena, const contract::RebuildResult& value) {
-  holder_rebuild_result out{};
-  out.project_id = copy(arena, value.project_id);
-  out.cards = value.cards;
-  out.ai_messages = value.ai_messages;
-  out.ai_threads = value.ai_threads;
-  out.links = value.links;
-  return out;
-}
-
-holder_reindex_result to_c(holder_arena* arena, const contract::ReindexResult& value) {
-  holder_reindex_result out{};
-  out.message = copy(arena, value.message);
   return out;
 }
 
@@ -1341,6 +1341,12 @@ contract::HierarchyRepairRequest from_c(const holder_hierarchy_repair_request& v
   return out;
 }
 
+contract::RebuildRequest from_c(const holder_rebuild_request& value) {
+  contract::RebuildRequest out;
+  out.project_id = text(value.project_id, "rebuild_request.project_id", 1, SIZE_MAX);
+  return out;
+}
+
 contract::RecoveryTokenExportRequest from_c(const holder_recovery_token_export_request& value) {
   contract::RecoveryTokenExportRequest out;
   out.pin = text(value.pin, "recovery_token_export_request.pin", 1, SIZE_MAX);
@@ -1351,12 +1357,6 @@ contract::RecoveryTokenImportRequest from_c(const holder_recovery_token_import_r
   contract::RecoveryTokenImportRequest out;
   out.pin = text(value.pin, "recovery_token_import_request.pin", 1, SIZE_MAX);
   out.recovery_token = text(value.recovery_token, "recovery_token_import_request.recovery_token", 1, SIZE_MAX);
-  return out;
-}
-
-contract::RebuildRequest from_c(const holder_rebuild_request& value) {
-  contract::RebuildRequest out;
-  out.project_id = text(value.project_id, "rebuild_request.project_id", 1, SIZE_MAX);
   return out;
 }
 
@@ -2038,6 +2038,30 @@ int holder_repair_project_hierarchy(holder_context* context, const char* project
   });
 }
 
+int holder_rebuild_project(holder_context* context, const holder_rebuild_request* request, holder_arena* arena, const holder_rebuild_result** out_rebuild_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_rebuild_result != nullptr, "out_rebuild_result must not be null");
+    *out_rebuild_result = nullptr;
+    require(request != nullptr, "request must not be null");
+    const auto request_value = from_c(*request);
+    auto* out = make<holder_rebuild_result>(arena);
+    *out = to_c(arena, contract::rebuild_project(*context, request_value));
+    *out_rebuild_result = out;
+  });
+}
+
+int holder_reindex_search(holder_context* context, holder_arena* arena, const holder_reindex_result** out_reindex_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_reindex_result != nullptr, "out_reindex_result must not be null");
+    *out_reindex_result = nullptr;
+    auto* out = make<holder_reindex_result>(arena);
+    *out = to_c(arena, contract::reindex_search(*context));
+    *out_reindex_result = out;
+  });
+}
+
 int holder_export_project_recovery_token(holder_context* context, const char* project_id, const holder_recovery_token_export_request* request, holder_arena* arena, const holder_project_recovery_token_export_result** out_project_recovery_token_export_result, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
@@ -2076,30 +2100,6 @@ int holder_import_recovery_token_global(holder_context* context, const holder_re
     auto* out = make<holder_recovery_token_global_import_result>(arena);
     *out = to_c(arena, contract::import_recovery_token_global(*context, request_value));
     *out_recovery_token_global_import_result = out;
-  });
-}
-
-int holder_rebuild_project(holder_context* context, const holder_rebuild_request* request, holder_arena* arena, const holder_rebuild_result** out_rebuild_result, holder_error** out_error) {
-  return guarded(arena, out_error, [&] {
-    require(context != nullptr, "context must not be null");
-    require(out_rebuild_result != nullptr, "out_rebuild_result must not be null");
-    *out_rebuild_result = nullptr;
-    require(request != nullptr, "request must not be null");
-    const auto request_value = from_c(*request);
-    auto* out = make<holder_rebuild_result>(arena);
-    *out = to_c(arena, contract::rebuild_project(*context, request_value));
-    *out_rebuild_result = out;
-  });
-}
-
-int holder_reindex_search(holder_context* context, holder_arena* arena, const holder_reindex_result** out_reindex_result, holder_error** out_error) {
-  return guarded(arena, out_error, [&] {
-    require(context != nullptr, "context must not be null");
-    require(out_reindex_result != nullptr, "out_reindex_result must not be null");
-    *out_reindex_result = nullptr;
-    auto* out = make<holder_reindex_result>(arena);
-    *out = to_c(arena, contract::reindex_search(*context));
-    *out_reindex_result = out;
   });
 }
 

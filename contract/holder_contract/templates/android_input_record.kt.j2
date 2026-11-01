@@ -1,3 +1,0 @@
-data class {{ name }}(
-{% for field in fields %}    val {{ field.kotlin_name }}: {{ field.kotlin_type }}{% if field.optional %}?{% endif %}{% if field.default is not none %} = {{ field.default }}{% endif %},
-{% endfor %})

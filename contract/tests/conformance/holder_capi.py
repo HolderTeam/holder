@@ -13,22 +13,16 @@ from typing import Any
 
 import cffi
 
-from holder_contract.generate import (
-    SCALARS_C,
-    Instance,
-    Model,
-    c_out,
-    c_param,
-    generate,
-    literal_member,
-    map_c_name,
-    snake,
-)
+from compiler.ir import ContractView, ScalarType
+from generators.core.abi import SCALARS_C, literal_member, snake
+from generators.core.render import c_out, c_param
+from generators.core.types import CoreTypes, Instance, map_c_name
+from holder_contract.generate import generate
 
 CONTRACT = Path(__file__).resolve().parents[2]
 SCHEMA = CONTRACT.parent / "core" / "schema" / "schema.sql"
 # The status codes from holder.h that are not error kinds.
-STATUS = {1: "InvalidArgument", 2: "Runtime", 3: "Allocation"}
+STATUS = {4000: "InvalidArgument", 5000: "Runtime", 5001: "Allocation"}
 # An enum value outside every enum, which the glue must reject.
 BAD_ENUM = 1000
 
@@ -74,7 +68,7 @@ class Core:
     """One context on a data directory, opened from the shared library at library_path."""
 
     def __init__(self, ir: dict[str, Any], library_path: str, data_dir: Path):
-        self.model = Model(ir)
+        self.model = CoreTypes(ContractView.model_validate(ir))
         self.ffi = cffi.FFI()
         self.ffi.cdef(HAND_WRITTEN + declarations(generate(ir)["holder_api.h"]))
         self.lib = self.ffi.dlopen(library_path)
@@ -110,12 +104,12 @@ class Core:
 
     def call(self, operation: str, **arguments: Any) -> Any:
         """Call an operation; raises OperationError with the error kind's name when it fails."""
-        op = next(o for o in self.model.operations if o["name"] == operation)
+        op = next(o for o in self.model.operations if o.name == operation)
         keep: list[Any] = []  # cffi frees what it allocated when the last reference goes
         c_arguments = [self.context]
-        for parameter in op["parameters"]:
+        for parameter in op.parameters:
             param = c_param(self.model, op, parameter)
-            c_arguments.append(self.argument(op, param, arguments.get(parameter["name"], ...), keep))
+            c_arguments.append(self.argument(op, param, arguments.get(parameter.name, ...), keep))
         arena = self.lib.holder_arena_new()
         try:
             out = c_out(self.model, op)
@@ -125,9 +119,9 @@ class Core:
             self.check(status)
             if not out:
                 return None
-            returns = self.model.resolve(op["returns"])
-            if returns["kind"] == "list":
-                return self.from_c_list(returns["items"], result[0][0])
+            returns = self.model.resolve(op.returns).type
+            if returns.kind == "list":
+                return self.from_c_list(returns.items, result[0][0])
             return self.from_c(self.model.instance(returns, {}), result[0][0])
         finally:
             self.lib.holder_arena_free(arena)
@@ -141,8 +135,8 @@ class Core:
 
     def argument(self, op, param, value, keep):
         slot, t = param.slot, param.slot.type
-        upper = f"holder_{op['name']}_{slot.name}".upper()
-        kind = t["kind"]
+        upper = f"holder_{op.name}_{slot.name}".upper()
+        kind = t.kind
         if kind == "string":
             return self.text(value, keep)
         if kind in SCALARS_C:
@@ -161,16 +155,16 @@ class Core:
                 return getattr(self.lib, f"{upper}_NONE")
             if value is ...:
                 return getattr(self.lib, f"{upper}_DEFAULT")
-            if value in t["values"]:
+            if value in t.values:
                 return getattr(self.lib, f"{upper}_{literal_member(value)}")
             if value is None:
                 raise Unrepresentable(f"null for {slot.name}")
             return BAD_ENUM
         if kind == "union":
-            choice = self.ffi.new(f"holder_{op['name']}_{slot.name}*")
-            literals = [v for a in t["alternatives"] if a["kind"] == "literal" for v in a["values"]]
-            other = next(self.model.resolve(a) for a in t["alternatives"] if a["kind"] != "literal")
-            member = snake(other.get("alias", "value"))
+            choice = self.ffi.new(f"holder_{op.name}_{slot.name}*")
+            literals = [v for a in t.alternatives if a.kind == "literal" for v in a.values]
+            other = next(self.model.resolve(a) for a in t.alternatives if a.kind != "literal")
+            member = snake(other.alias or "value")
             if value is ... or value is None:
                 choice.kind = getattr(self.lib, f"{upper}_NONE")
             elif value in literals:
@@ -196,7 +190,7 @@ class Core:
         return record
 
     def field(self, slot, value, keep):
-        kind = slot.type["kind"]
+        kind = slot.type.kind
         if slot.change:
             change = self.ffi.new("holder_string_change*")
             if value is ...:
@@ -212,12 +206,12 @@ class Core:
             return self.text(value, keep)
         if kind == "literal":
             if value is ... and slot.has_default:
-                return getattr(self.lib, f"holder_{snake(slot.type['enum'])}_DEFAULT".upper())
+                return getattr(self.lib, f"holder_{snake(slot.enum)}_DEFAULT".upper())
             if value is ... or value is None:
                 raise Unrepresentable(f"no value for {slot.name}")
-            if value not in slot.type["values"]:
+            if value not in slot.type.values:
                 return BAD_ENUM
-            return getattr(self.lib, f"holder_{snake(slot.type['enum'])}_{literal_member(value)}".upper())
+            return getattr(self.lib, f"holder_{snake(slot.enum)}_{literal_member(value)}".upper())
         if kind in SCALARS_C and (slot.nullable or slot.optional):
             if value is ... or value is None:
                 return self.ffi.NULL
@@ -232,9 +226,9 @@ class Core:
                 if slot.optional and value is ...:
                     return self.ffi.NULL
                 raise Unrepresentable(f"no value for {slot.name}")
-            name = map_c_name(slot.type)
+            name = map_c_name(slot.alias)
             entries = self.ffi.new(f"{name}_entry[]", max(len(value), 1))
-            string_values = self.model.resolve(slot.type["values"])["kind"] == "string"
+            string_values = self.model.kind(slot.type.values) == "string"
             for i, (key, values) in enumerate(value.items()):
                 entries[i].key = self.text(key, keep)
                 if string_values:
@@ -248,12 +242,12 @@ class Core:
             mapped = self.ffi.new(f"{name}*", {"items": entries, "count": len(value)})
             keep += [entries, mapped]
             return mapped if slot.optional else mapped[0]
-        if kind == "list" and self.model.resolve(slot.type["items"])["kind"] == "named":
+        if kind == "list" and self.model.kind(slot.type.items) == "named":
             if value is ... or value is None:
                 if slot.optional and value is ...:
                     return self.ffi.NULL
                 raise Unrepresentable(f"no value for {slot.name}")
-            item = self.model.instance(self.model.resolve(slot.type["items"]), {})
+            item = self.model.instance(self.model.resolve(slot.type.items).type, {})
             items = self.ffi.new(f"{item.c_name}[]", max(len(value), 1))
             for i, element in enumerate(value):
                 self.record(item, element, keep, into=items[i])
@@ -266,7 +260,7 @@ class Core:
         out = {}
         for slot in self.model.slots(instance):
             value = getattr(struct, slot.name)
-            kind = slot.type["kind"]
+            kind = slot.type.kind
             if kind == "string" or (kind in SCALARS_C and (slot.nullable or slot.optional)):
                 if value == self.ffi.NULL:
                     if slot.nullable:
@@ -275,25 +269,25 @@ class Core:
                 value = self.ffi.string(value).decode() if kind == "string" else value[0]
             elif kind == "literal":
                 # C's members count from 1, in the contract's order.
-                value = slot.type["values"][value - 1]
+                value = slot.type.values[value - 1]
             elif kind == "list":
-                value = self.from_c_list(slot.type["items"], value)
+                value = self.from_c_list(slot.type.items, value)
             elif kind == "map":
-                string_values = self.model.resolve(slot.type["values"])["kind"] == "string"
+                string_values = self.model.kind(slot.type.values) == "string"
                 value = {self.ffi.string(value.items[i].key).decode():
                          (self.ffi.string(value.items[i].values).decode() if string_values
-                          else self.from_c_list({"kind": "string"}, value.items[i].values))
+                          else self.from_c_list(ScalarType(kind="string"), value.items[i].values))
                          for i in range(value.count)}
             elif kind == "named":
                 value = self.from_c(self.model.instance(slot.type, {}), value)
             out[slot.name] = bool(value) if kind == "bool" else value
         return out
 
-    def from_c_list(self, items: dict[str, Any], value) -> list[Any]:
-        items = self.model.resolve(items)
-        if items["kind"] == "string":
+    def from_c_list(self, items, value) -> list[Any]:
+        items = self.model.resolve(items).type
+        if items.kind == "string":
             return [self.ffi.string(value.items[i]).decode() for i in range(value.count)]
-        if items["kind"] in SCALARS_C:
+        if items.kind in SCALARS_C:
             return [value.items[i] for i in range(value.count)]
         item = self.model.instance(items, {})
         return [self.from_c(item, value.items[i]) for i in range(value.count)]

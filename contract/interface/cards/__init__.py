@@ -11,7 +11,6 @@ from .models import (
     CardSummary,
     CardUpdate,
     NewCard,
-    Page,
     Tag,
     TagCount,
     TagOccurrence,
@@ -19,6 +18,6 @@ from .models import (
 
 __all__ = (
     "Card", "CardBreadcrumb", "CardId", "CardListItem", "CardMetadata", "CardMove",
-    "CardSummary", "CardUpdate", "NewCard", "Page", "Tag", "TagCount",
+    "CardSummary", "CardUpdate", "NewCard", "Tag", "TagCount",
     "TagOccurrence",
 )

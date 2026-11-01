@@ -1,27 +1,34 @@
 """Holder's contract. Nothing here runs in Holder.
 
-cards.py and errors.py declare records and error kinds; app.py declares the operations, as the
-daemon's routes.
+Each domain package declares its records and error kinds in model modules and its operations in
+operations.py; app.py assembles the operations. DECLARATION_ORDER fixes the order of the model
+modules in the IR, independently of file paths.
 """
-"""Holder's public contract declarations, in stable output order."""
 
 DECLARATION_ORDER = (
-    "ai",
-    "card_references",
+    "errors",
+    "ai.models",
+    "cards.references",
+    "pagination.models",
     "projects.ids",
     "cards.models",
-    "daemon_routes",
-    "errors",
-    "git",
-    "history",
-    "links",
-    "locations",
-    "maintenance",
-    "milestones",
+    "cards.errors",
+    "daemon.models",
+    "events.models",
+    "git.models",
+    "history.models",
+    "history.errors",
+    "links.models",
+    "locations.models",
+    "maintenance.models",
+    "maintenance.errors",
+    "milestones.models",
     "projects.models",
-    "rebuild",
-    "recovery",
-    "resources",
-    "search",
-    "trash",
+    "maintenance.rebuild",
+    "recovery.models",
+    "recovery.errors",
+    "resources.models",
+    "search.models",
+    "trash.models",
+    "trash.errors",
 )

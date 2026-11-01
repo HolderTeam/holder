@@ -11,12 +11,14 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from compiler.errors import ContractError
+from compiler.ir import ContractView
 from compiler.pipeline import Compiler, ContractSource
+from generators.android.client import generate_android_client
+from generators.common import Unsupported
 
-from .android import generate_android
 from .daemon import DAEMON_PATHS, OPENAPI_PATHS, api_documents, generate_daemon
 from .extract import load_contract
-from .generate import CORE_PATHS, Unsupported, generate
+from .generate import CORE_PATHS, generate
 
 CONTRACT = Path(__file__).resolve().parents[1]
 REPOSITORY = CONTRACT.parent
@@ -43,7 +45,7 @@ def repository_files(ir: dict, contract, files: dict[str, str]) -> dict[str, str
     """Every generated file the repository holds, by its path in the repository."""
     daemon = generate_daemon(ir, contract)
     return {**{CORE_PATHS[name]: text for name, text in files.items()},
-            **generate_android(ir),
+            **generate_android_client(ContractView.model_validate(ir)),
             **{DAEMON_PATHS[name]: daemon[name] for name in DAEMON_PATHS},
             **{OPENAPI_PATHS[name]: text for name, text in api_documents(contract, REPOSITORY).items()}}
 
@@ -111,7 +113,8 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("generate needs --output, a directory")
         try:
             files = {**files, **generate_daemon(ir, load_contract(args.root, args.package)),
-                     **{path.rsplit('/', 1)[-1]: text for path, text in generate_android(ir).items()}}
+                     **{path.rsplit('/', 1)[-1]: text
+                        for path, text in generate_android_client(ContractView.model_validate(ir)).items()}}
         except (Unsupported, ValueError) as error:
             print(f"A generator does not support this yet: {error}", file=sys.stderr)
             return 1

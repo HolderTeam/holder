@@ -1,11 +1,11 @@
 create: status 0, c1 Thesis, content 'Intro #draft', tags 1, first at 6, updated_at == created_at: 1
 create child: status 0, parent c1, sort_key 2.5, content ''
-create with an empty title: status 1, new_card.title must not be empty
-create under a missing parent: status 100, parent not found: missing
+create with an empty title: status 4000, new_card.title must not be empty
+create under a missing parent: status 4040, parent not found: missing
 get: status 0, Thesis, deleted_at NULL
-get a missing card: status 100, card not found: c9
-get a card in another project: status 100, card not found: c1
-get with an empty ID: status 1, card_id must not be empty
+get a missing card: status 4040, card not found: c9
+get a card in another project: status 4040, card not found: c1
+get with an empty ID: status 4000, card_id must not be empty
 breadcrumbs: status 0, 2 steps, Project then Thesis
 resolve card: status 0, match full_id, card c1
 resolve ambiguous: status 0, 2 candidates
@@ -13,41 +13,41 @@ resolve missing: status 0, match absent 1, card absent 1, candidates absent 1
 list all: status 0, 2 cards, content absent, child_count absent, next_cursor NULL
 list roots with content and counts: status 0, 1 card, 'Intro #draft', 1 child
 list children of c1, one per page: status 0, Chapter 1
-list with limit 9000: status 1, limit must be from 1 to 5000
-list with an unknown order: status 1, order is not a holder_list_cards_order value
-list children of a NULL card: status 1, parent.card_id must not be null
-list a missing project: status 100, project not found: p9
+list with limit 9000: status 4000, limit must be from 1 to 5000
+list with an unknown order: status 4000, order is not a holder_list_cards_order value
+list children of a NULL card: status 4000, parent.card_id must not be null
+list a missing project: status 4040, project not found: p9
 update: status 0, Thesis, revised, content 'Intro #draft', parent c2
 clear the parent: status 0, Thesis, revised, parent null
-update with an unknown change: status 1, card_update.parent_card_id.change is not a holder_change value
-move a card into itself: status 105, a card cannot go under itself
-move with no intent: status 1, card_move.intent is not a holder_card_move_intent value
+update with an unknown change: status 4000, card_update.parent_card_id.change is not a holder_change value
+move a card into itself: status 4220, a card cannot go under itself
+move with no intent: status 4000, card_move.intent is not a holder_card_move_intent value
 trash: status 0, deleted at 1793000100
-get a trashed card: status 100, card not found: c1
+get a trashed card: status 4040, card not found: c1
 restore: status 0, deleted_at null
-restore a live card: status 101, the card is not in the trash: c1
+restore a live card: status 4090, the card is not in the trash: c1
 add a tag: status 0, tags 2, last 'idea'
-add a tag with its #: status 1, not a tag: #idea
-remove a tag in the prose: status 101, the card carries #idea only in its prose
+add a tag with its #: status 4000, not a tag: #idea
+remove a tag in the prose: status 4090, the card carries #idea only in its prose
 list tags: status 0, 2 tags, first draft on 1
-list tags of a missing project: status 100, project not found: p2
+list tags of a missing project: status 4040, project not found: p2
 add a link: status 0, c1 p1/4/r1 cites 'a note'
-add a link to an unknown type: status 1, new_link.target_type is not a holder_new_link_target_type value
+add a link to an unknown type: status 4000, new_link.target_type is not a holder_new_link_target_type value
 remove a link: status 0, 0 left
 add a milestone: status 0, m3 c1 start=2026-10-16 due=2026-10-17T09:30:00+01:00 release
-add a milestone whose dates are missing: status 1, new_milestone.dates.items must not be null
+add a milestone whose dates are missing: status 4000, new_milestone.dates.items must not be null
 clear a milestone's dates and kind: status 0, 0 dates, kind (null)
 calendar: status 0, m3 on Thesis, revised
 remove a milestone: status 0, 0 left
 create a resource: status 0, res-1 website identifier=https://example.com/a,https://example.com/b
-update a resource with a repeated name: status 1, resource_update.metadata repeats a key
+update a resource with a repeated name: status 4000, resource_update.metadata repeats a key
 attach a resource: status 0, 1 attached
 create location: status 0, bucket=photos
-update location with a repeated option: status 1, storage_location_update.configuration repeats a key
+update location with a repeated option: status 4000, storage_location_update.configuration repeats a key
 create a project: status 0, p5 Garden privacy 1
-create a project with an unknown privacy mode: status 1, new_project.privacy_mode is not a holder_new_project_privacy_mode value
+create a project with an unknown privacy mode: status 4000, new_project.privacy_mode is not a holder_new_project_privacy_mode value
 list projects: status 0, 1 found
-list projects in an unknown order: status 1, order is not a holder_list_projects_order value
+list projects in an unknown order: status 4000, order is not a holder_list_projects_order value
 sync a project with no remote: status 0, result 2, pull 3, push 1
 list project history: status 0, 0 activities
 list card history: status 0, 0 entries

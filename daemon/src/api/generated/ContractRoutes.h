@@ -1,7 +1,7 @@
-// Generated from contract/interface/ai.py, contract/interface/card_references.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/daemon_routes.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/locations.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/operations/ai.py, contract/interface/operations/git.py, contract/interface/operations/history.py, contract/interface/operations/links.py, contract/interface/operations/locations.py, contract/interface/operations/maintenance.py, contract/interface/operations/milestones.py, contract/interface/operations/resources.py, contract/interface/operations/search.py, contract/interface/operations/system.py, contract/interface/operations/trash.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
-// The daemon's HTTP routes for the contract's operations; contract/holder_contract/http_routes.py says how they behave.
+// The daemon's HTTP routes for the contract's operations; contract/generators/daemon/contract_routes.py says how they behave.
 #pragma once
 #include "api/generated/ContractJson.h"
 #include <charconv>
@@ -237,8 +237,8 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "create_project");
         }
     }
-    static const std::regex route_47("^/rebuild$");
-    if (method == "POST" && std::regex_match(route_path, match, route_47)) {
+    static const std::regex route_44("^/rebuild$");
+    if (method == "POST" && std::regex_match(route_path, match, route_44)) {
         holder::contract::RebuildRequest request{};
         try {
             check_query_names(decode_query(query_string), {});
@@ -258,8 +258,8 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "rebuild_project");
         }
     }
-    static const std::regex route_48("^/reindex$");
-    if (method == "POST" && std::regex_match(route_path, match, route_48)) {
+    static const std::regex route_45("^/reindex$");
+    if (method == "POST" && std::regex_match(route_path, match, route_45)) {
         try {
             check_query_names(decode_query(query_string), {});
         } catch (const std::invalid_argument& error) {
@@ -363,8 +363,8 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "resolve_card_reference");
         }
     }
-    static const std::regex route_46("^/recovery\\-token/import$");
-    if (method == "POST" && std::regex_match(route_path, match, route_46)) {
+    static const std::regex route_48("^/recovery\\-token/import$");
+    if (method == "POST" && std::regex_match(route_path, match, route_48)) {
         holder::contract::RecoveryTokenImportRequest request{};
         try {
             check_query_names(decode_query(query_string), {});
@@ -1019,8 +1019,8 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "list_milestones_by_instant");
         }
     }
-    static const std::regex route_44("^/projects/([^/]+)/recovery\\-token/export$");
-    if (method == "POST" && std::regex_match(route_path, match, route_44)) {
+    static const std::regex route_46("^/projects/([^/]+)/recovery\\-token/export$");
+    if (method == "POST" && std::regex_match(route_path, match, route_46)) {
         std::string project_id{};
         holder::contract::RecoveryTokenExportRequest request{};
         try {
@@ -1046,8 +1046,8 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "export_project_recovery_token");
         }
     }
-    static const std::regex route_45("^/projects/([^/]+)/recovery\\-token/import$");
-    if (method == "POST" && std::regex_match(route_path, match, route_45)) {
+    static const std::regex route_47("^/projects/([^/]+)/recovery\\-token/import$");
+    if (method == "POST" && std::regex_match(route_path, match, route_47)) {
         std::string project_id{};
         holder::contract::RecoveryTokenImportRequest request{};
         try {
@@ -2231,16 +2231,16 @@ inline std::set<std::string_view> allowed_methods(const std::string& path) {
     if (std::regex_match(route_path, path_16)) return {"GET"};
     static const std::regex path_17("^/docs$");
     if (std::regex_match(route_path, path_17)) return {"GET"};
-    static const std::regex path_18("^/card\\-references/resolve$");
-    if (std::regex_match(route_path, path_18)) return {"POST"};
-    static const std::regex path_19("^/recovery\\-token/import$");
+    static const std::regex path_18("^/locations/preferred$");
+    if (std::regex_match(route_path, path_18)) return {"PUT"};
+    static const std::regex path_19("^/card\\-references/resolve$");
     if (std::regex_match(route_path, path_19)) return {"POST"};
-    static const std::regex path_20("^/search/cards$");
-    if (std::regex_match(route_path, path_20)) return {"GET"};
-    static const std::regex path_21("^/search/ai$");
+    static const std::regex path_20("^/recovery\\-token/import$");
+    if (std::regex_match(route_path, path_20)) return {"POST"};
+    static const std::regex path_21("^/search/cards$");
     if (std::regex_match(route_path, path_21)) return {"GET"};
-    static const std::regex path_22("^/locations/preferred$");
-    if (std::regex_match(route_path, path_22)) return {"PUT"};
+    static const std::regex path_22("^/search/ai$");
+    if (std::regex_match(route_path, path_22)) return {"GET"};
     static const std::regex path_23("^/events/cursor$");
     if (std::regex_match(route_path, path_23)) return {"GET"};
     static const std::regex path_24("^/ai/messages$");
@@ -2307,24 +2307,24 @@ inline std::set<std::string_view> allowed_methods(const std::string& path) {
     if (std::regex_match(route_path, path_54)) return {"DELETE", "GET", "PATCH"};
     static const std::regex path_55("^/docs/([^/]+)$");
     if (std::regex_match(route_path, path_55)) return {"GET"};
-    static const std::regex path_56("^/projects/([^/]+)/cards$");
-    if (std::regex_match(route_path, path_56)) return {"GET", "POST"};
-    static const std::regex path_57("^/projects/([^/]+)/tags$");
-    if (std::regex_match(route_path, path_57)) return {"GET"};
-    static const std::regex path_58("^/projects/([^/]+)/calendar$");
-    if (std::regex_match(route_path, path_58)) return {"GET"};
-    static const std::regex path_59("^/projects/([^/]+)/resources$");
-    if (std::regex_match(route_path, path_59)) return {"GET", "POST"};
-    static const std::regex path_60("^/projects/([^/]+)/encryption\\-check$");
+    static const std::regex path_56("^/locations/([^/]+)/binding$");
+    if (std::regex_match(route_path, path_56)) return {"DELETE", "PUT"};
+    static const std::regex path_57("^/locations/([^/]+)/test$");
+    if (std::regex_match(route_path, path_57)) return {"POST"};
+    static const std::regex path_58("^/projects/([^/]+)/cards$");
+    if (std::regex_match(route_path, path_58)) return {"GET", "POST"};
+    static const std::regex path_59("^/projects/([^/]+)/tags$");
+    if (std::regex_match(route_path, path_59)) return {"GET"};
+    static const std::regex path_60("^/projects/([^/]+)/calendar$");
     if (std::regex_match(route_path, path_60)) return {"GET"};
-    static const std::regex path_61("^/projects/([^/]+)/repair\\-hierarchy$");
-    if (std::regex_match(route_path, path_61)) return {"POST"};
-    static const std::regex path_62("^/projects/([^/]+)/history$");
+    static const std::regex path_61("^/projects/([^/]+)/resources$");
+    if (std::regex_match(route_path, path_61)) return {"GET", "POST"};
+    static const std::regex path_62("^/projects/([^/]+)/encryption\\-check$");
     if (std::regex_match(route_path, path_62)) return {"GET"};
-    static const std::regex path_63("^/locations/([^/]+)/binding$");
-    if (std::regex_match(route_path, path_63)) return {"DELETE", "PUT"};
-    static const std::regex path_64("^/locations/([^/]+)/test$");
-    if (std::regex_match(route_path, path_64)) return {"POST"};
+    static const std::regex path_63("^/projects/([^/]+)/repair\\-hierarchy$");
+    if (std::regex_match(route_path, path_63)) return {"POST"};
+    static const std::regex path_64("^/projects/([^/]+)/history$");
+    if (std::regex_match(route_path, path_64)) return {"GET"};
     static const std::regex path_65("^/projects/([^/]+)/milestones/days$");
     if (std::regex_match(route_path, path_65)) return {"GET"};
     static const std::regex path_66("^/projects/([^/]+)/milestones/instants$");
@@ -2396,11 +2396,11 @@ inline std::set<std::string_view> allowed_methods(const std::string& path) {
 // Public routes do not require the daemon's bearer token.
 inline bool is_public(const std::string& method, const std::string& path) {
     const auto route_path = path.substr(0, path.find('?'));
-    static const std::regex public_0("^/alive$");
+    static const std::regex public_0("^/locations/([^/]+)/oauth/google\\-drive/callback$");
     if (method == "GET" && std::regex_match(route_path, public_0)) return true;
-    static const std::regex public_1("^/ping$");
+    static const std::regex public_1("^/alive$");
     if (method == "GET" && std::regex_match(route_path, public_1)) return true;
-    static const std::regex public_2("^/locations/([^/]+)/oauth/google\\-drive/callback$");
+    static const std::regex public_2("^/ping$");
     if (method == "GET" && std::regex_match(route_path, public_2)) return true;
     static const std::regex public_3("^/openapi\\.yaml$");
     if (method == "GET" && std::regex_match(route_path, public_3)) return true;

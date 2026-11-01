@@ -12,13 +12,15 @@ from pathlib import Path
 
 import pytest
 
-from compiler.ir import ContractView
+from compiler.ir import ContractView, HttpBindingView
+from generators.common import Unsupported
+from generators.daemon.contract_routes import generate_routes
 from generators.daemon.http import plan_http
+from generators.daemon.openapi import ERROR_SCHEMAS, document, dumps, exact_bounds, merge, named_by_title
+from generators.daemon.paths import route_pattern, validate_routes
 from holder_contract.daemon import generate_daemon
 from holder_contract.extract import extract, load_contract
-from holder_contract.generate import Model, Unsupported, generate
-from holder_contract.http_routes import generate_routes, route_pattern, validate_routes
-from holder_contract.openapi import ERROR_SCHEMAS, document, dumps, exact_bounds, merge, named_by_title
+from holder_contract.generate import generate
 
 CONTRACT = Path(__file__).resolve().parents[1]
 TESTS = CONTRACT / "tests"
@@ -37,7 +39,7 @@ def holder_contract():
 
 
 def binding(method, path):
-    return {"operation": path, "method": method, "path": path}
+    return HttpBindingView(operation=path, method=method, path=path, path_parameters=[], query=[], status=200)
 
 
 # ---- routes ------------------------------------------------------------------------------------
@@ -91,7 +93,7 @@ def test_a_literal_segment_is_tried_before_a_parameter():
     get_card["path"] = "/projects/{project_id}/cards/latest"
     get_card["path_parameters"] = ["project_id"]
     get_card["query"] = ["card_id"]
-    routes = generate_routes(Model(ir), "codec.h")
+    routes = generate_routes(ContractView.model_validate(ir), "codec.h")
     literal = re.search(r'regex route_\d+\("\^/projects/\(\[\^/\]\+\)/cards/latest\$"\)', routes)
     parameter = re.search(r'regex route_\d+\("\^/projects/\(\[\^/\]\+\)/cards/\(\[\^/\]\+\)\$"\)', routes)
     assert literal and parameter and literal.start() < parameter.start()
@@ -119,7 +121,7 @@ def test_a_body_that_is_not_a_record_stops_generation():
     create_op = next(op for op in ir["operations"] if op["name"] == "create_card")
     next(p for p in create_op["parameters"] if p["name"] == "card")["type"] = {"kind": "string"}
     with pytest.raises(Unsupported, match="a request body that is not a record"):
-        generate_routes(Model(ir), "codec.h")
+        generate_routes(ContractView.model_validate(ir), "codec.h")
     assert create["body"] == "card"
 
 
@@ -269,15 +271,15 @@ def test_generated_routes_compile_and_answer_requests(tmp_path):
 
 
 def test_generate_command_writes_core_daemon_and_android_files(tmp_path):
+    from generators.android.client import generate_android_client
     from holder_contract.__main__ import main
 
     assert main(["generate", "--output", str(tmp_path)]) == 0
-    assert sorted(p.name for p in tmp_path.iterdir()) == [
-        "AiJson.h", "AiRoutes.h", "Contract.h", "ContractCApi.cpp", "ContractCards.kt",
-        "ContractHistory.kt", "ContractJson.h", "ContractOperations.kt", "ContractProjects.kt", "ContractResources.kt",
-        "ContractRoutes.h", "contract_cards.cpp", "contract_history.cpp", "contract_operations.cpp",
-        "contract_projects.cpp",
-        "contract_resources.cpp", "holder_api.h", "openapi.json"]
+    client = {path.rsplit("/", 1)[-1] for path in generate_android_client(ContractView.model_validate(holder_ir()))}
+    assert {"Cards.kt", "Client.kt", "contract_client.cpp"} <= client
+    assert sorted(p.name for p in tmp_path.iterdir()) == sorted([
+        "AiJson.h", "AiRoutes.h", "Contract.h", "ContractCApi.cpp", "ContractJson.h", "ContractRoutes.h",
+        "holder_api.h", "openapi.json", *client])
 
 
 def daemon_document(paths):

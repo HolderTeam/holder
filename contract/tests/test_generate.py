@@ -1,6 +1,6 @@
 """The C generator on Holder's contract.
 
-Core holds the generated files (see holder_contract.generate.CORE_PATHS). After an intended change
+Core holds the generated files (see generators.core.CORE_PATHS). After an intended change
 to the contract or the generator, rewrite them with make -C contract update and review the
 difference. tests/c/ compiles the output with a stand-in for core and runs it.
 """
@@ -11,9 +11,13 @@ from pathlib import Path
 
 import pytest
 
+from compiler.ir import ContractView
+from generators.common import Unsupported
+from generators.core.abi import snake
+from generators.core.types import CoreTypes, camel
+from generators.daemon.contract_json import generate_codec
 from holder_contract.extract import extract
-from holder_contract.generate import CORE_PATHS, Model, Unsupported, camel, generate, snake
-from holder_contract.json_codec import generate_codec
+from holder_contract.generate import CORE_PATHS, generate
 
 CONTRACT = Path(__file__).resolve().parents[1]
 TESTS = CONTRACT / "tests"
@@ -91,7 +95,7 @@ def test_generated_code_compiles_and_runs(tmp_path):
 def with_partial_update(ir):
     """Holder's contract plus change_card, whose CardChange keeps, sets or clears a card's parent,
     and says how with a choice of literals."""
-    ir["records"].append({"name": "CardChange", "source": "interface/cards.py", "doc": "A change to a card.",
+    ir["records"].append({"name": "CardChange", "source": "interface/cards/models.py", "doc": "A change to a card.",
                           "fields": [{"name": "intent", "doc": "How to place it.",
                                       "type": {"kind": "literal", "values": ["into", "to_end"]}},
                                      {"name": "parent_card_id", "doc": "Null makes it a root card.", "omittable": True,
@@ -233,7 +237,7 @@ int main(void) {
 def test_a_partial_update_keeps_sets_or_clears_through_json(tmp_path):
     ir = with_partial_update(holder_ir())
     (tmp_path / "Contract.h").write_text(generate(ir)["Contract.h"], encoding="utf-8")
-    (tmp_path / "ContractJson.h").write_text(generate_codec(Model(ir), "Contract.h"), encoding="utf-8")
+    (tmp_path / "ContractJson.h").write_text(generate_codec(CoreTypes(ContractView.model_validate(ir)), "Contract.h"), encoding="utf-8")
     (tmp_path / "main.cpp").write_text(r"""
 #include "ContractJson.h"
 

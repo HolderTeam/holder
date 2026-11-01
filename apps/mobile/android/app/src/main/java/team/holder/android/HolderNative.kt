@@ -1,19 +1,72 @@
 package team.holder.android
 
 import android.content.Context
-import team.holder.android.generated.ContractCards
-import team.holder.android.generated.ContractOperations
-import team.holder.android.generated.ContractPage
-import team.holder.android.generated.ContractCardListItem
-import team.holder.android.generated.ContractHistory
-import team.holder.android.generated.ContractResources
-import team.holder.android.generated.ContractCardMetadata
-import team.holder.android.generated.ContractProjects
-import team.holder.android.generated.ContractProject
-import team.holder.android.generated.ContractNewProject
+import team.holder.android.contract.Card
+import team.holder.android.contract.CardListItem
+import team.holder.android.contract.CardMetadata
+import team.holder.android.contract.CardMove
+import team.holder.android.contract.CardMoveIntent
+import team.holder.android.contract.CardReferenceResolveDataStatus
+import team.holder.android.contract.CardReferenceResolveRequest
+import team.holder.android.contract.CardReferenceResolveRequestScope
+import team.holder.android.contract.CardUpdate
+import team.holder.android.contract.Cards
+import team.holder.android.contract.Change
+import team.holder.android.contract.ConflictException
+import team.holder.android.contract.DeleteProjectTrashItemType
+import team.holder.android.contract.EmptyTrashType
+import team.holder.android.contract.ListCardsOrder
+import team.holder.android.contract.ListCardsParent
+import team.holder.android.contract.NewCard
+import team.holder.android.contract.Page
+import team.holder.android.contract.Search
+import team.holder.android.contract.Trash
+import team.holder.android.contract.CardHistoryRestoreResult
+import team.holder.android.contract.CardHistoryVersion
+import team.holder.android.contract.CompareCardHistoryMode
+import team.holder.android.contract.Git
+import team.holder.android.contract.LinkSourceType
+import team.holder.android.contract.LinkTargetType
+import team.holder.android.contract.Links
+import team.holder.android.contract.NewLink
+import team.holder.android.contract.NewLinkTargetType
+import team.holder.android.contract.NotFoundException
+import team.holder.android.contract.RemoveCardLinkTargetType
+import team.holder.android.contract.History
+import team.holder.android.contract.ListProjectsOrder
+import team.holder.android.contract.Locations
+import team.holder.android.contract.Maintenance
+import team.holder.android.contract.Milestone
+import team.holder.android.contract.MilestoneDate
+import team.holder.android.contract.MilestoneUpdate
+import team.holder.android.contract.Milestones
+import team.holder.android.contract.NewMilestone
+import team.holder.android.contract.NewProject
+import team.holder.android.contract.NewStorageLocation
+import team.holder.android.contract.NewStorageLocationProvider
+import team.holder.android.contract.NewProjectPrivacyMode
+import team.holder.android.contract.Project
+import team.holder.android.contract.ProjectUpdate
+import team.holder.android.contract.Projects
+import team.holder.android.contract.PullPhase
+import team.holder.android.contract.PushOptions
+import team.holder.android.contract.PushPhase
+import team.holder.android.contract.Recovery
+import team.holder.android.contract.RecoveryTokenExportRequest
+import team.holder.android.contract.RecoveryTokenImportRequest
+import team.holder.android.contract.RemoteTest
+import team.holder.android.contract.RemoteTestResultStatus
+import team.holder.android.contract.Resource
+import team.holder.android.contract.Resources
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.time.Instant
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 data class HolderProject(
     val projectId: String,
@@ -44,8 +97,6 @@ data class HolderCard(
 data class HolderTrashedCard(val cardId: String, val title: String, val deletedAt: Long)
 
 /** Matches holder_card_query_json's "view" values (lowercased on the wire). */
-enum class CardQueryView { ROOTS, CHILDREN, ALL, RECENT }
-
 /** One page of [HolderNative.backupSnapshotPage]: a project's cards, most-recently-updated
  * first. [cards] are kept as raw [JSONObject]s rather than reshaped into a typed data class --
  * [team.holder.android.git.backup.SnapshotWriter] writes each one straight through as one
@@ -99,8 +150,6 @@ data class HolderCardMoveResult(
     val cardId: String,
     val parentCardId: String?,
     val sortKey: Double,
-    val revision: Long,
-    val movedIntoTitle: String?,
 )
 
 data class HolderCardLinks(
@@ -352,13 +401,6 @@ data class RecoveryTokenExportResult(
     val recoveryToken: String,
 )
 
-data class RecoveryTokenMetadata(
-    val projectId: String,
-    val projectKeyId: String,
-    val projectName: String?,
-    val gitRemoteUrl: String?,
-)
-
 data class RecoveryTokenImportGlobalResult(
     val projectId: String,
     val projectCreated: Boolean,
@@ -396,9 +438,16 @@ object HolderNative {
      *   (whose storage provider may be on the network), so none of it blocks the other two.
      * Writes on different lanes are ordered by SQLite, and Git work on one project by core's
      * per-repository lock. */
+    // Projects are listed in pages of the contract's largest page.
+    private const val PROJECT_PAGE = 1000
+
     private val saveLane = NativeLane("holder-save")
     private val readLane = NativeLane("holder-read")
     private val backgroundLane = NativeLane("holder-background")
+
+    /** Runs [block] with the open context's handle on the save lane, for calls to the generated
+     * contract client (team.holder.android.contract), which take the handle first. */
+    internal fun <T> onContract(block: (Long) -> T): T = saveLane.call(block)
 
     @Volatile
     private var isOpen = false
@@ -414,10 +463,6 @@ object HolderNative {
     private external fun nativeContextOpen(dataDir: String, schemaSql: String): Long
     private external fun nativeContextClose(contextHandle: Long)
     private external fun nativeDatabaseRebuild(dataDir: String, schemaSql: String, dryRun: Boolean): String
-    private external fun nativeProjectList(contextHandle: Long): String
-    private external fun nativeCardList(contextHandle: Long, projectId: String): String
-    private external fun nativeCardGet(contextHandle: Long, cardId: String, scope: Int): String
-    private external fun nativeCardQuery(contextHandle: Long, projectId: String, requestJson: String): String
     private external fun nativeBackupSnapshotPage(
         contextHandle: Long,
         projectId: String,
@@ -432,169 +477,15 @@ object HolderNative {
         cardsJson: String,
         commitMessage: String,
     ): String
-    private external fun nativeCardGetContent(contextHandle: Long, cardId: String): String
-    private external fun nativeCardReferenceResolve(
-        contextHandle: Long,
-        projectId: String,
-        reference: String,
-        scope: Int,
-    ): String
-    private external fun nativeCardMove(
-        contextHandle: Long,
-        projectId: String,
-        cardId: String,
-        requestJson: String,
-    ): String
-    private external fun nativeProjectCreate(
-        contextHandle: Long,
-        name: String,
-        rootPath: String?,
-        privacyMode: String?,
-    ): String
-    private external fun nativeCardCreate(
-        contextHandle: Long,
-        projectId: String,
-        title: String,
-        content: String?,
-        parentCardId: String?,
-    ): String
     private external fun nativeEnsureDefaultProject(
         contextHandle: Long,
         name: String,
         welcomeTitle: String,
         welcomeContent: String?,
     ): String
-    private external fun nativeProjectRename(contextHandle: Long, projectId: String, name: String): String
-    private external fun nativeProjectDelete(contextHandle: Long, projectId: String)
-    private external fun nativeCardUpdateContent(
-        contextHandle: Long,
-        cardId: String,
-        content: String,
-        title: String?,
-    ): String
-    private external fun nativeCardDelete(contextHandle: Long, cardId: String)
-    private external fun nativeCardListTrashed(contextHandle: Long, projectId: String): String
-    private external fun nativeCardRestore(contextHandle: Long, cardId: String): String
-    private external fun nativeCardHistoryList(
-        contextHandle: Long,
-        projectId: String,
-        cardId: String,
-        cursorOid: String?,
-        limit: Int,
-    ): String
-    private external fun nativeCardHistoryCompare(
-        contextHandle: Long,
-        projectId: String,
-        cardId: String,
-        fromOid: String?,
-        toOid: String,
-    ): String
-    private external fun nativeCardHistoryRestore(
-        contextHandle: Long,
-        cardId: String,
-        historicalOid: String,
-    ): String
-    private external fun nativeCardListLinks(contextHandle: Long, cardId: String): String
-    private external fun nativeCardLinkAdd(
-        contextHandle: Long,
-        fromCardId: String,
-        toCardId: String,
-        kind: String,
-        label: String?,
-    ): String
-    private external fun nativeCardLinkRemove(
-        contextHandle: Long,
-        fromCardId: String,
-        toCardId: String,
-        kind: String,
-    )
-    private external fun nativeCardLinkAddJson(contextHandle: Long, fromCardId: String, optionsJson: String): String
-    private external fun nativeCardLinkRemoveJson(contextHandle: Long, fromCardId: String, optionsJson: String)
     private external fun nativeListLinkKinds(): String
-    private external fun nativeCardListTags(contextHandle: Long, cardId: String): String
-    private external fun nativeCardTagAdd(contextHandle: Long, cardId: String, tag: String): Int
-    private external fun nativeCardTagRemove(contextHandle: Long, cardId: String, tag: String): Int
     private external fun nativeCardListEditableTags(contextHandle: Long, cardId: String): String
-    private external fun nativeCardsWithTag(contextHandle: Long, projectId: String, tag: String): String
-    private external fun nativeProjectListTags(contextHandle: Long, projectId: String): String
-    private external fun nativeCardListMilestones(contextHandle: Long, cardId: String): String
-    private external fun nativeCardMilestoneAdd(
-        contextHandle: Long,
-        cardId: String,
-        startAt: Long,
-        hasEndAt: Boolean,
-        endAt: Long,
-        allDay: Boolean,
-        kind: String?,
-        description: String?,
-    ): String
-    private external fun nativeCardMilestoneUpdate(
-        contextHandle: Long,
-        projectId: String,
-        cardId: String,
-        milestoneId: String,
-        updateJson: String,
-    ): String
-    private external fun nativeCardMilestoneRemove(contextHandle: Long, cardId: String, milestoneId: String)
-    private external fun nativeProjectListMilestonesInRange(
-        contextHandle: Long,
-        projectId: String,
-        from: Long,
-        to: Long,
-    ): String
-    private external fun nativeCardSearch(
-        contextHandle: Long,
-        projectId: String,
-        query: String,
-        limit: Int,
-        offset: Int,
-    ): String
-    private external fun nativeProjectUpdateGitRemote(
-        contextHandle: Long,
-        projectId: String,
-        remoteUrl: String?,
-    ): String
-    private external fun nativeGitTestRemote(contextHandle: Long, projectId: String, branch: String?): String
-    private external fun nativeGitProbeRemoteUrl(contextHandle: Long, url: String): String
-    private external fun nativeGitPush(
-        contextHandle: Long,
-        projectId: String,
-        branch: String?,
-        setUpstream: Boolean,
-    ): String
-    private external fun nativeGitPull(contextHandle: Long, projectId: String): String
-    private external fun nativeGitSyncStatus(contextHandle: Long, projectId: String): String
-    private external fun nativeGitSyncIfDue(
-        contextHandle: Long,
-        projectId: String,
-        pushIntervalSeconds: Int,
-        pullIntervalSeconds: Int,
-    ): String
-    private external fun nativeGitSyncNow(
-        contextHandle: Long,
-        projectId: String,
-        branch: String?,
-        push: Boolean,
-        setUpstream: Boolean,
-    ): String
-    private external fun nativeEncryptionCheck(contextHandle: Long, projectId: String): String
-    private external fun nativeRecoveryTokenExport(contextHandle: Long, projectId: String, pin: String): String
-    private external fun nativeRecoveryTokenImport(
-        contextHandle: Long,
-        projectId: String,
-        pin: String,
-        recoveryToken: String,
-    ): String
-    private external fun nativeRecoveryTokenInspect(pin: String, recoveryToken: String): String
-    private external fun nativeRecoveryTokenImportGlobal(
-        contextHandle: Long,
-        pin: String,
-        recoveryToken: String,
-    ): String
     private external fun nativeLocationList(contextHandle: Long, projectId: String): String
-    private external fun nativeLocationPutJson(contextHandle: Long, locationJson: String): String
-    private external fun nativeResourceGet(contextHandle: Long, resourceId: String): String
-    private external fun nativeResourceList(contextHandle: Long, projectId: String): String
     private external fun nativeAssetImportFile(
         contextHandle: Long,
         projectId: String,
@@ -724,36 +615,29 @@ object HolderNative {
         readLane.call { context ->
             var count: Int
             do {
-                val page = ContractProjects.nativeListProjectsPage(context, result.size)
+                val page = Projects.listProjects(context, order = ListProjectsOrder.UPDATED_AT_DESC,
+                                                 limit = PROJECT_PAGE, offset = result.size)
                 count = page.size
                 page.forEach { project ->
                     result.add(HolderProject(project.projectId, project.name,
-                        project.gitRemoteUrl, project.privacyMode))
+                        project.gitRemoteUrl, project.privacyMode.value))
                 }
-            } while (count == 1000)
+            } while (count == PROJECT_PAGE)
         }
         return result
     }
 
-    /** Previous JSON path, retained while comparing the generated project listing. */
-    internal fun listProjectsJsonForBenchmark(): List<HolderProject> {
-        val projects = JSONArray(readLane.call { nativeProjectList(it) })
-        return List(projects.length()) { index -> parseProject(projects.getJSONObject(index)) }
-    }
-
     internal fun listCardsPage(
         projectId: String,
-        parent: String? = null,
+        parent: ListCardsParent? = null,
         tag: String? = null,
-        order: String = "card_id_asc",
+        order: ListCardsOrder = ListCardsOrder.CARD_ID_ASC,
         limit: Int = 200,
         cursor: String? = null,
         includeContent: Boolean = false,
         includeChildCount: Boolean = false,
-    ): ContractPage<ContractCardListItem> = readLane.call { context ->
-        ContractOperations.nativeListCards(
-            context, projectId, parent, tag, order, limit, cursor, includeContent, includeChildCount,
-        )
+    ): Page<CardListItem> = readLane.call { context ->
+        Cards.listCards(context, projectId, parent, tag, order, limit, cursor, includeContent, includeChildCount)
     }
 
     fun listCards(projectId: String): List<HolderCard> {
@@ -761,9 +645,7 @@ object HolderNative {
         readLane.call { context ->
             var cursor: String? = null
             do {
-                val page = ContractOperations.nativeListCards(
-                    context, projectId, order = "sort_key_asc", limit = 5000, cursor = cursor,
-                )
+                val page = Cards.listCards(context, projectId, order = ListCardsOrder.SORT_KEY_ASC, limit = 5000, cursor = cursor)
                 result.ensureCapacity(result.size + page.items.size)
                 page.items.forEach { card ->
                     result.add(HolderCard(
@@ -784,110 +666,35 @@ object HolderNative {
         return result
     }
 
-    /** The previous JSON path, kept as a reference for the Android performance comparison. */
-    internal fun listCardsJsonForBenchmark(projectId: String): List<HolderCard> {
-        val cards = JSONArray(readLane.call { nativeCardList(it, projectId) })
-        return List(cards.length()) { index -> parseCard(cards.getJSONObject(index)) }
-    }
-
     /** Fetches one live card's metadata in its project. */
     fun getCard(projectId: String, cardId: String): HolderCard {
-        val card = readLane.call { ContractCards.nativeGetCardMetadata(it, projectId, cardId) }
+        val card = readLane.call { Cards.getCardMetadata(it, projectId, cardId) }
         return fromContractMetadata(card)
     }
 
-    /** Temporary JSON baseline for the generated live-card lookup. */
-    internal fun getCardJsonForBenchmark(cardId: String): HolderCard =
-        parseCard(JSONObject(readLane.call { nativeCardGet(it, cardId, 0) }))
-
-    /** Trash-aware lookup stays on the legacy C API until the contract covers Trash lookup. */
-    fun getTrashedCard(cardId: String): HolderCard =
-        parseCard(JSONObject(readLane.call { nativeCardGet(it, cardId, 1) }))
-
-    /** One hierarchy/recency view of projectId's cards, bundling what would otherwise be
-     * several one-off native calls (list_roots/list_children/list_all/list_recent_page)
-     * behind a single request. [parentCardId] is required for [CardQueryView.CHILDREN] and
-     * ignored otherwise; [beforeUpdatedAt]/[beforeCardId] are an optional pagination cursor
-     * for [CardQueryView.RECENT] (both null for the first page); [limit] is required and must
-     * be positive for [CardQueryView.RECENT] and ignored otherwise, which are unbounded like
-     * their underlying CardRepo methods. Set [includeChildCounts] to also populate each
-     * returned card's [HolderCard.childCount]. */
-    fun queryCards(
-        projectId: String,
-        view: CardQueryView,
-        parentCardId: String? = null,
-        beforeUpdatedAt: Long? = null,
-        beforeCardId: String? = null,
-        limit: Int? = null,
-        includeChildCounts: Boolean = false,
-    ): List<HolderCard> {
-        val request = JSONObject()
-        request.put("view", view.name.lowercase())
-        if (parentCardId != null) request.put("parent_card_id", parentCardId)
-        if (beforeUpdatedAt != null) request.put("before_updated_at", beforeUpdatedAt)
-        if (beforeCardId != null) request.put("before_card_id", beforeCardId)
-        if (limit != null) request.put("limit", limit)
-        if (includeChildCounts) request.put("include_child_counts", true)
-
-        val cards = JSONObject(readLane.call { nativeCardQuery(it, projectId, request.toString()) })
-            .getJSONArray("cards")
-        return List(cards.length()) { index -> parseCard(cards.getJSONObject(index)) }
-    }
-
     fun getCardContent(projectId: String, cardId: String): String =
-        readLane.call { ContractCards.nativeGetCardContent(it, projectId, cardId) }
-
-    /** Previous JSON path, retained for parity during migration. */
-    internal fun getCardContentJsonForBenchmark(cardId: String): String =
-        readLane.call { nativeCardGetContent(it, cardId) }
+        readLane.call { Cards.getCard(it, projectId, cardId) }.content
 
     /** Resolves a [[wikilink]]-style reference (a card id, an unambiguous id prefix, or a
      * case-sensitive exact title) the same way holder-daemon/holderctl do. scope defaults
      * to 0 (live cards only), matching holder::model::CardScope::Live. */
     fun resolveCardReference(projectId: String, reference: String, scope: Int = 0): CardReferenceResolution {
-        val result = readLane.call { ContractCards.nativeResolveCardReference(it, projectId, reference, scope) }
+        val request = CardReferenceResolveRequest(projectId, reference, CardReferenceResolveRequestScope.entries[scope])
+        val result = readLane.call { Cards.resolveCardReference(it, request) }
         return when (result.status) {
-            "resolved" -> CardReferenceResolution.Resolved(
+            CardReferenceResolveDataStatus.RESOLVED -> CardReferenceResolution.Resolved(
                 matchKind = requireNotNull(result.matchKind),
                 card = requireNotNull(result.card).let { HolderCardReferenceCandidate(it.cardId, it.title, it.deletedAt) },
             )
-            "ambiguous" -> CardReferenceResolution.Ambiguous(
+            CardReferenceResolveDataStatus.AMBIGUOUS -> CardReferenceResolution.Ambiguous(
                 matchKind = requireNotNull(result.matchKind),
                 candidates = requireNotNull(result.candidates).map {
                     HolderCardReferenceCandidate(it.cardId, it.title, it.deletedAt)
                 },
             )
-            "not_found" -> CardReferenceResolution.NotFound
-            else -> error("unknown card reference result: ${result.status}")
+            CardReferenceResolveDataStatus.NOT_FOUND -> CardReferenceResolution.NotFound
         }
     }
-
-    internal fun resolveCardReferenceJsonForBenchmark(projectId: String, reference: String,
-                                                      scope: Int = 0): CardReferenceResolution {
-        val json = JSONObject(readLane.call { nativeCardReferenceResolve(it, projectId, reference, scope) })
-        return when (json.getString("status")) {
-            "resolved" -> CardReferenceResolution.Resolved(
-                matchKind = json.getString("match_kind"),
-                card = parseCardReferenceCandidate(json.getJSONObject("card")),
-            )
-            "ambiguous" -> {
-                val candidates = json.getJSONArray("candidates")
-                CardReferenceResolution.Ambiguous(
-                    matchKind = json.getString("match_kind"),
-                    candidates = List(candidates.length()) { index ->
-                        parseCardReferenceCandidate(candidates.getJSONObject(index))
-                    },
-                )
-            }
-            else -> CardReferenceResolution.NotFound
-        }
-    }
-
-    private fun parseCardReferenceCandidate(json: JSONObject) = HolderCardReferenceCandidate(
-        cardId = json.getString("card_id"),
-        title = json.getString("title"),
-        deletedAt = json.optLongOrNull("deleted_at"),
-    )
 
     /** One page of projectId's cards, most-recently-updated first, for
      * [team.holder.android.git.backup.SnapshotWriter]. Pass cursorCardId = null for the first
@@ -926,52 +733,37 @@ object HolderNative {
         )
 
     /** Android's absent privacy mode means plain; the contract request defaults to encrypted_git. */
-    fun createProject(name: String, privacyMode: String? = null): HolderProject =
-        fromContractProject(createProjectContract(ContractNewProject(name = name, privacyMode = privacyMode ?: "plain")))
+    fun createProject(name: String, privacyMode: String? = null): HolderProject {
+        val mode = privacyMode?.let { value -> NewProjectPrivacyMode.entries.single { it.value == value } }
+            ?: NewProjectPrivacyMode.PLAIN
+        return fromContractProject(createProjectContract(NewProject(name = name, privacyMode = mode)))
+    }
 
-    internal fun createProjectContract(project: ContractNewProject): ContractProject =
-        saveLane.call { ContractProjects.nativeCreateProject(it, project) }
+    internal fun createProjectContract(project: NewProject): Project =
+        saveLane.call { Projects.createProject(it, project) }
 
     fun renameProject(projectId: String, name: String): HolderProject =
-        fromContractProject(saveLane.call { ContractProjects.nativeRenameProject(it, projectId, name) })
+        fromContractProject(saveLane.call { Projects.updateProject(it, projectId, ProjectUpdate(name = name)) })
 
     fun deleteProject(projectId: String) {
-        saveLane.call { ContractProjects.nativeDeleteProject(it, projectId) }
+        saveLane.call { Projects.deleteProject(it, projectId) }
     }
 
-    /** Previous JSON paths retained for parity and timing during migration. */
-    internal fun createProjectJsonForBenchmark(name: String, privacyMode: String? = null): HolderProject =
-        parseProject(JSONObject(saveLane.call { nativeProjectCreate(it, name, null, privacyMode) }))
-
-    internal fun renameProjectJsonForBenchmark(projectId: String, name: String): HolderProject =
-        parseProject(JSONObject(saveLane.call { nativeProjectRename(it, projectId, name) }))
-
-    internal fun deleteProjectJsonForBenchmark(projectId: String) {
-        saveLane.call { nativeProjectDelete(it, projectId) }
-    }
-
-    private fun fromContractProject(project: ContractProject) = HolderProject(
-        project.projectId, project.name, project.gitRemoteUrl, project.privacyMode,
+    private fun fromContractProject(project: Project) = HolderProject(
+        project.projectId, project.name, project.gitRemoteUrl, project.privacyMode.value,
     )
 
     fun createCard(projectId: String, title: String, content: String, parentCardId: String? = null): HolderCard =
-        fromContractMetadata(saveLane.call {
-            ContractCards.nativeCreateCard(it, projectId, title, content, parentCardId)
+        fromContractCard(saveLane.call {
+            Cards.createCard(it, projectId, NewCard(title = title, content = content, parentCardId = parentCardId))
         })
 
-    /** Previous JSON creation path, retained for parity and timing during migration. */
-    internal fun createCardJsonForBenchmark(projectId: String, title: String, content: String,
-                                            parentCardId: String? = null): HolderCard =
-        parseCard(JSONObject(saveLane.call { nativeCardCreate(it, projectId, title, content, parentCardId) }))
-
+    /** Saves the editor's title and content. An empty title keeps the card's current one, as the
+     * editor sends an empty title when the user has not given one. */
     fun updateCard(projectId: String, cardId: String, title: String, content: String): HolderCard =
-        fromContractMetadata(saveLane.call {
-            ContractCards.nativeUpdateCard(it, projectId, cardId, title, content)
+        fromContractCard(saveLane.call {
+            Cards.updateCard(it, projectId, cardId, CardUpdate(title = title.ifEmpty { null }, content = content))
         })
-
-    /** Previous JSON update path, retained for parity and timing during migration. */
-    internal fun updateCardJsonForBenchmark(cardId: String, title: String, content: String): HolderCard =
-        parseCard(JSONObject(saveLane.call { nativeCardUpdateContent(it, cardId, content, title) }))
 
     /** Resolves and applies one of eight relative-placement intents to cardId within
      * projectId, via holder-core's CardPlacementResolver (see that class for the full
@@ -988,33 +780,22 @@ object HolderNative {
         targetCardId: String? = null,
         parentCardId: String? = null,
     ): HolderCardMoveResult {
-        val request = JSONObject()
-        request.put("intent", intent.name.lowercase())
-        if (targetCardId != null) request.put("target_card_id", targetCardId)
-        if (parentCardId != null) request.put("parent_card_id", parentCardId)
-
-        val json = JSONObject(saveLane.call { nativeCardMove(it, projectId, cardId, request.toString()) })
-        return HolderCardMoveResult(
-            cardId = json.getString("card_id"),
-            parentCardId = json.optStringOrNull("parent_card_id"),
-            sortKey = json.getDouble("sort_key"),
-            revision = json.getLong("revision"),
-            movedIntoTitle = json.optStringOrNull("moved_into_title"),
+        val move = CardMove(
+            intent = CardMoveIntent.valueOf(intent.name),
+            targetCardId = targetCardId,
+            parentCardId = parentCardId?.let { Change.Set(it) } ?: Change.Keep,
         )
+        val card = saveLane.call { Cards.moveCard(it, projectId, cardId, move) }
+        return HolderCardMoveResult(cardId = card.cardId, parentCardId = card.parentCardId, sortKey = card.sortKey)
     }
 
     /** Soft-deletes (trashes) a card; it stops appearing in listCards until restored or purged. */
     fun deleteCard(projectId: String, cardId: String) {
-        saveLane.call { ContractCards.nativeTrashCard(it, projectId, cardId) }
-    }
-
-    /** Previous JSON trash path, retained for parity and timing during migration. */
-    internal fun deleteCardJsonForBenchmark(cardId: String) {
-        saveLane.call { nativeCardDelete(it, cardId) }
+        saveLane.call { Cards.trashCard(it, projectId, cardId) }
     }
 
     fun listTrashedCards(projectId: String): List<HolderTrashedCard> =
-        readLane.call { ContractCards.nativeListTrashedCards(it, projectId) }.map { item ->
+        readLane.call { Trash.listTrash(it, projectId, type = "card") }.map { item ->
             HolderTrashedCard(
                 cardId = requireNotNull(item.cardId),
                 title = requireNotNull(item.title),
@@ -1022,27 +803,17 @@ object HolderNative {
             )
         }
 
-    /** Previous JSON listing retained for parity during migration. */
-    internal fun listTrashedCardsJsonForBenchmark(projectId: String): List<HolderCard> {
-        val cards = JSONArray(readLane.call { nativeCardListTrashed(it, projectId) })
-        return List(cards.length()) { index -> parseCard(cards.getJSONObject(index)) }
-    }
-
     /** Restores a trashed card so it reappears in listCards. Fails if cardId isn't trashed. */
     fun restoreCard(projectId: String, cardId: String): HolderCard =
-        fromContractMetadata(saveLane.call { ContractCards.nativeRestoreCard(it, projectId, cardId) })
-
-    /** Previous JSON restore path, retained for parity and timing during migration. */
-    internal fun restoreCardJsonForBenchmark(cardId: String): HolderCard =
-        parseCard(JSONObject(saveLane.call { nativeCardRestore(it, cardId) }))
+        fromContractCard(saveLane.call { Cards.restoreCard(it, projectId, cardId) })
 
     /** Permanently deletes a trashed card. Irreversible. Fails if cardId isn't trashed. */
     fun purgeCard(projectId: String, cardId: String) {
-        saveLane.call { ContractCards.nativePurgeCard(it, projectId, cardId) }
+        saveLane.call { Trash.deleteProjectTrashItem(it, projectId, DeleteProjectTrashItemType.CARD, cardId) }
     }
 
     fun emptyCardTrash(projectId: String) {
-        saveLane.call { ContractCards.nativeEmptyCardTrash(it, projectId) }
+        saveLane.call { Trash.emptyTrash(it, projectId, EmptyTrashType.CARD) }
     }
 
     /** cardId's editing-session-grouped history within projectId's repository, most-recent
@@ -1055,7 +826,7 @@ object HolderNative {
         cursor: String? = null,
         limit: Int = 50,
     ): HolderCardHistoryPage {
-        val page = backgroundLane.call { ContractHistory.nativeListCardHistory(it, projectId, cardId, limit, cursor) }
+        val page = backgroundLane.call { History.listCardHistory(it, projectId, cardId, limit, cursor) }
         return HolderCardHistoryPage(
             headOid = page.headOid,
             entries = page.entries.map { entry ->
@@ -1086,19 +857,6 @@ object HolderNative {
         )
     }
 
-    internal fun listCardHistoryJsonForBenchmark(
-        projectId: String, cardId: String, cursor: String? = null, limit: Int = 50,
-    ): HolderCardHistoryPage {
-        val json = JSONObject(backgroundLane.call { nativeCardHistoryList(it, projectId, cardId, cursor, limit) })
-        val entries = json.getJSONArray("entries")
-        return HolderCardHistoryPage(
-            headOid = json.optStringOrNull("head_oid"),
-            entries = List(entries.length()) { index -> parseCardHistoryEntry(entries.getJSONObject(index)) },
-            nextCursor = json.optStringOrNull("next_cursor"),
-            scanLimited = json.optBoolean("scan_limited", false),
-        )
-    }
-
     /** Compares cardId's state at fromOid (null for a card's creation event, which has no
      * earlier version) against its state at toOid, both read directly from their commit trees.
      * toOid must be a real, previously-observed commit OID -- e.g. [HolderCardHistoryPage.headOid]
@@ -1110,10 +868,12 @@ object HolderNative {
         fromOid: String?,
         toOid: String,
     ): HolderCardHistoryComparison {
+        // Android compares from a given version, or shows the change a creation made.
+        val mode = if (fromOid != null) CompareCardHistoryMode.SINCE else CompareCardHistoryMode.CHANGE
         val comparison = backgroundLane.call {
-            ContractHistory.nativeCompareCardHistory(it, projectId, cardId, fromOid, toOid)
+            History.compareCardHistory(it, projectId, cardId, toOid, fromOid, mode)
         }
-        fun version(value: team.holder.android.generated.ContractCardHistoryVersion) = HolderCardHistoryVersion(
+        fun version(value: CardHistoryVersion) = HolderCardHistoryVersion(
             exists = value.exists, oid = value.oid, title = value.title, body = value.body,
         )
         return HolderCardHistoryComparison(
@@ -1130,77 +890,81 @@ object HolderNative {
         )
     }
 
-    internal fun compareCardHistoryJsonForBenchmark(
-        projectId: String, cardId: String, fromOid: String?, toOid: String,
-    ): HolderCardHistoryComparison {
-        val json = JSONObject(backgroundLane.call { nativeCardHistoryCompare(it, projectId, cardId, fromOid, toOid) })
-        val lines = json.getJSONArray("lines")
-        return HolderCardHistoryComparison(
-            from = parseCardHistoryVersion(json.getJSONObject("from")),
-            to = parseCardHistoryVersion(json.getJSONObject("to")),
-            summary = json.getString("summary"),
-            lines = List(lines.length()) { index -> parseCardHistoryDiffLine(lines.getJSONObject(index)) },
-            truncated = json.optBoolean("truncated", false),
-        )
-    }
-
     /** Restores cardId to the whole card snapshot recorded at historicalOid -- title, body,
      * links, milestones, hierarchy/location, tags, Resource references, and live/Trash state
      * together -- through the ordinary write path (a new "Restore card ..." commit). Never
      * checks out or rewrites Git history, so the pre-restore state remains its own, still-
-     * reachable history entry. Returns the restored card. */
-    fun restoreCardHistory(projectId: String, cardId: String, historicalOid: String): HolderCard {
-        val cardJson = saveLane.call { context ->
-            val result = ContractHistory.nativeRestoreCardHistory(context, projectId, cardId, historicalOid)
-            // The contract result omits hierarchy and creation fields in HolderCard. Keep this
-            // read until the Android-facing return shape is settled in #344.
-            nativeCardGet(context, result.cardId, 2)
+     * reachable history entry. Returns what was restored: the card's ID, title and whether it is in the Trash. */
+    fun restoreCardHistory(projectId: String, cardId: String, historicalOid: String): CardHistoryRestoreResult =
+        saveLane.call { History.restoreCardHistorySnapshot(it, projectId, cardId, historicalOid) }
+
+    /** cardId's explicit connections -- not inline [[wikilinks]] -- with its parent and live children,
+     * which hierarchy shows automatically. Titles come from the linked cards and resources, as on
+     * Desktop; a link whose card or resource cannot be read has no title. */
+    fun listCardLinks(projectId: String, cardId: String): HolderCardLinks = readLane.call { context ->
+        val titles = HashMap<String, String?>()
+        fun cardTitle(id: String): String? = titles.getOrPut(id) {
+            try {
+                Cards.getCardMetadata(context, projectId, id).title
+            } catch (_: NotFoundException) {
+                null
+            }
         }
-        return parseCard(JSONObject(cardJson))
+        val resourceLabels by lazy { Resources.listResources(context, projectId).associate { it.resourceId to it.label } }
+        val outgoing = Links.listCardLinks(context, projectId, cardId).map { link ->
+            HolderOutgoingLink(
+                toCardId = link.targetId,
+                toType = link.targetType.value,
+                kind = link.kind,
+                label = link.label,
+                toTitle = when (link.targetType) {
+                    LinkTargetType.CARD -> cardTitle(link.targetId)
+                    LinkTargetType.RESOURCE -> resourceLabels[link.targetId]
+                    else -> null
+                },
+            )
+        }
+        val backlinks = Links.listCardBacklinks(context, projectId, cardId)
+            .filter { it.sourceType == LinkSourceType.CARD }
+            .map { link -> HolderBacklink(link.sourceId, link.kind, link.label, cardTitle(link.sourceId)) }
+        val parent = Cards.getCardMetadata(context, projectId, cardId).parentCardId?.let { parentId ->
+            cardTitle(parentId)?.let { title -> HolderCardRef(parentId, title) }
+        }
+        val children = Cards.listCards(context, projectId, parent = ListCardsParent.CardId(cardId),
+                                       order = ListCardsOrder.SORT_KEY_ASC, limit = 5000)
+            .items.map { child -> HolderCardRef(child.cardId, child.title) }
+        HolderCardLinks(outgoing, backlinks, parent, children)
     }
 
-    internal fun restoreCardHistoryJsonForBenchmark(cardId: String, historicalOid: String): HolderCard =
-        parseCard(JSONObject(saveLane.call { nativeCardHistoryRestore(it, cardId, historicalOid) }))
-
-    /** Explicit connections only -- not hierarchy (parent/child) or inline [[wikilinks]]. */
-    fun listCardLinks(cardId: String): HolderCardLinks {
-        val json = JSONObject(readLane.call { nativeCardListLinks(it, cardId) })
-        val outgoing = json.getJSONArray("outgoing")
-        val backlinks = json.getJSONArray("backlinks")
-        val children = json.getJSONArray("children")
-        return HolderCardLinks(
-            outgoing = List(outgoing.length()) { index -> parseOutgoingLink(outgoing.getJSONObject(index)) },
-            backlinks = List(backlinks.length()) { index -> parseBacklink(backlinks.getJSONObject(index)) },
-            parent = json.optJSONObject("parent")?.let { parseCardRef(it) },
-            children = List(children.length()) { index -> parseCardRef(children.getJSONObject(index)) },
-        )
+    /** Adds (or updates, if fromCardId/toCardId/kind already matches) an explicit connection between
+     * two cards in projectId. */
+    fun addCardLink(projectId: String, fromCardId: String, toCardId: String, kind: String, label: String? = null) {
+        saveLane.call {
+            Links.addCardLink(it, projectId, fromCardId,
+                NewLink(targetType = NewLinkTargetType.CARD, targetId = toCardId, kind = kind, label = label))
+        }
     }
 
-    /** Adds (or updates, if fromCardId/toCardId/kind already matches) an explicit outgoing
-     * connection. Returns fromCardId's updated outgoing connection list. */
-    fun addCardLink(fromCardId: String, toCardId: String, kind: String, label: String? = null): List<HolderOutgoingLink> {
-        val outgoing = JSONArray(saveLane.call { nativeCardLinkAdd(it, fromCardId, toCardId, kind, label) })
-        return List(outgoing.length()) { index -> parseOutgoingLink(outgoing.getJSONObject(index)) }
-    }
-
-    fun removeCardLink(fromCardId: String, toCardId: String, kind: String) {
-        saveLane.call { nativeCardLinkRemove(it, fromCardId, toCardId, kind) }
+    fun removeCardLink(projectId: String, fromCardId: String, toCardId: String, kind: String) {
+        saveLane.call { Links.removeCardLink(it, projectId, fromCardId, RemoveCardLinkTargetType.CARD, toCardId, kind) }
     }
 
     /** Attach an existing resource to a live card in the same project. */
-    fun attachResource(cardId: String, resourceId: String, label: String?): List<HolderOutgoingLink> {
-        val options = JSONObject().put("to_id", resourceId).put("to_type", "resource")
-            .put("kind", "attachment").put("label", label ?: JSONObject.NULL)
-        val outgoing = JSONArray(saveLane.call { nativeCardLinkAddJson(it, cardId, options.toString()) })
-        return List(outgoing.length()) { index -> parseOutgoingLink(outgoing.getJSONObject(index)) }
+    fun attachResource(projectId: String, cardId: String, resourceId: String, label: String?) {
+        saveLane.call {
+            Links.addCardLink(it, projectId, cardId,
+                NewLink(targetType = NewLinkTargetType.RESOURCE, targetId = resourceId, kind = ATTACHMENT, label = label))
+        }
     }
 
     /** Remove only the attachment link; the resource and stored file remain available. */
-    fun detachResource(cardId: String, resourceId: String) {
-        val options = JSONObject().put("to_id", resourceId).put("to_type", "resource")
-            .put("kind", "attachment")
-        saveLane.call { nativeCardLinkRemoveJson(it, cardId, options.toString()) }
+    fun detachResource(projectId: String, cardId: String, resourceId: String) {
+        saveLane.call {
+            Links.removeCardLink(it, projectId, cardId, RemoveCardLinkTargetType.RESOURCE, resourceId, ATTACHMENT)
+        }
     }
+
+    private const val ATTACHMENT = "attachment"
 
     @Volatile
     private var linkKindCatalog: List<HolderLinkKind>? = null
@@ -1235,15 +999,7 @@ object HolderNative {
 
     /** cardId's #tags, as extracted from its body (including any added via addCardTag). */
     fun listCardTags(projectId: String, cardId: String): List<String> =
-        readLane.call { ContractCards.nativeListCardTags(it, projectId, cardId) }
-
-    /** Previous JSON path, retained for parity during migration. */
-    internal fun listCardTagsJsonForBenchmark(cardId: String): List<String> {
-        val tags = JSONArray(readLane.call { nativeCardListTags(it, cardId) })
-        return List(tags.length()) { index -> tags.getString(index) }
-    }
-
-    enum class AddTagResult { ADDED, ALREADY_PRESENT }
+        readLane.call { Cards.getCard(it, projectId, cardId) }.tags
 
     /** Holder's semantic tag operation -- callers should use this instead of editing #tag text
      * into a card's body themselves, so core stays free to change how tags are represented
@@ -1251,30 +1007,25 @@ object HolderNative {
      *
      * Adds tag to cardId, normalized to lowercase. Writes it to the card's trailing tag line
      * (its last non-blank line, when that line is nothing but #tags), creating one if none
-     * exists yet. A no-op (ALREADY_PRESENT) if the tag already occurs anywhere in the card,
-     * including inline in prose -- a card is either tagged or it isn't, regardless of where the
-     * tag text lives. */
-    fun addCardTag(cardId: String, tag: String): AddTagResult =
-        when (saveLane.call { nativeCardTagAdd(it, cardId, tag) }) {
-            0 -> AddTagResult.ADDED // HOLDER_TAG_ADD_ADDED
-            1 -> AddTagResult.ALREADY_PRESENT // HOLDER_TAG_ADD_ALREADY_PRESENT
-            else -> error("unexpected add_tag status")
-        }
+     * exists yet. A card that already carries the tag, anywhere in it, is left as it is -- a
+     * card is either tagged or it isn't, regardless of where the tag text lives. */
+    fun addCardTag(projectId: String, cardId: String, tag: String) {
+        saveLane.call { Cards.addCardTag(it, projectId, cardId, tag) }
+    }
 
-    enum class RemoveTagResult { REMOVED, NOT_PRESENT, PRESENT_OUTSIDE_EDITABLE_TAG_LINE }
+    enum class RemoveTagResult { REMOVED, PRESENT_OUTSIDE_EDITABLE_TAG_LINE }
 
     /** Removes tag from cardId, normalized to lowercase. Only ever removes text from the card's
-     * trailing tag line (see addCardTag) -- this never rewrites prose. If tag occurs only in
-     * prose, returns PRESENT_OUTSIDE_EDITABLE_TAG_LINE rather than silently failing: the card
-     * remains tagged since nothing was removed, and the caller should point the user at the
-     * text itself. */
-    fun removeCardTag(cardId: String, tag: String): RemoveTagResult =
-        when (saveLane.call { nativeCardTagRemove(it, cardId, tag) }) {
-            0 -> RemoveTagResult.REMOVED // HOLDER_TAG_REMOVE_REMOVED
-            1 -> RemoveTagResult.NOT_PRESENT // HOLDER_TAG_REMOVE_NOT_PRESENT
-            2 -> RemoveTagResult.PRESENT_OUTSIDE_EDITABLE_TAG_LINE // HOLDER_TAG_REMOVE_PRESENT_OUTSIDE_EDITABLE_TAG_LINE
-            else -> error("unexpected remove_tag status")
-        }
+     * trailing tag line (see addCardTag) -- this never rewrites prose; a card that does not
+     * carry the tag is left as it is. If tag occurs only in prose, returns
+     * PRESENT_OUTSIDE_EDITABLE_TAG_LINE rather than silently failing: the card remains tagged
+     * since nothing was removed, and the caller should point the user at the text itself. */
+    fun removeCardTag(projectId: String, cardId: String, tag: String): RemoveTagResult = try {
+        saveLane.call { Cards.removeCardTag(it, projectId, cardId, tag) }
+        RemoveTagResult.REMOVED
+    } catch (_: ConflictException) {
+        RemoveTagResult.PRESENT_OUTSIDE_EDITABLE_TAG_LINE
+    }
 
     /** The subset of cardId's tags that removeCardTag can actually remove -- those on the
      * card's trailing tag line. A tag can be in this list and still occur in prose elsewhere;
@@ -1294,9 +1045,8 @@ object HolderNative {
         readLane.call { context ->
             var cursor: String? = null
             do {
-                val page = ContractOperations.nativeListCards(
-                    context, projectId, tag = tag, order = "updated_desc", limit = pageSize, cursor = cursor,
-                )
+                val page = Cards.listCards(context, projectId, tag = tag, order = ListCardsOrder.UPDATED_DESC,
+                                           limit = pageSize, cursor = cursor)
                 result.ensureCapacity(result.size + page.items.size)
                 page.items.forEach { card -> result.add(HolderCardRef(cardId = card.cardId, title = card.title)) }
                 cursor = page.nextCursor
@@ -1305,55 +1055,74 @@ object HolderNative {
         return result
     }
 
-    internal fun cardsWithTagJsonForBenchmark(projectId: String, tag: String): List<HolderCardRef> {
-        val cards = JSONArray(readLane.call { nativeCardsWithTag(it, projectId, tag) })
-        return List(cards.length()) { index -> parseCardRef(cards.getJSONObject(index)) }
-    }
-
     /** Every distinct tag in projectId with how many cards carry it, most-used first. */
     fun listProjectTags(projectId: String): List<HolderTagCount> {
-        return readLane.call { ContractCards.nativeListProjectTags(it, projectId) }
+        return readLane.call { Cards.listProjectTags(it, projectId) }
             .map { HolderTagCount(tag = it.tag, count = it.cardCount) }
     }
 
-    /** Previous JSON path, retained for parity and timing during migration. */
-    internal fun listProjectTagsJsonForBenchmark(projectId: String): List<HolderTagCount> {
-        val tags = JSONArray(readLane.call { nativeProjectListTags(it, projectId) })
-        return List(tags.length()) { index ->
-            val entry = tags.getJSONObject(index)
-            HolderTagCount(tag = entry.getString("tag"), count = entry.getInt("count"))
-        }
+    // A milestone's dates are roles with a calendar day or an instant. Android, like Desktop, shows
+    // one with a single start and at most one end: an all-day milestone when its start is a day.
+    // Android's screens hold a day as the epoch of its midnight UTC, and an instant as an epoch
+    // written with this device's offset.
+    private const val START = "start"
+    private const val END = "end"
+    private val INSTANT_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX")
+
+    private fun dayOf(epoch: Long): String = Instant.ofEpochSecond(epoch).atOffset(ZoneOffset.UTC).toLocalDate().toString()
+
+    private fun milestoneDate(role: String, epoch: Long, allDay: Boolean) = if (allDay) {
+        MilestoneDate(role = role, date = dayOf(epoch))
+    } else {
+        MilestoneDate(role = role, datetime = Instant.ofEpochSecond(epoch).atZone(ZoneId.systemDefault()).format(INSTANT_FORMAT))
     }
+
+    private fun epochOf(date: MilestoneDate): Long = date.date?.let { LocalDate.parse(it).atStartOfDay(ZoneOffset.UTC).toEpochSecond() }
+        ?: OffsetDateTime.parse(requireNotNull(date.datetime)).toEpochSecond()
+
+    /** A milestone as Android shows it, or null when it has no single start or more than one end. */
+    private fun holderMilestone(
+        milestoneId: String, cardId: String, dates: List<MilestoneDate>, kind: String?, description: String?,
+        createdAt: Long, updatedAt: Long, cardTitle: String? = null,
+    ): HolderMilestone? {
+        val start = dates.singleOrNull { it.role == START } ?: return null
+        val ends = dates.filter { it.role == END }
+        if (ends.size > 1) return null
+        return HolderMilestone(milestoneId, cardId, epochOf(start), ends.singleOrNull()?.let(::epochOf),
+                               start.date != null, kind, description, createdAt, updatedAt, cardTitle)
+    }
+
+    private fun holderMilestone(m: Milestone) =
+        holderMilestone(m.milestoneId, m.cardId, m.dates, m.kind, m.description, m.createdAt, m.updatedAt)
+
+    /** The dates for a start and an optional end, with the milestone's other dates kept in place. */
+    private fun withStartAndEnd(kept: List<MilestoneDate>, startAt: Long, endAt: Long?, allDay: Boolean) =
+        listOfNotNull(milestoneDate(START, startAt, allDay), endAt?.let { milestoneDate(END, it, allDay) }) +
+            kept.filter { it.role != START && it.role != END }
 
     /** cardId's milestones, ordered by start (soonest first). */
-    fun listCardMilestones(cardId: String): List<HolderMilestone> {
-        val milestones = JSONArray(readLane.call { nativeCardListMilestones(it, cardId) })
-        return List(milestones.length()) { index -> parseMilestone(milestones.getJSONObject(index)) }
-    }
+    fun listCardMilestones(projectId: String, cardId: String): List<HolderMilestone> =
+        readLane.call { Milestones.listCardMilestones(it, projectId, cardId) }
+            .mapNotNull(::holderMilestone).sortedBy { it.startAt }
 
-    /** Adds a milestone to cardId. endAt null means a point in time rather than a span (as
-     * opposed to end_at genuinely being 0, which native distinguishes via a separate has_end_at
-     * flag, not by treating 0 as absent). Returns cardId's updated milestone list. */
+    /** Adds a milestone to cardId: a point in time when endAt is null, otherwise a span. */
     fun addCardMilestone(
+        projectId: String,
         cardId: String,
         startAt: Long,
         endAt: Long? = null,
         allDay: Boolean = false,
         kind: String? = null,
         description: String? = null,
-    ): List<HolderMilestone> {
-        val milestones = JSONArray(
-            saveLane.call { nativeCardMilestoneAdd(it, cardId, startAt, endAt != null, endAt ?: 0L, allDay, kind, description) }
-        )
-        return List(milestones.length()) { index -> parseMilestone(milestones.getJSONObject(index)) }
+    ): HolderMilestone {
+        val milestone = NewMilestone(dates = withStartAndEnd(emptyList(), startAt, endAt, allDay),
+                                     kind = kind, description = description)
+        return requireNotNull(holderMilestone(saveLane.call { Milestones.addCardMilestone(it, projectId, cardId, milestone) }))
     }
 
     /** Partially updates cardId's milestoneId. Each parameter left at its default (Unset) means
-     * "leave unchanged"; pass Clear to explicitly null a clearable field (endAt/kind/description),
-     * or a real value to set it. startAt/allDay can never be cleared, matching MilestoneUpdate's
-     * own has_*-flag semantics on the native side -- omit them to leave unchanged, or pass a
-     * real value to change them. Throws if projectId/cardId/milestoneId don't all identify the
-     * same live card's milestone. */
+     * "leave unchanged"; pass Clear to null a clearable field (endAt/kind/description), or a real
+     * value to set it. Changing its start, end or all-day keeps the milestone's other dates. */
     fun updateCardMilestone(
         projectId: String,
         cardId: String,
@@ -1363,73 +1132,55 @@ object HolderNative {
         allDay: Boolean? = null,
         kind: OptionalString = OptionalString.Unset,
         description: OptionalString = OptionalString.Unset,
-    ): HolderMilestone {
-        val body = JSONObject().apply {
-            if (startAt != null) put("start_at", startAt)
-            if (allDay != null) put("all_day", allDay)
-            when (endAt) {
-                is OptionalLong.Unset -> {}
-                is OptionalLong.Clear -> put("end_at", JSONObject.NULL)
-                is OptionalLong.Value -> put("end_at", endAt.value)
+    ): HolderMilestone = saveLane.call { context ->
+        val dates = if (startAt == null && endAt is OptionalLong.Unset && allDay == null) null else {
+            val current = Milestones.listCardMilestones(context, projectId, cardId).single { it.milestoneId == milestoneId }
+            val shown = requireNotNull(holderMilestone(current)) { "the milestone has no single start to change" }
+            val end = when (endAt) {
+                is OptionalLong.Unset -> shown.endAt
+                is OptionalLong.Clear -> null
+                is OptionalLong.Value -> endAt.value
             }
-            when (kind) {
-                is OptionalString.Unset -> {}
-                is OptionalString.Clear -> put("kind", JSONObject.NULL)
-                is OptionalString.Value -> put("kind", kind.value)
-            }
-            when (description) {
-                is OptionalString.Unset -> {}
-                is OptionalString.Clear -> put("description", JSONObject.NULL)
-                is OptionalString.Value -> put("description", description.value)
-            }
+            withStartAndEnd(current.dates, startAt ?: shown.startAt, end, allDay ?: shown.allDay)
         }
-        return parseMilestone(
-            JSONObject(
-                saveLane.call { nativeCardMilestoneUpdate(it, projectId, cardId, milestoneId, body.toString()) }
-            )
-        )
+        fun change(value: OptionalString): Change<String> = when (value) {
+            is OptionalString.Unset -> Change.Keep
+            is OptionalString.Clear -> Change.Clear
+            is OptionalString.Value -> Change.Set(value.value)
+        }
+        val update = MilestoneUpdate(dates = dates, kind = change(kind), description = change(description))
+        requireNotNull(holderMilestone(Milestones.updateCardMilestone(context, projectId, cardId, milestoneId, update)))
     }
 
     /** A no-op, not an error, if milestoneId doesn't exist or belongs to a different card. */
-    fun removeCardMilestone(cardId: String, milestoneId: String) {
-        saveLane.call { nativeCardMilestoneRemove(it, cardId, milestoneId) }
+    fun removeCardMilestone(projectId: String, cardId: String, milestoneId: String) {
+        try {
+            saveLane.call { Milestones.removeCardMilestone(it, projectId, cardId, milestoneId) }
+        } catch (_: NotFoundException) {
+        }
     }
 
     /** Every milestone in projectId whose start falls within [from, to] (inclusive), ordered by
      * start -- the Calendar's primary query. Never includes a trashed card's milestones. */
-    fun listMilestonesInRange(projectId: String, from: Long, to: Long): List<HolderMilestone> {
-        val milestones =
-            JSONArray(readLane.call { nativeProjectListMilestonesInRange(it, projectId, from, to) })
-        return List(milestones.length()) { index -> parseMilestone(milestones.getJSONObject(index)) }
-    }
+    fun listMilestonesInRange(projectId: String, from: Long, to: Long): List<HolderMilestone> =
+        readLane.call { Milestones.getCalendar(it, projectId, from, to, dayOf(from), dayOf(to)) }.milestones
+            .mapNotNull { m ->
+                holderMilestone(m.milestoneId, m.cardId, m.dates, m.kind, m.description, m.createdAt, m.updatedAt, m.cardTitle)
+            }
+            .filter { it.startAt in from..to }
+            .sortedBy { it.startAt }
 
     fun searchCards(projectId: String, query: String, limit: Int = 50): List<HolderSearchResult> {
-        return readLane.call { ContractCards.nativeSearchCards(it, projectId, query, limit) }
+        return readLane.call { Search.searchCards(it, projectId, query, limit) }
             .map { HolderSearchResult(cardId = it.cardId, title = it.title, snippet = it.snippet) }
     }
 
-    /** Previous JSON path, retained for parity and timing during migration. */
-    internal fun searchCardsJsonForBenchmark(projectId: String, query: String, limit: Int = 50): List<HolderSearchResult> {
-        val results = JSONArray(readLane.call { nativeCardSearch(it, projectId, query, limit, 0) })
-        return List(results.length()) { index ->
-            val result = results.getJSONObject(index)
-            HolderSearchResult(
-                cardId = result.getString("card_id"),
-                title = result.getString("title"),
-                snippet = result.getString("snippet"),
-            )
-        }
-    }
-
-    /** remoteUrl null clears the configured remote. */
+    /** remoteUrl null or empty, as from an emptied remote field, clears the configured remote. */
     fun updateProjectGitRemote(projectId: String, remoteUrl: String?): HolderProject =
         fromContractProject(saveLane.call {
-            ContractProjects.nativeUpdateProjectGitRemote(it, projectId, remoteUrl)
+            val change = if (remoteUrl.isNullOrEmpty()) Change.Clear else Change.Set(remoteUrl)
+            Projects.updateProject(it, projectId, ProjectUpdate(gitRemoteUrl = change))
         })
-
-    /** Previous JSON path, retained for parity and timing during migration. */
-    internal fun updateProjectGitRemoteJsonForBenchmark(projectId: String, remoteUrl: String?): HolderProject =
-        parseProject(JSONObject(saveLane.call { nativeProjectUpdateGitRemote(it, projectId, remoteUrl) }))
 
     /** Re-registers the background lane's native git signer with [projectId]'s own key --
      * must only ever be called on the background lane, immediately before the one native call
@@ -1453,109 +1204,57 @@ object HolderNative {
     fun testGitRemote(projectId: String, branch: String? = null): GitTestRemoteResult {
         val result = backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            ContractProjects.nativeTestProjectRemote(it, projectId, null)
+            Git.testProjectRemote(it, projectId, RemoteTest())
         }
         return GitTestRemoteResult(
-            status = result.status,
+            status = result.status.value,
             remoteHasHead = result.remoteHasHead,
-            errorMessage = if (result.status == "remote_unset") "Remote URL is not configured."
+            errorMessage = if (result.status == RemoteTestResultStatus.REMOTE_UNSET) "Remote URL is not configured."
                 else result.errorMessage,
-        )
-    }
-
-    /** Previous JSON path, retained for parity during migration. */
-    internal fun testGitRemoteJsonForBenchmark(projectId: String, branch: String? = null): GitTestRemoteResult {
-        val json = JSONObject(backgroundLane.call {
-            selectGitSignerForProject(it, projectId)
-            nativeGitTestRemote(it, projectId, branch)
-        })
-        return GitTestRemoteResult(
-            status = json.getString("status"),
-            remoteHasHead = json.optBoolean("remote_has_head", false),
-            errorMessage = json.optStringOrNull("error_message"),
         )
     }
 
     fun probeRemoteUrl(projectId: String, url: String): GitTestRemoteResult {
         val result = backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            ContractProjects.nativeTestProjectRemote(it, projectId, url)
+            Git.testProjectRemote(it, projectId, RemoteTest(remoteUrl = url))
         }
         return GitTestRemoteResult(
-            status = result.status,
+            status = result.status.value,
             remoteHasHead = result.remoteHasHead,
             errorMessage = result.errorMessage,
-        )
-    }
-
-    /** Previous JSON path, retained for parity during migration. */
-    internal fun probeRemoteUrlJsonForBenchmark(projectId: String, url: String): GitTestRemoteResult {
-        val json = JSONObject(backgroundLane.call {
-            selectGitSignerForProject(it, projectId)
-            nativeGitProbeRemoteUrl(it, url)
-        })
-        return GitTestRemoteResult(
-            status = json.getString("status"),
-            remoteHasHead = json.optBoolean("remote_has_head", false),
-            errorMessage = json.optStringOrNull("error_message"),
         )
     }
 
     fun pushGit(projectId: String, branch: String? = null, setUpstream: Boolean = true): GitPushResult {
         val result = backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            ContractProjects.nativePushProject(it, projectId, branch, setUpstream)
+            Git.pushProject(it, projectId, PushOptions(branch = branch, setUpstream = setUpstream)).push
         }
         return GitPushResult(
-            status = result.status,
+            status = result.status.value,
             aheadCount = result.aheadCount,
             behindCount = result.behindCount,
             errorMessage = result.errorMessage,
         )
     }
 
-    /** Previous JSON path, retained for parity during migration. */
-    internal fun pushGitJsonForBenchmark(projectId: String): GitPushResult {
-        val json = JSONObject(backgroundLane.call {
-            selectGitSignerForProject(it, projectId)
-            nativeGitPush(it, projectId, null, true)
-        })
-        return GitPushResult(
-            status = json.getString("status"),
-            aheadCount = json.optInt("ahead_count", 0),
-            behindCount = json.optInt("behind_count", 0),
-            errorMessage = json.optStringOrNull("error_message"),
-        )
-    }
-
     fun pullGit(projectId: String): GitPullResult {
         val pull = backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            ContractProjects.nativePullProject(it, projectId)
+            Git.pullProject(it, projectId).pull
         }
         return GitPullResult(
             // The old Android result reports an unset remote as a failed pull.
-            status = if (pull.status == "remote_unset") "failed" else pull.status,
+            status = if (pull.status == team.holder.android.contract.PullPhaseStatus.REMOTE_UNSET) "failed"
+                else pull.status.value,
             errorMessage = pull.errorMessage,
             conflictsResolved = pull.conflictsResolved,
         )
     }
 
-    /** Previous JSON path, retained for parity and timing during migration. */
-    internal fun pullGitJsonForBenchmark(projectId: String): GitPullResult {
-        val json = JSONObject(backgroundLane.call {
-            selectGitSignerForProject(it, projectId)
-            nativeGitPull(it, projectId)
-        })
-        return GitPullResult(
-            status = json.getString("status"),
-            errorMessage = json.optStringOrNull("error_message"),
-            conflictsResolved = json.optInt("conflicts_resolved", 0),
-        )
-    }
-
     fun gitSyncStatus(projectId: String): GitSyncStatus {
-        val sync = readLane.call { ContractProjects.nativeGetProjectSyncState(it, projectId) }
+        val sync = readLane.call { Git.getProjectSyncState(it, projectId) }
         return GitSyncStatus(
             lastPushAt = sync.lastPushAt,
             lastPullAt = sync.lastPullAt,
@@ -1564,20 +1263,6 @@ object HolderNative {
             lastPushStatus = sync.lastPushStatus,
             lastPullStatus = sync.lastPullStatus,
             lastSyncError = sync.lastSyncError,
-        )
-    }
-
-    /** Previous JSON path, retained for parity and timing during migration. */
-    internal fun gitSyncStatusJsonForBenchmark(projectId: String): GitSyncStatus {
-        val sync = JSONObject(readLane.call { nativeGitSyncStatus(it, projectId) }).getJSONObject("sync")
-        return GitSyncStatus(
-            lastPushAt = sync.optLongOrNull("last_push_at"),
-            lastPullAt = sync.optLongOrNull("last_pull_at"),
-            uncommittedChangesCount = sync.optInt("uncommitted_changes_count", 0),
-            unpushedCommitsCount = sync.optInt("unpushed_commits_count", 0),
-            lastPushStatus = sync.optStringOrNull("last_push_status"),
-            lastPullStatus = sync.optStringOrNull("last_pull_status"),
-            lastSyncError = sync.optStringOrNull("last_sync_error"),
         )
     }
 
@@ -1596,37 +1281,16 @@ object HolderNative {
     ): GitSyncIfDueResult {
         val result = backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            ContractProjects.nativeSyncProjectIfDue(it, projectId, pushIntervalSeconds, pullIntervalSeconds)
+            Git.syncProjectIfDue(it, projectId, maxOf(pushIntervalSeconds, 0), maxOf(pullIntervalSeconds, 0))
         }
         return GitSyncIfDueResult(
-            pullAttempted = result.pullAttempted,
-            pullStatus = result.pullStatus,
-            pullError = result.pullError,
-            pullConflictsResolved = result.pullConflictsResolved,
-            pushAttempted = result.pushAttempted,
-            pushStatus = result.pushStatus,
-            pushError = result.pushError,
-        )
-    }
-
-    /** Previous JSON path, retained for parity during migration. */
-    internal fun gitSyncIfDueJsonForBenchmark(
-        projectId: String,
-        pushIntervalSeconds: Int = 0,
-        pullIntervalSeconds: Int = 0,
-    ): GitSyncIfDueResult {
-        val json = JSONObject(backgroundLane.call {
-            selectGitSignerForProject(it, projectId)
-            nativeGitSyncIfDue(it, projectId, pushIntervalSeconds, pullIntervalSeconds)
-        })
-        return GitSyncIfDueResult(
-            pullAttempted = json.getBoolean("pull_attempted"),
-            pullStatus = json.optStringOrNull("pull_status"),
-            pullError = json.optStringOrNull("pull_error"),
-            pullConflictsResolved = json.optInt("pull_conflicts_resolved", 0),
-            pushAttempted = json.getBoolean("push_attempted"),
-            pushStatus = json.optStringOrNull("push_status"),
-            pushError = json.optStringOrNull("push_error"),
+            pullAttempted = result.pull.attempted,
+            pullStatus = attemptedStatus(result.pull),
+            pullError = result.pull.errorMessage,
+            pullConflictsResolved = result.pull.conflictsResolved,
+            pushAttempted = result.push.attempted,
+            pushStatus = attemptedStatus(result.push),
+            pushError = result.push.errorMessage,
         )
     }
 
@@ -1635,62 +1299,47 @@ object HolderNative {
      * gated by cadence. A failed pull always skips the push phase, so this is safe to call
      * as a single "Sync now" action rather than composing separate [pullGit]/[pushGit] calls
      * (which have no such ordering guarantee between them). A no-op if the project has no
-     * remote configured. push = false performs a pull-only forced sync.
+     * remote configured.
      */
     fun gitSyncNow(
         projectId: String,
         branch: String? = null,
-        push: Boolean = true,
         setUpstream: Boolean = true,
     ): GitSyncNowResult {
         return backgroundLane.call {
             selectGitSignerForProject(it, projectId)
             // The existing Android action leaves a project without a remote untouched.
-            if (ContractProjects.nativeGetProject(it, projectId).gitRemoteUrl.isNullOrEmpty()) {
+            if (Projects.getProject(it, projectId).gitRemoteUrl.isNullOrEmpty()) {
                 GitSyncNowResult(false, null, null, 0, false, null, null, 0, 0, null)
             } else {
-                val result = ContractProjects.nativeSyncProject(
-                    it, projectId, branch?.takeIf { value -> value.isNotEmpty() }, push, setUpstream)
+                val options = PushOptions(branch = branch?.takeIf { value -> value.isNotEmpty() }, setUpstream = setUpstream)
+                val result = Git.syncProject(it, projectId, options)
                 GitSyncNowResult(
-                    pullAttempted = result.pullAttempted,
-                    pullStatus = result.pullStatus,
-                    pullError = result.pullError,
-                    pullConflictsResolved = result.pullConflictsResolved,
-                    pushAttempted = result.pushAttempted,
-                    pushStatus = result.pushStatus,
-                    pushError = result.pushError,
-                    pushAheadCount = result.pushAheadCount,
-                    pushBehindCount = result.pushBehindCount,
-                    pushLocalHeadCommit = result.pushLocalHeadCommit,
+                    pullAttempted = result.pull.attempted,
+                    pullStatus = attemptedStatus(result.pull),
+                    pullError = result.pull.errorMessage,
+                    pullConflictsResolved = result.pull.conflictsResolved,
+                    pushAttempted = result.push.attempted,
+                    pushStatus = attemptedStatus(result.push),
+                    pushError = result.push.errorMessage,
+                    pushAheadCount = result.push.aheadCount,
+                    pushBehindCount = result.push.behindCount,
+                    pushLocalHeadCommit = result.push.localHeadCommit,
                 )
             }
         }
     }
 
-    /** Previous JSON path, retained for parity during migration. */
-    internal fun gitSyncNowJsonForBenchmark(projectId: String, push: Boolean = true): GitSyncNowResult {
-        val json = JSONObject(backgroundLane.call {
-            selectGitSignerForProject(it, projectId)
-            nativeGitSyncNow(it, projectId, null, push, true)
-        })
-        return GitSyncNowResult(
-            pullAttempted = json.getBoolean("pull_attempted"),
-            pullStatus = json.optStringOrNull("pull_status"),
-            pullError = json.optStringOrNull("pull_error"),
-            pullConflictsResolved = json.optInt("pull_conflicts_resolved", 0),
-            pushAttempted = json.getBoolean("push_attempted"),
-            pushStatus = json.optStringOrNull("push_status"),
-            pushError = json.optStringOrNull("push_error"),
-            pushAheadCount = json.optInt("push_ahead_count", 0),
-            pushBehindCount = json.optInt("push_behind_count", 0),
-            pushLocalHeadCommit = json.optStringOrNull("push_local_head_commit"),
-        )
-    }
+    /** A sync phase's status, or null when the phase was not attempted, as Android reports it. */
+    private fun attemptedStatus(phase: PullPhase): String? = if (phase.attempted) phase.status.value else null
+
+    private fun attemptedStatus(phase: PushPhase): String? = if (phase.attempted) phase.status.value else null
 
     fun encryptionCheck(projectId: String): EncryptionCheckResult {
-        val check = backgroundLane.call { ContractProjects.nativeCheckProjectEncryption(it, projectId) }
+        val result = backgroundLane.call { Maintenance.checkProjectEncryption(it, projectId) }
+        val check = result.check
         return EncryptionCheckResult(
-            privacyMode = check.privacyMode,
+            privacyMode = result.privacyMode.value,
             ok = check.ok,
             checkedFiles = check.checkedFiles,
             unsafeFiles = check.unsafeFiles,
@@ -1699,23 +1348,10 @@ object HolderNative {
         )
     }
 
-    /** Previous JSON path, retained for parity and timing during migration. */
-    internal fun encryptionCheckJsonForBenchmark(projectId: String): EncryptionCheckResult {
-        val json = JSONObject(backgroundLane.call { nativeEncryptionCheck(it, projectId) })
-        val check = json.getJSONObject("check")
-        val unsafePathsJson = check.getJSONArray("unsafe_paths")
-        return EncryptionCheckResult(
-            privacyMode = json.getString("privacy_mode"),
-            ok = check.getBoolean("ok"),
-            checkedFiles = check.getInt("checked_files"),
-            unsafeFiles = check.getInt("unsafe_files"),
-            unsafePaths = List(unsafePathsJson.length()) { unsafePathsJson.getString(it) },
-            message = check.getString("message"),
-        )
-    }
-
     fun exportRecoveryToken(projectId: String, pin: String): RecoveryTokenExportResult {
-        val result = backgroundLane.call { ContractProjects.nativeExportRecoveryToken(it, projectId, pin) }
+        val result = backgroundLane.call {
+            Recovery.exportProjectRecoveryToken(it, projectId, RecoveryTokenExportRequest(pin = pin))
+        }
         return RecoveryTokenExportResult(
             projectId = result.projectId,
             keyId = result.keyId,
@@ -1723,64 +1359,30 @@ object HolderNative {
         )
     }
 
-    internal fun exportRecoveryTokenJsonForBenchmark(projectId: String, pin: String): RecoveryTokenExportResult {
-        val json = JSONObject(backgroundLane.call { nativeRecoveryTokenExport(it, projectId, pin) })
-        return RecoveryTokenExportResult(
-            projectId = json.getString("project_id"),
-            keyId = json.getString("key_id"),
-            recoveryToken = json.getString("recovery_token"),
-        )
-    }
-
     /** Re-establishes projectId's key material from a recovery token; projectId must already
      * exist and match the token's own project id. See importRecoveryTokenGlobal for recovering
      * onto a device that doesn't have the project yet. */
     fun importRecoveryToken(projectId: String, pin: String, recoveryToken: String) {
-        saveLane.call { ContractProjects.nativeImportRecoveryToken(it, projectId, pin, recoveryToken) }
-    }
-
-    internal fun importRecoveryTokenJsonForBenchmark(projectId: String, pin: String, recoveryToken: String) {
-        saveLane.call { nativeRecoveryTokenImport(it, projectId, pin, recoveryToken) }
-    }
-
-    /** Decrypts a recovery token's metadata without importing anything, so a caller can show
-     * the user what they're about to recover before committing. */
-    fun inspectRecoveryToken(pin: String, recoveryToken: String): RecoveryTokenMetadata {
-        val json = JSONObject(nativeRecoveryTokenInspect(pin, recoveryToken))
-        return RecoveryTokenMetadata(
-            projectId = json.getString("project_id"),
-            projectKeyId = json.getString("project_key_id"),
-            projectName = json.optStringOrNull("project_name"),
-            gitRemoteUrl = json.optStringOrNull("git_remote_url"),
-        )
+        saveLane.call {
+            Recovery.importProjectRecoveryToken(it, projectId, RecoveryTokenImportRequest(pin = pin, recoveryToken = recoveryToken))
+        }
     }
 
     /** The device-setup path: recovers a project from just a PIN and a recovery token, creating
      * it first if this device has never seen it before, and pulling its remote if the token
      * includes one. */
     fun importRecoveryTokenGlobal(pin: String, recoveryToken: String): RecoveryTokenImportGlobalResult {
-        val result = saveLane.call { ContractProjects.nativeImportRecoveryTokenGlobal(it, pin, recoveryToken) }
+        val result = saveLane.call {
+            Recovery.importRecoveryTokenGlobal(it, RecoveryTokenImportRequest(pin = pin, recoveryToken = recoveryToken))
+        }
         return RecoveryTokenImportGlobalResult(
             projectId = result.projectId,
             projectCreated = result.projectCreated,
             remoteHintPresent = result.remoteHintPresent,
             remoteConfigured = result.remoteConfigured,
             remoteError = result.remoteError,
-            pullStatus = result.pullStatus,
+            pullStatus = result.pullStatus.value,
             pullError = result.pullError,
-        )
-    }
-
-    internal fun importRecoveryTokenGlobalJsonForBenchmark(pin: String, recoveryToken: String): RecoveryTokenImportGlobalResult {
-        val json = JSONObject(saveLane.call { nativeRecoveryTokenImportGlobal(it, pin, recoveryToken) })
-        return RecoveryTokenImportGlobalResult(
-            projectId = json.getString("project_id"),
-            projectCreated = json.getBoolean("project_created"),
-            remoteHintPresent = json.getBoolean("remote_hint_present"),
-            remoteConfigured = json.getBoolean("remote_configured"),
-            remoteError = json.optStringOrNull("remote_error"),
-            pullStatus = json.getString("pull_status"),
-            pullError = json.optStringOrNull("pull_error"),
         )
     }
 
@@ -1793,7 +1395,7 @@ object HolderNative {
 
     /** Creates or updates a storage location. locationId identifies which -- pass a fresh
      * uuid to create one. */
-    fun putLocation(
+    fun createLocation(
         locationId: String,
         projectId: String,
         name: String,
@@ -1801,23 +1403,23 @@ object HolderNative {
         configuration: Map<String, String>,
         now: Long,
     ): HolderLocation {
-        val body = JSONObject().apply {
-            put("location_id", locationId)
-            put("project_id", projectId)
-            put("name", name)
-            put("provider", provider)
-            put("configuration", JSONObject(configuration))
-            put("created_at", now)
-            put("updated_at", now)
-        }
-        return parseLocation(JSONObject(saveLane.call { nativeLocationPutJson(it, body.toString()) }))
+        val location = NewStorageLocation(
+            locationId = locationId, projectId = projectId, name = name,
+            provider = NewStorageLocationProvider.entries.single { it.value == provider },
+            configuration = configuration, createdAt = now, updatedAt = now,
+        )
+        val created = saveLane.call { Locations.createStorageLocation(it, location) }
+        return HolderLocation(created.locationId, created.projectId, created.name, created.provider.value,
+                              created.configuration, created.createdAt, created.updatedAt)
     }
 
-    fun getResource(resourceId: String): HolderResource =
-        parseResourceBundle(JSONObject(readLane.call { nativeResourceGet(it, resourceId) }))
+    fun getResource(projectId: String, resourceId: String): HolderResource =
+        fromContractResource(readLane.call { Resources.getResource(it, projectId, resourceId) })
 
-    fun listResources(projectId: String): List<HolderResource> {
-        return readLane.call { ContractResources.nativeListResources(it, projectId) }.map { resource ->
+    fun listResources(projectId: String): List<HolderResource> =
+        readLane.call { Resources.listResources(it, projectId) }.map(::fromContractResource)
+
+    private fun fromContractResource(resource: Resource) =
             HolderResource(
                 resourceId = resource.resourceId,
                 projectId = resource.projectId,
@@ -1837,19 +1439,12 @@ object HolderNative {
                     placements = asset.placements.map { placement -> HolderPlacement(
                         placementId = placement.placementId,
                         locationId = placement.locationId,
-                        encoding = placement.encoding,
+                        encoding = placement.encoding.value,
                         storedByteSize = placement.storedByteSize,
                         createdAt = placement.createdAt,
                     ) },
                 ) },
             )
-        }
-    }
-
-    internal fun listResourcesJsonForBenchmark(projectId: String): List<HolderResource> {
-        val resources = JSONArray(readLane.call { nativeResourceList(it, projectId) })
-        return List(resources.length()) { index -> parseResourceBundle(resources.getJSONObject(index)) }
-    }
 
     /** Imports sourceFilePath into projectId's Resource/Asset model, stores it via
      * locationId's storage provider (see [team.holder.android.resource.AndroidStorageProvider]),
@@ -1880,99 +1475,17 @@ object HolderNative {
         privacyMode = json.getString("privacy_mode"),
     )
 
-    private fun fromContractMetadata(card: ContractCardMetadata) = HolderCard(
+    private fun fromContractMetadata(card: CardMetadata) = HolderCard(
         card.cardId, card.projectId, card.title, card.parentCardId,
         card.createdAt, card.updatedAt, card.sortKey, card.deletedAt,
     )
 
-    private fun parseCard(json: JSONObject) = HolderCard(
-        cardId = json.getString("card_id"),
-        projectId = json.getString("project_id"),
-        title = json.getString("title"),
-        parentCardId = json.optStringOrNull("parent_card_id"),
-        createdAt = json.getLong("created_at"),
-        updatedAt = json.getLong("updated_at"),
-        sortKey = json.getDouble("sort_key"),
-        deletedAt = json.optLongOrNull("deleted_at"),
-        childCount = json.optIntOrNull("child_count"),
-    )
-
-    private fun parseOutgoingLink(json: JSONObject) = HolderOutgoingLink(
-        toCardId = json.getString("to_card_id"),
-        toType = json.getString("to_type"),
-        kind = json.getString("kind"),
-        label = json.optStringOrNull("label"),
-        toTitle = json.optStringOrNull("to_title"),
-    )
-
-    private fun parseBacklink(json: JSONObject) = HolderBacklink(
-        fromCardId = json.getString("from_card_id"),
-        kind = json.getString("kind"),
-        label = json.optStringOrNull("label"),
-        fromTitle = json.optStringOrNull("from_title"),
-    )
-
-    private fun parseCardRef(json: JSONObject) = HolderCardRef(
-        cardId = json.getString("card_id"),
-        title = json.getString("title"),
-    )
-
-    private fun parseMilestone(json: JSONObject) = HolderMilestone(
-        milestoneId = json.getString("milestone_id"),
-        cardId = json.getString("card_id"),
-        startAt = json.getLong("start_at"),
-        endAt = json.optLongOrNull("end_at"),
-        allDay = json.getBoolean("all_day"),
-        kind = json.optStringOrNull("kind"),
-        description = json.optStringOrNull("description"),
-        createdAt = json.getLong("created_at"),
-        updatedAt = json.getLong("updated_at"),
-        cardTitle = json.optStringOrNull("card_title"),
+    private fun fromContractCard(card: Card) = HolderCard(
+        card.cardId, card.projectId, card.title, card.parentCardId,
+        card.createdAt, card.updatedAt, card.sortKey, card.deletedAt,
     )
 
     private fun JSONArray.toStringList(): List<String> = List(length()) { index -> getString(index) }
-
-    private fun parseCardHistorySave(json: JSONObject) = HolderCardHistorySave(
-        oid = json.getString("oid"),
-        parentOids = json.getJSONArray("parent_oids").toStringList(),
-        authoredAt = json.getLong("authored_at"),
-        committedAt = json.getLong("committed_at"),
-        message = json.getString("message"),
-    )
-
-    private fun parseCardHistoryEntry(json: JSONObject): HolderCardHistoryEntry {
-        val author = json.getJSONObject("author")
-        val saves = json.getJSONArray("saves")
-        return HolderCardHistoryEntry(
-            firstOid = json.getString("first_oid"),
-            lastOid = json.getString("last_oid"),
-            parentOids = json.getJSONArray("parent_oids").toStringList(),
-            visibleParentOids = json.getJSONArray("visible_parent_oids").toStringList(),
-            authorName = author.getString("name"),
-            authorEmail = author.getString("email"),
-            startedAt = json.getLong("started_at"),
-            endedAt = json.getLong("ended_at"),
-            kind = json.getString("kind"),
-            summary = json.getString("summary"),
-            commitCount = json.getInt("commit_count"),
-            isMerge = json.getBoolean("is_merge"),
-            saves = List(saves.length()) { index -> parseCardHistorySave(saves.getJSONObject(index)) },
-        )
-    }
-
-    private fun parseCardHistoryVersion(json: JSONObject) = HolderCardHistoryVersion(
-        exists = json.getBoolean("exists"),
-        oid = json.getString("oid"),
-        title = json.getString("title"),
-        body = json.getString("body"),
-    )
-
-    private fun parseCardHistoryDiffLine(json: JSONObject) = HolderCardHistoryDiffLine(
-        origin = json.getString("origin"),
-        text = json.getString("text"),
-        oldLine = json.optLongOrNull("old_line"),
-        newLine = json.optLongOrNull("new_line"),
-    )
 
     private fun JSONObject.optStringOrNull(name: String): String? =
         if (isNull(name)) null else getString(name)
@@ -1998,43 +1511,6 @@ object HolderNative {
         createdAt = json.getLong("created_at"),
         updatedAt = json.getLong("updated_at"),
     )
-
-    private fun parsePlacement(json: JSONObject) = HolderPlacement(
-        placementId = json.getString("placement_id"),
-        locationId = json.getString("location_id"),
-        encoding = json.getString("encoding"),
-        storedByteSize = json.getLong("stored_byte_size"),
-        createdAt = json.getLong("created_at"),
-    )
-
-    private fun parseAsset(json: JSONObject): HolderAsset {
-        val placements = json.getJSONArray("placements")
-        return HolderAsset(
-            assetId = json.getString("asset_id"),
-            resourceId = json.getString("resource_id"),
-            originalFilename = json.getString("original_filename"),
-            mediaType = json.getString("media_type"),
-            byteSize = json.getLong("byte_size"),
-            plaintextSha256 = json.getString("plaintext_sha256"),
-            createdAt = json.getLong("created_at"),
-            updatedAt = json.getLong("updated_at"),
-            placements = List(placements.length()) { index -> parsePlacement(placements.getJSONObject(index)) },
-        )
-    }
-
-    private fun parseResourceBundle(json: JSONObject): HolderResource {
-        val resource = json.getJSONObject("resource")
-        val assets = json.getJSONArray("assets")
-        return HolderResource(
-            resourceId = resource.getString("resource_id"),
-            projectId = resource.getString("project_id"),
-            type = resource.getString("type"),
-            label = resource.getString("label"),
-            createdAt = resource.getLong("created_at"),
-            updatedAt = resource.getLong("updated_at"),
-            assets = List(assets.length()) { index -> parseAsset(assets.getJSONObject(index)) },
-        )
-    }
 
     /** Mirrors holder-daemon's Bootstrap.cpp: first line, only if it's a markdown heading. */
     private fun deriveWelcomeTitle(content: String, fallback: String): String {

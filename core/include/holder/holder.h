@@ -6,10 +6,13 @@
 extern "C" {
 #endif
 
+// Status codes. An error's code is the HTTP status it echoes and one more digit, so it reads as
+// that status: an invalid argument is 400, an unexpected failure 500. holder_api.h declares the
+// codes of the contract's error kinds, in the same scheme.
 #define HOLDER_OK 0
-#define HOLDER_ERROR_INVALID_ARGUMENT 1
-#define HOLDER_ERROR_RUNTIME 2
-#define HOLDER_ERROR_ALLOCATION 3
+#define HOLDER_ERROR_INVALID_ARGUMENT 4000
+#define HOLDER_ERROR_RUNTIME 5000
+#define HOLDER_ERROR_ALLOCATION 5001
 
 #define HOLDER_CARD_LIST_COMPLETE_MAX_LIMIT 1000
 #define HOLDER_HAS_PROJECT_IMPORT 1

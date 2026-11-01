@@ -10,11 +10,11 @@ The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). 
 
 ## Layout
 
-- `interface/` is the contract. `cards/` and `projects/` keep their models and operations together; `projects/ids.py` owns the Project ID shared by other domains. Other domains are moving from root model modules and `operations/` modules to the same layout. `app.py` assembles operations, and `DECLARATION_ORDER` in `__init__.py` fixes model ordering independently of file paths.
+- `interface/` is the contract, one package per domain. Each keeps its model modules (usually `models.py`) beside its `operations.py`; some have more than one, such as `projects/ids.py` for the Project ID other domains share. Supporting domains such as `pagination/` hold what several domains use. `errors.py` holds the error kinds every domain shares, and a domain's own `errors.py` those particular to it; `app.py` assembles the operations and gives each error kind its HTTP status and C error code, and `DECLARATION_ORDER` in `__init__.py` fixes model ordering independently of file paths.
 - `authoring/` is the Pydantic and FastAPI vocabulary imported by the contract: records, native types, errors, host interfaces and route declarations.
 - `compiler/` holds declaration rules, source loading, the target-independent Pydantic IR, and `Compiler.compile(ContractSource)`, the typed entry point. Its builder produces typed IR objects.
-- `generators/` describes the backend boundary in its [README](generators/README.md). It contains the typed C ABI plan shared by core and Android, and Android's generated page operation renderer.
-- `holder_contract/` holds the current CLI and dictionary adapter for generators awaiting migration: core's C API, daemon routes and JSON codec, OpenAPI, Android's Kotlin/JNI bridges, and their Jinja2 templates. It also holds the Hypothesis value strategies used by tests.
+- `generators/` describes the backend boundary in its [README](generators/README.md). It holds every target's generators: core's C API, the daemon's routes, codecs and OpenAPI, and Android's Kotlin/JNI client.
+- `holder_contract/` holds the CLI, the extractor's dictionary IR and adapters for callers that still hold it, and the Hypothesis value strategies used by tests. Every generator lives in `generators/`.
 - `tests/` tests the tooling: the extractor against a sample contract in `tests/fixtures/sample/`, which uses every part of the vocabulary; the generators' output by compiling and running it against a stand-in for core (`tests/c/` for the C API, `tests/http/` for the routes); and the strategies against the conformance check and Pydantic. Core's own tests (`core/tests/CApiCards_test.cpp`) run the real implementation.
 - `tests/conformance/` tests Holder against the contract: Hypothesis calls the operations, with arguments from the strategies, through the generated C API of a shared `libholder` and over HTTP against a `holderd`, and checks each result against its declared type and against a model of what it should be. Over HTTP, every response must also be one its route declares: a status it lists, and a body its Pydantic model accepts. Schemathesis (`test_schemathesis.py`) also sends the daemon requests valid and invalid by `api/openapi.json`, for the contract's routes, and checks each answer against the document. Core CI runs them through the C API on Linux, and Daemon CI over HTTP.
 
@@ -48,21 +48,17 @@ HOLDER_LIBRARY=$PWD/core/build/libholder.so HOLDER_DAEMON=$PWD/daemon/build/hold
 
 ## Writing the contract
 
-A contract package has model modules for records, error kinds and host interfaces. A domain package can place its operations beside its models; `app.py` assembles domains in order:
+A contract package is a set of domain packages. Each has model modules for its records, error kinds and host interfaces, usually `models.py` and `errors.py`, and an `operations.py` for its operations. Errors every domain shares go in the package's own `errors.py`. `app.py` gives every error kind its status and code and assembles the domains in order, and `DECLARATION_ORDER` in `__init__.py` names every model module:
 
 ```python
 """Cards."""  # cards/models.py, a model module
 
 from typing import Annotated
 
-from authoring import Field, HolderError, Record, Timestamp
+from authoring import Field, Record, Timestamp
 
 type CardId = Annotated[str, Field(min_length=1)]
 """A card's ID."""
-
-
-class NotFound(HolderError):
-    """The thing asked for does not exist, or is in the trash."""
 
 
 class Card(Record):
@@ -77,17 +73,38 @@ class Card(Record):
 ```
 
 ```python
+"""Errors every domain shares."""  # errors.py
+
+from authoring import HolderError
+
+
+class NotFound(HolderError):
+    """The thing asked for does not exist, or is in the trash."""
+```
+
+```python
+"""Errors particular to cards."""  # cards/errors.py
+
+from authoring import HolderError
+
+
+class InvalidMove(HolderError):
+    """A card cannot go where it was asked to."""
+```
+
+```python
 """Card operations."""  # cards/operations.py
 
 from typing import Annotated
 
-from fastapi import Path
+from fastapi import Body, Path
 
 from authoring import Contract
 
-from .models import Card, CardId
-from ..projects.ids import ProjectId
 from ..errors import NotFound
+from ..projects.ids import ProjectId
+from .errors import InvalidMove
+from .models import Card, CardId, CardMove
 
 def register(contract: Contract) -> None:
     @contract.route("GET", "/projects/{project_id}/cards/{card_id}", errors=[NotFound])
@@ -96,18 +113,30 @@ def register(contract: Contract) -> None:
 
         A card in the trash or in another project is not found.
         """
+
+    @contract.route("POST", "/projects/{project_id}/cards/{card_id}/move", errors=[NotFound, InvalidMove])
+    def move_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()],
+                  move: Annotated[CardMove, Body()]) -> Card:
+        """Move a card."""
 ```
 
 ```python
 """Assemble the public contract."""  # app.py
 
 from authoring import Contract
-from .errors import NotFound
 from .cards import operations as card_operations
+from .cards.errors import InvalidMove
+from .errors import NotFound
 
-contract = Contract(statuses={NotFound: 404})
+contract = Contract(errors={NotFound: (404, 4040), InvalidMove: (422, 4220)})
 card_operations.register(contract)
 app = contract.app
+```
+
+```python
+"""Holder's contract."""  # __init__.py
+
+DECLARATION_ORDER = ("errors", "projects.ids", "cards.models", "cards.errors")
 ```
 
 A model module may contain only:
@@ -125,7 +154,7 @@ Anything else, such as a validator, a `model_config`, a function or an assignmen
 
 - **routes:** `@contract.route(method, path, errors=[...], status=..., core=...)` on a function whose body never runs. Each parameter says where it comes from, with FastAPI's `Path()`, `Query()` or `Body()`, which also carry its documentation (`Query(description=...)`). `errors` lists the error kinds it may fail with, besides an invalid argument; `status` is the success status, 200 unless given; `core=False` keeps an operation the daemon alone serves out of core's C API.
 - **core-only operations:** `@contract.core_operation(errors=[...])`, for an operation only core's C API has; it is not a route.
-- **error statuses:** `Contract(statuses={NotFound: 404, ...})` gives each error kind its HTTP status. Every error kind of a route needs one.
+- **error statuses and codes:** `Contract(errors={NotFound: (404, 4040), ...})` gives each error kind its HTTP status and its C error code. Every error kind needs both. A code is four digits: its status, then one more digit to tell apart kinds that share the status (`KeyMissing` is `(409, 4091)`), so it reads as the HTTP status it echoes. Codes are unique, and are the error kinds' identity in the C API: once released, a code keeps its meaning and is never reused.
 
 The extractor reads the routes FastAPI analysed, and the rest from the `Contract` ([HTTP.md](HTTP.md)). The IR records each operation's domain module as its source.
 

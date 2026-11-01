@@ -2,8 +2,8 @@
 
 A model module holds declarations only: imports of the vocabulary, records, enums, error kinds,
 host interfaces and `type` statements. Anything that could run logic, such as a validator, an
-assignment or a function, is rejected with the line it is on. Operation modules under
-operations/ may contain one register function holding only route declarations.
+assignment or a function, is rejected with the line it is on. A domain's operations.py may
+contain one register function holding only route declarations.
 """
 
 from __future__ import annotations
@@ -87,7 +87,7 @@ def check_file(path: Path, display: str, package: str) -> tuple[list[Problem], D
     except SyntaxError as error:
         return [Problem(display, error.lineno or 1, f"syntax error: {error.msg}")], found
 
-    if "operations" in path.parts or path.name == "operations.py":
+    if path.name == "operations.py":
         return _check_operation_file(tree, display, package), found
 
     found.alias_docs = _following_docs(tree.body)
@@ -121,7 +121,7 @@ def check_file(path: Path, display: str, package: str) -> tuple[list[Problem], D
             found.names.append((node.name, node.lineno))
             _check_class(node, found, problem)
         elif isinstance(node, ast.FunctionDef):
-            problem(node, f"{node.name}: operations are routes in app.py, not functions in a model module")
+            problem(node, f"{node.name}: operations are routes in a domain's operations.py, not functions in a model module")
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
             problem(node, "contract files hold no assignments; name a type with a `type` statement")
         else:
@@ -162,10 +162,6 @@ def _check_operation_file(tree: ast.Module, display: str, package: str) -> list[
                     problem(operation, "register holds only @contract.route or @contract.core_operation declarations")
                 elif not _declaration_body(operation.body):
                     problem(operation, f"{operation.name}: an operation body may hold only its docstring")
-        elif (display.endswith("/operations/common.py") and isinstance(node, ast.Assign) and
-              len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) and node.targets[0].id == "KEYS" and
-              isinstance(node.value, ast.List) and all(isinstance(value, ast.Name) for value in node.value.elts)):
-            continue
         else:
             problem(node, "operation modules hold imports and one register function only")
     return problems

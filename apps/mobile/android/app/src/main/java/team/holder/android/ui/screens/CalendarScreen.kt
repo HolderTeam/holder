@@ -172,7 +172,7 @@ fun CalendarScreen(
         scope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
-                    HolderNative.removeCardMilestone(milestone.cardId, milestone.milestoneId)
+                    HolderNative.removeCardMilestone(projectId, milestone.cardId, milestone.milestoneId)
                 }
             }
             isSubmitting = false

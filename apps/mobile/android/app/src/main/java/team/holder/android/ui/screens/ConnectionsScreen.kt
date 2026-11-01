@@ -94,7 +94,7 @@ fun ConnectionsScreen(
 
     suspend fun refresh() {
         linksState = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.listCardLinks(cardId) }
+            withContext(Dispatchers.IO) { HolderNative.listCardLinks(projectId, cardId) }
         }.fold(
             onSuccess = { LoadState.Success(it) },
             onFailure = { LoadState.Error(it.message ?: it::class.java.simpleName) },
@@ -108,7 +108,7 @@ fun ConnectionsScreen(
     LaunchedEffect(mapCenterCardId, refreshKey, showMap) {
         if (!showMap) return@LaunchedEffect
         mapLinksState = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.listCardLinks(mapCenterCardId) }
+            withContext(Dispatchers.IO) { HolderNative.listCardLinks(projectId, mapCenterCardId) }
         }.fold(
             onSuccess = { LoadState.Success(it) },
             onFailure = { LoadState.Error(it.message ?: it::class.java.simpleName) },
@@ -130,7 +130,7 @@ fun ConnectionsScreen(
         pendingRemove = null
         scope.launch {
             runCatching {
-                withContext(Dispatchers.IO) { HolderNative.removeCardLink(cardId, link.toCardId, link.kind) }
+                withContext(Dispatchers.IO) { HolderNative.removeCardLink(projectId, cardId, link.toCardId, link.kind) }
             }
             isSubmitting = false
             refresh()

@@ -49,6 +49,10 @@ from .rules import Declarations, Problem
 from .source import APP_FILE, LoadedSource
 
 IR_VERSION = 1
+
+# The C API's base status codes, which holder.h declares for every contract: an error kind's code
+# may not be one of them.
+BASE_ERROR_CODES = {4000: "an invalid argument", 5000: "an unexpected failure", 5001: "an allocation failure"}
 CONSTRAINTS = ("min_length", "max_length", "pattern", "ge", "le", "gt", "lt")
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
 PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
@@ -102,6 +106,7 @@ class _Builder:
         self.draft = _Draft()
         self.where = ("", 0)
         self.names: dict[str, tuple[str, int]] = {}
+        self.error_codes: dict[int, str] = {}
 
     # ---- top level -------------------------------------------------------------------------
 
@@ -114,6 +119,7 @@ class _Builder:
         if self.app is not None:
             self.operations()
         self.check_error_statuses()
+        self.assign_error_codes()
         if self.problems:
             raise ContractError(self.problems)
         return self.draft.finish()
@@ -251,8 +257,8 @@ class _Builder:
                 self.bind(function, routes[function], operation.created_when, operation.public,
                           operation.core)
         self.where = (self.app_source, 1)
-        for error, status in contract.statuses.items():
-            self.bind_error(error, status)
+        for error, entry in contract.errors.items():
+            self.bind_error(error, entry)
 
     def callable(self, function: Any, where: str, skip_self: bool = False, allow_stream: bool = False) -> _Signature:
         doc = _doc(function)
@@ -336,15 +342,47 @@ class _Builder:
             entry["body"] = body[0]
         self.draft.http.append(HttpBindingView(**entry))
 
-    def bind_error(self, error: Any, status: Any) -> None:
+    def bind_error(self, error: Any, entry: Any) -> None:
+        """An error kind's (status, code): its HTTP status, and its C error code, which is the status
+        and one more digit, so that a code says what kind of failure it is to anyone who knows HTTP."""
         name = getattr(error, "__name__", repr(error))
         declared = {e.name for e in self.draft.errors}
         if not (isinstance(error, type) and name in declared and self.in_contract(error)):
-            self.problem(f"Contract statuses: {name} is not an error kind declared in the contract")
+            self.problem(f"Contract errors: {name} is not an error kind declared in the contract")
             return
-        if not (isinstance(status, int) and 400 <= status <= 599):
-            self.problem(f"Contract statuses: {name}'s status must be a 4xx or 5xx, not {status!r}")
+        if not (isinstance(entry, tuple) and len(entry) == 2 and all(type(v) is int for v in entry)):
+            self.problem(f"Contract errors: {name} needs (status, code), such as (404, 4040), not {entry!r}")
+            return
+        status, code = entry
+        if not 400 <= status <= 599:
+            self.problem(f"Contract errors: {name}'s status must be a 4xx or 5xx, not {status!r}")
+        if not 1000 <= code <= 9999:
+            self.problem(f"Contract errors: {name}'s code must have four digits, not {code!r}")
+        elif code // 10 != status:
+            self.problem(f"Contract errors: {name}'s code {code} must begin with its status {status}")
+        owner = self.error_codes.get(code)
+        if code in BASE_ERROR_CODES:
+            self.problem(f"Contract errors: {name}'s code {code} is the C API's code for {BASE_ERROR_CODES[code]}")
+        elif owner is not None:
+            self.problem(f"Contract errors: {name} and {owner} both have code {code}")
+        else:
+            self.error_codes[code] = name
         self.draft.http_errors.append(HttpErrorView(error=name, status=status))
+
+    def assign_error_codes(self) -> None:
+        """Every error kind needs a code, since the C API reports each by its code."""
+        if self.app is None:
+            return
+        codes = {name: code for code, name in self.error_codes.items()}
+        self.where = (self.app_source, 1)
+        errors = []
+        for error in self.draft.errors:
+            if error.name not in codes:
+                self.problem(f"Contract errors: {error.name} needs a status and a code, such as (404, 4040)")
+                errors.append(error)
+            else:
+                errors.append(ErrorView(**error.model_dump(exclude_unset=True), code=codes[error.name]))
+        self.draft.errors = errors
 
     def check_error_statuses(self) -> None:
         """Every error kind an HTTP-bound operation may fail with needs a status."""
@@ -354,7 +392,7 @@ class _Builder:
             for error in operations[binding.operation].errors:
                 if error not in statuses:
                     self.problem(f"{binding.operation} is a route, so its error kind {error} "
-                                 "needs a status in the Contract's statuses")
+                                 "needs a status in the Contract's errors")
                     statuses.add(error)
 
     # ---- types -------------------------------------------------------------------------------

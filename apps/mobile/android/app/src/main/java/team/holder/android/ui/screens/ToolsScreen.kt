@@ -124,7 +124,7 @@ fun ToolsScreen(
         if (tag.isBlank()) return
         scope.launch {
             val result = runCatching {
-                withContext(Dispatchers.IO) { HolderNative.addCardTag(cardId, tag) }
+                withContext(Dispatchers.IO) { HolderNative.addCardTag(projectId, cardId, tag) }
             }
             result.onFailure {
                 snackbarHostState.showSnackbar("\"$tag\" isn't a valid tag.")
@@ -137,7 +137,7 @@ fun ToolsScreen(
     fun removeTag(tag: String) {
         scope.launch {
             val result = runCatching {
-                withContext(Dispatchers.IO) { HolderNative.removeCardTag(cardId, tag) }
+                withContext(Dispatchers.IO) { HolderNative.removeCardTag(projectId, cardId, tag) }
             }.getOrNull()
             if (result == HolderNative.RemoveTagResult.PRESENT_OUTSIDE_EDITABLE_TAG_LINE) {
                 snackbarHostState.showSnackbar("\"$tag\" appears in the card text -- edit it there to remove it.")
@@ -160,7 +160,7 @@ fun ToolsScreen(
     }
     LaunchedEffect(cardId, refreshKey) {
         linksState = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.listCardLinks(cardId) }
+            withContext(Dispatchers.IO) { HolderNative.listCardLinks(projectId, cardId) }
         }.fold(
             onSuccess = { LoadState.Success(it) },
             onFailure = { LoadState.Error(it.message ?: it::class.java.simpleName) },
@@ -168,7 +168,7 @@ fun ToolsScreen(
     }
     LaunchedEffect(cardId, refreshKey) {
         milestones = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.listCardMilestones(cardId) }
+            withContext(Dispatchers.IO) { HolderNative.listCardMilestones(projectId, cardId) }
         }.getOrDefault(emptyList())
     }
     LaunchedEffect(cardId, projectId, refreshKey) {
@@ -289,7 +289,7 @@ fun ToolsScreen(
                     ToolTile(title = "Resources", onClick = onResourcesClick) {
                         when (linksState) {
                             is LoadState.Loading -> LoadingLine()
-                            else -> ResourcesTileBody(requireNotNull(resourceAttachments))
+                            else -> ResourcesTileBody(projectId, requireNotNull(resourceAttachments))
                         }
                     }
                 }
@@ -424,16 +424,17 @@ private fun ConnectionsTileBody(
  * full Resources screen uses -- a bare count would throw away exactly the glanceable
  * information a preview is for. */
 @Composable
-private fun ResourcesTileBody(attachments: List<HolderOutgoingLink>) {
+private fun ResourcesTileBody(projectId: String, attachments: List<HolderOutgoingLink>) {
     attachments.take(2).forEach { link ->
         val displayName = link.label ?: "Attachment"
-        val kind = rememberResourceAttachmentKind(link.toCardId, displayName)
+        val kind = rememberResourceAttachmentKind(projectId, link.toCardId, displayName)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         ) {
             if (kind is ResourceAttachmentKind.Image) {
                 ResourceImage(
+                    projectId = projectId,
                     resourceId = link.toCardId,
                     altText = displayName,
                     modifier = Modifier.size(24.dp).clip(MaterialTheme.shapes.extraSmall),

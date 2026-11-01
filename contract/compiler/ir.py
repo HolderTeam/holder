@@ -134,6 +134,7 @@ class ErrorView(View):
     source: str | None = None
     doc: str | None = None
     fields: list[ErrorFieldView]
+    code: int | None = None
 
 
 class ParameterView(View):

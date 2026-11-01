@@ -6,8 +6,7 @@ from fastapi import Body, Path, Query
 
 from authoring import Contract, Field, Int32, Timestamp
 
-from ..errors import Conflict, NotFound
-from ..operations.common import KEYS
+from ..errors import Conflict, DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from .ids import ProjectId
 from .models import NewProject, Project, ProjectListItem, ProjectUpdate
 
@@ -39,7 +38,7 @@ def register(contract: Contract) -> None:
         """Fetch a project."""
 
 
-    @contract.route("POST", "/projects", status=201, errors=[Conflict, *KEYS])
+    @contract.route("POST", "/projects", status=201, errors=[Conflict, KeyringUnavailable, KeyMissing, DataCorrupted])
     def create_project(project: Annotated[NewProject, Body()]) -> Project:
         """Make a project.
 
@@ -48,7 +47,7 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("PATCH", "/projects/{project_id}", errors=[NotFound, *KEYS])
+    @contract.route("PATCH", "/projects/{project_id}", errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def update_project(project_id: Annotated[ProjectId, Path()], update: Annotated[ProjectUpdate, Body()]) -> Project:
         """Change a project's settings.
 

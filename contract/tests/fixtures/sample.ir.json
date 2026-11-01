@@ -295,7 +295,8 @@
       "name": "NotFound",
       "source": "sample/cards.py",
       "doc": "The thing asked for does not exist, or is in the trash.",
-      "fields": []
+      "fields": [],
+      "code": 4040
     },
     {
       "name": "Conflict",
@@ -310,7 +311,8 @@
             "format": "unix-seconds"
           }
         }
-      ]
+      ],
+      "code": 4090
     }
   ],
   "interfaces": [

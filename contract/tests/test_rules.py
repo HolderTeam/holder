@@ -27,14 +27,14 @@ from authoring import MISSING, Contract, Int32
 
 from .m0 import *  # noqa: F403
 
-contract = Contract(statuses=STATUSES)
+contract = Contract(errors=ERROR_TABLE)
 """
 _counter = itertools.count()
 
 
-def problems(tmp_path, *modules: str, app: str | None = None, statuses: str = "{}") -> str:
+def problems(tmp_path, *modules: str, app: str | None = None, errors: str = "{}") -> str:
     """The problems found in a contract package made of these modules and, if given, app.py with
-    these routes and error statuses, joined by newlines."""
+    these routes and error table, joined by newlines."""
     package = f"contract_{next(_counter)}"
     directory = tmp_path / package
     directory.mkdir()
@@ -42,7 +42,7 @@ def problems(tmp_path, *modules: str, app: str | None = None, statuses: str = "{
     for number, body in enumerate(modules or ("",)):
         (directory / f"m{number}.py").write_text(PREAMBLE + textwrap.dedent(body))
     if app is not None:
-        (directory / "app.py").write_text(APP_PREAMBLE.replace("STATUSES", statuses) + textwrap.dedent(app))
+        (directory / "app.py").write_text(APP_PREAMBLE.replace("ERROR_TABLE", errors) + textwrap.dedent(app))
     try:
         extract(tmp_path, package)
     except ContractError as error:
@@ -118,13 +118,13 @@ def test_functions_are_rejected_in_model_modules(tmp_path):
 def helper() -> None:
     """Help."""
 ''')
-    assert "helper: operations are routes in app.py, not functions in a model module" in found
+    assert "helper: operations are routes in a domain's operations.py, not functions in a model module" in found
 
 
 def test_operation_modules_allow_routes_but_reject_executable_bodies(tmp_path):
-    directory = tmp_path / "sample" / "operations"
+    directory = tmp_path / "sample" / "cards"
     directory.mkdir(parents=True)
-    module = directory / "cards.py"
+    module = directory / "operations.py"
     module.write_text('''\
 from fastapi import Path
 from authoring import Contract
@@ -134,9 +134,9 @@ def register(contract: Contract) -> None:
     def list_cards() -> list[str]:
         """List cards."""
 ''')
-    assert check_file(module, "sample/operations/cards.py", "sample")[0] == []
+    assert check_file(module, "sample/cards/operations.py", "sample")[0] == []
     module.write_text(module.read_text() + '        print("ran")\n')
-    problems, _ = check_file(module, "sample/operations/cards.py", "sample")
+    problems, _ = check_file(module, "sample/cards/operations.py", "sample")
     assert "an operation body may hold only its docstring" in str(problems[0])
 
 
@@ -228,17 +228,30 @@ def find_thing(thing_id: Annotated[str, Path()]) -> None:
 '''
 
 
-@pytest.mark.parametrize("statuses, message", [
-    ("{}", "find_thing is a route, so its error kind Missing needs a status in the Contract's statuses"),
-    ("{Missing: 200}", "Missing's status must be a 4xx or 5xx, not 200"),
-    ("{Missing: 404, ValueError: 400}", "ValueError is not an error kind declared in the contract"),
+@pytest.mark.parametrize("errors, message", [
+    ("{}", "find_thing is a route, so its error kind Missing needs a status in the Contract's errors"),
+    ("{}", "Missing needs a status and a code, such as (404, 4040)"),
+    ("{Missing: 404}", "Missing needs (status, code), such as (404, 4040), not 404"),
+    ("{Missing: (200, 2000)}", "Missing's status must be a 4xx or 5xx, not 200"),
+    ("{Missing: (404, 404)}", "Missing's code must have four digits, not 404"),
+    ("{Missing: (404, 4090)}", "Missing's code 4090 must begin with its status 404"),
+    ("{Missing: (400, 4000)}", "Missing's code 4000 is the C API's code for an invalid argument"),
+    ("{Missing: (404, 4040), ValueError: (400, 4000)}", "ValueError is not an error kind declared in the contract"),
 ])
-def test_error_statuses_are_checked(tmp_path, statuses, message):
-    assert message in problems(tmp_path, ERRORS, app=FIND, statuses=statuses)
+def test_error_table_is_checked(tmp_path, errors, message):
+    assert message in problems(tmp_path, ERRORS, app=FIND, errors=errors)
 
 
-def test_routes_with_error_statuses_are_clean(tmp_path):
-    assert problems(tmp_path, ERRORS, app=FIND, statuses="{Missing: 404}") == ""
+def test_error_codes_are_unique(tmp_path):
+    found = problems(tmp_path, ERRORS + '''
+class Gone(HolderError):
+    """Gone for good."""
+''', app=FIND, errors="{Missing: (404, 4040), Gone: (404, 4040)}")
+    assert "Gone and Missing both have code 4040" in found
+
+
+def test_routes_with_an_error_table_are_clean(tmp_path):
+    assert problems(tmp_path, ERRORS, app=FIND, errors="{Missing: (404, 4040)}") == ""
 
 
 def test_core_operations_need_no_route(tmp_path):
@@ -246,7 +259,7 @@ def test_core_operations_need_no_route(tmp_path):
 @contract.core_operation(errors=[Missing])
 def rebuild(name: str) -> None:
     """Rebuild."""
-''') == ""
+''', errors="{Missing: (404, 4040)}") == ""
 
 
 def test_every_problem_is_reported_at_once(tmp_path):
@@ -260,3 +273,15 @@ class One(Record):
     """B."""
 ''')
     assert len(found.splitlines()) == 2
+
+
+def test_base_error_codes_match_holder_h():
+    """The codes the compiler reserves are the ones holder.h declares."""
+    import re
+    from pathlib import Path
+
+    from compiler.builder import BASE_ERROR_CODES
+
+    header = (Path(__file__).resolve().parents[2] / "core" / "include" / "holder" / "holder.h").read_text()
+    declared = {int(code) for code in re.findall(r"^#define HOLDER_ERROR_\w+ (\d+)$", header, flags=re.MULTILINE)}
+    assert declared == set(BASE_ERROR_CODES)
