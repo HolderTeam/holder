@@ -174,65 +174,6 @@ Java_team_holder_android_HolderNative_nativeEnsureDefaultProject(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_team_holder_android_HolderNative_nativeCardGet(
-    JNIEnv* env,
-    jobject /* thiz */,
-    jlong context_handle,
-    jstring card_id,
-    jint scope
-) {
-  holder_context* context = context_from_handle(env, context_handle);
-  if (context == nullptr) return nullptr;
-
-  UtfChars card_id_chars(env, card_id);
-  if (card_id_chars.get() == nullptr) {
-    throw_runtime(env, "card_id must not be null");
-    return nullptr;
-  }
-
-  char* json = nullptr;
-  holder_error* error = nullptr;
-  const int rc = holder_card_get(context, card_id_chars.get(), scope, &json, &error);
-  if (rc != HOLDER_OK) {
-    throw_runtime(env, error_message(error));
-    return nullptr;
-  }
-  return string_result(env, json);
-}
-
-extern "C" JNIEXPORT jstring JNICALL
-Java_team_holder_android_HolderNative_nativeCardQuery(
-    JNIEnv* env,
-    jobject /* thiz */,
-    jlong context_handle,
-    jstring project_id,
-    jstring request_json
-) {
-  holder_context* context = context_from_handle(env, context_handle);
-  if (context == nullptr) {
-    return nullptr;
-  }
-
-  UtfChars project_id_chars(env, project_id);
-  UtfChars request_json_chars(env, request_json);
-  if (project_id_chars.get() == nullptr || request_json_chars.get() == nullptr) {
-    throw_runtime(env, "project_id and request_json must not be null");
-    return nullptr;
-  }
-
-  char* json = nullptr;
-  holder_error* error = nullptr;
-  const int rc = holder_card_query_json(
-      context, project_id_chars.get(), request_json_chars.get(), &json, &error
-  );
-  if (rc != HOLDER_OK) {
-    throw_runtime(env, error_message(error));
-    return nullptr;
-  }
-  return string_result(env, json);
-}
-
-extern "C" JNIEXPORT jstring JNICALL
 Java_team_holder_android_HolderNative_nativeBackupSnapshotPage(
     JNIEnv* env,
     jobject /* thiz */,
@@ -348,31 +289,6 @@ Java_team_holder_android_HolderNative_nativeCardListEditableTags(
   char* json = nullptr;
   holder_error* error = nullptr;
   const int rc = holder_card_list_editable_tags(context, card_id_chars.get(), &json, &error);
-  if (rc != HOLDER_OK) {
-    throw_runtime(env, error_message(error));
-    return nullptr;
-  }
-  return string_result(env, json);
-}
-
-extern "C" JNIEXPORT jstring JNICALL
-Java_team_holder_android_HolderNative_nativeRecoveryTokenInspect(
-    JNIEnv* env,
-    jobject /* thiz */,
-    jstring pin,
-    jstring recovery_token
-) {
-  UtfChars pin_chars(env, pin);
-  UtfChars recovery_token_chars(env, recovery_token);
-  if (pin_chars.get() == nullptr || recovery_token_chars.get() == nullptr) {
-    throw_runtime(env, "pin and recovery_token must not be null");
-    return nullptr;
-  }
-
-  char* json = nullptr;
-  holder_error* error = nullptr;
-  const int rc =
-      holder_recovery_token_inspect(pin_chars.get(), recovery_token_chars.get(), &json, &error);
   if (rc != HOLDER_OK) {
     throw_runtime(env, error_message(error));
     return nullptr;

@@ -21,6 +21,7 @@ import team.holder.android.contract.NewCard
 import team.holder.android.contract.Page
 import team.holder.android.contract.Search
 import team.holder.android.contract.Trash
+import team.holder.android.contract.CardHistoryRestoreResult
 import team.holder.android.contract.CardHistoryVersion
 import team.holder.android.contract.CompareCardHistoryMode
 import team.holder.android.contract.Git
@@ -96,8 +97,6 @@ data class HolderCard(
 data class HolderTrashedCard(val cardId: String, val title: String, val deletedAt: Long)
 
 /** Matches holder_card_query_json's "view" values (lowercased on the wire). */
-enum class CardQueryView { ROOTS, CHILDREN, ALL, RECENT }
-
 /** One page of [HolderNative.backupSnapshotPage]: a project's cards, most-recently-updated
  * first. [cards] are kept as raw [JSONObject]s rather than reshaped into a typed data class --
  * [team.holder.android.git.backup.SnapshotWriter] writes each one straight through as one
@@ -402,13 +401,6 @@ data class RecoveryTokenExportResult(
     val recoveryToken: String,
 )
 
-data class RecoveryTokenMetadata(
-    val projectId: String,
-    val projectKeyId: String,
-    val projectName: String?,
-    val gitRemoteUrl: String?,
-)
-
 data class RecoveryTokenImportGlobalResult(
     val projectId: String,
     val projectCreated: Boolean,
@@ -471,8 +463,6 @@ object HolderNative {
     private external fun nativeContextOpen(dataDir: String, schemaSql: String): Long
     private external fun nativeContextClose(contextHandle: Long)
     private external fun nativeDatabaseRebuild(dataDir: String, schemaSql: String, dryRun: Boolean): String
-    private external fun nativeCardGet(contextHandle: Long, cardId: String, scope: Int): String
-    private external fun nativeCardQuery(contextHandle: Long, projectId: String, requestJson: String): String
     private external fun nativeBackupSnapshotPage(
         contextHandle: Long,
         projectId: String,
@@ -495,7 +485,6 @@ object HolderNative {
     ): String
     private external fun nativeListLinkKinds(): String
     private external fun nativeCardListEditableTags(contextHandle: Long, cardId: String): String
-    private external fun nativeRecoveryTokenInspect(pin: String, recoveryToken: String): String
     private external fun nativeLocationList(contextHandle: Long, projectId: String): String
     private external fun nativeAssetImportFile(
         contextHandle: Long,
@@ -681,40 +670,6 @@ object HolderNative {
     fun getCard(projectId: String, cardId: String): HolderCard {
         val card = readLane.call { Cards.getCardMetadata(it, projectId, cardId) }
         return fromContractMetadata(card)
-    }
-
-    /** Trash-aware lookup stays on the legacy C API until the contract covers Trash lookup. */
-    fun getTrashedCard(cardId: String): HolderCard =
-        parseCard(JSONObject(readLane.call { nativeCardGet(it, cardId, 1) }))
-
-    /** One hierarchy/recency view of projectId's cards, bundling what would otherwise be
-     * several one-off native calls (list_roots/list_children/list_all/list_recent_page)
-     * behind a single request. [parentCardId] is required for [CardQueryView.CHILDREN] and
-     * ignored otherwise; [beforeUpdatedAt]/[beforeCardId] are an optional pagination cursor
-     * for [CardQueryView.RECENT] (both null for the first page); [limit] is required and must
-     * be positive for [CardQueryView.RECENT] and ignored otherwise, which are unbounded like
-     * their underlying CardRepo methods. Set [includeChildCounts] to also populate each
-     * returned card's [HolderCard.childCount]. */
-    fun queryCards(
-        projectId: String,
-        view: CardQueryView,
-        parentCardId: String? = null,
-        beforeUpdatedAt: Long? = null,
-        beforeCardId: String? = null,
-        limit: Int? = null,
-        includeChildCounts: Boolean = false,
-    ): List<HolderCard> {
-        val request = JSONObject()
-        request.put("view", view.name.lowercase())
-        if (parentCardId != null) request.put("parent_card_id", parentCardId)
-        if (beforeUpdatedAt != null) request.put("before_updated_at", beforeUpdatedAt)
-        if (beforeCardId != null) request.put("before_card_id", beforeCardId)
-        if (limit != null) request.put("limit", limit)
-        if (includeChildCounts) request.put("include_child_counts", true)
-
-        val cards = JSONObject(readLane.call { nativeCardQuery(it, projectId, request.toString()) })
-            .getJSONArray("cards")
-        return List(cards.length()) { index -> parseCard(cards.getJSONObject(index)) }
     }
 
     fun getCardContent(projectId: String, cardId: String): String =
@@ -939,16 +894,9 @@ object HolderNative {
      * links, milestones, hierarchy/location, tags, Resource references, and live/Trash state
      * together -- through the ordinary write path (a new "Restore card ..." commit). Never
      * checks out or rewrites Git history, so the pre-restore state remains its own, still-
-     * reachable history entry. Returns the restored card. */
-    fun restoreCardHistory(projectId: String, cardId: String, historicalOid: String): HolderCard {
-        val cardJson = saveLane.call { context ->
-            val result = History.restoreCardHistorySnapshot(context, projectId, cardId, historicalOid)
-            // The contract result omits hierarchy and creation fields in HolderCard. Keep this
-            // read until the Android-facing return shape is settled in #344.
-            nativeCardGet(context, result.cardId, 2)
-        }
-        return parseCard(JSONObject(cardJson))
-    }
+     * reachable history entry. Returns what was restored: the card's ID, title and whether it is in the Trash. */
+    fun restoreCardHistory(projectId: String, cardId: String, historicalOid: String): CardHistoryRestoreResult =
+        saveLane.call { History.restoreCardHistorySnapshot(it, projectId, cardId, historicalOid) }
 
     /** cardId's explicit connections -- not inline [[wikilinks]] -- with its parent and live children,
      * which hierarchy shows automatically. Titles come from the linked cards and resources, as on
@@ -1420,18 +1368,6 @@ object HolderNative {
         }
     }
 
-    /** Decrypts a recovery token's metadata without importing anything, so a caller can show
-     * the user what they're about to recover before committing. */
-    fun inspectRecoveryToken(pin: String, recoveryToken: String): RecoveryTokenMetadata {
-        val json = JSONObject(nativeRecoveryTokenInspect(pin, recoveryToken))
-        return RecoveryTokenMetadata(
-            projectId = json.getString("project_id"),
-            projectKeyId = json.getString("project_key_id"),
-            projectName = json.optStringOrNull("project_name"),
-            gitRemoteUrl = json.optStringOrNull("git_remote_url"),
-        )
-    }
-
     /** The device-setup path: recovers a project from just a PIN and a recovery token, creating
      * it first if this device has never seen it before, and pulling its remote if the token
      * includes one. */
@@ -1547,18 +1483,6 @@ object HolderNative {
     private fun fromContractCard(card: Card) = HolderCard(
         card.cardId, card.projectId, card.title, card.parentCardId,
         card.createdAt, card.updatedAt, card.sortKey, card.deletedAt,
-    )
-
-    private fun parseCard(json: JSONObject) = HolderCard(
-        cardId = json.getString("card_id"),
-        projectId = json.getString("project_id"),
-        title = json.getString("title"),
-        parentCardId = json.optStringOrNull("parent_card_id"),
-        createdAt = json.getLong("created_at"),
-        updatedAt = json.getLong("updated_at"),
-        sortKey = json.getDouble("sort_key"),
-        deletedAt = json.optLongOrNull("deleted_at"),
-        childCount = json.optIntOrNull("child_count"),
     )
 
     private fun JSONArray.toStringList(): List<String> = List(length()) { index -> getString(index) }
