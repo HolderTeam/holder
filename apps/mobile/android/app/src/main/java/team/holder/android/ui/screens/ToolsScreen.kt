@@ -168,7 +168,7 @@ fun ToolsScreen(
     }
     LaunchedEffect(cardId, refreshKey) {
         milestones = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.listCardMilestones(cardId) }
+            withContext(Dispatchers.IO) { HolderNative.listCardMilestones(projectId, cardId) }
         }.getOrDefault(emptyList())
     }
     LaunchedEffect(cardId, projectId, refreshKey) {

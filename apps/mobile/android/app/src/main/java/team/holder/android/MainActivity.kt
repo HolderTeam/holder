@@ -934,7 +934,7 @@ private fun HolderNavHost(
             val existingMilestone by produceState<HolderMilestone?>(initialValue = null, cardId, milestoneId) {
                 value = runCatching {
                     withContext(Dispatchers.IO) {
-                        HolderNative.listCardMilestones(cardId).firstOrNull { it.milestoneId == milestoneId }
+                        HolderNative.listCardMilestones(projectId, cardId).firstOrNull { it.milestoneId == milestoneId }
                     }
                 }.getOrNull()
             }

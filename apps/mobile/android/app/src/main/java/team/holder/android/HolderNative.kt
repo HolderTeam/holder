@@ -34,6 +34,11 @@ import team.holder.android.contract.RemoveCardLinkTargetType
 import team.holder.android.contract.History
 import team.holder.android.contract.ListProjectsOrder
 import team.holder.android.contract.Maintenance
+import team.holder.android.contract.Milestone
+import team.holder.android.contract.MilestoneDate
+import team.holder.android.contract.MilestoneUpdate
+import team.holder.android.contract.Milestones
+import team.holder.android.contract.NewMilestone
 import team.holder.android.contract.NewProject
 import team.holder.android.contract.NewProjectPrivacyMode
 import team.holder.android.contract.Project
@@ -51,6 +56,12 @@ import team.holder.android.contract.Resources
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.time.Instant
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 data class HolderProject(
     val projectId: String,
@@ -480,31 +491,6 @@ object HolderNative {
     ): String
     private external fun nativeListLinkKinds(): String
     private external fun nativeCardListEditableTags(contextHandle: Long, cardId: String): String
-    private external fun nativeCardListMilestones(contextHandle: Long, cardId: String): String
-    private external fun nativeCardMilestoneAdd(
-        contextHandle: Long,
-        cardId: String,
-        startAt: Long,
-        hasEndAt: Boolean,
-        endAt: Long,
-        allDay: Boolean,
-        kind: String?,
-        description: String?,
-    ): String
-    private external fun nativeCardMilestoneUpdate(
-        contextHandle: Long,
-        projectId: String,
-        cardId: String,
-        milestoneId: String,
-        updateJson: String,
-    ): String
-    private external fun nativeCardMilestoneRemove(contextHandle: Long, cardId: String, milestoneId: String)
-    private external fun nativeProjectListMilestonesInRange(
-        contextHandle: Long,
-        projectId: String,
-        from: Long,
-        to: Long,
-    ): String
     private external fun nativeRecoveryTokenInspect(pin: String, recoveryToken: String): String
     private external fun nativeLocationList(contextHandle: Long, projectId: String): String
     private external fun nativeLocationPutJson(contextHandle: Long, locationJson: String): String
@@ -1125,35 +1111,68 @@ object HolderNative {
             .map { HolderTagCount(tag = it.tag, count = it.cardCount) }
     }
 
-    /** cardId's milestones, ordered by start (soonest first). */
-    fun listCardMilestones(cardId: String): List<HolderMilestone> {
-        val milestones = JSONArray(readLane.call { nativeCardListMilestones(it, cardId) })
-        return List(milestones.length()) { index -> parseMilestone(milestones.getJSONObject(index)) }
+    // A milestone's dates are roles with a calendar day or an instant. Android, like Desktop, shows
+    // one with a single start and at most one end: an all-day milestone when its start is a day.
+    // Android's screens hold a day as the epoch of its midnight UTC, and an instant as an epoch
+    // written with this device's offset.
+    private const val START = "start"
+    private const val END = "end"
+    private val INSTANT_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX")
+
+    private fun dayOf(epoch: Long): String = Instant.ofEpochSecond(epoch).atOffset(ZoneOffset.UTC).toLocalDate().toString()
+
+    private fun milestoneDate(role: String, epoch: Long, allDay: Boolean) = if (allDay) {
+        MilestoneDate(role = role, date = dayOf(epoch))
+    } else {
+        MilestoneDate(role = role, datetime = Instant.ofEpochSecond(epoch).atZone(ZoneId.systemDefault()).format(INSTANT_FORMAT))
     }
 
-    /** Adds a milestone to cardId. endAt null means a point in time rather than a span (as
-     * opposed to end_at genuinely being 0, which native distinguishes via a separate has_end_at
-     * flag, not by treating 0 as absent). Returns cardId's updated milestone list. */
+    private fun epochOf(date: MilestoneDate): Long = date.date?.let { LocalDate.parse(it).atStartOfDay(ZoneOffset.UTC).toEpochSecond() }
+        ?: OffsetDateTime.parse(requireNotNull(date.datetime)).toEpochSecond()
+
+    /** A milestone as Android shows it, or null when it has no single start or more than one end. */
+    private fun holderMilestone(
+        milestoneId: String, cardId: String, dates: List<MilestoneDate>, kind: String?, description: String?,
+        createdAt: Long, updatedAt: Long, cardTitle: String? = null,
+    ): HolderMilestone? {
+        val start = dates.singleOrNull { it.role == START } ?: return null
+        val ends = dates.filter { it.role == END }
+        if (ends.size > 1) return null
+        return HolderMilestone(milestoneId, cardId, epochOf(start), ends.singleOrNull()?.let(::epochOf),
+                               start.date != null, kind, description, createdAt, updatedAt, cardTitle)
+    }
+
+    private fun holderMilestone(m: Milestone) =
+        holderMilestone(m.milestoneId, m.cardId, m.dates, m.kind, m.description, m.createdAt, m.updatedAt)
+
+    /** The dates for a start and an optional end, with the milestone's other dates kept in place. */
+    private fun withStartAndEnd(kept: List<MilestoneDate>, startAt: Long, endAt: Long?, allDay: Boolean) =
+        listOfNotNull(milestoneDate(START, startAt, allDay), endAt?.let { milestoneDate(END, it, allDay) }) +
+            kept.filter { it.role != START && it.role != END }
+
+    /** cardId's milestones, ordered by start (soonest first). */
+    fun listCardMilestones(projectId: String, cardId: String): List<HolderMilestone> =
+        readLane.call { Milestones.listCardMilestones(it, projectId, cardId) }
+            .mapNotNull(::holderMilestone).sortedBy { it.startAt }
+
+    /** Adds a milestone to cardId: a point in time when endAt is null, otherwise a span. */
     fun addCardMilestone(
+        projectId: String,
         cardId: String,
         startAt: Long,
         endAt: Long? = null,
         allDay: Boolean = false,
         kind: String? = null,
         description: String? = null,
-    ): List<HolderMilestone> {
-        val milestones = JSONArray(
-            saveLane.call { nativeCardMilestoneAdd(it, cardId, startAt, endAt != null, endAt ?: 0L, allDay, kind, description) }
-        )
-        return List(milestones.length()) { index -> parseMilestone(milestones.getJSONObject(index)) }
+    ): HolderMilestone {
+        val milestone = NewMilestone(dates = withStartAndEnd(emptyList(), startAt, endAt, allDay),
+                                     kind = kind, description = description)
+        return requireNotNull(holderMilestone(saveLane.call { Milestones.addCardMilestone(it, projectId, cardId, milestone) }))
     }
 
     /** Partially updates cardId's milestoneId. Each parameter left at its default (Unset) means
-     * "leave unchanged"; pass Clear to explicitly null a clearable field (endAt/kind/description),
-     * or a real value to set it. startAt/allDay can never be cleared, matching MilestoneUpdate's
-     * own has_*-flag semantics on the native side -- omit them to leave unchanged, or pass a
-     * real value to change them. Throws if projectId/cardId/milestoneId don't all identify the
-     * same live card's milestone. */
+     * "leave unchanged"; pass Clear to null a clearable field (endAt/kind/description), or a real
+     * value to set it. Changing its start, end or all-day keeps the milestone's other dates. */
     fun updateCardMilestone(
         projectId: String,
         cardId: String,
@@ -1163,45 +1182,43 @@ object HolderNative {
         allDay: Boolean? = null,
         kind: OptionalString = OptionalString.Unset,
         description: OptionalString = OptionalString.Unset,
-    ): HolderMilestone {
-        val body = JSONObject().apply {
-            if (startAt != null) put("start_at", startAt)
-            if (allDay != null) put("all_day", allDay)
-            when (endAt) {
-                is OptionalLong.Unset -> {}
-                is OptionalLong.Clear -> put("end_at", JSONObject.NULL)
-                is OptionalLong.Value -> put("end_at", endAt.value)
+    ): HolderMilestone = saveLane.call { context ->
+        val dates = if (startAt == null && endAt is OptionalLong.Unset && allDay == null) null else {
+            val current = Milestones.listCardMilestones(context, projectId, cardId).single { it.milestoneId == milestoneId }
+            val shown = requireNotNull(holderMilestone(current)) { "the milestone has no single start to change" }
+            val end = when (endAt) {
+                is OptionalLong.Unset -> shown.endAt
+                is OptionalLong.Clear -> null
+                is OptionalLong.Value -> endAt.value
             }
-            when (kind) {
-                is OptionalString.Unset -> {}
-                is OptionalString.Clear -> put("kind", JSONObject.NULL)
-                is OptionalString.Value -> put("kind", kind.value)
-            }
-            when (description) {
-                is OptionalString.Unset -> {}
-                is OptionalString.Clear -> put("description", JSONObject.NULL)
-                is OptionalString.Value -> put("description", description.value)
-            }
+            withStartAndEnd(current.dates, startAt ?: shown.startAt, end, allDay ?: shown.allDay)
         }
-        return parseMilestone(
-            JSONObject(
-                saveLane.call { nativeCardMilestoneUpdate(it, projectId, cardId, milestoneId, body.toString()) }
-            )
-        )
+        fun change(value: OptionalString): Change<String> = when (value) {
+            is OptionalString.Unset -> Change.Keep
+            is OptionalString.Clear -> Change.Clear
+            is OptionalString.Value -> Change.Set(value.value)
+        }
+        val update = MilestoneUpdate(dates = dates, kind = change(kind), description = change(description))
+        requireNotNull(holderMilestone(Milestones.updateCardMilestone(context, projectId, cardId, milestoneId, update)))
     }
 
     /** A no-op, not an error, if milestoneId doesn't exist or belongs to a different card. */
-    fun removeCardMilestone(cardId: String, milestoneId: String) {
-        saveLane.call { nativeCardMilestoneRemove(it, cardId, milestoneId) }
+    fun removeCardMilestone(projectId: String, cardId: String, milestoneId: String) {
+        try {
+            saveLane.call { Milestones.removeCardMilestone(it, projectId, cardId, milestoneId) }
+        } catch (_: NotFoundException) {
+        }
     }
 
     /** Every milestone in projectId whose start falls within [from, to] (inclusive), ordered by
      * start -- the Calendar's primary query. Never includes a trashed card's milestones. */
-    fun listMilestonesInRange(projectId: String, from: Long, to: Long): List<HolderMilestone> {
-        val milestones =
-            JSONArray(readLane.call { nativeProjectListMilestonesInRange(it, projectId, from, to) })
-        return List(milestones.length()) { index -> parseMilestone(milestones.getJSONObject(index)) }
-    }
+    fun listMilestonesInRange(projectId: String, from: Long, to: Long): List<HolderMilestone> =
+        readLane.call { Milestones.getCalendar(it, projectId, from, to, dayOf(from), dayOf(to)) }.milestones
+            .mapNotNull { m ->
+                holderMilestone(m.milestoneId, m.cardId, m.dates, m.kind, m.description, m.createdAt, m.updatedAt, m.cardTitle)
+            }
+            .filter { it.startAt in from..to }
+            .sortedBy { it.startAt }
 
     fun searchCards(projectId: String, query: String, limit: Int = 50): List<HolderSearchResult> {
         return readLane.call { Search.searchCards(it, projectId, query, limit) }
@@ -1542,19 +1559,6 @@ object HolderNative {
         sortKey = json.getDouble("sort_key"),
         deletedAt = json.optLongOrNull("deleted_at"),
         childCount = json.optIntOrNull("child_count"),
-    )
-
-    private fun parseMilestone(json: JSONObject) = HolderMilestone(
-        milestoneId = json.getString("milestone_id"),
-        cardId = json.getString("card_id"),
-        startAt = json.getLong("start_at"),
-        endAt = json.optLongOrNull("end_at"),
-        allDay = json.getBoolean("all_day"),
-        kind = json.optStringOrNull("kind"),
-        description = json.optStringOrNull("description"),
-        createdAt = json.getLong("created_at"),
-        updatedAt = json.getLong("updated_at"),
-        cardTitle = json.optStringOrNull("card_title"),
     )
 
     private fun JSONArray.toStringList(): List<String> = List(length()) { index -> getString(index) }

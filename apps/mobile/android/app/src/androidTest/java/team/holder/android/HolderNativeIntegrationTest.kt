@@ -719,11 +719,12 @@ class HolderNativeIntegrationTest {
         val project = HolderNative.createProject("Milestones test project")
         val card = HolderNative.createCard(project.projectId, "Renewal", "content")
 
-        assertTrue(HolderNative.listCardMilestones(card.cardId).isEmpty())
+        assertTrue(HolderNative.listCardMilestones(project.projectId, card.cardId).isEmpty())
 
         // An all-day milestone is a calendar date, stored as its midnight UTC.
         val start = 1_799_971_200L
-        val afterAdd = HolderNative.addCardMilestone(
+        val added = HolderNative.addCardMilestone(
+            projectId = project.projectId,
             cardId = card.cardId,
             startAt = start,
             endAt = null,
@@ -731,8 +732,6 @@ class HolderNativeIntegrationTest {
             kind = "Renewal",
             description = "Car insurance",
         )
-        assertEquals(1, afterAdd.size)
-        val added = afterAdd.single()
         assertEquals(card.cardId, added.cardId)
         assertEquals(start, added.startAt)
         assertNull(added.endAt)
@@ -740,7 +739,15 @@ class HolderNativeIntegrationTest {
         assertEquals("Renewal", added.kind)
         assertEquals("Car insurance", added.description)
 
-        assertEquals(added, HolderNative.listCardMilestones(card.cardId).single())
+        assertEquals(added, HolderNative.listCardMilestones(project.projectId, card.cardId).single())
+
+        val moved = HolderNative.updateCardMilestone(project.projectId, card.cardId, added.milestoneId,
+            startAt = start + 86_400, kind = OptionalString.Clear)
+        assertEquals(start + 86_400, moved.startAt)
+        assertTrue(moved.allDay)
+        assertNull(moved.kind)
+        assertEquals("Car insurance", moved.description)
+        HolderNative.updateCardMilestone(project.projectId, card.cardId, added.milestoneId, startAt = start)
 
         val inRange = HolderNative.listMilestonesInRange(project.projectId, start - 3600, start + 3600)
         assertEquals(1, inRange.size)
@@ -749,8 +756,8 @@ class HolderNativeIntegrationTest {
 
         assertTrue(HolderNative.listMilestonesInRange(project.projectId, start + 7200, start + 10_800).isEmpty())
 
-        HolderNative.removeCardMilestone(card.cardId, added.milestoneId)
-        assertTrue(HolderNative.listCardMilestones(card.cardId).isEmpty())
+        HolderNative.removeCardMilestone(project.projectId, card.cardId, added.milestoneId)
+        assertTrue(HolderNative.listCardMilestones(project.projectId, card.cardId).isEmpty())
         assertTrue(HolderNative.listMilestonesInRange(project.projectId, start - 3600, start + 3600).isEmpty())
     }
 
@@ -762,8 +769,7 @@ class HolderNativeIntegrationTest {
 
         val start = 1_800_000_000L
         val end = start + 2 * 24 * 60 * 60
-        val added = HolderNative.addCardMilestone(cardId = card.cardId, startAt = start, endAt = end)
-            .single()
+        val added = HolderNative.addCardMilestone(project.projectId, card.cardId, startAt = start, endAt = end)
         assertEquals(end, added.endAt)
 
         val inRange = HolderNative.listMilestonesInRange(project.projectId, start - 3600, start + 3600)

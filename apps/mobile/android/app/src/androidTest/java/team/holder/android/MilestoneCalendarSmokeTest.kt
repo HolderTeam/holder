@@ -72,6 +72,7 @@ class MilestoneCalendarSmokeTest {
         val project = HolderNative.createProject("Milestone smoke project")
         val card = HolderNative.createCard(project.projectId, title, "Created by milestone smoke test.")
         HolderNative.addCardMilestone(
+            projectId = project.projectId,
             cardId = card.cardId,
             startAt = System.currentTimeMillis() / 1000,
             allDay = true,
