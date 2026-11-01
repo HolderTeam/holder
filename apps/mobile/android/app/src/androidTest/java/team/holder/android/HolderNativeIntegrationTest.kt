@@ -98,6 +98,38 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun contractCardPage_exposesResponseOptionsAndFilters() {
+        initialize("# Welcome")
+        val project = HolderNative.createProject("Page proof")
+        val parent = HolderNative.createCard(project.projectId, "Parent 🌍", "Parent body #proof")
+        val child = HolderNative.createCard(project.projectId, "Child", "Child body", parent.cardId)
+
+        val items = ArrayList<team.holder.android.generated.ContractCardListItem>()
+        var cursor: String? = null
+        do {
+            val page = HolderNative.listCardsPage(
+                project.projectId, order = "sort_key_asc", limit = 1, cursor = cursor,
+                includeContent = true, includeChildCount = true,
+            )
+            items.addAll(page.items)
+            cursor = page.nextCursor
+        } while (cursor != null)
+        assertEquals(setOf(parent.cardId, child.cardId), items.map { it.cardId }.toSet())
+        assertEquals("Parent body #proof", items.single { it.cardId == parent.cardId }.content)
+        assertEquals(1, items.single { it.cardId == parent.cardId }.childCount)
+        assertEquals("Child body", items.single { it.cardId == child.cardId }.content)
+
+        val roots = HolderNative.listCardsPage(project.projectId, parent = "roots")
+        assertEquals(listOf(parent.cardId), roots.items.map { it.cardId })
+        assertNull(roots.items.single().content)
+        assertNull(roots.items.single().childCount)
+        val children = HolderNative.listCardsPage(project.projectId, parent = parent.cardId)
+        assertEquals(listOf(child.cardId), children.items.map { it.cardId })
+        val tagged = HolderNative.listCardsPage(project.projectId, tag = "proof")
+        assertEquals(listOf(parent.cardId), tagged.items.map { it.cardId })
+    }
+
+    @Test
     fun generatedCardReferenceResolution_matchesJsonAcrossScopes() {
         initialize("# Welcome\n\nWelcome")
         val project = HolderNative.createProject("References")

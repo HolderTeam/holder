@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from authoring.routes import Contract
+
 from .generate import Unsupported, header_lines
 from .json_codec import SUPPORT
-from .routes import Contract
 
 
 def _cpp_name(name: str) -> str:

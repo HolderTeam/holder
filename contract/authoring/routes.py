@@ -1,12 +1,14 @@
 """The contract's operations, written as FastAPI routes, and what C needs that HTTP does not say.
 
-A contract's app.py makes one Contract and declares every operation through it:
+A contract's app.py makes one Contract and registers domain operation modules through it:
 
     contract = Contract(statuses={NotFound: 404})
 
-    @contract.route("GET", "/projects/{project_id}/cards/{card_id}", errors=[NotFound])
-    def get_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()]) -> Card:
-        \"\"\"Fetch a card.\"\"\"
+    # operations/cards.py
+    def register(contract: Contract) -> None:
+        @contract.route("GET", "/projects/{project_id}/cards/{card_id}", errors=[NotFound])
+        def get_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()]) -> Card:
+            \"\"\"Fetch a card.\"\"\"
 
 A route is an ordinary FastAPI path operation on contract.router (contract.app is the FastAPI app
 that includes it), whose body never runs: the daemon
@@ -17,7 +19,7 @@ core has it (core=False for an operation only the daemon serves). An operation o
 has is declared with @contract.core_operation, and is not a route. Each error kind's HTTP status is
 given once, in statuses.
 
-The extractor reads the routes from contract.router, FastAPI's analysis of their paths, methods and
+The compiler reads the routes from contract.router, FastAPI's analysis of their paths, methods and
 statuses, and the rest from the Contract.
 """
 

@@ -6,7 +6,9 @@ import textwrap
 
 import pytest
 
-from holder_contract.extract import ContractError, extract
+from compiler.errors import ContractError
+from compiler.rules import check_file
+from holder_contract.extract import extract
 
 PREAMBLE = """\
 from enum import StrEnum
@@ -14,14 +16,14 @@ from typing import Annotated, Literal, Protocol
 
 from pydantic import BaseModel, field_validator
 
-from holder_contract import MISSING, Field, HolderError, Int32, Record, Stream, host_interface
+from authoring import MISSING, Field, HolderError, Int32, Record, Stream, host_interface
 """
 APP_PREAMBLE = """\
 from typing import Annotated
 
 from fastapi import Body, Header, Path, Query
 
-from holder_contract import MISSING, Contract, Int32
+from authoring import MISSING, Contract, Int32
 
 from .m0 import *  # noqa: F403
 
@@ -117,6 +119,25 @@ def helper() -> None:
     """Help."""
 ''')
     assert "helper: operations are routes in app.py, not functions in a model module" in found
+
+
+def test_operation_modules_allow_routes_but_reject_executable_bodies(tmp_path):
+    directory = tmp_path / "sample" / "operations"
+    directory.mkdir(parents=True)
+    module = directory / "cards.py"
+    module.write_text('''\
+from fastapi import Path
+from authoring import Contract
+
+def register(contract: Contract) -> None:
+    @contract.route("GET", "/cards")
+    def list_cards() -> list[str]:
+        """List cards."""
+''')
+    assert check_file(module, "sample/operations/cards.py", "sample")[0] == []
+    module.write_text(module.read_text() + '        print("ran")\n')
+    problems, _ = check_file(module, "sample/operations/cards.py", "sample")
+    assert "an operation body may hold only its docstring" in str(problems[0])
 
 
 def test_everything_is_documented(tmp_path):

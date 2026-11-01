@@ -39,6 +39,7 @@ def test_ir_command_writes_json(tmp_path):
     output = tmp_path / "ir.json"
     assert main(["ir", "--root", str(FIXTURES), "--package", "sample", "--output", str(output)]) == 0
     assert json.loads(output.read_text(encoding="utf-8")) == extract(FIXTURES, "sample")
+    assert output.read_bytes() == (FIXTURES / "sample.ir.json").read_bytes()
 
 
 def test_partial_update_fields_keep_omitted_and_null_apart():

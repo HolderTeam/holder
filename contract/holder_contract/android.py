@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from .android_ir import ContractView, FieldView, NamedType, NullableType, ScalarType
+from generators.android.page import generate_page_operation
+
+from .android_ir import ContractView, FieldView, NamedType, ScalarType
 from .android_templates import TEMPLATES
 
 KOTLIN_PATH = "apps/mobile/android/app/src/main/java/team/holder/android/generated/ContractCards.kt"
@@ -70,15 +72,6 @@ def _record_jni_lines(typed: list[tuple[str, str, str, bool]], source: str,
 
 def generate_android(ir: dict[str, Any]) -> dict[str, str]:
     contract = ContractView.model_validate(ir)
-    operation = contract.operation("list_cards")
-    if [parameter.name for parameter in operation.parameters] != [
-        "project_id", "parent", "tag", "order", "limit", "cursor", "include_content", "include_child_count"
-    ] or not isinstance(operation.parameter("limit").type, ScalarType) or \
-            operation.parameter("limit").type.le != 5000 or \
-            operation.parameter("tag").type != NullableType(kind="nullable", value=NamedType(name="Tag")):
-        raise ValueError("Android list_cards parameters need a generator update")
-    if operation.returns != NamedType(name="Page", arguments=[NamedType(name="CardListItem")]):
-        raise ValueError("Android list_cards needs Page[CardListItem]")
     lookup = contract.operation("get_card_metadata")
     if [p.name for p in lookup.parameters] != ["project_id", "card_id"] or \
             lookup.returns != NamedType(name="CardMetadata"):
@@ -106,11 +99,8 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
     ]:
         raise ValueError("Android NewCard fields need a generator update")
     metadata = [(field.name, *_field_type(field, contract)) for field in contract.record("CardMetadata").fields]
-    fields = contract.record("CardMetadata").fields + contract.record("CardListItem").fields
-    typed = [(field.name, *_field_type(field, contract)) for field in fields]
-    header = "// Generated from contract/interface/cards.py and contract/interface/app.py by holder_contract.\n" \
+    header = "// Generated from contract/interface/cards/models.py and contract/interface/cards/operations.py by holder_contract.\n" \
              "// Do not edit; run make -C contract update.\n"
-    descriptor = "(" + "".join(signature for _, _, signature, _ in typed) + ")V"
     metadata_descriptor = "(" + "".join(signature for _, _, signature, _ in metadata) + ")V"
     from .android_card_writes import generate_card_writes
     from .android_lists import generate_record_lists
@@ -122,17 +112,10 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
     trash_record, trash_methods, trash_jni = generate_trash(contract)
     reference_record, reference_method, reference_jni = generate_references(contract)
     kotlin = header + TEMPLATES.get_template("android_cards.kt.j2").render(
-        card_list_record=_record_kotlin("ContractCardListItem", typed),
         card_metadata_record=_record_kotlin("ContractCardMetadata", metadata),
         list_records=list_records + trash_record + reference_record,
         write_methods=write_kotlin, list_methods=list_methods,
         trash_methods=trash_methods + reference_method,
-    )
-    record_lines, arguments, refs = _record_jni_lines(typed, "card")
-    card_list_conversion = (
-        "".join(record_lines)
-        + f"    jobject item = env->NewObject(item_type, item_ctor, {', '.join(arguments)});\n"
-        + "".join(f"    if ({ref}) env->DeleteLocalRef({ref});\n" for ref in refs)
     )
     meta_lines, meta_arguments, meta_refs = _record_jni_lines(metadata, "card", indent="  ")
     card_metadata_conversion = (
@@ -142,9 +125,7 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
         + "".join(f"  if ({ref}) env->DeleteLocalRef({ref});\n" for ref in meta_refs)
     )
     jni = header + TEMPLATES.get_template("android_cards.cpp.j2").render(
-        include_boxed_double=any(kind == "Double" and optional for _, kind, _, optional in typed),
-        card_list_constructor=f'  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "{descriptor}");\n',
-        card_list_conversion=card_list_conversion,
+        include_boxed_double=any(kind == "Double" and optional for _, kind, _, optional in metadata),
         card_metadata_conversion=card_metadata_conversion,
         write_jni=write_jni, list_jni=list_jni, trash_jni=trash_jni + reference_jni,
     )
@@ -153,4 +134,5 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
     from .android_resources import generate_resources
 
     return {KOTLIN_PATH: kotlin, JNI_PATH: jni,
+            **generate_page_operation(contract, "list_cards"),
             **generate_projects(contract), **generate_history(contract), **generate_resources(contract)}

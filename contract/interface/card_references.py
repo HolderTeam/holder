@@ -2,9 +2,10 @@
 
 from typing import Annotated, Literal
 
-from holder_contract import MISSING, Field, Record, Timestamp
+from authoring import MISSING, Field, Record, Timestamp
 
-from .cards import CardId, ProjectId
+from .cards.models import CardId
+from .projects.ids import ProjectId
 
 
 class CardReferenceResolveRequest(Record):

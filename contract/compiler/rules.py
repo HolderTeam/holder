@@ -2,8 +2,8 @@
 
 A model module holds declarations only: imports of the vocabulary, records, enums, error kinds,
 host interfaces and `type` statements. Anything that could run logic, such as a validator, an
-assignment or a function, is rejected with the line it is on. Operations are FastAPI routes in the
-package's app.py, which these rules do not cover (holder_contract.routes).
+assignment or a function, is rejected with the line it is on. Operation modules under
+operations/ may contain one register function holding only route declarations.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import itertools
 from dataclasses import dataclass, field
 from pathlib import Path
 
-ALLOWED_IMPORTS = {"__future__", "enum", "typing", "pydantic", "holder_contract"}
+ALLOWED_IMPORTS = {"__future__", "authoring", "enum", "typing", "pydantic"}
 ENUM_BASES = {"StrEnum"}
 
 
@@ -35,6 +35,7 @@ class Declarations:
     attribute_docs: dict[str, dict[str, str]] = field(default_factory=dict)
     alias_docs: dict[str, str] = field(default_factory=dict)
     class_members: dict[str, list[str]] = field(default_factory=dict)
+    module_order: tuple[str, ...] | None = None
 
 
 def _is_docstring(node: ast.stmt) -> bool:
@@ -86,6 +87,9 @@ def check_file(path: Path, display: str, package: str) -> tuple[list[Problem], D
     except SyntaxError as error:
         return [Problem(display, error.lineno or 1, f"syntax error: {error.msg}")], found
 
+    if "operations" in path.parts or path.name == "operations.py":
+        return _check_operation_file(tree, display, package), found
+
     found.alias_docs = _following_docs(tree.body)
     for node in tree.body:
         if _is_docstring(node):
@@ -102,6 +106,17 @@ def check_file(path: Path, display: str, package: str) -> tuple[list[Problem], D
                               f"and other contract modules, not {module}")
         elif isinstance(node, ast.TypeAlias):
             found.names.append((node.name.id, node.lineno))
+        elif (path.name == "__init__.py" and isinstance(node, ast.Assign) and len(node.targets) == 1 and
+              isinstance(node.targets[0], ast.Name) and node.targets[0].id in {"DECLARATION_ORDER", "__all__"}):
+            target = node.targets[0].id
+            if target == "DECLARATION_ORDER" and path.parent.name != package:
+                problem(node, "DECLARATION_ORDER belongs in the contract package's __init__.py")
+            if (not isinstance(node.value, ast.Tuple) or
+                    not all(isinstance(value, ast.Constant) and isinstance(value.value, str)
+                            for value in node.value.elts)):
+                problem(node, f"{target} must be a tuple of names")
+            elif target == "DECLARATION_ORDER" and path.parent.name == package:
+                found.module_order = tuple(value.value for value in node.value.elts)
         elif isinstance(node, ast.ClassDef):
             found.names.append((node.name, node.lineno))
             _check_class(node, found, problem)
@@ -112,6 +127,48 @@ def check_file(path: Path, display: str, package: str) -> tuple[list[Problem], D
         else:
             problem(node, f"contract files hold only declarations, not {type(node).__name__}")
     return problems, found
+
+
+def _check_operation_file(tree: ast.Module, display: str, package: str) -> list[Problem]:
+    """Keep public operation modules declarative despite their registration functions."""
+    problems: list[Problem] = []
+
+    def problem(node: ast.AST, message: str) -> None:
+        problems.append(Problem(display, getattr(node, "lineno", 1), message))
+
+    for node in tree.body:
+        if _is_docstring(node):
+            continue
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.split(".")[0] not in ALLOWED_IMPORTS | {package, "fastapi"}:
+                    problem(node, f"operation modules may not import {alias.name}")
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if node.level == 0 and module.split(".")[0] not in ALLOWED_IMPORTS | {package, "fastapi"}:
+                problem(node, f"operation modules may not import {module}")
+        elif isinstance(node, ast.FunctionDef) and node.name == "register":
+            if node.decorator_list:
+                problem(node, "register takes no decorators")
+            for operation in node.body:
+                if _is_docstring(operation):
+                    continue
+                if not isinstance(operation, ast.FunctionDef) or len(operation.decorator_list) != 1 or not (
+                        isinstance(operation.decorator_list[0], ast.Call) and
+                        isinstance(operation.decorator_list[0].func, ast.Attribute) and
+                        isinstance(operation.decorator_list[0].func.value, ast.Name) and
+                        operation.decorator_list[0].func.value.id == "contract" and
+                        operation.decorator_list[0].func.attr in {"route", "core_operation"}):
+                    problem(operation, "register holds only @contract.route or @contract.core_operation declarations")
+                elif not _declaration_body(operation.body):
+                    problem(operation, f"{operation.name}: an operation body may hold only its docstring")
+        elif (display.endswith("/operations/common.py") and isinstance(node, ast.Assign) and
+              len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) and node.targets[0].id == "KEYS" and
+              isinstance(node.value, ast.List) and all(isinstance(value, ast.Name) for value in node.value.elts)):
+            continue
+        else:
+            problem(node, "operation modules hold imports and one register function only")
+    return problems
 
 
 def _check_class(node: ast.ClassDef, found: Declarations, problem) -> None:

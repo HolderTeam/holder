@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from holder_contract import Record, Timestamp
+from authoring import Record, Timestamp
 
 type TrashItemType = Literal["card", "ai_message"]
 type TrashFilter = Literal["card", "ai_message", "all"]

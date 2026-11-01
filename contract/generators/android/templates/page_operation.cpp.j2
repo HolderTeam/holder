@@ -1,0 +1,76 @@
+{% include "jni_support.cpp.j2" %}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractOperations_{{ plan.kotlin_name }}(
+    JNIEnv* env, jobject, jlong context_handle{% for arg in plan.arguments %}, {{ arg.jni_type }} {{ arg.name }}{% endfor %}) {
+  if (!context_handle) { fail(env, "context is required"); return nullptr; }
+{% for arg in plan.arguments %}{% if arg.kind == "string" %}{% if not arg.nullable %}  if (!{{ arg.name }}) { fail(env, "{{ arg.name }} is required"); return nullptr; }
+{% endif %}  std::string {{ arg.name }}_text;
+  if ({% if arg.nullable %}{{ arg.name }} && {% endif %}!utf8(env, {{ arg.name }}, {{ arg.name }}_text)) return nullptr;
+{% elif arg.kind == "literal" %}  if (!{{ arg.name }}) { fail(env, "{{ arg.name }} is required"); return nullptr; }
+  std::string {{ arg.name }}_text;
+  if (!utf8(env, {{ arg.name }}, {{ arg.name }}_text)) return nullptr;
+  {{ arg.c_type }} {{ arg.name }}_value{};
+{% for choice in arg.choices %}  {% if loop.first %}if{% else %}else if{% endif %} ({{ arg.name }}_text == {{ choice.value|tojson }}) {{ arg.name }}_value = {{ choice.c_name }};
+{% endfor %}  else { fail(env, "invalid {{ arg.name }}"); return nullptr; }
+{% elif arg.kind == "union" %}  std::string {{ arg.name }}_text;
+  {{ arg.c_type }} {{ arg.name }}_value{};
+  if ({{ arg.name }}) {
+    if (!utf8(env, {{ arg.name }}, {{ arg.name }}_text)) return nullptr;
+{% for choice in arg.choices %}    {% if loop.first %}if{% else %}else if{% endif %} ({{ arg.name }}_text == {{ choice.value|tojson }}) {{ arg.name }}_value.kind = {{ choice.c_name }};
+{% endfor %}    else {
+      {{ arg.name }}_value.kind = {{ arg.union_value_kind }};
+      {{ arg.name }}_value.{{ arg.union_value_field }} = {{ arg.name }}_text.c_str();
+    }
+  }
+{% elif arg.kind == "int32" %}  int32_t {{ arg.name }}_value = static_cast<int32_t>({{ arg.name }});
+{% endif %}{% endfor %}  Arena arena;
+  if (!arena.value) { fail(env, "cannot allocate result arena"); return nullptr; }
+  const {{ plan.c_result_type }}* page = nullptr;
+  holder_error* error = nullptr;
+  int status = holder_{{ plan.name }}(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+{% for arg in plan.arguments %}      {% if arg.kind == "string" %}{% if arg.nullable %}{{ arg.name }} ? {{ arg.name }}_text.c_str() : nullptr{% else %}{{ arg.name }}_text.c_str(){% endif %}{% elif arg.kind == "union" or arg.kind == "literal" %}{{ arg.name }}_value{% elif arg.kind == "int32" %}{% if arg.c_pointer %}&{{ arg.name }}_value{% else %}{{ arg.name }}_value{% endif %}{% elif arg.kind == "bool" %}{{ arg.name }} == JNI_TRUE{% endif %},
+{% endfor %}      arena.value, &page, &error);
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "contract operation failed";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  jclass item_type = env->FindClass("team/holder/android/generated/Contract{{ plan.item_name }}");
+  if (!item_type) return nullptr;
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "{{ plan.item_descriptor }}");
+  if (!item_ctor) return nullptr;
+  jclass list_type = env->FindClass("java/util/ArrayList");
+  if (!list_type) return nullptr;
+  jmethodID list_ctor = env->GetMethodID(list_type, "<init>", "(I)V");
+  jmethodID add = env->GetMethodID(list_type, "add", "(Ljava/lang/Object;)Z");
+  if (!list_ctor || !add) return nullptr;
+  jobject items = env->NewObject(list_type, list_ctor, static_cast<jint>(page->{{ plan.items_field }}.count));
+  if (env->ExceptionCheck()) return nullptr;
+  for (size_t i = 0; i < page->{{ plan.items_field }}.count; ++i) {
+    const auto& record = page->{{ plan.items_field }}.items[i];
+{% for field in plan.fields %}{% if field.kind == "string" %}    jstring v_{{ field.name }} = string(env, record.{{ field.name }});
+{% elif field.optional %}    jobject v_{{ field.name }} = record.{{ field.name }} ? boxed_{{ "int" if field.kind == "int32" else "long" if field.kind == "int64" else "double" }}(env, *record.{{ field.name }}) : nullptr;
+{% else %}    {{ field.jni_type }} v_{{ field.name }} = static_cast<{{ field.jni_type }}>(record.{{ field.name }});
+{% endif %}{% endfor %}    if (env->ExceptionCheck()) return nullptr;
+    jobject item = env->NewObject(item_type, item_ctor{% for field in plan.fields %}, v_{{ field.name }}{% endfor %});
+{% for field in plan.fields %}{% if field.jni_type == "jstring" or field.jni_type == "jobject" %}    if (v_{{ field.name }}) env->DeleteLocalRef(v_{{ field.name }});
+{% endif %}{% endfor %}    if (env->ExceptionCheck()) return nullptr;
+    env->CallBooleanMethod(items, add, item);
+    env->DeleteLocalRef(item);
+    if (env->ExceptionCheck()) return nullptr;
+  }
+  jclass page_type = env->FindClass("team/holder/android/generated/ContractPage");
+  if (!page_type) return nullptr;
+  jmethodID page_ctor = env->GetMethodID(page_type, "<init>", "(Ljava/util/List;Ljava/lang/String;)V");
+  if (!page_ctor) return nullptr;
+  jstring next = string(env, page->{{ plan.cursor_field }});
+  jobject result = env->NewObject(page_type, page_ctor, items, next);
+  if (next) env->DeleteLocalRef(next);
+  env->DeleteLocalRef(items);
+  env->DeleteLocalRef(page_type);
+  env->DeleteLocalRef(list_type);
+  env->DeleteLocalRef(item_type);
+  return result;
+}

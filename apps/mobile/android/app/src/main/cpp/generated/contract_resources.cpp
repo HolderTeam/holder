@@ -1,4 +1,4 @@
-// Generated from contract/interface/resources.py and contract/interface/app.py by holder_contract.
+// Generated from contract/interface/resources.py and contract/interface/operations/resources.py by holder_contract.
 // Do not edit; run make -C contract update.
 #include "holder/holder.h"
 #include <jni.h>

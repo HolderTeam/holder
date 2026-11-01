@@ -6,13 +6,15 @@ import json
 from pathlib import Path
 from typing import Any
 
+from authoring.routes import Contract
+from compiler.ir import ContractView
+
 from .ai_codec import generate_ai_codec
 from .ai_routes import generate_ai_routes
 from .generate import Model
 from .http_routes import generate_routes
 from .json_codec import generate_codec
 from .openapi import document, dumps, merge
-from .routes import Contract
 
 # Included as the daemon includes them: core's C++ declarations from its SDK, the codec beside the routes.
 API_HEADER = "api/Contract.h"
@@ -33,7 +35,7 @@ def generate_daemon(ir: dict[str, Any], contract: Contract) -> dict[str, str]:
     """The generated files, by name, with the contract's OpenAPI paths on their own."""
     model = Model(ir)
     return {"ContractJson.h": generate_codec(model, API_HEADER),
-            "ContractRoutes.h": generate_routes(model, CODEC_HEADER),
+            "ContractRoutes.h": generate_routes(ContractView.model_validate(ir), CODEC_HEADER),
             "AiJson.h": generate_ai_codec(ir, contract),
             "AiRoutes.h": generate_ai_routes(ir),
             "openapi.json": dumps(document(contract))}

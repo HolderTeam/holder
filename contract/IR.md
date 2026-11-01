@@ -25,6 +25,7 @@ Declarations appear in the order of their modules' paths, then in source order. 
 - **Record**:
   - `name`, `source`, `doc`, and its own `fields`;
   - `base`, the record it extends, if any. Its fields are listed with that record.
+  - `open: true` for an `OpenRecord`, which permits fields outside the declared schema.
   - `type_parameters`, for a generic record such as `Page[T]`; its fields refer to them with `{"kind": "parameter"}`.
 - **Field**: `name`, `doc` and `type`.
   - `omittable: true` when the field may be left out (`MISSING`).
@@ -32,9 +33,9 @@ Declarations appear in the order of their modules' paths, then in source order. 
   - A field with neither is required.
 - **Error kind**: `name`, `source`, `doc`, and `fields`, which have no defaults.
 - **Interface**: `name`, `source`, `doc`, and `methods`, each a signature.
-- **Operation**: a signature, plus `source`, `errors` (the names of its error kinds) and `daemon_only`. Operations are read from the routes and core-only operations in the contract's `app.py`, in the order they are declared there.
+- **Operation**: a signature, plus `source`, `errors` (the names of its error kinds) and `daemon_only`. Operations are read from domain modules registered by the contract's `app.py`, in registration order. `source` names the module that declares the operation.
 - **Signature**: `name`, `summary`, `description`, `parameters` and `returns`. Each parameter has a `name` and `type`, and may have a `doc` and a `default`.
-- **HTTP binding**: `operation`, `method`, `path`, `path_parameters`, `query` and `status` (the success status), plus `body` when one parameter is left for the request body. `created_when` names a boolean result field that selects 201 when true, leaving `status` (200) for false. Each comes from FastAPI's analysis of a route in `app.py` and the contract's route declaration.
+- **HTTP binding**: `operation`, `method`, `path`, `path_parameters`, `query` and `status` (the success status), plus `body` when one parameter is left for the request body, `headers` when header parameters are declared, and `public: true` for an unauthenticated route. `created_when` names a boolean result field that selects 201 when true, leaving `status` (200) for false. Each comes from FastAPI's analysis of a route declared in a domain module.
 - **HTTP error status** (in `http_errors`): an error kind's `error` name and its `status`.
 
 ## Types

@@ -2,9 +2,9 @@
 
 from typing import Annotated, Literal
 
-from holder_contract import MISSING, Field, Record, Timestamp
+from authoring import MISSING, Field, Record, Timestamp
 
-from .cards import ProjectId
+from .projects.ids import ProjectId
 
 type LinkKind = Annotated[str, Field(min_length=1)]
 """What a link means, such as ref or depends_on."""

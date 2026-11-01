@@ -1,20 +1,6 @@
-// Generated from contract/interface/cards.py and contract/interface/app.py by holder_contract.
+// Generated from contract/interface/cards/models.py and contract/interface/cards/operations.py by holder_contract.
 // Do not edit; run make -C contract update.
 package team.holder.android.generated
-
-data class ContractCardListItem(
-    val cardId: String,
-    val projectId: String,
-    val title: String,
-    val relPath: String,
-    val parentCardId: String?,
-    val sortKey: Double,
-    val createdAt: Long,
-    val updatedAt: Long,
-    val deletedAt: Long?,
-    val childCount: Int?,
-    val content: String?,
-)
 
 data class ContractCardMetadata(
     val cardId: String,
@@ -68,14 +54,7 @@ data class ContractCardReferenceResult(
     val candidates: List<ContractCardReferenceCandidate>?,
 )
 
-data class ContractCardPage(
-    val items: List<ContractCardListItem>,
-    val nextCursor: String?,
-)
-
 object ContractCards {
-    external fun nativeListCardsPage(contextHandle: Long, projectId: String, cursor: String?): ContractCardPage
-    external fun nativeListCardsWithTagPage(contextHandle: Long, projectId: String, tag: String, cursor: String?, limit: Int): ContractCardPage
     external fun nativeGetCardMetadata(contextHandle: Long, projectId: String, cardId: String): ContractCardMetadata
     external fun nativeGetCardContent(contextHandle: Long, projectId: String, cardId: String): String
     external fun nativeListCardTags(contextHandle: Long, projectId: String, cardId: String): List<String>

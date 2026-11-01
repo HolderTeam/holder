@@ -2,9 +2,9 @@
 
 from typing import Annotated
 
-from holder_contract import Field, Int32, Record
+from authoring import Field, Int32, Record
 
-from .cards import ProjectId
+from .projects.ids import ProjectId
 
 
 class RebuildRequest(Record):

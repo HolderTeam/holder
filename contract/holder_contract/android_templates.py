@@ -5,7 +5,8 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 TEMPLATES = Environment(
-    loader=FileSystemLoader(Path(__file__).with_name("templates")),
+    loader=FileSystemLoader([Path(__file__).with_name("templates"),
+                             Path(__file__).resolve().parents[1] / "generators" / "android" / "templates"]),
     undefined=StrictUndefined,
     autoescape=False,
     trim_blocks=False,

@@ -2,7 +2,7 @@
 
 Ported from RIG's http_routes.py and the route rules in its ir.py (https://github.com/zeth/rig,
 src/rig/http_routes.py and src/rig/ir.py at e32ea68), which read declarations reflected from C++;
-this reads the contract's IR and its HTTP bindings (the routes in interface/app.py).
+this reads the contract's IR and its HTTP bindings (the routes in interface/operations/).
 
 contract_http::dispatch matches a request to an operation, decodes and checks its arguments, calls
 core's C++ function for it (core/src/api/Contract.h) with the caller's holder_context, and encodes
@@ -22,7 +22,10 @@ import json
 import re
 from typing import Any
 
-from .generate import SCALARS_CPP, Model, Unsupported, c_param, camel, cpp_literal, cpp_param, header_lines, snake
+from compiler.ir import ContractView, HttpBindingView, LiteralType, ScalarType, TypeRef, UnionType
+from generators.daemon.http import HttpArgument, HttpRoute, plan_http
+
+from .generate import SCALARS_CPP, Model, Unsupported, camel, cpp_literal, header_lines, snake
 
 NAMESPACE = "contract_http"
 PARAMETER = re.compile(r"\{([A-Za-z_][A-Za-z_0-9]*)\}\Z")
@@ -66,8 +69,9 @@ def route_segments(path: str) -> tuple[tuple[int, str], ...]:
                  for segment in path.split("/")[1:] if segment)
 
 
-def route_priority(binding: dict[str, Any]) -> tuple[int, ...]:
-    return tuple(kind for kind, _ in route_segments(binding["path"]))
+def route_priority(binding: HttpBindingView | dict[str, Any]) -> tuple[int, ...]:
+    path = binding["path"] if isinstance(binding, dict) else binding.path
+    return tuple(kind for kind, _ in route_segments(path))
 
 
 def _segments_overlap(left, right) -> bool:
@@ -87,11 +91,12 @@ def _more_specific(left, right) -> bool:
     return all(a <= b for a, b in kinds) and any(a < b for a, b in kinds)
 
 
-def validate_routes(bindings: list[dict[str, Any]]) -> None:
+def validate_routes(bindings: tuple[HttpBindingView, ...] | list[dict[str, Any]]) -> None:
     """Every request must match at most one route, or one route that is strictly more specific."""
     routes: dict[tuple[str, str], tuple] = {}
     for binding in bindings:
-        method, path = binding["method"], binding["path"]
+        method, path = ((binding["method"], binding["path"]) if isinstance(binding, dict)
+                        else (binding.method, binding.path))
         segments = route_segments(path)
         for (existing_method, existing_path), existing in routes.items():
             if method != existing_method or not _segments_overlap(segments, existing):
@@ -203,91 +208,92 @@ inline json decode_body(const std::string& body, bool optional = false) {
 """
 
 
-def text_check(t: dict[str, Any], source: str, label: str) -> str:
-    maximum = t.get("max_length", "std::numeric_limits<std::size_t>::max()")
-    return f'contract_json::check_text({source}, "{label}", {t.get("min_length", 0)}, {maximum})'
+def text_check(t: TypeRef, source: str, label: str) -> str:
+    maximum = t.max_length if t.max_length is not None else "std::numeric_limits<std::size_t>::max()"
+    return f'contract_json::check_text({source}, "{label}", {t.min_length or 0}, {maximum})'
 
 
-def scalar_value(t: dict[str, Any], source: str, label: str) -> str:
+def scalar_value(t: TypeRef, source: str, label: str) -> str:
     """An expression for a path or query value, from its decoded text."""
-    kind = t["kind"]
+    kind = t.kind
     if kind == "string":
         return text_check(t, source, label)
     if kind in INT_RANGES:
         cpp = SCALARS_CPP[kind]
         value = f'decode_integer<{cpp}>({source}, "{label}")'
-        if "ge" in t or "le" in t:
+        if t.ge is not None or t.le is not None:
             low, high = INT_RANGES[kind]
-            value = f'contract_json::check_range<{cpp}>({value}, "{label}", {t.get("ge", low)}, {t.get("le", high)})'
+            value = f'contract_json::check_range<{cpp}>({value}, "{label}", {t.ge if t.ge is not None else low}, {t.le if t.le is not None else high})'
         return value
     if kind == "bool":
         return f'decode_bool({source}, "{label}")'
     raise Unsupported(f"{label}: {kind} in a path or query")
 
 
-def query_lines(model: Model, op: dict[str, Any], parameter: dict[str, Any]) -> list[str]:
+def query_lines(contract: ContractView, route: HttpRoute, argument: HttpArgument) -> list[str]:
     """Statements that set the parameter's variable from the query string."""
-    param = c_param(model, op, parameter)
-    slot, t, name = param.slot, param.slot.type, param.slot.name
-    type_name = "holder::contract::" + camel(op["name"]) + camel(name)
+    op = route.operation
+    t, name = argument.ref, argument.parameter.name
+    type_name = "holder::contract::" + camel(op.name) + camel(name)
     found = f"query_{name}"
     lines = [f'            const auto {found} = query_values.find("{name}");',
              f"            if ({found} != query_values.end()) {{",
              f"                const auto& text = {found}->second;"]
-    if t["kind"] == "literal":
-        choices = ", ".join(t["values"])
-        for i, value in enumerate(t["values"]):
+    if isinstance(t, LiteralType):
+        choices = ", ".join(str(value) for value in t.values)
+        for i, value in enumerate(t.values):
             lines.append(f'                {"if" if i == 0 else "else if"} (text == {json.dumps(value)}) '
                          f"{name} = {type_name}::{camel(str(value))};")
         lines.append(f'                else throw std::invalid_argument("{name} must be one of {choices}");')
-    elif t["kind"] == "union":
-        literals = [v for a in t["alternatives"] if a["kind"] == "literal" for v in a["values"]]
-        other = next(model.resolve(a) for a in t["alternatives"] if a["kind"] != "literal")
-        if other["kind"] != "string":
-            raise Unsupported(f"{op['name']}({name}): unions other than literals plus one string")
+    elif isinstance(t, UnionType):
+        literals = [v for a in t.alternatives if isinstance(a, LiteralType) for v in a.values]
+        other = next(contract.resolve_type(a)[0] for a in t.alternatives if not isinstance(a, LiteralType))
+        if not isinstance(other, ScalarType) or other.kind != "string":
+            raise Unsupported(f"{op.name}({name}): unions other than literals plus one string")
         for i, value in enumerate(literals):
             lines.append(f'                {"if" if i == 0 else "else if"} (text == {json.dumps(value)}) '
                          f"{name} = {type_name}{{{type_name}{camel(str(value))}{{}}}};")
         lines.append(f"                else {name} = {type_name}{{{text_check(other, 'text', name)}}};")
     else:
         lines.append(f"                {name} = {scalar_value(t, 'text', name)};")
-    if slot.has_default and slot.default is not None:
-        default = (f"{type_name}::{camel(str(slot.default))}" if t["kind"] == "literal"
-                   else cpp_literal(slot.default))
+    default_value = argument.parameter.default
+    if argument.has_default and default_value is not None:
+        default = (f"{type_name}::{camel(str(default_value))}" if isinstance(t, LiteralType)
+                   else cpp_literal(default_value))
         lines += ["            } else {", f"                {name} = {default};"]
-    elif not (slot.nullable or slot.optional):
+    elif not (argument.nullable or argument.has_default):
         lines += ["            } else {",
                   f'                throw std::invalid_argument("the query parameter {name} is required");']
     lines.append("            }")
     return lines
 
 
-def operation_lines(model: Model, op: dict[str, Any], binding: dict[str, Any], index: int,
+def operation_lines(contract: ContractView, route: HttpRoute, index: int,
                     statuses: dict[str, int]) -> list[str]:
-    name = op["name"]
-    pattern, captures = route_pattern(binding["path"])
+    op, binding = route.operation, route.binding
+    name = op.name
+    pattern, captures = route_pattern(binding.path)
     lines = [f"    static const std::regex route_{index}({json.dumps(pattern)});",
-             f'    if (method == "{binding["method"]}" && std::regex_match(route_path, match, route_{index})) {{']
+             f'    if (method == "{binding.method}" && std::regex_match(route_path, match, route_{index})) {{']
     declarations, decodes, arguments = [], [], []
-    names = ", ".join(json.dumps(n) for n in binding["query"])
-    if binding["query"]:
+    names = ", ".join(json.dumps(n) for n in binding.query)
+    if binding.query:
         decodes += ["            const auto query_values = decode_query(query_string);",
                     f"            check_query_names(query_values, {{{names}}});"]
     else:
         decodes.append("            check_query_names(decode_query(query_string), {});")
-    for parameter in op["parameters"]:
-        param = c_param(model, op, parameter)
-        decl, _ = cpp_param(model, op, param)
+    for argument in route.arguments:
+        decl = argument.cpp_declaration
         decl = re.sub(r"^const (.*)&", r"\1", decl)
         # Types core declares in holder::contract, such as ListCardsOrder or NewCard.
         decl = re.sub(r"(?<![\w:])([A-Z]\w*)", r"holder::contract::\1", decl)
         declarations.append(f"        {decl}{{}};")
-        pname = param.slot.name
+        pname = argument.parameter.name
         arguments.append(f"std::move({pname})")
-        if pname in captures:
+        if argument.location == "path":
             source = f"decode_uri_component(match[{captures[pname]}].str(), false)"
-            if param.slot.type["kind"] == "literal":
-                choices = param.slot.type["values"]
+            if isinstance(argument.ref, LiteralType):
+                choices = argument.ref.values
                 type_name = "holder::contract::" + camel(name) + camel(pname)
                 decodes.append(f"            const auto {pname}_text = {source};")
                 for i, value in enumerate(choices):
@@ -295,14 +301,14 @@ def operation_lines(model: Model, op: dict[str, Any], binding: dict[str, Any], i
                                    f"{pname} = {type_name}::{camel(str(value))};")
                 decodes.append(f'            else throw std::invalid_argument("{pname} must be one of {", ".join(choices)}");')
             else:
-                decodes.append(f"            {pname} = {scalar_value(param.slot.type, source, pname)};")
-        elif pname in binding["query"]:
-            decodes += query_lines(model, op, parameter)
+                decodes.append(f"            {pname} = {scalar_value(argument.ref, source, pname)};")
+        elif argument.location == "query":
+            decodes += query_lines(contract, route, argument)
         else:
-            if param.slot.type["kind"] != "named" or param.slot.nullable:
+            if argument.body_record is None:
                 raise Unsupported(f"{name}({pname}): a request body that is not a record")
-            record = model.instance(param.slot.type, {}).qualified("holder::contract::")
-            optional = all(slot.optional for slot in model.slots(model.instance(param.slot.type, {})))
+            record = "holder::contract::" + argument.body_record
+            optional = argument.body_optional
             decodes.append(f"            {pname} = contract_json::decode<{record}>("
                            f"decode_body(body{', true' if optional else ''}));")
     status, code = INVALID_ARGUMENT
@@ -314,13 +320,13 @@ def operation_lines(model: Model, op: dict[str, Any], binding: dict[str, Any], i
                   "        }"]
     call = f"holder::contract::{name}(context{''.join(', ' + a for a in arguments)})"
     lines.append("        try {")
-    if created_when := binding.get("created_when"):
+    if created_when := binding.created_when:
         lines += [f"            auto result = {call};",
-                  (f'            return success(result.{created_when} ? 201 : {binding["status"]}, '
+                  (f'            return success(result.{created_when} ? 201 : {binding.status}, '
                    f'contract_json::encode(result), "{name}");')]
     else:
-        lines.append(f'            return success({binding["status"]}, contract_json::encode({call}), "{name}");')
-    for error in op["errors"]:
+        lines.append(f'            return success({binding.status}, contract_json::encode({call}), "{name}");')
+    for error in op.errors:
         lines += [f"        }} catch (const holder::contract::{error}& error) {{",
                   f'            return failure({statuses[error]}, "{snake(error)}", error.what(), "{name}");']
     unexpected_status, unexpected_code = UNEXPECTED
@@ -332,15 +338,19 @@ def operation_lines(model: Model, op: dict[str, Any], binding: dict[str, Any], i
     return lines
 
 
-def generate_routes(model: Model, codec_header: str) -> str:
+def generate_routes(contract: ContractView | Model, codec_header: str) -> str:
     if not re.fullmatch(r"[A-Za-z_0-9/.-]+", codec_header):
         raise ValueError("invalid codec header path")
-    operations = {op["name"]: op for op in model.operations}
-    all_bindings = model.ir["http"]
-    bindings = [b for b in all_bindings if b["operation"] in operations]
-    validate_routes(all_bindings)
-    statuses = {e["error"]: e["status"] for e in model.ir["http_errors"]}
-    lines = [*header_lines(model.ir, "The daemon's HTTP routes for the contract's operations; "
+    typed = contract if isinstance(contract, ContractView) else ContractView.model_validate(contract.ir)
+    try:
+        plan = plan_http(typed)
+    except ValueError as error:
+        raise Unsupported(str(error)) from error
+    validate_routes(plan.bindings)
+    bindings = plan.routes
+    all_bindings = plan.bindings
+    statuses = plan.error_statuses
+    lines = [*header_lines(typed.model_dump(exclude_unset=True), "The daemon's HTTP routes for the contract's operations; "
                                      "contract/holder_contract/http_routes.py says how they behave.", "cpp"),
              "#pragma once",
              f'#include "{codec_header}"',
@@ -363,14 +373,14 @@ def generate_routes(model: Model, codec_header: str) -> str:
              "                                        const std::string& body, holder_context& context) {",
              "    const auto query_start = path.find('?');",
              "    const auto route_path = path.substr(0, query_start);"]
-    if any(b["query"] for b in bindings):
+    if any(route.binding.query for route in bindings):
         lines += ["    const auto query_string = query_start == std::string::npos ? std::string_view{} :",
                   "        std::string_view(path).substr(query_start + 1);"]
     lines += ["    std::smatch match;", "    (void)body;", "    (void)context;"]
     # Routes are tried from the most specific: a literal segment before a parameter.
-    ordered = sorted(enumerate(bindings), key=lambda pair: route_priority(pair[1]))
-    for index, binding in ordered:
-        lines += operation_lines(model, operations[binding["operation"]], binding, index, statuses)
+    ordered = sorted(enumerate(bindings), key=lambda pair: route_priority(pair[1].binding))
+    for index, route in ordered:
+        lines += operation_lines(typed, route, index, statuses)
     lines += ["    return std::nullopt;", "}", "",
               "// The methods dispatch answers on this path, for a 405's Allow header.",
               "inline std::set<std::string_view> allowed_methods(const std::string& path) {",
@@ -378,12 +388,12 @@ def generate_routes(model: Model, codec_header: str) -> str:
               "    std::set<std::string_view> methods;"]
     patterns: dict[str, tuple[str, set[str]]] = {}
     for binding in all_bindings:
-        pattern = route_pattern(binding["path"])[0]
+        pattern = route_pattern(binding.path)[0]
         if pattern not in patterns:
-            patterns[pattern] = (binding["path"], set())
-        patterns[pattern][1].add(binding["method"])
+            patterns[pattern] = (binding.path, set())
+        patterns[pattern][1].add(binding.method)
     for position, (pattern, (_, methods)) in enumerate(
-            sorted(patterns.items(), key=lambda item: route_priority({"path": item[1][0]}))):
+            sorted(patterns.items(), key=lambda item: tuple(kind for kind, _ in route_segments(item[1][0])))):
         listed = ", ".join(json.dumps(m) for m in sorted(methods))
         lines += [f"    static const std::regex path_{position}({json.dumps(pattern)});",
                   f"    if (std::regex_match(route_path, path_{position})) return {{{listed}}};"]
@@ -391,8 +401,8 @@ def generate_routes(model: Model, codec_header: str) -> str:
               "// Public routes do not require the daemon's bearer token.",
               "inline bool is_public(const std::string& method, const std::string& path) {",
               "    const auto route_path = path.substr(0, path.find('?'));"]
-    for position, binding in enumerate(b for b in all_bindings if b.get("public")):
-        lines += [f'    static const std::regex public_{position}({json.dumps(route_pattern(binding["path"])[0])});',
-                  f'    if (method == "{binding["method"]}" && std::regex_match(route_path, public_{position})) return true;']
+    for position, binding in enumerate(b for b in all_bindings if b.public):
+        lines += [f'    static const std::regex public_{position}({json.dumps(route_pattern(binding.path)[0])});',
+                  f'    if (method == "{binding.method}" && std::regex_match(route_path, public_{position})) return true;']
     lines += ["    return false;", "}", f"}}  // namespace {NAMESPACE}", ""]
     return "\n".join(lines)

@@ -2,9 +2,9 @@
 
 from typing import Annotated, Literal
 
-from holder_contract import MISSING, Field, Int32, Int64, Record, Timestamp
+from authoring import MISSING, Field, Int32, Int64, Record, Timestamp
 
-from .cards import CardId
+from .cards.models import CardId
 
 type HistoryObjectKind = Literal["card", "resource", "location", "ai_data", "project_settings", "unknown"]
 

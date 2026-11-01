@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from compiler.ir import ContractView
+from generators.daemon.http import plan_http
 from holder_contract.daemon import generate_daemon
 from holder_contract.extract import extract, load_contract
 from holder_contract.generate import Model, Unsupported, generate
@@ -67,6 +69,21 @@ def test_disjoint_routes_and_other_methods_are_accepted():
                      binding("POST", "/items/{slug}"), binding("GET", "/items/{id}/parts")])
 
 
+def test_typed_http_plan_locates_contract_arguments():
+    contract = ContractView.model_validate(holder_ir())
+    plan = plan_http(contract)
+    cards = next(route for route in plan.routes if route.operation.name == "list_cards")
+    assert cards.binding.path == "/projects/{project_id}/cards"
+    assert {argument.parameter.name: argument.location for argument in cards.arguments} == {
+        "project_id": "path", "parent": "query", "order": "query", "limit": "query",
+        "cursor": "query", "tag": "query", "include_child_count": "query", "include_content": "query",
+    }
+    assert next(arg for arg in cards.arguments if arg.parameter.name == "limit").cpp_declaration == "std::int32_t limit"
+    create = next(route for route in plan.routes if route.operation.name == "create_card")
+    assert next(arg for arg in create.arguments if arg.parameter.name == "card").body_record == "NewCard"
+    assert all(not route.operation.daemon_only for route in plan.routes)
+
+
 def test_a_literal_segment_is_tried_before_a_parameter():
     ir = holder_ir()
     get_card = next(b for b in ir["http"] if b["operation"] == "get_card")
@@ -87,8 +104,8 @@ def test_every_generated_file_names_its_source():
     for name, text in generate_daemon(holder_ir(), holder_contract()).items():
         if name.endswith(".h"):
             header = text.splitlines()[0]
-            assert "Generated from contract/interface/app.py," in header, name
-            assert "contract/interface/cards.py" in header, name
+            assert "contract/interface/cards/operations.py" in header, name
+            assert "contract/interface/cards/models.py" in header, name
 
 
 def test_unsupported_parts_of_the_contract_stop_generation():
@@ -257,8 +274,9 @@ def test_generate_command_writes_core_daemon_and_android_files(tmp_path):
     assert main(["generate", "--output", str(tmp_path)]) == 0
     assert sorted(p.name for p in tmp_path.iterdir()) == [
         "AiJson.h", "AiRoutes.h", "Contract.h", "ContractCApi.cpp", "ContractCards.kt",
-        "ContractHistory.kt", "ContractJson.h", "ContractProjects.kt", "ContractResources.kt",
-        "ContractRoutes.h", "contract_cards.cpp", "contract_history.cpp", "contract_projects.cpp",
+        "ContractHistory.kt", "ContractJson.h", "ContractOperations.kt", "ContractProjects.kt", "ContractResources.kt",
+        "ContractRoutes.h", "contract_cards.cpp", "contract_history.cpp", "contract_operations.cpp",
+        "contract_projects.cpp",
         "contract_resources.cpp", "holder_api.h", "openapi.json"]
 
 
