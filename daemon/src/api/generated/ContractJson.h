@@ -586,6 +586,10 @@ template <> struct codec<holder::contract::ProjectStorageLocation> {
     static json encode(const holder::contract::ProjectStorageLocation& value);
     static holder::contract::ProjectStorageLocation decode(const json& value);
 };
+template <> struct codec<holder::contract::StorageLocationList> {
+    static json encode(const holder::contract::StorageLocationList& value);
+    static holder::contract::StorageLocationList decode(const json& value);
+};
 template <> struct codec<holder::contract::LocationDeleteResult> {
     static json encode(const holder::contract::LocationDeleteResult& value);
     static holder::contract::LocationDeleteResult decode(const json& value);
@@ -948,6 +952,30 @@ inline holder::contract::ProjectStorageLocation codec<holder::contract::ProjectS
         out.updated_at = decode_field<long long>(item, "updated_at");
     } else {
         throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::StorageLocationList>::encode(const holder::contract::StorageLocationList& value) {
+    json result = json::object();
+    result["data"] = codec<std::vector<holder::contract::ProjectStorageLocation>>::encode(value.data);
+    result["preferred_location_id"] = value.preferred_location_id ? codec<std::string>::encode(*value.preferred_location_id) : json(nullptr);
+    return result;
+}
+inline holder::contract::StorageLocationList codec<holder::contract::StorageLocationList>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a StorageLocationList object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "data" && it.key() != "preferred_location_id") throw std::invalid_argument("StorageLocationList has no field " + it.key());
+    holder::contract::StorageLocationList out;
+    if (value.contains("data") && !value.at("data").is_null()) {
+        const auto& item = value.at("data");
+        out.data = decode_field<std::vector<holder::contract::ProjectStorageLocation>>(item, "data");
+    } else {
+        throw std::invalid_argument("data is required and must not be null");
+    }
+    if (value.contains("preferred_location_id") && !value.at("preferred_location_id").is_null()) {
+        const auto& item = value.at("preferred_location_id");
+        out.preferred_location_id = check_text(decode_field<std::string>(item, "preferred_location_id"), "preferred_location_id", 1, std::numeric_limits<std::size_t>::max());
     }
     return out;
 }

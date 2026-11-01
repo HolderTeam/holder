@@ -572,6 +572,7 @@ jobject to_java_holder_trash_item_type(JNIEnv* env, int value) {
 }
 
 jobject to_java_holder_project_storage_location(JNIEnv* env, const holder_project_storage_location& value);
+jobject to_java_holder_storage_location_list(JNIEnv* env, const holder_storage_location_list& value);
 jobject to_java_holder_location_delete_result(JNIEnv* env, const holder_location_delete_result& value);
 jobject to_java_holder_tag_occurrence(JNIEnv* env, const holder_tag_occurrence& value);
 jobject to_java_holder_card(JNIEnv* env, const holder_card& value);
@@ -669,6 +670,20 @@ jobject to_java_holder_project_storage_location(JNIEnv* env, const holder_projec
   if (env->ExceptionCheck()) return nullptr;
   args[7].j = static_cast<jlong>(value.created_at);
   args[8].j = static_cast<jlong>(value.updated_at);
+  return env->NewObjectA(type, constructor, args);
+}
+
+jobject to_java_holder_storage_location_list(JNIEnv* env, const holder_storage_location_list& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/StorageLocationList");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/util/List;Ljava/lang/String;)V");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[2] = {};
+  args[0].l = locals.add(to_java_list(env, (value.data).items, (value.data).count, [&](const auto& item) -> jobject { return to_java_holder_project_storage_location(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  args[1].l = locals.add(string(env, value.preferred_location_id));
+  if (env->ExceptionCheck()) return nullptr;
   return env->NewObjectA(type, constructor, args);
 }
 
@@ -2462,6 +2477,23 @@ bool from_java_holder_remote_test(JNIEnv* env, jobject object, holder_remote_tes
 }
 
 }  // namespace
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_contract_Locations_listStorageLocations(JNIEnv* env, jobject, jlong context_handle, jstring a_project_id) {
+  if (!context_handle) { fail(env, "context is required"); return nullptr; }
+  Keep keep;
+  const char* p_project_id = nullptr;
+  if (!c_text(env, a_project_id, keep, p_project_id)) return nullptr;
+  Arena arena;
+  if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
+  const holder_storage_location_list* out = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_list_storage_locations(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      p_project_id,
+      arena.value, &out, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
+  return to_java_holder_storage_location_list(env, (*out));
+}
 
 extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_contract_Locations_getStorageLocation(JNIEnv* env, jobject, jlong context_handle, jstring a_location_id) {

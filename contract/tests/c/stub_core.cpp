@@ -593,6 +593,13 @@ ReindexResult reindex_search(holder_context& context) {
   return {"Reindex complete."};
 }
 
+StorageLocationList list_storage_locations(holder_context& context, std::string project_id) {
+  StorageLocationList out;
+  for (const auto& location : context.locations)
+    if (location.project_id == project_id) out.data.push_back(location);
+  return out;
+}
+
 ProjectStorageLocation get_storage_location(holder_context& context, std::string location_id) {
   for (const auto& location : context.locations)
     if (location.location_id == location_id) return location;

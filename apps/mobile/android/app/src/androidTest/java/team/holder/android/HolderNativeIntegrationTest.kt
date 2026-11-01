@@ -681,6 +681,21 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun locations_listNewestFirstAndNoneForAnUnknownProject() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Locations project")
+        HolderNative.createLocation("older", project.projectId, "Older", "local_directory", mapOf("path" to "/a"), 1_700_000_000)
+        HolderNative.createLocation("newer", project.projectId, "Newer 📁", "s3_compatible", mapOf("bucket" to "b"), 1_700_000_100)
+
+        val listed = HolderNative.listLocations(project.projectId)
+        assertEquals(listOf("newer", "older"), listed.map { it.locationId })
+        assertEquals("Newer 📁", listed.first().name)
+        assertEquals("s3_compatible", listed.first().provider)
+        assertEquals(mapOf("bucket" to "b"), listed.first().configuration)
+        assertTrue(HolderNative.listLocations("no-such-project").isEmpty())
+    }
+
+    @Test
     fun cardTags_offerRemovalOnlyWhereRemoveCardTagWorks() {
         initialize("# Welcome\n\nWelcome")
         val project = HolderNative.createProject("Removable tags project")

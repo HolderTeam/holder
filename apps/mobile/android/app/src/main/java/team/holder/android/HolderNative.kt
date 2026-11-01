@@ -489,7 +489,6 @@ object HolderNative {
         welcomeTitle: String,
         welcomeContent: String?,
     ): String
-    private external fun nativeLocationList(contextHandle: Long, projectId: String): String
     private external fun nativeAssetImportFile(
         contextHandle: Long,
         projectId: String,
@@ -1382,10 +1381,12 @@ object HolderNative {
 
     /** Storage locations (e.g. a Google Drive folder) available to attach Resources into,
      * within projectId. */
-    fun listLocations(projectId: String): List<HolderLocation> {
-        val locations = JSONArray(readLane.call { nativeLocationList(it, projectId) })
-        return List(locations.length()) { index -> parseLocation(locations.getJSONObject(index)) }
-    }
+    /** projectId's storage locations, most recently updated first. */
+    fun listLocations(projectId: String): List<HolderLocation> =
+        readLane.call { Locations.listStorageLocations(it, projectId) }.data.map { location ->
+            HolderLocation(location.locationId, location.projectId, location.name, location.provider.value,
+                           location.configuration, location.createdAt, location.updatedAt)
+        }
 
     /** Creates or updates a storage location. locationId identifies which -- pass a fresh
      * uuid to create one. */
@@ -1495,16 +1496,6 @@ object HolderNative {
         keys().forEach { key -> map[key] = getString(key) }
         return map
     }
-
-    private fun parseLocation(json: JSONObject) = HolderLocation(
-        locationId = json.getString("location_id"),
-        projectId = json.getString("project_id"),
-        name = json.getString("name"),
-        provider = json.getString("provider"),
-        configuration = json.optJSONObject("configuration")?.toStringMap().orEmpty(),
-        createdAt = json.getLong("created_at"),
-        updatedAt = json.getLong("updated_at"),
-    )
 
     /** Mirrors holder-daemon's Bootstrap.cpp: first line, only if it's a markdown heading. */
     private fun deriveWelcomeTitle(content: String, fallback: String): String {

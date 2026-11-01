@@ -314,6 +314,17 @@ typedef struct holder_project_storage_location {
     int64_t updated_at; /* When the declaration was last updated. */
 } holder_project_storage_location;
 
+typedef struct holder_project_storage_location_list {
+    const holder_project_storage_location* items;
+    size_t count;
+} holder_project_storage_location_list;
+
+/* A project's storage locations, with this device's binding status, and this device's preferred one. */
+typedef struct holder_storage_location_list {
+    holder_project_storage_location_list data; /* The project's locations, most recently updated first; none for a project with none, or one this device does not have. */
+    const char* preferred_location_id; /* This device's preferred location for the project; null when it has none. May be NULL. */
+} holder_storage_location_list;
+
 /* The location affected by an action. */
 typedef struct holder_location_delete_result {
     const char* location_id; /* The affected location ID. */
@@ -1055,6 +1066,12 @@ typedef struct holder_search_message_list {
     const holder_search_message* items;
     size_t count;
 } holder_search_message_list;
+
+/* List a project's storage declarations, with this device's binding status and preferred location.
+ * Locations are most recently updated first. A project with none, or one this device does not have, lists none.
+ * The daemon serves this as GET /locations.
+ */
+int holder_list_storage_locations(holder_context* context, const char* project_id, holder_arena* arena, const holder_storage_location_list** out_storage_location_list, holder_error** out_error);
 
 /* Get a storage declaration and this device's binding status.
  * Errors: HOLDER_ERROR_NOT_FOUND.

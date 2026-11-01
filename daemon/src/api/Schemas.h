@@ -116,18 +116,6 @@ struct AiThread {
   long long updated_at;
 };
 
-struct StorageLocation {
-  std::string location_id;
-  std::string project_id;
-  std::string name;
-  std::string provider;
-  std::map<std::string, std::string> configuration;
-  bool bound;
-  std::optional<std::string> binding_preview;
-  long long created_at;
-  long long updated_at;
-};
-
 struct EventCheckpoint {
   std::string cursor;
   std::map<std::string, std::optional<std::string>> git_revisions;

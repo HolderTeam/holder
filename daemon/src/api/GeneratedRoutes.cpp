@@ -120,14 +120,7 @@ nlohmann::json daemon_json(const HealthResponse& value) {
 }
 nlohmann::json daemon_json(const StorageLocationListResponse& value) {
   nlohmann::json data = nlohmann::json::array();
-  for (const auto& item : value.data) {
-    data.push_back({{"location_id", item.location_id}, {"project_id", item.project_id},
-                    {"name", item.name}, {"provider", item.provider},
-                    {"configuration", item.configuration}, {"bound", item.bound},
-                    {"binding_preview", item.binding_preview ? nlohmann::json(*item.binding_preview)
-                                                              : nlohmann::json(nullptr)},
-                    {"created_at", item.created_at}, {"updated_at", item.updated_at}});
-  }
+  for (const auto& item : value.data) data.push_back(contract_json::encode(item));
   return {{"ok", value.ok}, {"data", std::move(data)},
           {"preferred_location_id", value.preferred_location_id
                                         ? nlohmann::json(*value.preferred_location_id)

@@ -383,6 +383,8 @@ holder_trash_item_type to_c_enum(contract::TrashItemType value) {
 }
 
 holder_project_storage_location to_c(holder_arena* arena, const contract::ProjectStorageLocation& value);
+holder_project_storage_location_list to_c_list(holder_arena* arena, const std::vector<contract::ProjectStorageLocation>& values);
+holder_storage_location_list to_c(holder_arena* arena, const contract::StorageLocationList& value);
 holder_location_delete_result to_c(holder_arena* arena, const contract::LocationDeleteResult& value);
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value);
 holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<contract::TagOccurrence>& values);
@@ -474,6 +476,19 @@ holder_project_storage_location to_c(holder_arena* arena, const contract::Projec
   out.binding_preview = copy_text(arena, value.binding_preview);
   out.created_at = value.created_at;
   out.updated_at = value.updated_at;
+  return out;
+}
+
+holder_project_storage_location_list to_c_list(holder_arena* arena, const std::vector<contract::ProjectStorageLocation>& values) {
+  auto* items = make<holder_project_storage_location>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_storage_location_list to_c(holder_arena* arena, const contract::StorageLocationList& value) {
+  holder_storage_location_list out{};
+  out.data = to_c_list(arena, value.data);
+  out.preferred_location_id = copy_text(arena, value.preferred_location_id);
   return out;
 }
 
@@ -1396,6 +1411,18 @@ extern "C" {
 
 holder_arena* holder_arena_new(void) { return new (std::nothrow) holder_arena; }
 void holder_arena_free(holder_arena* arena) { delete arena; }
+
+int holder_list_storage_locations(holder_context* context, const char* project_id, holder_arena* arena, const holder_storage_location_list** out_storage_location_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_storage_location_list != nullptr, "out_storage_location_list must not be null");
+    *out_storage_location_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    auto* out = make<holder_storage_location_list>(arena);
+    *out = to_c(arena, contract::list_storage_locations(*context, project_id_value));
+    *out_storage_location_list = out;
+  });
+}
 
 int holder_get_storage_location(holder_context* context, const char* location_id, holder_arena* arena, const holder_project_storage_location** out_project_storage_location, holder_error** out_error) {
   return guarded(arena, out_error, [&] {

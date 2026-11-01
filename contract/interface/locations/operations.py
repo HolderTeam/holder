@@ -8,6 +8,7 @@ from authoring import Contract
 from authoring.routes import ErrorResponse
 
 from ..errors import Conflict, NotFound
+from ..projects.ids import ProjectId
 from .models import (
     GoogleDriveAuthorizeResponse,
     LocationActionResponse,
@@ -17,12 +18,21 @@ from .models import (
     NewStorageLocation,
     PreferredLocationRequest,
     ProjectStorageLocation,
+    StorageLocationList,
     StorageLocationListResponse,
     StorageLocationUpdate,
 )
 
 
 def register(contract: Contract) -> None:
+    @contract.core_operation()
+    def list_storage_locations(project_id: ProjectId) -> StorageLocationList:
+        """List a project's storage declarations, with this device's binding status and preferred location.
+
+        Locations are most recently updated first. A project with none, or one this device does not have, lists none.
+        The daemon serves this as GET /locations.
+        """
+
     @contract.route("GET", "/locations/{location_id}", errors=[NotFound])
     def get_storage_location(location_id: Annotated[str, Path(min_length=1)]) -> ProjectStorageLocation:
         """Get a storage declaration and this device's binding status."""

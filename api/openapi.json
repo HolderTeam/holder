@@ -20129,85 +20129,6 @@
         ],
         "title": "SearchMessageListResponse"
       },
-      "StorageLocation": {
-        "properties": {
-          "location_id": {
-            "type": "string",
-            "title": "Location Id",
-            "description": "The location ID."
-          },
-          "project_id": {
-            "type": "string",
-            "title": "Project Id",
-            "description": "The owning project."
-          },
-          "name": {
-            "type": "string",
-            "title": "Name",
-            "description": "Display name."
-          },
-          "provider": {
-            "$ref": "#/components/schemas/StorageLocationProvider",
-            "description": "Storage provider kind."
-          },
-          "configuration": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Configuration",
-            "description": "Portable non-secret provider configuration."
-          },
-          "bound": {
-            "type": "boolean",
-            "title": "Bound",
-            "description": "Whether this device has a binding."
-          },
-          "binding_preview": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Binding Preview",
-            "description": "Safe binding display text; credentials are never returned."
-          },
-          "created_at": {
-            "type": "integer",
-            "maximum": 9223372036854775807,
-            "minimum": -9223372036854775808,
-            "format": "int64",
-            "title": "Created At",
-            "description": "Creation time."
-          },
-          "updated_at": {
-            "type": "integer",
-            "maximum": 9223372036854775807,
-            "minimum": -9223372036854775808,
-            "format": "int64",
-            "title": "Updated At",
-            "description": "Last update time."
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "location_id",
-          "project_id",
-          "name",
-          "provider",
-          "configuration",
-          "bound",
-          "binding_preview",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "StorageLocation",
-        "description": "A portable storage declaration with this device's binding status."
-      },
       "StorageLocationListResponse": {
         "properties": {
           "ok": {
@@ -20217,7 +20138,7 @@
           },
           "data": {
             "items": {
-              "$ref": "#/components/schemas/StorageLocation"
+              "$ref": "#/components/schemas/ProjectStorageLocation"
             },
             "type": "array",
             "title": "Data",
@@ -20245,14 +20166,6 @@
         ],
         "title": "StorageLocationListResponse",
         "description": "Project storage locations and this device's preference."
-      },
-      "StorageLocationProvider": {
-        "type": "string",
-        "enum": [
-          "local_directory",
-          "s3_compatible",
-          "google-drive"
-        ]
       },
       "StorageLocationUpdate": {
         "properties": {

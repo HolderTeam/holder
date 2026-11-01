@@ -289,6 +289,12 @@ struct ProjectStorageLocation {
   long long updated_at{};  ///< When the declaration was last updated.
 };
 
+/// A project's storage locations, with this device's binding status, and this device's preferred one.
+struct StorageLocationList {
+  std::vector<ProjectStorageLocation> data;  ///< The project's locations, most recently updated first; none for a project with none, or one this device does not have.
+  std::optional<std::string> preferred_location_id;  ///< This device's preferred location for the project; null when it has none.
+};
+
 /// The location affected by an action.
 struct LocationDeleteResult {
   std::string location_id;  ///< The affected location ID.
@@ -785,6 +791,11 @@ struct SearchMessage {
   std::string snippet;  ///< A highlighted excerpt from the match.
   double rank{};  ///< The FTS relevance score; lower scores rank first.
 };
+
+/// List a project's storage declarations, with this device's binding status and preferred location.
+/// Locations are most recently updated first. A project with none, or one this device does not have, lists none.
+/// The daemon serves this as GET /locations.
+StorageLocationList list_storage_locations(holder_context& context, std::string project_id);
 
 /// Get a storage declaration and this device's binding status.
 /// @throws NotFound
