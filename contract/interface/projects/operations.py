@@ -6,10 +6,10 @@ from fastapi import Body, Path, Query
 
 from authoring import Contract, Field, Int32, Timestamp
 
-from ..cards.models import ProjectId
 from ..errors import Conflict, NotFound
-from ..projects import NewProject, Project, ProjectListItem, ProjectUpdate
-from .common import KEYS
+from ..operations.common import KEYS
+from .ids import ProjectId
+from .models import NewProject, Project, ProjectListItem, ProjectUpdate
 
 
 def register(contract: Contract) -> None:

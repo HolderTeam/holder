@@ -6,9 +6,10 @@ from fastapi import Body, Path, Query
 
 from authoring import Contract, Timestamp
 
-from ..cards.models import CardId, ProjectId
+from ..cards.models import CardId
 from ..errors import NotFound
 from ..milestones import Calendar, Day, Milestone, MilestoneId, MilestoneRole, MilestoneUpdate, NewMilestone
+from ..projects.ids import ProjectId
 from .common import KEYS
 
 

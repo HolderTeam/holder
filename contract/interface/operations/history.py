@@ -6,7 +6,7 @@ from fastapi import Path, Query
 
 from authoring import Contract, Int32
 
-from ..cards.models import CardId, ProjectId
+from ..cards.models import CardId
 from ..errors import HistoryKeyUnavailable, HistoryResponseTooLarge, HistoryUnavailable, NotFound, RevisionAmbiguous
 from ..history import (
     CardHistoryComparison,
@@ -17,6 +17,7 @@ from ..history import (
     ProjectHistoryPage,
     RevisionRef,
 )
+from ..projects.ids import ProjectId
 
 
 def register(contract: Contract) -> None:

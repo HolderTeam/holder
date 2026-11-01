@@ -82,6 +82,8 @@ def test_page_lowering_uses_operation_data_for_a_second_operation():
 def test_operation_source_names_its_domain_module():
     contract = ContractView.model_validate(extract(CONTRACT, "interface"))
     assert contract.operation("list_cards").source == "interface/cards/operations.py"
+    assert contract.operation("list_projects").source == "interface/projects/operations.py"
+    assert next(alias.source for alias in contract.aliases if alias.name == "ProjectId") == "interface/projects/ids.py"
     assert contract.operation("search_cards").source == "interface/operations/search.py"
 
 

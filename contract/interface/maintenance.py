@@ -4,8 +4,9 @@ from typing import Annotated
 
 from authoring import Field, Int32, Record
 
-from .cards.models import CardId, ProjectId
-from .projects import PrivacyMode
+from .cards.models import CardId
+from .projects.ids import ProjectId
+from .projects.models import PrivacyMode
 
 
 class EncryptionSafetyCheck(Record):

@@ -31,12 +31,12 @@ from .operations import (
     locations,
     maintenance,
     milestones,
-    projects,
     resources,
     search,
     system,
     trash,
 )
+from .projects import operations as project_operations
 
 contract = Contract(statuses={
     NotFound: 404,
@@ -62,7 +62,7 @@ card_operations.register(contract)
 links.register(contract)
 milestones.register(contract)
 resources.register(contract)
-projects.register(contract)
+project_operations.register(contract)
 maintenance.register(contract)
 git.register(contract)
 history.register(contract)

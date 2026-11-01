@@ -4,8 +4,7 @@ from typing import Annotated, Literal
 
 from authoring import MISSING, Field, Float64, Int32, Int64, Record, Timestamp
 
-type ProjectId = Annotated[str, Field(min_length=1)]
-"""A project's ID."""
+from ..projects.ids import ProjectId
 
 type CardId = Annotated[str, Field(min_length=1)]
 """A card's ID, unique within its project. Copies of a project, such as a fork, keep their card IDs."""
