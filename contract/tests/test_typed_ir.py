@@ -12,9 +12,9 @@ from generators.android.page import JNI_PATH as OPERATION_JNI_PATH
 from generators.android.page import KOTLIN_PATH as OPERATION_KOTLIN_PATH
 from generators.android.page import generate_page_operation
 from generators.core.abi import CAbi
+from generators.daemon.bindings import RuntimeBinding, bindings
 from holder_contract.android import generate_android
 from holder_contract.daemon import generate_daemon
-from holder_contract.daemon_bindings import RuntimeBinding, bindings
 from holder_contract.extract import extract, load_contract
 from holder_contract.generate import generate
 

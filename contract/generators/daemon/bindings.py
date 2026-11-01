@@ -61,3 +61,21 @@ def bindings() -> dict[str, RuntimeBinding]:
     if unknown := ARGUMENT_ORDER.keys() - result.keys():
         raise ValueError(f"argument order without daemon binding: {sorted(unknown)}")
     return result
+
+
+# Records the daemon declares in holder::api::routes rather than holder::api.
+ROUTES_NAMESPACE = frozenset({"CardLink", "CardLinkCreateRequest", "CardLinkCreateResponse", "CardLinkListResponse"})
+
+# The daemon's AI exception classes, in holder::api, by the HTTP status an AI route answers with.
+# std::invalid_argument is 400 and holder::model::ConflictError 409 before these; anything else is 500.
+ERROR_STATUSES = {
+    400: ("AiProviderCatalogMissing", "AiRunsMissingScope", "AiMessageWrongState"),
+    404: ("AiCaptureNotFound", "AiMessageNotFound", "AiNudgeNotFound", "AiRunNotFound", "AiRunnerNotConfigured",
+          "AiRunnerNotFound", "AiThreadNotFound", "PullJobNotFound", "RunnerNotConfigured"),
+    503: ("AiRunUnavailable", "ProviderCredentialSecretFailure", "RunnerUnavailable", "SecretStoreUnavailable"),
+}
+
+
+def cpp_name(record: str) -> str:
+    """A daemon record's qualified C++ name."""
+    return f"{'holder::api::routes' if record in ROUTES_NAMESPACE else 'holder::api'}::{record}"

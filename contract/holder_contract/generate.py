@@ -22,6 +22,8 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from compiler.ir import ContractView
+from generators.common import Unsupported
+from generators.common import header_lines as render_header
 from generators.core.abi import SCALARS_C, SCALARS_CPP, CAbi, CAbiError, format_default, literal_member, snake
 
 _TEMPLATES = Environment(
@@ -33,8 +35,6 @@ _TEMPLATES = Environment(
     newline_sequence="\n",
 )
 
-class Unsupported(Exception):
-    """The contract uses something the C generator does not support yet."""
 
 
 def camel(name: str) -> str:
@@ -323,9 +323,7 @@ def c_out(model: Model, op: dict[str, Any]) -> tuple[str, str] | None:
 
 def header_lines(ir: dict[str, Any], what: str, style: str) -> list[str]:
     sources = sorted({d["source"] for key in ("records", "operations", "errors", "aliases") for d in ir[key]})
-    text = [f"Generated from contract/{', contract/'.join(sources)} by holder_contract.",
-            "Do not edit; change the contract, then run make -C contract update.", "", what]
-    return [("// " if style == "cpp" else " * ") + line if line else ("//" if style == "cpp" else " *") for line in text]
+    return render_header(sources, what, style)
 
 
 def generate_c_header(model: Model) -> str:

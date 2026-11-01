@@ -1,18 +1,20 @@
-"""Generate daemon AI dispatch from the Python contract's HTTP bindings.
+"""Generate the daemon's AI dispatch (AiRoutes.h) from the contract's typed HTTP bindings.
 
-The service arguments below connect each declared operation to its daemon handler. The
-contract supplies paths, methods, request parameters, status codes and record schemas.
+The runtime bindings in bindings.py connect each declared operation to its daemon handler and the
+services it receives. The contract supplies paths, methods, request parameters, status codes and
+record schemas.
 """
 
 from __future__ import annotations
 
 import json
-from typing import Any
 
-from .daemon_bindings import RuntimeBinding
-from .daemon_bindings import bindings as load_bindings
-from .generate import Unsupported, header_lines
-from .http_routes import route_pattern, route_priority, validate_routes
+from compiler.ir import ContractView, HttpBindingView, LiteralType, NullableType, OperationView, ParameterView, TypeRef
+
+from ..common import Unsupported, contract_sources, header_lines
+from .bindings import ERROR_STATUSES, RuntimeBinding, cpp_name
+from .bindings import bindings as load_bindings
+from .paths import route_pattern, route_priority, validate_routes
 
 BODY_SUPPORT = r"""
 // JSON's parser converts negative integers outside int64 to floating point. Check their raw
@@ -50,26 +52,22 @@ template <typename T> T decode_body(const std::string& body) {
 """
 
 
-def _cpp_type(ref: dict[str, Any]) -> str:
-    if ref["kind"] == "nullable":
-        return f"std::optional<{_cpp_type(ref['value'])}>"
-    if ref["kind"] in ("string", "literal"):
-        return "int" if ref["kind"] == "literal" and isinstance(ref["values"][0], int) else "std::string"
-    if ref["kind"] == "named":
-        name = ref["name"]
-        namespace = ("holder::api::routes" if name in {
-            "CardLink", "CardLinkCreateRequest", "CardLinkCreateResponse", "CardLinkListResponse"
-        } else "holder::api")
-        return f"{namespace}::{name}"
-    raise Unsupported(f"AI request parameter type {ref['kind']}")
+def _cpp_type(ref: TypeRef) -> str:
+    if isinstance(ref, NullableType):
+        return f"std::optional<{_cpp_type(ref.value)}>"
+    if ref.kind in ("string", "literal"):
+        return "int" if isinstance(ref, LiteralType) and isinstance(ref.values[0], int) else "std::string"
+    if ref.kind == "named":
+        return cpp_name(ref.name)
+    raise Unsupported(f"AI request parameter type {ref.kind}")
 
 
-def _field_lines(parameter: dict[str, Any], source: str) -> list[str]:
+def _field_lines(parameter: ParameterView, source: str) -> list[str]:
     """Decode a path or query value and apply its scalar contract constraints."""
-    name, ref = parameter["name"], parameter["type"]
-    inner = ref["value"] if ref["kind"] == "nullable" else ref
-    if inner["kind"] == "literal":
-        values = inner["values"]
+    name, ref = parameter.name, parameter.type
+    inner = ref.value if isinstance(ref, NullableType) else ref
+    if isinstance(inner, LiteralType):
+        values = inner.values
         if isinstance(values[0], int):
             result = f'contract_http::decode_integer<int>({source}, "{name}")'
             condition = " && ".join(f"arg_{name} != {v}" for v in values)
@@ -78,34 +76,35 @@ def _field_lines(parameter: dict[str, Any], source: str) -> list[str]:
             condition = " && ".join(f"arg_{name} != {json.dumps(v)}" for v in values)
         return [f"auto arg_{name} = {result};",
                 f'if ({condition}) throw std::invalid_argument("invalid {name}");']
-    if inner["kind"] != "string":
-        raise Unsupported(f"{name}: unsupported AI URL parameter {inner['kind']}")
-    low = inner.get("min_length", 0)
-    high = inner.get("max_length", "std::numeric_limits<std::size_t>::max()")
+    if inner.kind != "string":
+        raise Unsupported(f"{name}: unsupported AI URL parameter {inner.kind}")
+    low = 0 if inner.min_length is None else inner.min_length
+    high = "std::numeric_limits<std::size_t>::max()" if inner.max_length is None else inner.max_length
     return [f'auto arg_{name} = ai_json::check_text({source}, "{name}", {low}, {high});']
 
 
-def _argument_lines(op: dict[str, Any], binding: dict[str, Any], captures: dict[str, int],
+def _argument_lines(op: OperationView, binding: HttpBindingView, captures: dict[str, int],
                     runtime: RuntimeBinding) -> tuple[list[str], list[str]]:
-    parameters = {p["name"]: p for p in op["parameters"]}
-    body = binding.get("body")
-    queries = binding["query"]
-    paths = binding["path_parameters"]
+    parameters = {p.name: p for p in op.parameters}
+    body = binding.body
+    queries = binding.query
+    paths = binding.path_parameters
     headers = [name for name in parameters if name not in {*queries, *paths, body}]
     order = [*queries, *headers, *paths, *([body] if body else [])]
     if set(order) != set(parameters):
-        raise Unsupported(f"{op['name']}: route parameter inventory differs from operation")
+        raise Unsupported(f"{op.name}: route parameter inventory differs from operation")
     lines = ["const auto query_values = contract_http::decode_query(query_string);",
              "contract_http::check_query_names(query_values, {" + ", ".join(json.dumps(n) for n in queries) + "});"]
     for name in order:
         parameter = parameters[name]
+        has_default = "default" in parameter.model_fields_set
         if name in queries:
             lines += [f'const auto query_{name} = query_values.find("{name}");']
-            if "default" not in parameter:
+            if not has_default:
                 lines += [f'if (query_{name} == query_values.end()) throw std::invalid_argument("missing {name}");']
                 lines += _field_lines(parameter, f"query_{name}->second")
             else:
-                cpp = _cpp_type(parameter["type"])
+                cpp = _cpp_type(parameter.type)
                 if cpp.startswith("std::optional<"):
                     cpp = cpp[len("std::optional<"):-1]
                 lines += [f"std::optional<{cpp}> arg_{name};",
@@ -118,32 +117,33 @@ def _argument_lines(op: dict[str, Any], binding: dict[str, Any], captures: dict[
             source = f"contract_http::decode_uri_component(match[{captures[name]}].str(), false)"
             lines += _field_lines(parameter, source)
         elif name == body:
-            cpp = _cpp_type(parameter["type"])
-            if "default" in parameter:
+            cpp = _cpp_type(parameter.type)
+            if has_default:
                 lines += [f"std::optional<{cpp}> arg_{name};",
                           f"if (!body.empty()) arg_{name} = decode_body<{cpp}>(body);"]
             else:
                 lines += [f"auto arg_{name} = decode_body<{cpp}>(body);"]
         else:
             if name != "last_event_id":
-                raise Unsupported(f"{op['name']}: unsupported header {name}")
+                raise Unsupported(f"{op.name}: unsupported header {name}")
             lines += [f'auto arg_{name} = header ? header("Last-Event-ID") : std::nullopt;']
     call_order = runtime.argument_order or order
     if set(call_order) != set(order):
-        raise Unsupported(f"{op['name']}: handler argument inventory differs from contract")
+        raise Unsupported(f"{op.name}: handler argument inventory differs from contract")
     return lines, [f"std::move(arg_{name})" for name in call_order]
 
 
-def generate_ai_routes(ir: dict[str, Any]) -> str:
+def generate_ai_routes(contract: ContractView) -> str:
     runtime_bindings = load_bindings()
-    operations = {op["name"]: op for op in ir["operations"] if op["daemon_only"]}
-    bindings = [b for b in ir["http"] if b["operation"] in operations and b["path"].startswith("/ai/")]
-    validate_routes(ir["http"])
-    declared = {b["operation"] for b in bindings}
+    operations = {op.name: op for op in contract.operations if op.daemon_only}
+    bindings = [b for b in contract.http if b.operation in operations and b.path.startswith("/ai/")]
+    validate_routes(contract.http)
+    declared = {b.operation for b in bindings}
     if declared != runtime_bindings.keys():
         raise Unsupported(f"AI handler wiring differs from contract: missing={sorted(declared - runtime_bindings.keys())}, "
                           f"unused={sorted(runtime_bindings.keys() - declared)}")
-    lines = [*header_lines(ir, "AI HTTP routes generated from contract/interface/ai/operations.py.", "cpp"),
+    lines = [*header_lines(contract_sources(contract), "AI HTTP routes generated from contract/interface/ai/operations.py.",
+                           "cpp"),
              "#pragma once", '#include "api/generated/AiJson.h"',
              '#include "api/generated/ContractRoutes.h"',
              "#include <any>", "#include <charconv>", "#include <functional>", "#include <optional>",
@@ -159,12 +159,8 @@ def generate_ai_routes(ir: dict[str, Any]) -> str:
              "inline int error_status(const std::exception& error) {",
              "    if (dynamic_cast<const std::invalid_argument*>(&error)) return 400;",
              "    if (dynamic_cast<const holder::model::ConflictError*>(&error)) return 409;"]
-    for status, classes in [
-        (400, "AiProviderCatalogMissing AiRunsMissingScope AiMessageWrongState"),
-        (404, ("AiCaptureNotFound AiMessageNotFound AiNudgeNotFound AiRunNotFound "
-               "AiRunnerNotConfigured AiRunnerNotFound AiThreadNotFound PullJobNotFound RunnerNotConfigured")),
-        (503, "AiRunUnavailable ProviderCredentialSecretFailure RunnerUnavailable SecretStoreUnavailable")]:
-        for name in classes.split():
+    for status, classes in ERROR_STATUSES.items():
+        for name in classes:
             lines.append(f"    if (dynamic_cast<const holder::api::{name}*>(&error)) return {status};")
     lines += ["    return 500;", "}",
               "inline response failure(int status, const std::exception& error, std::string_view operation) {",
@@ -184,24 +180,24 @@ def generate_ai_routes(ir: dict[str, Any]) -> str:
               "        std::string_view(path).substr(separator + 1);",
               "    std::smatch match;", "    (void)body; (void)context; (void)header;"]
     for index, binding in sorted(enumerate(bindings), key=lambda pair: route_priority(pair[1])):
-        op = operations[binding["operation"]]
-        name = op["name"]
-        pattern, captures = route_pattern(binding["path"])
+        op = operations[binding.operation]
+        name = op.name
+        pattern, captures = route_pattern(binding.path)
         runtime = runtime_bindings[name]
         decodes, arguments = _argument_lines(op, binding, captures, runtime)
         injections = tuple(f"context.{service}" for service in runtime.services)
         call = f"holder::api::{name}({', '.join([*injections, *arguments])})"
         lines += [f"    static const std::regex route_{index}({json.dumps(pattern)});",
-                  f'    if (method == "{binding["method"]}" && std::regex_match(route_path, match, route_{index})) {{',
+                  f'    if (method == "{binding.method}" && std::regex_match(route_path, match, route_{index})) {{',
                   "        try {"]
         lines += [f"            {line}" for line in decodes]
-        if op["returns"]["kind"] == "stream":
+        if op.returns.kind == "stream":
             lines += [f"            auto outcome = {call};",
                       "            if (outcome.status != 200 && outcome.status != 204)",
                       f'                throw std::logic_error("{name} chose an undeclared success status");',
                       f'            return response{{outcome.status, json(), "{name}", std::move(outcome.value)}};']
         else:
-            lines += [f'            return response{{{binding["status"]}, ai_json::encode({call}), "{name}"}};']
+            lines += [f'            return response{{{binding.status}, ai_json::encode({call}), "{name}"}};']
         lines += ["        } catch (const std::exception& error) {",
                   f'            return failure(error_status(error), error, "{name}");',
                   "        }", "    }"]

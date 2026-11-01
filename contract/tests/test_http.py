@@ -12,12 +12,13 @@ from pathlib import Path
 
 import pytest
 
-from compiler.ir import ContractView
+from compiler.ir import ContractView, HttpBindingView
 from generators.daemon.http import plan_http
+from generators.daemon.paths import route_pattern, validate_routes
 from holder_contract.daemon import generate_daemon
 from holder_contract.extract import extract, load_contract
 from holder_contract.generate import Model, Unsupported, generate
-from holder_contract.http_routes import generate_routes, route_pattern, validate_routes
+from holder_contract.http_routes import generate_routes
 from holder_contract.openapi import ERROR_SCHEMAS, document, dumps, exact_bounds, merge, named_by_title
 
 CONTRACT = Path(__file__).resolve().parents[1]
@@ -37,7 +38,7 @@ def holder_contract():
 
 
 def binding(method, path):
-    return {"operation": path, "method": method, "path": path}
+    return HttpBindingView(operation=path, method=method, path=path, path_parameters=[], query=[], status=200)
 
 
 # ---- routes ------------------------------------------------------------------------------------
