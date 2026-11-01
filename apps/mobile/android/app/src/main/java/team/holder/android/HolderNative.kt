@@ -65,8 +65,6 @@ import team.holder.android.contract.RemoteTestResultStatus
 import team.holder.android.contract.Resource
 import team.holder.android.contract.Resources
 import team.holder.android.contract.AssetImportRequest
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
@@ -133,8 +131,8 @@ sealed interface CardReferenceResolution {
 
 data class HolderCardReferenceCandidate(val cardId: String, val title: String, val deletedAt: Long?)
 
-/** Matches holder_card_move_json's "intent" values (lowercased, underscore-separated, on the
- * wire) -- see holder-core's CardPlacementResolver for the full algorithm each one runs. */
+/** The contract's move_card intents (CardMove.intent) -- see core's CardPlacementResolver for
+ * the full algorithm each one runs. */
 enum class CardPlacementIntent { INTO, BEFORE, AFTER, TO_START, TO_END, LEFT, RIGHT, UP_LEVEL }
 
 /** Result of [HolderNative.moveCard] -- the card's new placement, same shape holder-daemon's
@@ -1400,21 +1398,4 @@ object HolderNative {
         card.cardId, card.projectId, card.title, card.parentCardId,
         card.createdAt, card.updatedAt, card.sortKey, card.deletedAt,
     )
-
-    private fun JSONArray.toStringList(): List<String> = List(length()) { index -> getString(index) }
-
-    private fun JSONObject.optStringOrNull(name: String): String? =
-        if (isNull(name)) null else getString(name)
-
-    private fun JSONObject.optLongOrNull(name: String): Long? =
-        if (isNull(name)) null else getLong(name)
-
-    private fun JSONObject.optIntOrNull(name: String): Int? =
-        if (isNull(name)) null else getInt(name)
-
-    private fun JSONObject.toStringMap(): Map<String, String> {
-        val map = mutableMapOf<String, String>()
-        keys().forEach { key -> map[key] = getString(key) }
-        return map
-    }
 }

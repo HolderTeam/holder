@@ -47,7 +47,7 @@ private fun formatDeletedAt(epochSeconds: Long?): String? =
     epochSeconds?.let { "Deleted ${DELETED_AT_FORMAT.format(Instant.ofEpochSecond(it))}" }
 
 /**
- * Lists project_id's trashed cards (holder_card_delete moves them here instead of removing them
+ * Lists project_id's trashed cards (trash_card moves them here instead of removing them
  * outright) with per-card restore/permanent-delete actions, mirroring desktop Holder's trash tool
  * (same "Restore"/"Delete Permanently"/"Empty Trash" terminology) minus the AI-message rows and
  * type filter desktop has, since Android doesn't sync AI threads yet.
