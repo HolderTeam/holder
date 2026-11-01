@@ -20,6 +20,8 @@ from compiler.ir import (
 )
 
 SCALARS_C = {"int32": "int32_t", "int64": "int64_t", "float64": "double", "bool": "bool"}
+# Core uses long long internally for int64; its C boundary converts to int64_t.
+SCALARS_CPP = {"int32": "std::int32_t", "int64": "long long", "float64": "double", "bool": "bool"}
 
 
 class CAbiError(ValueError):

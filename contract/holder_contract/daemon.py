@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from authoring.routes import Contract
+from compiler.ir import ContractView
 
 from .ai_codec import generate_ai_codec
 from .ai_routes import generate_ai_routes
@@ -34,7 +35,7 @@ def generate_daemon(ir: dict[str, Any], contract: Contract) -> dict[str, str]:
     """The generated files, by name, with the contract's OpenAPI paths on their own."""
     model = Model(ir)
     return {"ContractJson.h": generate_codec(model, API_HEADER),
-            "ContractRoutes.h": generate_routes(model, CODEC_HEADER),
+            "ContractRoutes.h": generate_routes(ContractView.model_validate(ir), CODEC_HEADER),
             "AiJson.h": generate_ai_codec(ir, contract),
             "AiRoutes.h": generate_ai_routes(ir),
             "openapi.json": dumps(document(contract))}

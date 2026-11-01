@@ -22,7 +22,7 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from compiler.ir import ContractView
-from generators.core.abi import SCALARS_C, CAbi, CAbiError, format_default, literal_member, snake
+from generators.core.abi import SCALARS_C, SCALARS_CPP, CAbi, CAbiError, format_default, literal_member, snake
 
 _TEMPLATES = Environment(
     loader=FileSystemLoader(Path(__file__).with_name("templates")),
@@ -34,10 +34,6 @@ _TEMPLATES = Environment(
 )
 
 FIRST_ERROR_CODE = 100
-# C++ uses core's own spelling of a 64-bit integer; the glue converts to int64_t at the C boundary.
-SCALARS_CPP = {"int32": "std::int32_t", "int64": "long long", "float64": "double", "bool": "bool"}
-
-
 class Unsupported(Exception):
     """The contract uses something the C generator does not support yet."""
 

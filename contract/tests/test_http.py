@@ -78,6 +78,9 @@ def test_typed_http_plan_locates_contract_arguments():
         "project_id": "path", "parent": "query", "order": "query", "limit": "query",
         "cursor": "query", "tag": "query", "include_child_count": "query", "include_content": "query",
     }
+    assert next(arg for arg in cards.arguments if arg.parameter.name == "limit").cpp_declaration == "std::int32_t limit"
+    create = next(route for route in plan.routes if route.operation.name == "create_card")
+    assert next(arg for arg in create.arguments if arg.parameter.name == "card").body_record == "NewCard"
     assert all(not route.operation.daemon_only for route in plan.routes)
 
 

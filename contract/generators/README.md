@@ -16,4 +16,4 @@ Target-specific runtime wiring, such as daemon service dependencies, is typed in
 
 `core/abi.py` derives typed C signatures from `ContractView`; the current C renderer and Android JNI page renderer use those same signatures. `android/page.py` and its Jinja2 templates render the typed page operation. The other generators still live in `holder_contract/` while they consume dictionary IR or depend on legacy helpers. Move more code into `core/`, `daemon/`, or `android/` when it consumes typed IR and has a clear target responsibility. Generated artifacts continue to live in their target projects.
 
-`daemon/http.py` matches typed HTTP bindings to typed operations and locates each argument before the existing dispatcher renders it. The dispatcher still uses legacy C++ type helpers for declarations and decoding; those are the next part of the daemon backend to migrate.
+`daemon/http.py` matches typed HTTP bindings to typed operations, locates each argument, and lowers its C++ declaration and body shape. The existing dispatcher consumes that typed plan for argument decoding and route rendering. The daemon's JSON codec and AI routes still use transitional dictionary IR.
