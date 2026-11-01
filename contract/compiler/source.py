@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 
+from authoring.routes import Contract
+
 from .errors import ContractError
 from .rules import Declarations, Problem, check_file
 
@@ -104,3 +106,16 @@ def load_source(source: ContractSource) -> LoadedSource:
         imported_package.__contract_source_root__ = root
         imported_package.__contract_source_fingerprint__ = fingerprint
     return LoadedSource(modules, declared, app, app_path.relative_to(root).as_posix())
+
+
+def load_contract(root: Path, package: str) -> Contract | None:
+    """Return the checked package's FastAPI contract for OpenAPI generation."""
+    root = Path(root).resolve()
+    if not (root / package / APP_FILE).exists():
+        return None
+    sys.path.insert(0, str(root))
+    try:
+        app = importlib.import_module(f"{package}.{Path(APP_FILE).stem}")
+    finally:
+        sys.path.remove(str(root))
+    return next(value for value in vars(app).values() if isinstance(value, Contract))

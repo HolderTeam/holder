@@ -12,9 +12,9 @@ The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). 
 
 - `interface/` is the contract, one package per domain. Each keeps its model modules (usually `models.py`) beside its `operations.py`; some have more than one, such as `projects/ids.py` for the Project ID other domains share. Supporting domains such as `pagination/` hold what several domains use. `errors.py` holds the error kinds every domain shares, and a domain's own `errors.py` those particular to it; `app.py` assembles the operations and gives each error kind its HTTP status and C error code, and `DECLARATION_ORDER` in `__init__.py` fixes model ordering independently of file paths.
 - `authoring/` is the Pydantic and FastAPI vocabulary imported by the contract: records, native types, errors, host interfaces and route declarations.
-- `compiler/` holds declaration rules, source loading, the target-independent Pydantic IR, and `Compiler.compile(ContractSource)`, the typed entry point. Its builder produces typed IR objects.
+- `compiler/` holds declaration rules, source loading, the target-independent Pydantic IR, `Compiler.compile(ContractSource)`, and the `python -m compiler` CLI.
 - `generators/` describes the backend boundary in its [README](generators/README.md). It holds every target's generators: core's C API, the daemon's routes, codecs and OpenAPI, and Android's Kotlin/JNI client.
-- `holder_contract/` holds the CLI, the extractor's dictionary IR and adapters for callers that still hold it, and the Hypothesis value strategies used by tests. Every generator lives in `generators/`.
+- `test_support/` holds mutable dictionary IR fixtures and Hypothesis value strategies used only by tests and conformance checks.
 - `tests/` tests the tooling: the extractor against a sample contract in `tests/fixtures/sample/`, which uses every part of the vocabulary; the generators' output by compiling and running it against a stand-in for core (`tests/c/` for the C API, `tests/http/` for the routes); and the strategies against the conformance check and Pydantic. Core's own tests (`core/tests/CApiCards_test.cpp`) run the real implementation.
 - `tests/conformance/` tests Holder against the contract: Hypothesis calls the operations, with arguments from the strategies, through the generated C API of a shared `libholder` and over HTTP against a `holderd`, and checks each result against its declared type and against a model of what it should be. Over HTTP, every response must also be one its route declares: a status it lists, and a body its Pydantic model accepts. Schemathesis (`test_schemathesis.py`) also sends the daemon requests valid and invalid by `api/openapi.json`, for the contract's routes, and checks each answer against the document. Core CI runs them through the C API on Linux, and Daemon CI over HTTP.
 
@@ -33,7 +33,7 @@ make -C contract update   # after changing the contract or a generator: rewrite 
 
 `check` fails when a generated file in core, Android, the daemon or `api/` differs from what the contract produces, or when a generated name is already used in the hand-written part of `holder.h`. Commit the contract change and the regenerated files together.
 
-`python -m holder_contract check` reports every problem in the contract at once, each with its file and line.
+`python -m compiler check` reports every problem in the contract at once, each with its file and line.
 
 The conformance tests run through the C API when `HOLDER_LIBRARY` names a shared `libholder`, and over HTTP when `HOLDER_DAEMON` names a `holderd`, each built from the same commit; without them they are skipped:
 

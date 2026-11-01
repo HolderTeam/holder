@@ -6,7 +6,7 @@ PYTHON ?= python3
 # Everything CI runs: lint, the tooling's tests, and a check of the contract itself, which fails
 # when core's generated files are out of date.
 check: lint test
-	$(PYTHON) -m holder_contract check
+	$(PYTHON) -m compiler check
 
 lint:
 	$(PYTHON) -m ruff check .
@@ -15,8 +15,8 @@ test:
 	$(PYTHON) -m pytest
 
 ir:
-	$(PYTHON) -m holder_contract ir --output build/ir.json
+	$(PYTHON) -m compiler ir --output build/ir.json
 
 # After changing the contract or the generator: writes core's C API files, for review and commit.
 update:
-	$(PYTHON) -m holder_contract update
+	$(PYTHON) -m compiler update

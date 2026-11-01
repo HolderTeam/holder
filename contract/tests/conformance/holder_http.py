@@ -2,7 +2,7 @@
 
 Daemon starts a disposable holderd on temporary directories; Http calls the contract's operations
 on it through their routes in each domain's operations.py, taking and returning values as
-holder_contract.values describes them, as holder_capi.Core does through the C API. A route the
+test_support.values describes them, as holder_capi.Core does through the C API. A route the
 contract does not have yet sets up a project.
 
 Http checks every response from a contract route against what the route declares, before reading

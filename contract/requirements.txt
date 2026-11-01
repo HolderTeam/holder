@@ -5,7 +5,7 @@ pydantic==2.14.1
 # its version decides how the routes are read.
 fastapi==0.162.0
 pytest>=8,<10
-# For the strategies (holder_contract.values) and the conformance tests, which call core through cffi.
+# For the test strategies (test_support.values) and conformance tests, which call core through cffi.
 hypothesis>=6.170,<7
 cffi>=2,<3
 # The conformance tests' Schemathesis run against the daemon (tests/conformance/test_schemathesis.py).

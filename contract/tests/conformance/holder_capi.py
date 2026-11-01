@@ -1,6 +1,6 @@
 """Core's generated C API, called through cffi, for the conformance tests.
 
-Operations take and return values as holder_contract.values describes them, converted to and from C
+Operations take and return values as test_support.values describes them, converted to and from C
 by the conventions in C_API.md, using the generator's own reading of the IR. A few hand-written
 functions from holder.h set up a data directory and a project.
 """
@@ -17,7 +17,7 @@ from compiler.ir import ContractView, ScalarType
 from generators.core.abi import SCALARS_C, literal_member, snake
 from generators.core.render import c_out, c_param
 from generators.core.types import CoreTypes, Instance, map_c_name
-from holder_contract.generate import generate
+from test_support.contract import generate
 
 CONTRACT = Path(__file__).resolve().parents[2]
 SCHEMA = CONTRACT.parent / "core" / "schema" / "schema.sql"

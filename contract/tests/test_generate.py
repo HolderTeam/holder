@@ -13,11 +13,11 @@ import pytest
 
 from compiler.ir import ContractView
 from generators.common import Unsupported
+from generators.core import CORE_PATHS
 from generators.core.abi import snake
 from generators.core.types import CoreTypes, camel
 from generators.daemon.contract_json import generate_codec
-from holder_contract.extract import extract
-from holder_contract.generate import CORE_PATHS, generate
+from test_support.contract import extract, generate
 
 CONTRACT = Path(__file__).resolve().parents[1]
 TESTS = CONTRACT / "tests"

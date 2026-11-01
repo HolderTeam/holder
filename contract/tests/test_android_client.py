@@ -5,7 +5,7 @@ from pathlib import Path
 
 from compiler.ir import ContractView
 from generators.android.client import JNI_PATH, KOTLIN_DIR, generate_android_client
-from holder_contract.extract import extract
+from test_support.contract import extract
 
 CONTRACT = Path(__file__).resolve().parents[1]
 

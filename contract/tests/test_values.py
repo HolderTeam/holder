@@ -1,4 +1,4 @@
-"""The strategies and the conformance check in holder_contract.values, checked against each other
+"""The strategies and the conformance check in test_support.values, checked against each other
 and against Pydantic, which reads the contract the same way the extractor does."""
 
 import math
@@ -9,8 +9,8 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from holder_contract.extract import extract
-from holder_contract.values import Values
+from test_support.contract import extract
+from test_support.values import Values
 
 CONTRACT = Path(__file__).resolve().parents[1]
 HOLDER = extract(CONTRACT, "interface")
