@@ -1,4 +1,4 @@
-// Generated from contract/interface/history.py and contract/interface/operations/history.py by holder_contract.
+// Generated from contract/interface/history/models.py and contract/interface/history/operations.py by holder_contract.
 // Do not edit; run make -C contract update.
 package team.holder.android.generated
 

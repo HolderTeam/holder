@@ -1,4 +1,4 @@
-"""Public milestones operations."""
+"""Milestones operations."""
 
 from typing import Annotated
 
@@ -8,9 +8,9 @@ from authoring import Contract, Timestamp
 
 from ..cards.models import CardId
 from ..errors import NotFound
-from ..milestones import Calendar, Day, Milestone, MilestoneId, MilestoneRole, MilestoneUpdate, NewMilestone
+from ..operations.common import KEYS
 from ..projects.ids import ProjectId
-from .common import KEYS
+from .models import Calendar, Day, Milestone, MilestoneId, MilestoneRole, MilestoneUpdate, NewMilestone
 
 
 def register(contract: Contract) -> None:

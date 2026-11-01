@@ -47,11 +47,12 @@ def _validation(ref: dict[str, Any], expression: str, name: str) -> str:
 
 
 def generate_ai_codec(ir: dict[str, Any], contract: Contract) -> str:
-    records = [r for r in ir["records"] if r["source"] == "interface/ai.py"]
+    # Path-based until this generator moves to typed IR; the AI domain package owns these records.
+    records = [r for r in ir["records"] if r["source"].startswith("interface/ai/")]
     names = {r["name"] for r in records}
     if len(names) != len(records):
         raise Unsupported("duplicate AI record names")
-    lines = [*header_lines(ir, "The daemon AI JSON codec, generated from contract/interface/ai.py.", "cpp"),
+    lines = [*header_lines(ir, "The daemon AI JSON codec, generated from contract/interface/ai/models.py.", "cpp"),
              "#pragma once", '#include "api/AiRuntime.h"',
              "#include <nlohmann/json.hpp>", "#include <cmath>", "#include <cstddef>",
              "#include <cstdint>", "#include <limits>", "#include <map>", "#include <optional>",

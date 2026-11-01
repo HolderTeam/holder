@@ -6,7 +6,6 @@ from fastapi import Body, Path, Query
 
 from authoring import Contract, Field, Int32
 
-from ..card_references import CardReferenceResolveData, CardReferenceResolveRequest
 from ..errors import Conflict, DataCorrupted, HierarchyInvalid, InvalidMove, KeyMissing, KeyringUnavailable, NotFound
 from ..operations.common import KEYS
 from ..pagination.models import Page
@@ -23,6 +22,7 @@ from .models import (
     Tag,
     TagCount,
 )
+from .references import CardReferenceResolveData, CardReferenceResolveRequest
 
 
 def register(contract: Contract) -> None:

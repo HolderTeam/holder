@@ -1,4 +1,4 @@
-// Generated from contract/interface/ai.py, contract/interface/card_references.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/operations/ai.py, contract/interface/operations/git.py, contract/interface/operations/history.py, contract/interface/operations/links.py, contract/interface/operations/maintenance.py, contract/interface/operations/milestones.py, contract/interface/operations/resources.py, contract/interface/operations/search.py, contract/interface/operations/trash.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -247,6 +247,11 @@ struct HierarchyRepairRequest {
   bool apply = false;  ///< Apply the repair. Without it, only report.
 };
 
+/// The project whose files should be read into the database.
+struct RebuildRequest {
+  std::string project_id;  ///< The project to rebuild.
+};
+
 /// PIN used to wrap the project key.
 struct RecoveryTokenExportRequest {
   std::string pin;  ///< User-provided PIN used to wrap or unwrap the key.
@@ -255,11 +260,6 @@ struct RecoveryTokenExportRequest {
 /// PIN and serialized .hrk token to restore.
 struct RecoveryTokenImportRequest : RecoveryTokenExportRequest {
   std::string recovery_token;  ///< Serialized .hrk token JSON.
-};
-
-/// The project whose files should be read into the database.
-struct RebuildRequest {
-  std::string project_id;  ///< The project to rebuild.
 };
 
 /// How to push.
@@ -496,6 +496,20 @@ struct HierarchyRepair {
   std::vector<std::string> cycle_card_ids;  ///< Cards in parent cycles; left for manual repair.
 };
 
+/// The numbers of entities restored from a project's files.
+struct RebuildResult {
+  std::string project_id;  ///< The project rebuilt.
+  std::int32_t cards{};  ///< Cards restored.
+  std::int32_t ai_messages{};  ///< AI messages restored.
+  std::int32_t ai_threads{};  ///< AI threads restored.
+  std::int32_t links{};  ///< Links restored.
+};
+
+/// Completion of a full database search-index rebuild.
+struct ReindexResult {
+  std::string message;  ///< A short completion message.
+};
+
 /// A portable encrypted project key.
 struct ProjectRecoveryTokenExportResult {
   std::string project_id;  ///< The project whose key was exported.
@@ -519,20 +533,6 @@ struct RecoveryTokenGlobalImportResult : ProjectRecoveryTokenImportResult {
   std::optional<std::string> remote_error;  ///< Why remote configuration failed, or null.
   RecoveryTokenGlobalImportResultPullStatus pull_status;  ///< Outcome of the attempted pull.
   std::optional<std::string> pull_error;  ///< Why pulling failed, or null.
-};
-
-/// The numbers of entities restored from a project's files.
-struct RebuildResult {
-  std::string project_id;  ///< The project rebuilt.
-  std::int32_t cards{};  ///< Cards restored.
-  std::int32_t ai_messages{};  ///< AI messages restored.
-  std::int32_t ai_threads{};  ///< AI threads restored.
-  std::int32_t links{};  ///< Links restored.
-};
-
-/// Completion of a full database search-index rebuild.
-struct ReindexResult {
-  std::string message;  ///< A short completion message.
 };
 
 /// What this device last recorded about a project's sync: its last pull and push, what is waiting to go, and
@@ -1069,6 +1069,14 @@ ProjectEncryptionCheck check_project_encryption(holder_context& context, std::st
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
 HierarchyRepair repair_project_hierarchy(holder_context& context, std::string project_id, const HierarchyRepairRequest& request);
 
+/// Rebuild a project's database state from its files.
+/// A missing project is NotFound. Files that cannot be read back give RebuildFailed.
+/// @throws NotFound, RebuildFailed
+RebuildResult rebuild_project(holder_context& context, const RebuildRequest& request);
+
+/// Rebuild all search indexes from database state.
+ReindexResult reindex_search(holder_context& context);
+
 /// Wrap an encrypted project's key in a portable token protected by a PIN.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
 ProjectRecoveryTokenExportResult export_project_recovery_token(holder_context& context, std::string project_id, const RecoveryTokenExportRequest& request);
@@ -1082,14 +1090,6 @@ ProjectRecoveryTokenImportResult import_project_recovery_token(holder_context& c
 /// are reported in the result. Returns 201 when the project was created, otherwise 200.
 /// @throws RecoveryTokenInvalid, KeyringUnavailable, DataCorrupted
 RecoveryTokenGlobalImportResult import_recovery_token_global(holder_context& context, const RecoveryTokenImportRequest& request);
-
-/// Rebuild a project's database state from its files.
-/// A missing project is NotFound. Files that cannot be read back give RebuildFailed.
-/// @throws NotFound, RebuildFailed
-RebuildResult rebuild_project(holder_context& context, const RebuildRequest& request);
-
-/// Rebuild all search indexes from database state.
-ReindexResult reindex_search(holder_context& context);
 
 /// What this device last recorded about a project's sync.
 /// @throws NotFound

@@ -1,4 +1,4 @@
-"""Public trash operations."""
+"""Trash operations."""
 
 from typing import Annotated
 
@@ -8,7 +8,7 @@ from authoring import Contract
 
 from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound, NotTrashed
 from ..projects.ids import ProjectId
-from ..trash import TrashDeleteResult, TrashEmptyResult, TrashFilter, TrashItem, TrashItemType
+from .models import TrashDeleteResult, TrashEmptyResult, TrashFilter, TrashItem, TrashItemType
 
 
 def register(contract: Contract) -> None:

@@ -1,4 +1,4 @@
-"""Public git operations."""
+"""Git operations."""
 
 from typing import Annotated
 
@@ -7,9 +7,9 @@ from fastapi import Body, Path, Query
 from authoring import Contract, Int32
 
 from ..errors import NotFound
-from ..git import DueSyncResult, PushOptions, RemoteTest, RemoteTestResult, SyncResult, SyncState
+from ..operations.common import KEYS
 from ..projects.ids import ProjectId
-from .common import KEYS
+from .models import DueSyncResult, PushOptions, RemoteTest, RemoteTestResult, SyncResult, SyncState
 
 
 def register(contract: Contract) -> None:

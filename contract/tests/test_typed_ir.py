@@ -84,7 +84,7 @@ def test_operation_source_names_its_domain_module():
     assert contract.operation("list_cards").source == "interface/cards/operations.py"
     assert contract.operation("list_projects").source == "interface/projects/operations.py"
     assert next(alias.source for alias in contract.aliases if alias.name == "ProjectId") == "interface/projects/ids.py"
-    assert contract.operation("search_cards").source == "interface/operations/search.py"
+    assert contract.operation("search_cards").source == "interface/search/operations.py"
 
 
 def test_c_enum_choice_is_shared_with_android_jni():

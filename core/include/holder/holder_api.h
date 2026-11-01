@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/ai.py, contract/interface/card_references.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/operations/ai.py, contract/interface/operations/git.py, contract/interface/operations/history.py, contract/interface/operations/links.py, contract/interface/operations/maintenance.py, contract/interface/operations/milestones.py, contract/interface/operations/resources.py, contract/interface/operations/search.py, contract/interface/operations/trash.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+ * Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -266,6 +266,11 @@ typedef struct holder_hierarchy_repair_request {
     const bool* apply; /* Apply the repair. Without it, only report. NULL for the default, false. */
 } holder_hierarchy_repair_request;
 
+/* The project whose files should be read into the database. */
+typedef struct holder_rebuild_request {
+    const char* project_id; /* The project to rebuild. */
+} holder_rebuild_request;
+
 /* PIN used to wrap the project key. */
 typedef struct holder_recovery_token_export_request {
     const char* pin; /* User-provided PIN used to wrap or unwrap the key. */
@@ -276,11 +281,6 @@ typedef struct holder_recovery_token_import_request {
     const char* pin; /* User-provided PIN used to wrap or unwrap the key. */
     const char* recovery_token; /* Serialized .hrk token JSON. */
 } holder_recovery_token_import_request;
-
-/* The project whose files should be read into the database. */
-typedef struct holder_rebuild_request {
-    const char* project_id; /* The project to rebuild. */
-} holder_rebuild_request;
 
 /* How to push. */
 typedef struct holder_push_options {
@@ -664,6 +664,20 @@ typedef struct holder_hierarchy_repair {
     holder_string_list cycle_card_ids; /* Cards in parent cycles; left for manual repair. */
 } holder_hierarchy_repair;
 
+/* The numbers of entities restored from a project's files. */
+typedef struct holder_rebuild_result {
+    const char* project_id; /* The project rebuilt. */
+    int32_t cards; /* Cards restored. */
+    int32_t ai_messages; /* AI messages restored. */
+    int32_t ai_threads; /* AI threads restored. */
+    int32_t links; /* Links restored. */
+} holder_rebuild_result;
+
+/* Completion of a full database search-index rebuild. */
+typedef struct holder_reindex_result {
+    const char* message; /* A short completion message. */
+} holder_reindex_result;
+
 /* A portable encrypted project key. */
 typedef struct holder_project_recovery_token_export_result {
     const char* project_id; /* The project whose key was exported. */
@@ -694,20 +708,6 @@ typedef struct holder_recovery_token_global_import_result {
     holder_recovery_token_global_import_result_pull_status pull_status; /* Outcome of the attempted pull. */
     const char* pull_error; /* Why pulling failed, or null. May be NULL. */
 } holder_recovery_token_global_import_result;
-
-/* The numbers of entities restored from a project's files. */
-typedef struct holder_rebuild_result {
-    const char* project_id; /* The project rebuilt. */
-    int32_t cards; /* Cards restored. */
-    int32_t ai_messages; /* AI messages restored. */
-    int32_t ai_threads; /* AI threads restored. */
-    int32_t links; /* Links restored. */
-} holder_rebuild_result;
-
-/* Completion of a full database search-index rebuild. */
-typedef struct holder_reindex_result {
-    const char* message; /* A short completion message. */
-} holder_reindex_result;
 
 /* What this device last recorded about a project's sync: its last pull and push, what is waiting to go, and
  * when it will retry.
@@ -1421,6 +1421,15 @@ int holder_check_project_encryption(holder_context* context, const char* project
  */
 int holder_repair_project_hierarchy(holder_context* context, const char* project_id, const holder_hierarchy_repair_request* request, holder_arena* arena, const holder_hierarchy_repair** out_hierarchy_repair, holder_error** out_error);
 
+/* Rebuild a project's database state from its files.
+ * A missing project is NotFound. Files that cannot be read back give RebuildFailed.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_REBUILD_FAILED.
+ */
+int holder_rebuild_project(holder_context* context, const holder_rebuild_request* request, holder_arena* arena, const holder_rebuild_result** out_rebuild_result, holder_error** out_error);
+
+/* Rebuild all search indexes from database state. */
+int holder_reindex_search(holder_context* context, holder_arena* arena, const holder_reindex_result** out_reindex_result, holder_error** out_error);
+
 /* Wrap an encrypted project's key in a portable token protected by a PIN.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
@@ -1437,15 +1446,6 @@ int holder_import_project_recovery_token(holder_context* context, const char* pr
  * Errors: HOLDER_ERROR_RECOVERY_TOKEN_INVALID, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_import_recovery_token_global(holder_context* context, const holder_recovery_token_import_request* request, holder_arena* arena, const holder_recovery_token_global_import_result** out_recovery_token_global_import_result, holder_error** out_error);
-
-/* Rebuild a project's database state from its files.
- * A missing project is NotFound. Files that cannot be read back give RebuildFailed.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_REBUILD_FAILED.
- */
-int holder_rebuild_project(holder_context* context, const holder_rebuild_request* request, holder_arena* arena, const holder_rebuild_result** out_rebuild_result, holder_error** out_error);
-
-/* Rebuild all search indexes from database state. */
-int holder_reindex_search(holder_context* context, holder_arena* arena, const holder_reindex_result** out_reindex_result, holder_error** out_error);
 
 /* What this device last recorded about a project's sync.
  * Errors: HOLDER_ERROR_NOT_FOUND.

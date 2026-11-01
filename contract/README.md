@@ -10,7 +10,7 @@ The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). 
 
 ## Layout
 
-- `interface/` is the contract. `cards/`, `projects/`, `locations/`, `events/` and `daemon/` keep their models and operations together, and `documents/` declares the documents the daemon serves; `projects/ids.py` owns the Project ID shared by other domains. `pagination/` holds `Page[T]`, which any domain's listing returns. Other domains are moving from root model modules and `operations/` modules to the same layout. `app.py` assembles operations, and `DECLARATION_ORDER` in `__init__.py` fixes model ordering independently of file paths.
+- `interface/` is the contract, one package per domain. Each keeps its model modules (usually `models.py`) beside its `operations.py`; some have more than one, such as `projects/ids.py` for the Project ID other domains share. Supporting domains such as `pagination/` hold what several domains use. `errors.py` holds the error kinds, and `operations/common.py` the error groups operations share. `app.py` assembles the operations and gives error kinds their HTTP statuses, and `DECLARATION_ORDER` in `__init__.py` fixes model ordering independently of file paths.
 - `authoring/` is the Pydantic and FastAPI vocabulary imported by the contract: records, native types, errors, host interfaces and route declarations.
 - `compiler/` holds declaration rules, source loading, the target-independent Pydantic IR, and `Compiler.compile(ContractSource)`, the typed entry point. Its builder produces typed IR objects.
 - `generators/` describes the backend boundary in its [README](generators/README.md). It contains the typed C ABI plan shared by core and Android, and Android's generated page operation renderer.

@@ -4,8 +4,8 @@ from typing import Annotated, Literal
 
 from authoring import MISSING, Field, Record, Timestamp
 
-from .cards.models import CardId
-from .projects.ids import ProjectId
+from ..projects.ids import ProjectId
+from .models import CardId
 
 
 class CardReferenceResolveRequest(Record):

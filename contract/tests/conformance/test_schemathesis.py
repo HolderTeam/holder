@@ -46,10 +46,10 @@ def stated_in_words(case) -> bool:
     """Whether the request uses a rule the contract states in words rather than in its schema.
 
     The daemon may reject such a request although the document allows it: a cursor is valid only
-    when the daemon handed it out, a tag has a form (see Tag in interface/cards.py), whether in the
+    when the daemon handed it out, a tag has a form (see Tag in interface/cards/models.py), whether in the
     query or the path, a page with content holds at most 1000 cards, and a day and an instant have
-    forms, and a milestone's date holds exactly one of them (see interface/milestones.py), and a
-    resource's ID, in the path or the body, and metadata names have forms (see interface/resources.py).
+    forms, and a milestone's date holds exactly one of them (see interface/milestones/models.py), and a
+    resource's ID, in the path or the body, and metadata names have forms (see interface/resources/models.py).
     Search q must also be valid SQLite FTS5 syntax (see interface/operations/search.py). An asset import's
     source_path must name a readable regular file on the daemon's host. History revision references
     must resolve in the project's Git repository. Google Drive OAuth state

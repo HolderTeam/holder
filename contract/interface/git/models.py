@@ -4,8 +4,8 @@ from typing import Annotated, Literal
 
 from authoring import MISSING, Field, Int32, Record, Timestamp
 
-from .projects.ids import ProjectId
-from .projects.models import GitRemoteUrl
+from ..projects.ids import ProjectId
+from ..projects.models import GitRemoteUrl
 
 type PushStatus = Literal["not_attempted", "pushed", "up_to_date", "auth_failed", "not_found", "network_error",
                           "non_fast_forward", "remote_unset", "unknown_error"]

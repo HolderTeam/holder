@@ -1,4 +1,4 @@
-// Generated from contract/interface/ai.py, contract/interface/card_references.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/operations/ai.py, contract/interface/operations/git.py, contract/interface/operations/history.py, contract/interface/operations/links.py, contract/interface/operations/maintenance.py, contract/interface/operations/milestones.py, contract/interface/operations/resources.py, contract/interface/operations/search.py, contract/interface/operations/trash.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The daemon's HTTP routes for the contract's operations; contract/holder_contract/http_routes.py says how they behave.
@@ -237,8 +237,8 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "create_project");
         }
     }
-    static const std::regex route_47("^/rebuild$");
-    if (method == "POST" && std::regex_match(route_path, match, route_47)) {
+    static const std::regex route_44("^/rebuild$");
+    if (method == "POST" && std::regex_match(route_path, match, route_44)) {
         holder::contract::RebuildRequest request{};
         try {
             check_query_names(decode_query(query_string), {});
@@ -258,8 +258,8 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "rebuild_project");
         }
     }
-    static const std::regex route_48("^/reindex$");
-    if (method == "POST" && std::regex_match(route_path, match, route_48)) {
+    static const std::regex route_45("^/reindex$");
+    if (method == "POST" && std::regex_match(route_path, match, route_45)) {
         try {
             check_query_names(decode_query(query_string), {});
         } catch (const std::invalid_argument& error) {
@@ -363,8 +363,8 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "resolve_card_reference");
         }
     }
-    static const std::regex route_46("^/recovery\\-token/import$");
-    if (method == "POST" && std::regex_match(route_path, match, route_46)) {
+    static const std::regex route_48("^/recovery\\-token/import$");
+    if (method == "POST" && std::regex_match(route_path, match, route_48)) {
         holder::contract::RecoveryTokenImportRequest request{};
         try {
             check_query_names(decode_query(query_string), {});
@@ -1019,8 +1019,8 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "list_milestones_by_instant");
         }
     }
-    static const std::regex route_44("^/projects/([^/]+)/recovery\\-token/export$");
-    if (method == "POST" && std::regex_match(route_path, match, route_44)) {
+    static const std::regex route_46("^/projects/([^/]+)/recovery\\-token/export$");
+    if (method == "POST" && std::regex_match(route_path, match, route_46)) {
         std::string project_id{};
         holder::contract::RecoveryTokenExportRequest request{};
         try {
@@ -1046,8 +1046,8 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "export_project_recovery_token");
         }
     }
-    static const std::regex route_45("^/projects/([^/]+)/recovery\\-token/import$");
-    if (method == "POST" && std::regex_match(route_path, match, route_45)) {
+    static const std::regex route_47("^/projects/([^/]+)/recovery\\-token/import$");
+    if (method == "POST" && std::regex_match(route_path, match, route_47)) {
         std::string project_id{};
         holder::contract::RecoveryTokenImportRequest request{};
         try {

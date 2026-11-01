@@ -4,7 +4,7 @@ from typing import Annotated
 
 from authoring import Field, Int32, Record
 
-from .projects.ids import ProjectId
+from ..projects.ids import ProjectId
 
 
 class RebuildRequest(Record):

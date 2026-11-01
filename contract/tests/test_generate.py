@@ -91,7 +91,7 @@ def test_generated_code_compiles_and_runs(tmp_path):
 def with_partial_update(ir):
     """Holder's contract plus change_card, whose CardChange keeps, sets or clears a card's parent,
     and says how with a choice of literals."""
-    ir["records"].append({"name": "CardChange", "source": "interface/cards.py", "doc": "A change to a card.",
+    ir["records"].append({"name": "CardChange", "source": "interface/cards/models.py", "doc": "A change to a card.",
                           "fields": [{"name": "intent", "doc": "How to place it.",
                                       "type": {"kind": "literal", "values": ["into", "to_end"]}},
                                      {"name": "parent_card_id", "doc": "Null makes it a root card.", "omittable": True,

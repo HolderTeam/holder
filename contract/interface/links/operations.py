@@ -1,4 +1,4 @@
-"""Public links operations."""
+"""Links operations."""
 
 from typing import Annotated, Literal
 
@@ -8,9 +8,9 @@ from authoring import Contract
 
 from ..cards.models import CardId
 from ..errors import NotFound
-from ..links import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
+from ..operations.common import KEYS
 from ..projects.ids import ProjectId
-from .common import KEYS
+from .models import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
 
 
 def register(contract: Contract) -> None:

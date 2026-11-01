@@ -4,8 +4,8 @@ from typing import Annotated
 
 from authoring import MISSING, Field, Record, Timestamp
 
-from .cards.models import CardId, CardMetadata
-from .projects.ids import ProjectId
+from ..cards.models import CardId, CardMetadata
+from ..projects.ids import ProjectId
 
 type MilestoneId = Annotated[str, Field(min_length=1)]
 """A milestone's ID. Holder makes a UUID, but a card's file may hold any ID."""

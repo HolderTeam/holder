@@ -1,4 +1,4 @@
-"""Public search operations."""
+"""Search operations."""
 
 from typing import Annotated
 
@@ -7,7 +7,7 @@ from fastapi import Query
 from authoring import Contract, Int32
 
 from ..projects.ids import ProjectId
-from ..search import SearchCard, SearchMessage
+from .models import SearchCard, SearchMessage
 
 
 def register(contract: Contract) -> None:

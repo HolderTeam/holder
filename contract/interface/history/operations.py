@@ -1,4 +1,4 @@
-"""Public history operations."""
+"""History operations."""
 
 from typing import Annotated, Literal
 
@@ -8,7 +8,8 @@ from authoring import Contract, Int32
 
 from ..cards.models import CardId
 from ..errors import HistoryKeyUnavailable, HistoryResponseTooLarge, HistoryUnavailable, NotFound, RevisionAmbiguous
-from ..history import (
+from ..projects.ids import ProjectId
+from .models import (
     CardHistoryComparison,
     CardHistoryPage,
     CardHistoryRestoreResult,
@@ -17,7 +18,6 @@ from ..history import (
     ProjectHistoryPage,
     RevisionRef,
 )
-from ..projects.ids import ProjectId
 
 
 def register(contract: Contract) -> None:

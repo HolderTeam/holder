@@ -1,4 +1,4 @@
-"""Public resources operations."""
+"""Resources operations."""
 
 from typing import Annotated
 
@@ -9,10 +9,10 @@ from authoring.routes import ErrorResponse
 
 from ..cards.models import CardId
 from ..errors import Conflict, NotFound
-from ..links import Link
+from ..links.models import Link
+from ..operations.common import KEYS
 from ..projects.ids import ProjectId
-from ..resources import AssetImportJob, AssetImportRequest, NewResource, Resource, ResourceId, ResourceUpdate
-from .common import KEYS
+from .models import AssetImportJob, AssetImportRequest, NewResource, Resource, ResourceId, ResourceUpdate
 
 
 def register(contract: Contract) -> None:
