@@ -13,11 +13,12 @@ from pathlib import Path
 import pytest
 
 from compiler.ir import ContractView, HttpBindingView
+from generators.common import Unsupported
 from generators.daemon.http import plan_http
 from generators.daemon.paths import route_pattern, validate_routes
 from holder_contract.daemon import generate_daemon
 from holder_contract.extract import extract, load_contract
-from holder_contract.generate import Model, Unsupported, generate
+from holder_contract.generate import generate
 from holder_contract.http_routes import generate_routes
 from holder_contract.openapi import ERROR_SCHEMAS, document, dumps, exact_bounds, merge, named_by_title
 
@@ -92,7 +93,7 @@ def test_a_literal_segment_is_tried_before_a_parameter():
     get_card["path"] = "/projects/{project_id}/cards/latest"
     get_card["path_parameters"] = ["project_id"]
     get_card["query"] = ["card_id"]
-    routes = generate_routes(Model(ir), "codec.h")
+    routes = generate_routes(ContractView.model_validate(ir), "codec.h")
     literal = re.search(r'regex route_\d+\("\^/projects/\(\[\^/\]\+\)/cards/latest\$"\)', routes)
     parameter = re.search(r'regex route_\d+\("\^/projects/\(\[\^/\]\+\)/cards/\(\[\^/\]\+\)\$"\)', routes)
     assert literal and parameter and literal.start() < parameter.start()
@@ -120,7 +121,7 @@ def test_a_body_that_is_not_a_record_stops_generation():
     create_op = next(op for op in ir["operations"] if op["name"] == "create_card")
     next(p for p in create_op["parameters"] if p["name"] == "card")["type"] = {"kind": "string"}
     with pytest.raises(Unsupported, match="a request body that is not a record"):
-        generate_routes(Model(ir), "codec.h")
+        generate_routes(ContractView.model_validate(ir), "codec.h")
     assert create["body"] == "card"
 
 

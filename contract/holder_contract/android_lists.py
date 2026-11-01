@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from generators.core.abi import snake
+
 from .android import _field_type, _record_jni_lines, _record_kotlin
 from .android_ir import ContractView, ListType, NamedType, OperationView, RecordView
 from .android_templates import TEMPLATES
-from .generate import snake
 
 
 def _list_adapter(operation: OperationView, record: RecordView, contract: ContractView, *,

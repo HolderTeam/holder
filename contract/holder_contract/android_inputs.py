@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
+from generators.core.abi import snake
+
 from .android import _camel, _field_type
 from .android_ir import ContractView, LiteralType
 from .android_templates import TEMPLATES
-from .generate import snake
 
 
 @dataclass(frozen=True)

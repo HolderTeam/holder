@@ -22,10 +22,12 @@ import json
 import re
 
 from compiler.ir import ContractView, LiteralType, ScalarType, TypeRef, UnionType
+from generators.common import Unsupported, contract_sources, header_lines
+from generators.core.abi import SCALARS_CPP, snake
+from generators.core.render import cpp_literal
+from generators.core.types import camel
 from generators.daemon.http import HttpArgument, HttpRoute, plan_http
 from generators.daemon.paths import route_pattern, route_priority, route_segments, validate_routes
-
-from .generate import SCALARS_CPP, Model, Unsupported, camel, cpp_literal, header_lines, snake
 
 NAMESPACE = "contract_http"
 INVALID_ARGUMENT = (400, "invalid_argument")
@@ -264,10 +266,10 @@ def operation_lines(contract: ContractView, route: HttpRoute, index: int,
     return lines
 
 
-def generate_routes(contract: ContractView | Model, codec_header: str) -> str:
+def generate_routes(contract: ContractView, codec_header: str) -> str:
     if not re.fullmatch(r"[A-Za-z_0-9/.-]+", codec_header):
         raise ValueError("invalid codec header path")
-    typed = contract if isinstance(contract, ContractView) else ContractView.model_validate(contract.ir)
+    typed = contract
     try:
         plan = plan_http(typed)
     except ValueError as error:
@@ -276,7 +278,7 @@ def generate_routes(contract: ContractView | Model, codec_header: str) -> str:
     bindings = plan.routes
     all_bindings = plan.bindings
     statuses = plan.error_statuses
-    lines = [*header_lines(typed.model_dump(exclude_unset=True), "The daemon's HTTP routes for the contract's operations; "
+    lines = [*header_lines(contract_sources(typed), "The daemon's HTTP routes for the contract's operations; "
                                      "contract/holder_contract/http_routes.py says how they behave.", "cpp"),
              "#pragma once",
              f'#include "{codec_header}"',

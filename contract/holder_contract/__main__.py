@@ -12,11 +12,12 @@ from pydantic import ValidationError
 
 from compiler.errors import ContractError
 from compiler.pipeline import Compiler, ContractSource
+from generators.common import Unsupported
 
 from .android import generate_android
 from .daemon import DAEMON_PATHS, OPENAPI_PATHS, api_documents, generate_daemon
 from .extract import load_contract
-from .generate import CORE_PATHS, Unsupported, generate
+from .generate import CORE_PATHS, generate
 
 CONTRACT = Path(__file__).resolve().parents[1]
 REPOSITORY = CONTRACT.parent

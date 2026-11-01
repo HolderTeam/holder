@@ -1,7 +1,7 @@
-"""Generate the daemon's JSON codec for the contract's C++ types (core/src/api/Contract.h).
+"""Generate the daemon's JSON codec for the contract's C++ types (ContractJson.h, for core/src/api/Contract.h).
 
 Ported from RIG's json_codec.py (https://github.com/zeth/rig, src/rig/json_codec.py at e32ea68),
-which read declarations reflected from C++; this reads the contract's IR. Each record gets a
+which read declarations reflected from C++; this reads the contract's typed IR. Each record gets a
 codec<T> with encode and decode. Decoding checks what the contract says about the value: required
 and omitted fields, null, text (UTF-8 with no U+0000, lengths in characters), integer ranges and
 finite numbers. It also rejects fields the record does not have, so that a caller who sends one,
@@ -13,54 +13,58 @@ from __future__ import annotations
 
 import re
 
-from generators.daemon.json_support import SUPPORT
+from compiler.ir import ListType, LiteralType, MapType, NamedType, TypeRef
 
-from .generate import SCALARS_CPP, Instance, Model, Slot, Unsupported, camel, header_lines
+from ..common import Unsupported, contract_sources, header_lines
+from ..core.abi import SCALARS_CPP
+from ..core.types import CoreTypes, Instance, Slot, camel, constrained, constraint
+from .json_support import SUPPORT
 
 NAMESPACE = "contract_json"
 INT_RANGES = {"int32": ("std::numeric_limits<std::int32_t>::min()", "std::numeric_limits<std::int32_t>::max()"),
               "int64": ("std::numeric_limits<long long>::min()", "std::numeric_limits<long long>::max()")}
 
 
-
-
-def cpp_base(model: Model, ref: dict) -> str:
+def cpp_base(types: CoreTypes, ref: TypeRef, enum: str | None = None) -> str:
     """The C++ type of a value, as core/src/api/Contract.h declares it, qualified for use outside it."""
-    ref = model.resolve(ref)
-    if ref["kind"] == "literal" and "enum" in ref:
-        return "holder::contract::" + ref["enum"]
-    if ref["kind"] == "string":
+    ref = types.resolve(ref).type
+    if isinstance(ref, LiteralType) and enum is not None:
+        return "holder::contract::" + enum
+    if ref.kind == "string":
         return "std::string"
-    if ref["kind"] in SCALARS_CPP:
-        return SCALARS_CPP[ref["kind"]]
-    if ref["kind"] == "list":
-        return f"std::vector<{cpp_base(model, ref['items'])}>"
-    if ref["kind"] == "map":
-        return f"std::map<std::string, {cpp_base(model, ref['values'])}>"
-    if ref["kind"] == "named":
-        return model.instance(ref, {}).qualified("holder::contract::")
-    raise Unsupported(f"{ref['kind']} in JSON")
+    if ref.kind in SCALARS_CPP:
+        return SCALARS_CPP[ref.kind]
+    if isinstance(ref, ListType):
+        return f"std::vector<{cpp_base(types, ref.items)}>"
+    if isinstance(ref, MapType):
+        return f"std::map<std::string, {cpp_base(types, ref.values)}>"
+    if isinstance(ref, NamedType):
+        return types.instance(ref, {}).qualified("holder::contract::")
+    raise Unsupported(f"{ref.kind} in JSON")
 
 
-def field_decoder(model: Model, slot: Slot, label: str) -> str:
+def field_decoder(types: CoreTypes, slot: Slot, label: str) -> str:
     """An expression decoding the present, non-null JSON value `item` into the slot's C++ type."""
     t = slot.type
-    kind = t["kind"]
-    base = cpp_base(model, t)
+    kind = t.kind
+    base = cpp_base(types, t, slot.enum)
     # A record's own complaints name its fields.
     value = f"codec<{base}>::decode(item)" if kind == "named" else f'decode_field<{base}>(item, "{label}")'
     if kind == "string":
-        maximum = t.get("max_length", "std::numeric_limits<std::size_t>::max()")
-        return f'check_text({value}, "{label}", {t.get("min_length", 0)}, {maximum})'
-    if kind in INT_RANGES and ("ge" in t or "le" in t):
+        maximum = constraint(t, "max_length")
+        maximum = "std::numeric_limits<std::size_t>::max()" if maximum is None else maximum
+        minimum = constraint(t, "min_length")
+        return f'check_text({value}, "{label}", {0 if minimum is None else minimum}, {maximum})'
+    if kind in INT_RANGES and constrained(t, "ge", "le"):
         low, high = INT_RANGES[kind]
         cpp = SCALARS_CPP[kind]
-        return f'check_range<{cpp}>({value}, "{label}", {t.get("ge", low)}, {t.get("le", high)})'
-    if kind == "float64" and any(k in t for k in ("ge", "le", "gt", "lt")):
+        ge, le = constraint(t, "ge"), constraint(t, "le")
+        return f'check_range<{cpp}>({value}, "{label}", {low if ge is None else ge}, {high if le is None else le})'
+    if kind == "float64" and constrained(t, "ge", "le", "gt", "lt"):
         raise Unsupported(f"{label}: bounds on a float64")
-    if kind == "map":
+    if isinstance(t, MapType):
         # Each key and each value is checked as text.
-        if model.resolve(t["values"])["kind"] == "string":
+        if types.kind(t.values) == "string":
             return (f'[&] {{ auto entries = {value}; for (const auto& [key, text] : entries) {{ '
                     f'check_text(key, "{label} key", 0, std::numeric_limits<std::size_t>::max()); '
                     f'check_text(text, "{label}", 0, std::numeric_limits<std::size_t>::max()); }} return entries; }}()')
@@ -68,11 +72,11 @@ def field_decoder(model: Model, slot: Slot, label: str) -> str:
                 f'check_text(key, "{label} key", 0, std::numeric_limits<std::size_t>::max()); '
                 f'for (const auto& text : values) '
                 f'check_text(text, "{label}", 0, std::numeric_limits<std::size_t>::max()); }} return entries; }}()')
-    if kind == "list":
-        items = model.resolve(t["items"])
-        if any(k in items for k in ("min_length", "max_length", "ge", "le", "pattern")):
+    if isinstance(t, ListType):
+        items = types.resolve(t.items).type
+        if constrained(items, "min_length", "max_length", "ge", "le", "pattern"):
             raise Unsupported(f"{label}: constraints on list items")
-        if items["kind"] == "string":
+        if items.kind == "string":
             # Each item is checked as text.
             return (f'[&] {{ auto items = {value}; for (const auto& text : items) '
                     f'check_text(text, "{label}", 0, std::numeric_limits<std::size_t>::max()); return items; }}()')
@@ -81,8 +85,8 @@ def field_decoder(model: Model, slot: Slot, label: str) -> str:
 
 def enum_lines(slot: Slot) -> list[str]:
     """The codec of a record's choice of literals: its C++ enum as the JSON string it stands for."""
-    qualified = "holder::contract::" + slot.type["enum"]
-    values = slot.type["values"]
+    qualified = "holder::contract::" + slot.enum
+    values = slot.type.values
     lines = [f"template <> struct codec<{qualified}> {{",
              f"    static json encode({qualified} value) {{",
              "        switch (value) {"]
@@ -96,14 +100,14 @@ def enum_lines(slot: Slot) -> list[str]:
     return lines
 
 
-def record_lines(model: Model, instance: Instance) -> list[str]:
+def record_lines(types: CoreTypes, instance: Instance) -> list[str]:
     qualified = instance.qualified("holder::contract::")
     name = instance.record
-    slots = model.slots(instance)
+    slots = types.slots(instance)
     lines = [f"inline json codec<{qualified}>::encode(const {qualified}& value) {{",
              "    json result = json::object();"]
     for slot in slots:
-        base = cpp_base(model, slot.type)
+        base = cpp_base(types, slot.type, slot.enum)
         held = slot.nullable or (slot.optional and not slot.has_default)
         if slot.change:
             lines.append(f'    if (value.{slot.name}) result["{slot.name}"] = *value.{slot.name} ? '
@@ -124,7 +128,7 @@ def record_lines(model: Model, instance: Instance) -> list[str]:
               f"    {qualified} out;"]
     for slot in slots:
         label = slot.name
-        decoded = field_decoder(model, slot, label)
+        decoded = field_decoder(types, slot, label)
         present = f'value.contains("{slot.name}")'
         lines.append(f'    if ({present} && !value.at("{slot.name}").is_null()) {{')
         lines.append(f'        const auto& item = value.at("{slot.name}");')
@@ -144,15 +148,16 @@ def record_lines(model: Model, instance: Instance) -> list[str]:
     return lines
 
 
-def generate_codec(model: Model, api_header: str) -> str:
+def generate_codec(types: CoreTypes, api_header: str) -> str:
     if not re.fullmatch(r"[A-Za-z_0-9/.-]+", api_header):
         raise ValueError("invalid API header path")
     seen, instances = set(), []
-    for instance in [*model.outputs, *model.inputs]:
+    for instance in [*types.outputs, *types.inputs]:
         if instance not in seen:
             seen.add(instance)
             instances.append(instance)
-    lines = [*header_lines(model.ir, "The JSON codec for the contract's types, for the daemon's generated routes.", "cpp"),
+    lines = [*header_lines(contract_sources(types.contract),
+                           "The JSON codec for the contract's types, for the daemon's generated routes.", "cpp"),
              "#pragma once",
              f'#include "{api_header}"',
              "#include <nlohmann/json.hpp>",
@@ -168,9 +173,9 @@ def generate_codec(model: Model, api_header: str) -> str:
              SUPPORT.rstrip(), ""]
     enums: dict[str, Slot] = {}
     for instance in instances:
-        for slot in model.slots(instance):
-            if slot.type["kind"] == "literal":
-                enums.setdefault(slot.type["enum"], slot)
+        for slot in types.slots(instance):
+            if isinstance(slot.type, LiteralType):
+                enums.setdefault(slot.enum, slot)
     for slot in enums.values():
         lines += enum_lines(slot)
     for instance in instances:
@@ -181,7 +186,7 @@ def generate_codec(model: Model, api_header: str) -> str:
                   "};"]
     lines.append("")
     for instance in instances:
-        lines += record_lines(model, instance)
+        lines += record_lines(types, instance)
     lines += ["template <typename T> json encode(const T& value) { return codec<T>::encode(value); }",
               "template <typename T> T decode(const json& value) { return codec<T>::decode(value); }",
               f"}}  // namespace {NAMESPACE}", ""]
