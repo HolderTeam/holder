@@ -10,7 +10,7 @@ The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). 
 
 ## Layout
 
-- `interface/` is the contract, one package per domain. Each keeps its model modules (usually `models.py`) beside its `operations.py`; some have more than one, such as `projects/ids.py` for the Project ID other domains share. Supporting domains such as `pagination/` hold what several domains use. `errors.py` holds the error kinds every domain shares, and a domain's own `errors.py` those particular to it; C error codes follow error declaration order, shared errors first. `operations/common.py` holds the error groups operations share. `app.py` assembles the operations and gives error kinds their HTTP statuses, and `DECLARATION_ORDER` in `__init__.py` fixes model ordering independently of file paths.
+- `interface/` is the contract, one package per domain. Each keeps its model modules (usually `models.py`) beside its `operations.py`; some have more than one, such as `projects/ids.py` for the Project ID other domains share. Supporting domains such as `pagination/` hold what several domains use. `errors.py` holds the error kinds every domain shares, and a domain's own `errors.py` those particular to it; `operations/common.py` holds the error groups operations share. `app.py` assembles the operations and gives each error kind its HTTP status and C error code, and `DECLARATION_ORDER` in `__init__.py` fixes model ordering independently of file paths.
 - `authoring/` is the Pydantic and FastAPI vocabulary imported by the contract: records, native types, errors, host interfaces and route declarations.
 - `compiler/` holds declaration rules, source loading, the target-independent Pydantic IR, and `Compiler.compile(ContractSource)`, the typed entry point. Its builder produces typed IR objects.
 - `generators/` describes the backend boundary in its [README](generators/README.md). It contains the typed C ABI plan shared by core and Android, and Android's generated page operation renderer.
@@ -105,7 +105,7 @@ from authoring import Contract
 from .errors import NotFound
 from .cards import operations as card_operations
 
-contract = Contract(statuses={NotFound: 404})
+contract = Contract(errors={NotFound: (404, 4040)})
 card_operations.register(contract)
 app = contract.app
 ```
@@ -125,7 +125,7 @@ Anything else, such as a validator, a `model_config`, a function or an assignmen
 
 - **routes:** `@contract.route(method, path, errors=[...], status=..., core=...)` on a function whose body never runs. Each parameter says where it comes from, with FastAPI's `Path()`, `Query()` or `Body()`, which also carry its documentation (`Query(description=...)`). `errors` lists the error kinds it may fail with, besides an invalid argument; `status` is the success status, 200 unless given; `core=False` keeps an operation the daemon alone serves out of core's C API.
 - **core-only operations:** `@contract.core_operation(errors=[...])`, for an operation only core's C API has; it is not a route.
-- **error statuses:** `Contract(statuses={NotFound: 404, ...})` gives each error kind its HTTP status. Every error kind of a route needs one.
+- **error statuses and codes:** `Contract(errors={NotFound: (404, 4040), ...})` gives each error kind its HTTP status and its C error code. Every error kind needs both. A code is four digits: its status, then one more digit to tell apart kinds that share the status (`KeyMissing` is `(409, 4091)`), so it reads as the HTTP status it echoes. Codes are unique, and are the error kinds' identity in the C API: once released, a code keeps its meaning and is never reused.
 
 The extractor reads the routes FastAPI analysed, and the rest from the `Contract` ([HTTP.md](HTTP.md)). The IR records each operation's domain module as its source.
 

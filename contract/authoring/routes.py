@@ -2,7 +2,7 @@
 
 A contract's app.py makes one Contract and registers domain operation modules through it:
 
-    contract = Contract(statuses={NotFound: 404})
+    contract = Contract(errors={NotFound: (404, 4040)})
 
     # operations/cards.py
     def register(contract: Contract) -> None:
@@ -16,8 +16,8 @@ serves the route, from code generated from the IR. Each parameter says where it 
 FastAPI's Path(), Query(), Header() or Body(). On top of FastAPI, a route names the error kinds it
 may fail with (two kinds can share a status, so the status alone does not say which), and whether
 core has it (core=False for an operation only the daemon serves). An operation only core's C API
-has is declared with @contract.core_operation, and is not a route. Each error kind's HTTP status is
-given once, in statuses.
+has is declared with @contract.core_operation, and is not a route. Each error kind's HTTP status and
+C error code are given once, side by side, in errors.
 
 The compiler reads the routes from contract.router, FastAPI's analysis of their paths, methods and
 statuses, and the rest from the Contract.
@@ -97,12 +97,19 @@ class Operation:
 class Contract:
     """A contract's app and its operations, in the order they are declared."""
 
-    statuses: dict[type[HolderError], int] = field(default_factory=dict)
+    errors: dict[type[HolderError], tuple[int, int]] = field(default_factory=dict)
+    """Each error kind's HTTP status and its C error code, a status and a digit, such as (409, 4091)."""
     title: str = "Holder API"
 
     def __post_init__(self) -> None:
         self.router = APIRouter()
         self.operations: list[Operation] = []
+
+    @property
+    def statuses(self) -> dict[type[HolderError], int]:
+        """Each error kind's HTTP status."""
+        return {error: entry[0] for error, entry in self.errors.items()
+                if isinstance(entry, tuple) and entry and isinstance(entry[0], int)}
 
     @cached_property
     def app(self) -> FastAPI:

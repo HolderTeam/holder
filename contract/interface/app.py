@@ -1,7 +1,7 @@
 """Assemble Holder's public operation catalogue and HTTP routes.
 
 Domain modules declare operations beside the types they use. This module provides the
-single Contract loaded by the compiler and sets shared HTTP error statuses.
+single Contract loaded by the compiler, and gives each error kind its HTTP status and C error code.
 """
 
 from authoring import Contract
@@ -29,23 +29,26 @@ from .search import operations as search_operations
 from .trash import operations as trash_operations
 from .trash.errors import NotTrashed
 
-contract = Contract(statuses={
-    NotFound: 404,
-    Conflict: 409,
+# Each error kind's HTTP status and its C error code. A code is its status and one more digit,
+# so it reads as the HTTP status it echoes. Codes are the error kinds' identity in the C API: once
+# released, a code keeps its meaning and is never reused.
+contract = Contract(errors={
+    RecoveryTokenInvalid: (400, 4000),
+    RebuildFailed: (400, 4001),
+    NotFound: (404, 4040),
+    Conflict: (409, 4090),
     # The project's state rules the request out until its key is restored.
-    KeyMissing: 409,
-    KeyringUnavailable: 503,
+    KeyMissing: (409, 4091),
+    HierarchyInvalid: (409, 4092),
+    HistoryKeyUnavailable: (409, 4093),
+    RevisionAmbiguous: (409, 4094),
+    NotTrashed: (409, 4095),
+    HistoryResponseTooLarge: (413, 4130),
+    InvalidMove: (422, 4220),
     # Not something the caller can fix; the code names the condition.
-    DataCorrupted: 500,
-    InvalidMove: 422,
-    HierarchyInvalid: 409,
-    HistoryResponseTooLarge: 413,
-    HistoryKeyUnavailable: 409,
-    RevisionAmbiguous: 409,
-    NotTrashed: 409,
-    HistoryUnavailable: 503,
-    RecoveryTokenInvalid: 400,
-    RebuildFailed: 400,
+    DataCorrupted: (500, 5000),
+    KeyringUnavailable: (503, 5030),
+    HistoryUnavailable: (503, 5031),
 })
 
 location_operations.register(contract)

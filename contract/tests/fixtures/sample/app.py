@@ -8,7 +8,7 @@ from authoring import Bytes, Contract, Field, Int32, Stream
 
 from .cards import Card, CardId, CardListItem, Conflict, MessagePatch, NotFound, Page, RunEvent
 
-contract = Contract(statuses={NotFound: 404, Conflict: 409})
+contract = Contract(errors={NotFound: (404, 4040), Conflict: (409, 4090)})
 
 
 @contract.route("GET", "/cards/{card_id}", errors=[NotFound])

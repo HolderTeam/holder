@@ -27,14 +27,14 @@ from authoring import MISSING, Contract, Int32
 
 from .m0 import *  # noqa: F403
 
-contract = Contract(statuses=STATUSES)
+contract = Contract(errors=ERROR_TABLE)
 """
 _counter = itertools.count()
 
 
-def problems(tmp_path, *modules: str, app: str | None = None, statuses: str = "{}") -> str:
+def problems(tmp_path, *modules: str, app: str | None = None, errors: str = "{}") -> str:
     """The problems found in a contract package made of these modules and, if given, app.py with
-    these routes and error statuses, joined by newlines."""
+    these routes and error table, joined by newlines."""
     package = f"contract_{next(_counter)}"
     directory = tmp_path / package
     directory.mkdir()
@@ -42,7 +42,7 @@ def problems(tmp_path, *modules: str, app: str | None = None, statuses: str = "{
     for number, body in enumerate(modules or ("",)):
         (directory / f"m{number}.py").write_text(PREAMBLE + textwrap.dedent(body))
     if app is not None:
-        (directory / "app.py").write_text(APP_PREAMBLE.replace("STATUSES", statuses) + textwrap.dedent(app))
+        (directory / "app.py").write_text(APP_PREAMBLE.replace("ERROR_TABLE", errors) + textwrap.dedent(app))
     try:
         extract(tmp_path, package)
     except ContractError as error:
@@ -228,17 +228,29 @@ def find_thing(thing_id: Annotated[str, Path()]) -> None:
 '''
 
 
-@pytest.mark.parametrize("statuses, message", [
-    ("{}", "find_thing is a route, so its error kind Missing needs a status in the Contract's statuses"),
-    ("{Missing: 200}", "Missing's status must be a 4xx or 5xx, not 200"),
-    ("{Missing: 404, ValueError: 400}", "ValueError is not an error kind declared in the contract"),
+@pytest.mark.parametrize("errors, message", [
+    ("{}", "find_thing is a route, so its error kind Missing needs a status in the Contract's errors"),
+    ("{}", "Missing needs a status and a code, such as (404, 4040)"),
+    ("{Missing: 404}", "Missing needs (status, code), such as (404, 4040), not 404"),
+    ("{Missing: (200, 2000)}", "Missing's status must be a 4xx or 5xx, not 200"),
+    ("{Missing: (404, 404)}", "Missing's code must have four digits, not 404"),
+    ("{Missing: (404, 4090)}", "Missing's code 4090 must begin with its status 404"),
+    ("{Missing: (404, 4040), ValueError: (400, 4000)}", "ValueError is not an error kind declared in the contract"),
 ])
-def test_error_statuses_are_checked(tmp_path, statuses, message):
-    assert message in problems(tmp_path, ERRORS, app=FIND, statuses=statuses)
+def test_error_table_is_checked(tmp_path, errors, message):
+    assert message in problems(tmp_path, ERRORS, app=FIND, errors=errors)
 
 
-def test_routes_with_error_statuses_are_clean(tmp_path):
-    assert problems(tmp_path, ERRORS, app=FIND, statuses="{Missing: 404}") == ""
+def test_error_codes_are_unique(tmp_path):
+    found = problems(tmp_path, ERRORS + '''
+class Gone(HolderError):
+    """Gone for good."""
+''', app=FIND, errors="{Missing: (404, 4040), Gone: (404, 4040)}")
+    assert "Gone and Missing both have code 4040" in found
+
+
+def test_routes_with_an_error_table_are_clean(tmp_path):
+    assert problems(tmp_path, ERRORS, app=FIND, errors="{Missing: (404, 4040)}") == ""
 
 
 def test_core_operations_need_no_route(tmp_path):
@@ -246,7 +258,7 @@ def test_core_operations_need_no_route(tmp_path):
 @contract.core_operation(errors=[Missing])
 def rebuild(name: str) -> None:
     """Rebuild."""
-''') == ""
+''', errors="{Missing: (404, 4040)}") == ""
 
 
 def test_every_problem_is_reported_at_once(tmp_path):

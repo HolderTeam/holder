@@ -33,7 +33,6 @@ _TEMPLATES = Environment(
     newline_sequence="\n",
 )
 
-FIRST_ERROR_CODE = 100
 class Unsupported(Exception):
     """The contract uses something the C generator does not support yet."""
 
@@ -105,7 +104,10 @@ class Model:
         for error in self.errors:
             if error["fields"]:
                 raise Unsupported(f"error kinds with fields ({error['name']})")
-        self.codes = {e["name"]: FIRST_ERROR_CODE + i for i, e in enumerate(self.errors)}
+        for error in self.errors:
+            if "code" not in error:
+                raise Unsupported(f"error kinds without a code ({error['name']})")
+        self.codes = {e["name"]: e["code"] for e in self.errors}
         self.abi = CAbi(ContractView.model_validate(ir))
         self.outputs: list[Instance] = []
         self.inputs: list[Instance] = []
@@ -334,7 +336,7 @@ def generate_c_header(model: Model) -> str:
            "#ifndef HOLDER_API_H", "#define HOLDER_API_H", "", "#include <stdbool.h>", "#include <stddef.h>",
            "#include <stdint.h>", "", "#ifdef __cplusplus", 'extern "C" {', "#endif", "",
            "typedef struct holder_arena holder_arena;", ""]
-    for error in model.errors:
+    for error in sorted(model.errors, key=lambda e: e["code"]):
         out += comment(error["doc"])
         out.append(f"#define HOLDER_ERROR_{snake(error['name']).upper()} {model.codes[error['name']]}")
     out += ["", "holder_arena* holder_arena_new(void);", "void holder_arena_free(holder_arena* arena);", "",

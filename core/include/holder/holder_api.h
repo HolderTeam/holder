@@ -17,34 +17,34 @@ extern "C" {
 
 typedef struct holder_arena holder_arena;
 
-/* The thing asked for does not exist, or is in the trash. */
-#define HOLDER_ERROR_NOT_FOUND 100
-/* The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash, or removing a tag that a card would still carry in its prose. */
-#define HOLDER_ERROR_CONFLICT 101
-/* The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none. */
-#define HOLDER_ERROR_KEYRING_UNAVAILABLE 102
-/* An encrypted project's key is not on this device; the project's recovery token restores it. */
-#define HOLDER_ERROR_KEY_MISSING 103
-/* A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. */
-#define HOLDER_ERROR_DATA_CORRUPTED 104
-/* A card cannot go where it was asked to: under itself or one of its descendants, beside a card that cannot be its sibling, or up a level from the top. */
-#define HOLDER_ERROR_INVALID_MOVE 105
-/* A card's ancestor chain is broken, cyclic or too deep to follow. */
-#define HOLDER_ERROR_HIERARCHY_INVALID 106
-/* The project's Git history cannot be read right now. */
-#define HOLDER_ERROR_HISTORY_UNAVAILABLE 107
-/* This device cannot use the encrypted project's key to read its history. */
-#define HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE 108
-/* A commit ID prefix matches more than one revision; use a longer prefix or the full ID. */
-#define HOLDER_ERROR_REVISION_AMBIGUOUS 109
-/* The bounded History response would exceed 2 MiB. */
-#define HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE 110
-/* A project's files cannot be read back into the database. */
-#define HOLDER_ERROR_REBUILD_FAILED 111
 /* The recovery token or its PIN is invalid, or the token belongs to another project. */
-#define HOLDER_ERROR_RECOVERY_TOKEN_INVALID 112
+#define HOLDER_ERROR_RECOVERY_TOKEN_INVALID 4000
+/* A project's files cannot be read back into the database. */
+#define HOLDER_ERROR_REBUILD_FAILED 4001
+/* The thing asked for does not exist, or is in the trash. */
+#define HOLDER_ERROR_NOT_FOUND 4040
+/* The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash, or removing a tag that a card would still carry in its prose. */
+#define HOLDER_ERROR_CONFLICT 4090
+/* An encrypted project's key is not on this device; the project's recovery token restores it. */
+#define HOLDER_ERROR_KEY_MISSING 4091
+/* A card's ancestor chain is broken, cyclic or too deep to follow. */
+#define HOLDER_ERROR_HIERARCHY_INVALID 4092
+/* This device cannot use the encrypted project's key to read its history. */
+#define HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE 4093
+/* A commit ID prefix matches more than one revision; use a longer prefix or the full ID. */
+#define HOLDER_ERROR_REVISION_AMBIGUOUS 4094
 /* The item still exists but is not in Trash, so permanent removal is refused. */
-#define HOLDER_ERROR_NOT_TRASHED 113
+#define HOLDER_ERROR_NOT_TRASHED 4095
+/* The bounded History response would exceed 2 MiB. */
+#define HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE 4130
+/* A card cannot go where it was asked to: under itself or one of its descendants, beside a card that cannot be its sibling, or up a level from the top. */
+#define HOLDER_ERROR_INVALID_MOVE 4220
+/* A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. */
+#define HOLDER_ERROR_DATA_CORRUPTED 5000
+/* The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none. */
+#define HOLDER_ERROR_KEYRING_UNAVAILABLE 5030
+/* The project's Git history cannot be read right now. */
+#define HOLDER_ERROR_HISTORY_UNAVAILABLE 5031
 
 holder_arena* holder_arena_new(void);
 void holder_arena_free(holder_arena* arena);

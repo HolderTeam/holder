@@ -6,7 +6,6 @@ modules in the IR, independently of file paths.
 """
 
 DECLARATION_ORDER = (
-    # Error codes in the C API follow error declaration order, from the shared errors first.
     "errors",
     "ai.models",
     "cards.references",
