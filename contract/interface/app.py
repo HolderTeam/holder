@@ -31,10 +31,11 @@ from .trash.errors import NotTrashed
 
 # Each error kind's HTTP status and its C error code. A code is its status and one more digit,
 # so it reads as the HTTP status it echoes. Codes are the error kinds' identity in the C API: once
-# released, a code keeps its meaning and is never reused.
+# released, a code keeps its meaning and is never reused. holder.h's base codes take 4000 (an invalid
+# argument), 5000 (an unexpected failure) and 5001 (an allocation failure).
 contract = Contract(errors={
-    RecoveryTokenInvalid: (400, 4000),
-    RebuildFailed: (400, 4001),
+    RecoveryTokenInvalid: (400, 4001),
+    RebuildFailed: (400, 4002),
     NotFound: (404, 4040),
     Conflict: (409, 4090),
     # The project's state rules the request out until its key is restored.
@@ -46,7 +47,7 @@ contract = Contract(errors={
     HistoryResponseTooLarge: (413, 4130),
     InvalidMove: (422, 4220),
     # Not something the caller can fix; the code names the condition.
-    DataCorrupted: (500, 5000),
+    DataCorrupted: (500, 5002),
     KeyringUnavailable: (503, 5030),
     HistoryUnavailable: (503, 5031),
 })

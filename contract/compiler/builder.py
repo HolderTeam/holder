@@ -49,6 +49,10 @@ from .rules import Declarations, Problem
 from .source import APP_FILE, LoadedSource
 
 IR_VERSION = 1
+
+# The C API's base status codes, which holder.h declares for every contract: an error kind's code
+# may not be one of them.
+BASE_ERROR_CODES = {4000: "an invalid argument", 5000: "an unexpected failure", 5001: "an allocation failure"}
 CONSTRAINTS = ("min_length", "max_length", "pattern", "ge", "le", "gt", "lt")
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
 PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
@@ -357,7 +361,9 @@ class _Builder:
         elif code // 10 != status:
             self.problem(f"Contract errors: {name}'s code {code} must begin with its status {status}")
         owner = self.error_codes.get(code)
-        if owner is not None:
+        if code in BASE_ERROR_CODES:
+            self.problem(f"Contract errors: {name}'s code {code} is the C API's code for {BASE_ERROR_CODES[code]}")
+        elif owner is not None:
             self.problem(f"Contract errors: {name} and {owner} both have code {code}")
         else:
             self.error_codes[code] = name

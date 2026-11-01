@@ -18,9 +18,9 @@ extern "C" {
 typedef struct holder_arena holder_arena;
 
 /* The recovery token or its PIN is invalid, or the token belongs to another project. */
-#define HOLDER_ERROR_RECOVERY_TOKEN_INVALID 4000
+#define HOLDER_ERROR_RECOVERY_TOKEN_INVALID 4001
 /* A project's files cannot be read back into the database. */
-#define HOLDER_ERROR_REBUILD_FAILED 4001
+#define HOLDER_ERROR_REBUILD_FAILED 4002
 /* The thing asked for does not exist, or is in the trash. */
 #define HOLDER_ERROR_NOT_FOUND 4040
 /* The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash, or removing a tag that a card would still carry in its prose. */
@@ -40,7 +40,7 @@ typedef struct holder_arena holder_arena;
 /* A card cannot go where it was asked to: under itself or one of its descendants, beside a card that cannot be its sibling, or up a level from the top. */
 #define HOLDER_ERROR_INVALID_MOVE 4220
 /* A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. */
-#define HOLDER_ERROR_DATA_CORRUPTED 5000
+#define HOLDER_ERROR_DATA_CORRUPTED 5002
 /* The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none. */
 #define HOLDER_ERROR_KEYRING_UNAVAILABLE 5030
 /* The project's Git history cannot be read right now. */

@@ -235,6 +235,7 @@ def find_thing(thing_id: Annotated[str, Path()]) -> None:
     ("{Missing: (200, 2000)}", "Missing's status must be a 4xx or 5xx, not 200"),
     ("{Missing: (404, 404)}", "Missing's code must have four digits, not 404"),
     ("{Missing: (404, 4090)}", "Missing's code 4090 must begin with its status 404"),
+    ("{Missing: (400, 4000)}", "Missing's code 4000 is the C API's code for an invalid argument"),
     ("{Missing: (404, 4040), ValueError: (400, 4000)}", "ValueError is not an error kind declared in the contract"),
 ])
 def test_error_table_is_checked(tmp_path, errors, message):
@@ -272,3 +273,15 @@ class One(Record):
     """B."""
 ''')
     assert len(found.splitlines()) == 2
+
+
+def test_base_error_codes_match_holder_h():
+    """The codes the compiler reserves are the ones holder.h declares."""
+    import re
+    from pathlib import Path
+
+    from compiler.builder import BASE_ERROR_CODES
+
+    header = (Path(__file__).resolve().parents[2] / "core" / "include" / "holder" / "holder.h").read_text()
+    declared = {int(code) for code in re.findall(r"^#define HOLDER_ERROR_\w+ (\d+)$", header, flags=re.MULTILINE)}
+    assert declared == set(BASE_ERROR_CODES)
