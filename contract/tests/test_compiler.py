@@ -91,3 +91,26 @@ def test_builder_produces_typed_ir_before_legacy_serialization():
     root = Path(__file__).resolve().parents[1]
     ir = build_ir(load_source(ContractSource(root, "interface")))
     assert isinstance(ir.operation("list_cards").returns, NamedType)
+
+
+def test_declaration_order_is_explicit_and_checked(tmp_path):
+    package = tmp_path / "proof_order"
+    package.mkdir()
+    for module, record in (("first", "First"), ("second", "Second")):
+        (package / f"{module}.py").write_text(f'''\
+from authoring import Record
+
+class {record}(Record):
+    """A catalog record."""
+
+    name: str
+    """Its name."""
+''')
+    manifest = package / "__init__.py"
+    manifest.write_text('DECLARATION_ORDER = ("second", "first")\n')
+    source = ContractSource(tmp_path, "proof_order")
+    assert [record.name for record in Compiler().compile(source).records] == ["Second", "First"]
+
+    manifest.write_text('DECLARATION_ORDER = ("second",)\n')
+    with pytest.raises(ContractError, match="DECLARATION_ORDER missing"):
+        Compiler().compile(source)

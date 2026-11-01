@@ -35,6 +35,7 @@ class Declarations:
     attribute_docs: dict[str, dict[str, str]] = field(default_factory=dict)
     alias_docs: dict[str, str] = field(default_factory=dict)
     class_members: dict[str, list[str]] = field(default_factory=dict)
+    module_order: tuple[str, ...] | None = None
 
 
 def _is_docstring(node: ast.stmt) -> bool:
@@ -105,6 +106,15 @@ def check_file(path: Path, display: str, package: str) -> tuple[list[Problem], D
                               f"and other contract modules, not {module}")
         elif isinstance(node, ast.TypeAlias):
             found.names.append((node.name.id, node.lineno))
+        elif (path.parent.name == package and path.name == "__init__.py" and
+              isinstance(node, ast.Assign) and len(node.targets) == 1 and
+              isinstance(node.targets[0], ast.Name) and node.targets[0].id == "DECLARATION_ORDER"):
+            if (not isinstance(node.value, ast.Tuple) or
+                    not all(isinstance(value, ast.Constant) and isinstance(value.value, str)
+                            for value in node.value.elts)):
+                problem(node, "DECLARATION_ORDER must be a tuple of module names")
+            else:
+                found.module_order = tuple(value.value for value in node.value.elts)
         elif isinstance(node, ast.ClassDef):
             found.names.append((node.name, node.lineno))
             _check_class(node, found, problem)

@@ -57,6 +57,19 @@ def load_source(source: ContractSource) -> LoadedSource:
     if problems:
         raise ContractError(problems)
 
+    manifest = declared.get(package, ("", Declarations()))[1].module_order
+    if manifest is not None:
+        named = {name for name, (_, declarations) in declared.items() if declarations.names}
+        ordered = [f"{package}.{name}" for name in manifest]
+        missing = named - set(ordered)
+        unknown = set(ordered) - named
+        duplicates = sorted({name for name in ordered if ordered.count(name) > 1})
+        if missing or unknown or duplicates:
+            raise ContractError([Problem(f"{package}/__init__.py", 1,
+                                         f"DECLARATION_ORDER missing {sorted(missing)}, unknown {sorted(unknown)}, "
+                                         f"duplicates {duplicates}")])
+        declared = {name: declared[name] for name in [*ordered, *(name for name in declared if name not in named)]}
+
     fingerprint = tuple((path.relative_to(root).as_posix(), path.stat().st_mtime_ns, path.stat().st_size)
                         for path in all_files)
     cached = sys.modules.get(package)
