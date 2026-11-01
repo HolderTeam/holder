@@ -387,6 +387,22 @@ holder_new_link card_link(const char* target, const char* kind = "ref", const ch
 
 } // namespace
 
+TEST_CASE("holder_list_link_kinds lists the catalog with both labels", "[capi][contract]") {
+  Fixture f;
+  const holder_link_kind_labels_list* kinds = nullptr;
+  REQUIRE(holder_list_link_kinds(f.context, f.arena, &kinds, &f.error) == HOLDER_OK);
+  REQUIRE(kinds->count == 100);
+  auto labels = [&](const std::string& kind) -> std::pair<std::string, std::string> {
+    for (std::size_t i = 0; i < kinds->count; ++i)
+      if (kinds->items[i].kind == kind) return {kinds->items[i].forward_label, kinds->items[i].reverse_label};
+    FAIL("no link kind " << kind);
+    return {};
+  };
+  // ref is a link's default kind.
+  REQUIRE(labels("ref") == std::pair<std::string, std::string>{"References", "Referenced by"});
+  REQUIRE(labels("depends_on") == std::pair<std::string, std::string>{"Depends on", "Required by"});
+}
+
 TEST_CASE("holder_add_card_link makes one link per target and kind, and keeps when it was made", "[capi][contract]") {
   Fixture f;
   const auto* project = f.project_id.c_str();

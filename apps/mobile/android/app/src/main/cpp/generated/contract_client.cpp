@@ -582,6 +582,7 @@ jobject to_java_holder_card_reference_resolve_data(JNIEnv* env, const holder_car
 jobject to_java_holder_card_list_item(JNIEnv* env, const holder_card_list_item& value);
 jobject to_java_holder_card_list_item_page(JNIEnv* env, const holder_card_list_item_page& value);
 jobject to_java_holder_tag_count(JNIEnv* env, const holder_tag_count& value);
+jobject to_java_holder_link_kind_labels(JNIEnv* env, const holder_link_kind_labels& value);
 jobject to_java_holder_link(JNIEnv* env, const holder_link& value);
 jobject to_java_holder_milestone_date(JNIEnv* env, const holder_milestone_date& value);
 bool from_java_holder_milestone_date(JNIEnv* env, jobject object, holder_milestone_date& out, Keep& keep);
@@ -856,6 +857,22 @@ jobject to_java_holder_tag_count(JNIEnv* env, const holder_tag_count& value) {
   args[0].l = locals.add(string(env, value.tag));
   if (env->ExceptionCheck()) return nullptr;
   args[1].i = static_cast<jint>(value.card_count);
+  return env->NewObjectA(type, constructor, args);
+}
+
+jobject to_java_holder_link_kind_labels(JNIEnv* env, const holder_link_kind_labels& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/LinkKindLabels");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[3] = {};
+  args[0].l = locals.add(string(env, value.kind));
+  if (env->ExceptionCheck()) return nullptr;
+  args[1].l = locals.add(string(env, value.forward_label));
+  if (env->ExceptionCheck()) return nullptr;
+  args[2].l = locals.add(string(env, value.reverse_label));
+  if (env->ExceptionCheck()) return nullptr;
   return env->NewObjectA(type, constructor, args);
 }
 
@@ -2814,6 +2831,20 @@ Java_team_holder_android_contract_Cards_listProjectTags(JNIEnv* env, jobject, jl
       arena.value, &out, &error);
   if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
   return to_java_list(env, ((*out)).items, ((*out)).count, [&](const auto& item) -> jobject { return to_java_holder_tag_count(env, item); });
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_contract_Links_listLinkKinds(JNIEnv* env, jobject, jlong context_handle) {
+  if (!context_handle) { fail(env, "context is required"); return nullptr; }
+  Keep keep;
+  Arena arena;
+  if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
+  const holder_link_kind_labels_list* out = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_list_link_kinds(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      arena.value, &out, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
+  return to_java_list(env, ((*out)).items, ((*out)).count, [&](const auto& item) -> jobject { return to_java_holder_link_kind_labels(env, item); });
 }
 
 extern "C" JNIEXPORT jobject JNICALL

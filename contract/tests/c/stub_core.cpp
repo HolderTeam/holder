@@ -188,6 +188,11 @@ std::vector<TagCount> list_project_tags(holder_context& context, std::string pro
   return out;
 }
 // Links, from the card to whatever it names: the stand-in neither checks targets nor lists backlinks.
+// Two of the catalog's kinds stand in for it.
+std::vector<LinkKindLabels> list_link_kinds(holder_context&) {
+  return {{"ref", "References", "Referenced by"}, {"depends_on", "Depends on", "Required by"}};
+}
+
 std::vector<Link> list_card_links(holder_context& context, std::string project_id, std::string card_id,
                                   bool include_deleted) {
   (void)include_deleted;

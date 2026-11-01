@@ -9,10 +9,17 @@ from authoring import Contract
 from ..cards.models import CardId
 from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..projects.ids import ProjectId
-from .models import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
+from .models import Link, LinkKind, LinkKindLabels, LinkTargetId, LinkTargetType, NewLink
 
 
 def register(contract: Contract) -> None:
+    @contract.route("GET", "/link-kinds")
+    def list_link_kinds() -> list[LinkKindLabels]:
+        """List the link kinds Holder knows, with their labels.
+
+        The list is the same for every project and device. A link may have any other kind.
+        """
+
     @contract.route("GET", "/projects/{project_id}/cards/{card_id}/links", errors=[NotFound])
     def list_card_links(
         project_id: Annotated[ProjectId, Path()],

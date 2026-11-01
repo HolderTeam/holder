@@ -626,6 +626,10 @@ template <> struct codec<holder::contract::TagCount> {
     static json encode(const holder::contract::TagCount& value);
     static holder::contract::TagCount decode(const json& value);
 };
+template <> struct codec<holder::contract::LinkKindLabels> {
+    static json encode(const holder::contract::LinkKindLabels& value);
+    static holder::contract::LinkKindLabels decode(const json& value);
+};
 template <> struct codec<holder::contract::Link> {
     static json encode(const holder::contract::Link& value);
     static holder::contract::Link decode(const json& value);
@@ -1398,6 +1402,39 @@ inline holder::contract::TagCount codec<holder::contract::TagCount>::decode(cons
         out.card_count = check_range<std::int32_t>(decode_field<std::int32_t>(item, "card_count"), "card_count", 1, std::numeric_limits<std::int32_t>::max());
     } else {
         throw std::invalid_argument("card_count is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::LinkKindLabels>::encode(const holder::contract::LinkKindLabels& value) {
+    json result = json::object();
+    result["kind"] = codec<std::string>::encode(value.kind);
+    result["forward_label"] = codec<std::string>::encode(value.forward_label);
+    result["reverse_label"] = codec<std::string>::encode(value.reverse_label);
+    return result;
+}
+inline holder::contract::LinkKindLabels codec<holder::contract::LinkKindLabels>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a LinkKindLabels object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "kind" && it.key() != "forward_label" && it.key() != "reverse_label") throw std::invalid_argument("LinkKindLabels has no field " + it.key());
+    holder::contract::LinkKindLabels out;
+    if (value.contains("kind") && !value.at("kind").is_null()) {
+        const auto& item = value.at("kind");
+        out.kind = check_text(decode_field<std::string>(item, "kind"), "kind", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("kind is required and must not be null");
+    }
+    if (value.contains("forward_label") && !value.at("forward_label").is_null()) {
+        const auto& item = value.at("forward_label");
+        out.forward_label = check_text(decode_field<std::string>(item, "forward_label"), "forward_label", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("forward_label is required and must not be null");
+    }
+    if (value.contains("reverse_label") && !value.at("reverse_label").is_null()) {
+        const auto& item = value.at("reverse_label");
+        out.reverse_label = check_text(decode_field<std::string>(item, "reverse_label"), "reverse_label", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("reverse_label is required and must not be null");
     }
     return out;
 }

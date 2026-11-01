@@ -449,6 +449,20 @@ typedef struct holder_tag_count_list {
     size_t count;
 } holder_tag_count_list;
 
+/* One of the link kinds Holder knows, with how it reads from each end of a link. A link's kind is free text;
+ * a kind Holder does not know has no labels of its own.
+ */
+typedef struct holder_link_kind_labels {
+    const char* kind; /* The kind, as a link names it. */
+    const char* forward_label; /* How the link reads from the card it is from, such as Depends on. */
+    const char* reverse_label; /* How the link reads from what it points at, such as Required by. */
+} holder_link_kind_labels;
+
+typedef struct holder_link_kind_labels_list {
+    const holder_link_kind_labels* items;
+    size_t count;
+} holder_link_kind_labels_list;
+
 /* What the link is from. */
 typedef enum holder_link_source_type {
     HOLDER_LINK_SOURCE_TYPE_CARD = 1,
@@ -1188,6 +1202,11 @@ int holder_remove_card_tag(holder_context* context, const char* project_id, cons
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
 int holder_list_project_tags(holder_context* context, const char* project_id, holder_arena* arena, const holder_tag_count_list** out_tag_count_list, holder_error** out_error);
+
+/* List the link kinds Holder knows, with their labels.
+ * The list is the same for every project and device. A link may have any other kind.
+ */
+int holder_list_link_kinds(holder_context* context, holder_arena* arena, const holder_link_kind_labels_list** out_link_kind_labels_list, holder_error** out_error);
 
 /* List a card's links.
  * The links the card makes, newest first. A card in the trash or in another project is not found.

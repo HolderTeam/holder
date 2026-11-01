@@ -399,6 +399,8 @@ holder_card_list_item_list to_c_list(holder_arena* arena, const std::vector<cont
 holder_card_list_item_page to_c(holder_arena* arena, const contract::Page<contract::CardListItem>& value);
 holder_tag_count to_c(holder_arena* arena, const contract::TagCount& value);
 holder_tag_count_list to_c_list(holder_arena* arena, const std::vector<contract::TagCount>& values);
+holder_link_kind_labels to_c(holder_arena* arena, const contract::LinkKindLabels& value);
+holder_link_kind_labels_list to_c_list(holder_arena* arena, const std::vector<contract::LinkKindLabels>& values);
 holder_link to_c(holder_arena* arena, const contract::Link& value);
 holder_link_list to_c_list(holder_arena* arena, const std::vector<contract::Link>& values);
 holder_milestone_date to_c(holder_arena* arena, const contract::MilestoneDate& value);
@@ -607,6 +609,20 @@ holder_tag_count to_c(holder_arena* arena, const contract::TagCount& value) {
 
 holder_tag_count_list to_c_list(holder_arena* arena, const std::vector<contract::TagCount>& values) {
   auto* items = make<holder_tag_count>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_link_kind_labels to_c(holder_arena* arena, const contract::LinkKindLabels& value) {
+  holder_link_kind_labels out{};
+  out.kind = copy(arena, value.kind);
+  out.forward_label = copy(arena, value.forward_label);
+  out.reverse_label = copy(arena, value.reverse_label);
+  return out;
+}
+
+holder_link_kind_labels_list to_c_list(holder_arena* arena, const std::vector<contract::LinkKindLabels>& values) {
+  auto* items = make<holder_link_kind_labels>(arena, values.size());
   for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
   return {items, values.size()};
 }
@@ -1629,6 +1645,17 @@ int holder_list_project_tags(holder_context* context, const char* project_id, ho
     auto* out = make<holder_tag_count_list>(arena);
     *out = to_c_list(arena, contract::list_project_tags(*context, project_id_value));
     *out_tag_count_list = out;
+  });
+}
+
+int holder_list_link_kinds(holder_context* context, holder_arena* arena, const holder_link_kind_labels_list** out_link_kind_labels_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_link_kind_labels_list != nullptr, "out_link_kind_labels_list must not be null");
+    *out_link_kind_labels_list = nullptr;
+    auto* out = make<holder_link_kind_labels_list>(arena);
+    *out = to_c_list(arena, contract::list_link_kinds(*context));
+    *out_link_kind_labels_list = out;
   });
 }
 

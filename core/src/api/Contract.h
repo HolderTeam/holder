@@ -361,6 +361,14 @@ struct TagCount {
   std::int32_t card_count{};  ///< The live cards in the project that carry the tag: at least one, or the tag is not listed.
 };
 
+/// One of the link kinds Holder knows, with how it reads from each end of a link. A link's kind is free text;
+/// a kind Holder does not know has no labels of its own.
+struct LinkKindLabels {
+  std::string kind;  ///< The kind, as a link names it.
+  std::string forward_label;  ///< How the link reads from the card it is from, such as Depends on.
+  std::string reverse_label;  ///< How the link reads from what it points at, such as Required by.
+};
+
 /// What the link is from.
 enum class LinkSourceType { Card, AiMessage };
 
@@ -886,6 +894,10 @@ Card remove_card_tag(holder_context& context, std::string project_id, std::strin
 /// Each tag carried by a live card in the project, with how many carry it, by descending count and then by tag.
 /// @throws NotFound
 std::vector<TagCount> list_project_tags(holder_context& context, std::string project_id);
+
+/// List the link kinds Holder knows, with their labels.
+/// The list is the same for every project and device. A link may have any other kind.
+std::vector<LinkKindLabels> list_link_kinds(holder_context& context);
 
 /// List a card's links.
 /// The links the card makes, newest first. A card in the trash or in another project is not found.

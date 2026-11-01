@@ -4615,6 +4615,54 @@
         }
       }
     },
+    "/link-kinds": {
+      "get": {
+        "summary": "List the link kinds Holder knows, with their labels.",
+        "description": "The list is the same for every project and device. A link may have any other kind.",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkKindLabelsListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/locations": {
       "get": {
         "summary": "List project storage locations and this device's preferred location.",
@@ -17398,6 +17446,57 @@
       "LinkKind": {
         "type": "string",
         "minLength": 1
+      },
+      "LinkKindLabels": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/LinkKind",
+            "description": "The kind, as a link names it."
+          },
+          "forward_label": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Forward Label",
+            "description": "How the link reads from the card it is from, such as Depends on."
+          },
+          "reverse_label": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Reverse Label",
+            "description": "How the link reads from what it points at, such as Required by."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "forward_label",
+          "reverse_label"
+        ],
+        "title": "LinkKindLabels",
+        "description": "One of the link kinds Holder knows, with how it reads from each end of a link. A link's kind is free text;\na kind Holder does not know has no labels of its own."
+      },
+      "LinkKindLabelsListResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true,
+            "title": "Ok"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/LinkKindLabels"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "title": "LinkKindLabelsListResponse"
       },
       "LinkListResponse": {
         "properties": {
