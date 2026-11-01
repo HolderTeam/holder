@@ -121,7 +121,7 @@ fun ResourcesScreen(
 
     LaunchedEffect(cardId, refreshKey, localRefreshKey) {
         linksState = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.listCardLinks(cardId) }
+            withContext(Dispatchers.IO) { HolderNative.listCardLinks(projectId, cardId) }
         }.fold(
             onSuccess = { LoadState.Success(it) },
             onFailure = { LoadState.Error(it.message ?: it::class.java.simpleName) },
@@ -276,7 +276,7 @@ fun ResourcesScreen(
                                 scope.launch {
                                     runCatching {
                                         withContext(Dispatchers.IO) {
-                                            HolderNative.attachResource(cardId, resource.resourceId, resource.label)
+                                            HolderNative.attachResource(projectId, cardId, resource.resourceId, resource.label)
                                         }
                                     }.onSuccess { localRefreshKey++ }
                                         .onFailure { snackbarHostState.showSnackbar("Couldn't attach: ${it.message}") }
@@ -299,7 +299,7 @@ fun ResourcesScreen(
                     detachCandidate = null
                     scope.launch {
                         runCatching {
-                            withContext(Dispatchers.IO) { HolderNative.detachResource(cardId, link.toCardId) }
+                            withContext(Dispatchers.IO) { HolderNative.detachResource(projectId, cardId, link.toCardId) }
                         }.onSuccess { localRefreshKey++ }
                             .onFailure { snackbarHostState.showSnackbar("Couldn't detach: ${it.message}") }
                     }

@@ -636,23 +636,25 @@ class HolderNativeIntegrationTest {
         val blocked = HolderNative.createCard(project.projectId, "Blocked task", "content")
         val blocking = HolderNative.createCard(project.projectId, "Blocking task", "content")
 
-        val empty = HolderNative.listCardLinks(blocked.cardId)
+        val empty = HolderNative.listCardLinks(project.projectId, blocked.cardId)
         assertTrue(empty.outgoing.isEmpty())
         assertTrue(empty.backlinks.isEmpty())
 
-        val outgoing = HolderNative.addCardLink(blocked.cardId, blocking.cardId, "blocked_by", "waiting")
+        HolderNative.addCardLink(project.projectId, blocked.cardId, blocking.cardId, "blocked_by", "waiting")
+        val outgoing = HolderNative.listCardLinks(project.projectId, blocked.cardId).outgoing
         assertEquals(1, outgoing.size)
+        assertEquals("waiting", outgoing.single().label)
         assertEquals(blocking.cardId, outgoing.single().toCardId)
         assertEquals("Blocking task", outgoing.single().toTitle)
 
-        val blockingLinks = HolderNative.listCardLinks(blocking.cardId)
+        val blockingLinks = HolderNative.listCardLinks(project.projectId, blocking.cardId)
         assertEquals(1, blockingLinks.backlinks.size)
         assertEquals(blocked.cardId, blockingLinks.backlinks.single().fromCardId)
         assertEquals("Blocked task", blockingLinks.backlinks.single().fromTitle)
 
-        HolderNative.removeCardLink(blocked.cardId, blocking.cardId, "blocked_by")
-        assertTrue(HolderNative.listCardLinks(blocked.cardId).outgoing.isEmpty())
-        assertTrue(HolderNative.listCardLinks(blocking.cardId).backlinks.isEmpty())
+        HolderNative.removeCardLink(project.projectId, blocked.cardId, blocking.cardId, "blocked_by")
+        assertTrue(HolderNative.listCardLinks(project.projectId, blocked.cardId).outgoing.isEmpty())
+        assertTrue(HolderNative.listCardLinks(project.projectId, blocking.cardId).backlinks.isEmpty())
     }
 
     @Test
@@ -662,12 +664,12 @@ class HolderNativeIntegrationTest {
         val parent = HolderNative.createCard(project.projectId, "Parent card", "content")
         val child = HolderNative.createCard(project.projectId, "Child card", "content", parent.cardId)
 
-        val parentLinks = HolderNative.listCardLinks(parent.cardId)
+        val parentLinks = HolderNative.listCardLinks(project.projectId, parent.cardId)
         assertEquals(null, parentLinks.parent)
         assertEquals(1, parentLinks.children.size)
         assertEquals(child.cardId, parentLinks.children.single().cardId)
 
-        val childLinks = HolderNative.listCardLinks(child.cardId)
+        val childLinks = HolderNative.listCardLinks(project.projectId, child.cardId)
         assertEquals(parent.cardId, childLinks.parent?.cardId)
         assertEquals("Parent card", childLinks.parent?.title)
         assertTrue(childLinks.children.isEmpty())

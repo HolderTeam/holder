@@ -24,6 +24,13 @@ import team.holder.android.contract.Trash
 import team.holder.android.contract.CardHistoryVersion
 import team.holder.android.contract.CompareCardHistoryMode
 import team.holder.android.contract.Git
+import team.holder.android.contract.LinkSourceType
+import team.holder.android.contract.LinkTargetType
+import team.holder.android.contract.Links
+import team.holder.android.contract.NewLink
+import team.holder.android.contract.NewLinkTargetType
+import team.holder.android.contract.NotFoundException
+import team.holder.android.contract.RemoveCardLinkTargetType
 import team.holder.android.contract.History
 import team.holder.android.contract.ListProjectsOrder
 import team.holder.android.contract.Maintenance
@@ -471,22 +478,6 @@ object HolderNative {
         welcomeTitle: String,
         welcomeContent: String?,
     ): String
-    private external fun nativeCardListLinks(contextHandle: Long, cardId: String): String
-    private external fun nativeCardLinkAdd(
-        contextHandle: Long,
-        fromCardId: String,
-        toCardId: String,
-        kind: String,
-        label: String?,
-    ): String
-    private external fun nativeCardLinkRemove(
-        contextHandle: Long,
-        fromCardId: String,
-        toCardId: String,
-        kind: String,
-    )
-    private external fun nativeCardLinkAddJson(contextHandle: Long, fromCardId: String, optionsJson: String): String
-    private external fun nativeCardLinkRemoveJson(contextHandle: Long, fromCardId: String, optionsJson: String)
     private external fun nativeListLinkKinds(): String
     private external fun nativeCardListEditableTags(contextHandle: Long, cardId: String): String
     private external fun nativeCardListMilestones(contextHandle: Long, cardId: String): String
@@ -971,45 +962,73 @@ object HolderNative {
         return parseCard(JSONObject(cardJson))
     }
 
-    /** Explicit connections only -- not hierarchy (parent/child) or inline [[wikilinks]]. */
-    fun listCardLinks(cardId: String): HolderCardLinks {
-        val json = JSONObject(readLane.call { nativeCardListLinks(it, cardId) })
-        val outgoing = json.getJSONArray("outgoing")
-        val backlinks = json.getJSONArray("backlinks")
-        val children = json.getJSONArray("children")
-        return HolderCardLinks(
-            outgoing = List(outgoing.length()) { index -> parseOutgoingLink(outgoing.getJSONObject(index)) },
-            backlinks = List(backlinks.length()) { index -> parseBacklink(backlinks.getJSONObject(index)) },
-            parent = json.optJSONObject("parent")?.let { parseCardRef(it) },
-            children = List(children.length()) { index -> parseCardRef(children.getJSONObject(index)) },
-        )
+    /** cardId's explicit connections -- not inline [[wikilinks]] -- with its parent and live children,
+     * which hierarchy shows automatically. Titles come from the linked cards and resources, as on
+     * Desktop; a link whose card or resource cannot be read has no title. */
+    fun listCardLinks(projectId: String, cardId: String): HolderCardLinks = readLane.call { context ->
+        val titles = HashMap<String, String?>()
+        fun cardTitle(id: String): String? = titles.getOrPut(id) {
+            try {
+                Cards.getCardMetadata(context, projectId, id).title
+            } catch (_: NotFoundException) {
+                null
+            }
+        }
+        val resourceLabels by lazy { Resources.listResources(context, projectId).associate { it.resourceId to it.label } }
+        val outgoing = Links.listCardLinks(context, projectId, cardId).map { link ->
+            HolderOutgoingLink(
+                toCardId = link.targetId,
+                toType = link.targetType.value,
+                kind = link.kind,
+                label = link.label,
+                toTitle = when (link.targetType) {
+                    LinkTargetType.CARD -> cardTitle(link.targetId)
+                    LinkTargetType.RESOURCE -> resourceLabels[link.targetId]
+                    else -> null
+                },
+            )
+        }
+        val backlinks = Links.listCardBacklinks(context, projectId, cardId)
+            .filter { it.sourceType == LinkSourceType.CARD }
+            .map { link -> HolderBacklink(link.sourceId, link.kind, link.label, cardTitle(link.sourceId)) }
+        val parent = Cards.getCardMetadata(context, projectId, cardId).parentCardId?.let { parentId ->
+            cardTitle(parentId)?.let { title -> HolderCardRef(parentId, title) }
+        }
+        val children = Cards.listCards(context, projectId, parent = ListCardsParent.CardId(cardId),
+                                       order = ListCardsOrder.SORT_KEY_ASC, limit = 5000)
+            .items.map { child -> HolderCardRef(child.cardId, child.title) }
+        HolderCardLinks(outgoing, backlinks, parent, children)
     }
 
-    /** Adds (or updates, if fromCardId/toCardId/kind already matches) an explicit outgoing
-     * connection. Returns fromCardId's updated outgoing connection list. */
-    fun addCardLink(fromCardId: String, toCardId: String, kind: String, label: String? = null): List<HolderOutgoingLink> {
-        val outgoing = JSONArray(saveLane.call { nativeCardLinkAdd(it, fromCardId, toCardId, kind, label) })
-        return List(outgoing.length()) { index -> parseOutgoingLink(outgoing.getJSONObject(index)) }
+    /** Adds (or updates, if fromCardId/toCardId/kind already matches) an explicit connection between
+     * two cards in projectId. */
+    fun addCardLink(projectId: String, fromCardId: String, toCardId: String, kind: String, label: String? = null) {
+        saveLane.call {
+            Links.addCardLink(it, projectId, fromCardId,
+                NewLink(targetType = NewLinkTargetType.CARD, targetId = toCardId, kind = kind, label = label))
+        }
     }
 
-    fun removeCardLink(fromCardId: String, toCardId: String, kind: String) {
-        saveLane.call { nativeCardLinkRemove(it, fromCardId, toCardId, kind) }
+    fun removeCardLink(projectId: String, fromCardId: String, toCardId: String, kind: String) {
+        saveLane.call { Links.removeCardLink(it, projectId, fromCardId, RemoveCardLinkTargetType.CARD, toCardId, kind) }
     }
 
     /** Attach an existing resource to a live card in the same project. */
-    fun attachResource(cardId: String, resourceId: String, label: String?): List<HolderOutgoingLink> {
-        val options = JSONObject().put("to_id", resourceId).put("to_type", "resource")
-            .put("kind", "attachment").put("label", label ?: JSONObject.NULL)
-        val outgoing = JSONArray(saveLane.call { nativeCardLinkAddJson(it, cardId, options.toString()) })
-        return List(outgoing.length()) { index -> parseOutgoingLink(outgoing.getJSONObject(index)) }
+    fun attachResource(projectId: String, cardId: String, resourceId: String, label: String?) {
+        saveLane.call {
+            Links.addCardLink(it, projectId, cardId,
+                NewLink(targetType = NewLinkTargetType.RESOURCE, targetId = resourceId, kind = ATTACHMENT, label = label))
+        }
     }
 
     /** Remove only the attachment link; the resource and stored file remain available. */
-    fun detachResource(cardId: String, resourceId: String) {
-        val options = JSONObject().put("to_id", resourceId).put("to_type", "resource")
-            .put("kind", "attachment")
-        saveLane.call { nativeCardLinkRemoveJson(it, cardId, options.toString()) }
+    fun detachResource(projectId: String, cardId: String, resourceId: String) {
+        saveLane.call {
+            Links.removeCardLink(it, projectId, cardId, RemoveCardLinkTargetType.RESOURCE, resourceId, ATTACHMENT)
+        }
     }
+
+    private const val ATTACHMENT = "attachment"
 
     @Volatile
     private var linkKindCatalog: List<HolderLinkKind>? = null
@@ -1523,26 +1542,6 @@ object HolderNative {
         sortKey = json.getDouble("sort_key"),
         deletedAt = json.optLongOrNull("deleted_at"),
         childCount = json.optIntOrNull("child_count"),
-    )
-
-    private fun parseOutgoingLink(json: JSONObject) = HolderOutgoingLink(
-        toCardId = json.getString("to_card_id"),
-        toType = json.getString("to_type"),
-        kind = json.getString("kind"),
-        label = json.optStringOrNull("label"),
-        toTitle = json.optStringOrNull("to_title"),
-    )
-
-    private fun parseBacklink(json: JSONObject) = HolderBacklink(
-        fromCardId = json.getString("from_card_id"),
-        kind = json.getString("kind"),
-        label = json.optStringOrNull("label"),
-        fromTitle = json.optStringOrNull("from_title"),
-    )
-
-    private fun parseCardRef(json: JSONObject) = HolderCardRef(
-        cardId = json.getString("card_id"),
-        title = json.getString("title"),
     )
 
     private fun parseMilestone(json: JSONObject) = HolderMilestone(

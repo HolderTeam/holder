@@ -212,7 +212,7 @@ fun AddConnectionScreen(
                     scope.launch {
                         val result = runCatching {
                             withContext(Dispatchers.IO) {
-                                HolderNative.addCardLink(fromCardId, toCardId, kind, label.trim().ifEmpty { null })
+                                HolderNative.addCardLink(projectId, fromCardId, toCardId, kind, label.trim().ifEmpty { null })
                             }
                         }
                         // Explicitly back on the main thread before onAdded() -- which navigates
