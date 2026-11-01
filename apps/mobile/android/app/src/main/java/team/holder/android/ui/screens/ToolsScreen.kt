@@ -124,7 +124,7 @@ fun ToolsScreen(
         if (tag.isBlank()) return
         scope.launch {
             val result = runCatching {
-                withContext(Dispatchers.IO) { HolderNative.addCardTag(cardId, tag) }
+                withContext(Dispatchers.IO) { HolderNative.addCardTag(projectId, cardId, tag) }
             }
             result.onFailure {
                 snackbarHostState.showSnackbar("\"$tag\" isn't a valid tag.")
@@ -137,7 +137,7 @@ fun ToolsScreen(
     fun removeTag(tag: String) {
         scope.launch {
             val result = runCatching {
-                withContext(Dispatchers.IO) { HolderNative.removeCardTag(cardId, tag) }
+                withContext(Dispatchers.IO) { HolderNative.removeCardTag(projectId, cardId, tag) }
             }.getOrNull()
             if (result == HolderNative.RemoveTagResult.PRESENT_OUTSIDE_EDITABLE_TAG_LINE) {
                 snackbarHostState.showSnackbar("\"$tag\" appears in the card text -- edit it there to remove it.")

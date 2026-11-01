@@ -1,13 +1,28 @@
 package team.holder.android
 
 import android.content.Context
-import team.holder.android.generated.ContractCards
-import team.holder.android.generated.ContractOperations
-import team.holder.android.generated.ContractPage
-import team.holder.android.generated.ContractCardListItem
+import team.holder.android.contract.Card
+import team.holder.android.contract.CardListItem
+import team.holder.android.contract.CardMetadata
+import team.holder.android.contract.CardMove
+import team.holder.android.contract.CardMoveIntent
+import team.holder.android.contract.CardReferenceResolveDataStatus
+import team.holder.android.contract.CardReferenceResolveRequest
+import team.holder.android.contract.CardReferenceResolveRequestScope
+import team.holder.android.contract.CardUpdate
+import team.holder.android.contract.Cards
+import team.holder.android.contract.Change
+import team.holder.android.contract.ConflictException
+import team.holder.android.contract.DeleteProjectTrashItemType
+import team.holder.android.contract.EmptyTrashType
+import team.holder.android.contract.ListCardsOrder
+import team.holder.android.contract.ListCardsParent
+import team.holder.android.contract.NewCard
+import team.holder.android.contract.Page
+import team.holder.android.contract.Search
+import team.holder.android.contract.Trash
 import team.holder.android.generated.ContractHistory
 import team.holder.android.generated.ContractResources
-import team.holder.android.generated.ContractCardMetadata
 import team.holder.android.generated.ContractProjects
 import team.holder.android.generated.ContractProject
 import team.holder.android.generated.ContractNewProject
@@ -99,8 +114,6 @@ data class HolderCardMoveResult(
     val cardId: String,
     val parentCardId: String?,
     val sortKey: Double,
-    val revision: Long,
-    val movedIntoTitle: String?,
 )
 
 data class HolderCardLinks(
@@ -443,12 +456,6 @@ object HolderNative {
         reference: String,
         scope: Int,
     ): String
-    private external fun nativeCardMove(
-        contextHandle: Long,
-        projectId: String,
-        cardId: String,
-        requestJson: String,
-    ): String
     private external fun nativeProjectCreate(
         contextHandle: Long,
         name: String,
@@ -516,8 +523,6 @@ object HolderNative {
     private external fun nativeCardLinkRemoveJson(contextHandle: Long, fromCardId: String, optionsJson: String)
     private external fun nativeListLinkKinds(): String
     private external fun nativeCardListTags(contextHandle: Long, cardId: String): String
-    private external fun nativeCardTagAdd(contextHandle: Long, cardId: String, tag: String): Int
-    private external fun nativeCardTagRemove(contextHandle: Long, cardId: String, tag: String): Int
     private external fun nativeCardListEditableTags(contextHandle: Long, cardId: String): String
     private external fun nativeCardsWithTag(contextHandle: Long, projectId: String, tag: String): String
     private external fun nativeProjectListTags(contextHandle: Long, projectId: String): String
@@ -747,17 +752,15 @@ object HolderNative {
 
     internal fun listCardsPage(
         projectId: String,
-        parent: String? = null,
+        parent: ListCardsParent? = null,
         tag: String? = null,
-        order: String = "card_id_asc",
+        order: ListCardsOrder = ListCardsOrder.CARD_ID_ASC,
         limit: Int = 200,
         cursor: String? = null,
         includeContent: Boolean = false,
         includeChildCount: Boolean = false,
-    ): ContractPage<ContractCardListItem> = readLane.call { context ->
-        ContractOperations.nativeListCards(
-            context, projectId, parent, tag, order, limit, cursor, includeContent, includeChildCount,
-        )
+    ): Page<CardListItem> = readLane.call { context ->
+        Cards.listCards(context, projectId, parent, tag, order, limit, cursor, includeContent, includeChildCount)
     }
 
     fun listCards(projectId: String): List<HolderCard> {
@@ -765,9 +768,7 @@ object HolderNative {
         readLane.call { context ->
             var cursor: String? = null
             do {
-                val page = ContractOperations.nativeListCards(
-                    context, projectId, order = "sort_key_asc", limit = 5000, cursor = cursor,
-                )
+                val page = Cards.listCards(context, projectId, order = ListCardsOrder.SORT_KEY_ASC, limit = 5000, cursor = cursor)
                 result.ensureCapacity(result.size + page.items.size)
                 page.items.forEach { card ->
                     result.add(HolderCard(
@@ -796,7 +797,7 @@ object HolderNative {
 
     /** Fetches one live card's metadata in its project. */
     fun getCard(projectId: String, cardId: String): HolderCard {
-        val card = readLane.call { ContractCards.nativeGetCardMetadata(it, projectId, cardId) }
+        val card = readLane.call { Cards.getCardMetadata(it, projectId, cardId) }
         return fromContractMetadata(card)
     }
 
@@ -839,7 +840,7 @@ object HolderNative {
     }
 
     fun getCardContent(projectId: String, cardId: String): String =
-        readLane.call { ContractCards.nativeGetCardContent(it, projectId, cardId) }
+        readLane.call { Cards.getCard(it, projectId, cardId) }.content
 
     /** Previous JSON path, retained for parity during migration. */
     internal fun getCardContentJsonForBenchmark(cardId: String): String =
@@ -849,20 +850,20 @@ object HolderNative {
      * case-sensitive exact title) the same way holder-daemon/holderctl do. scope defaults
      * to 0 (live cards only), matching holder::model::CardScope::Live. */
     fun resolveCardReference(projectId: String, reference: String, scope: Int = 0): CardReferenceResolution {
-        val result = readLane.call { ContractCards.nativeResolveCardReference(it, projectId, reference, scope) }
+        val request = CardReferenceResolveRequest(projectId, reference, CardReferenceResolveRequestScope.entries[scope])
+        val result = readLane.call { Cards.resolveCardReference(it, request) }
         return when (result.status) {
-            "resolved" -> CardReferenceResolution.Resolved(
+            CardReferenceResolveDataStatus.RESOLVED -> CardReferenceResolution.Resolved(
                 matchKind = requireNotNull(result.matchKind),
                 card = requireNotNull(result.card).let { HolderCardReferenceCandidate(it.cardId, it.title, it.deletedAt) },
             )
-            "ambiguous" -> CardReferenceResolution.Ambiguous(
+            CardReferenceResolveDataStatus.AMBIGUOUS -> CardReferenceResolution.Ambiguous(
                 matchKind = requireNotNull(result.matchKind),
                 candidates = requireNotNull(result.candidates).map {
                     HolderCardReferenceCandidate(it.cardId, it.title, it.deletedAt)
                 },
             )
-            "not_found" -> CardReferenceResolution.NotFound
-            else -> error("unknown card reference result: ${result.status}")
+            CardReferenceResolveDataStatus.NOT_FOUND -> CardReferenceResolution.NotFound
         }
     }
 
@@ -959,8 +960,8 @@ object HolderNative {
     )
 
     fun createCard(projectId: String, title: String, content: String, parentCardId: String? = null): HolderCard =
-        fromContractMetadata(saveLane.call {
-            ContractCards.nativeCreateCard(it, projectId, title, content, parentCardId)
+        fromContractCard(saveLane.call {
+            Cards.createCard(it, projectId, NewCard(title = title, content = content, parentCardId = parentCardId))
         })
 
     /** Previous JSON creation path, retained for parity and timing during migration. */
@@ -968,9 +969,11 @@ object HolderNative {
                                             parentCardId: String? = null): HolderCard =
         parseCard(JSONObject(saveLane.call { nativeCardCreate(it, projectId, title, content, parentCardId) }))
 
+    /** Saves the editor's title and content. An empty title keeps the card's current one, as the
+     * editor sends an empty title when the user has not given one. */
     fun updateCard(projectId: String, cardId: String, title: String, content: String): HolderCard =
-        fromContractMetadata(saveLane.call {
-            ContractCards.nativeUpdateCard(it, projectId, cardId, title, content)
+        fromContractCard(saveLane.call {
+            Cards.updateCard(it, projectId, cardId, CardUpdate(title = title.ifEmpty { null }, content = content))
         })
 
     /** Previous JSON update path, retained for parity and timing during migration. */
@@ -992,24 +995,18 @@ object HolderNative {
         targetCardId: String? = null,
         parentCardId: String? = null,
     ): HolderCardMoveResult {
-        val request = JSONObject()
-        request.put("intent", intent.name.lowercase())
-        if (targetCardId != null) request.put("target_card_id", targetCardId)
-        if (parentCardId != null) request.put("parent_card_id", parentCardId)
-
-        val json = JSONObject(saveLane.call { nativeCardMove(it, projectId, cardId, request.toString()) })
-        return HolderCardMoveResult(
-            cardId = json.getString("card_id"),
-            parentCardId = json.optStringOrNull("parent_card_id"),
-            sortKey = json.getDouble("sort_key"),
-            revision = json.getLong("revision"),
-            movedIntoTitle = json.optStringOrNull("moved_into_title"),
+        val move = CardMove(
+            intent = CardMoveIntent.valueOf(intent.name),
+            targetCardId = targetCardId,
+            parentCardId = parentCardId?.let { Change.Set(it) } ?: Change.Keep,
         )
+        val card = saveLane.call { Cards.moveCard(it, projectId, cardId, move) }
+        return HolderCardMoveResult(cardId = card.cardId, parentCardId = card.parentCardId, sortKey = card.sortKey)
     }
 
     /** Soft-deletes (trashes) a card; it stops appearing in listCards until restored or purged. */
     fun deleteCard(projectId: String, cardId: String) {
-        saveLane.call { ContractCards.nativeTrashCard(it, projectId, cardId) }
+        saveLane.call { Cards.trashCard(it, projectId, cardId) }
     }
 
     /** Previous JSON trash path, retained for parity and timing during migration. */
@@ -1018,7 +1015,7 @@ object HolderNative {
     }
 
     fun listTrashedCards(projectId: String): List<HolderTrashedCard> =
-        readLane.call { ContractCards.nativeListTrashedCards(it, projectId) }.map { item ->
+        readLane.call { Trash.listTrash(it, projectId, type = "card") }.map { item ->
             HolderTrashedCard(
                 cardId = requireNotNull(item.cardId),
                 title = requireNotNull(item.title),
@@ -1034,7 +1031,7 @@ object HolderNative {
 
     /** Restores a trashed card so it reappears in listCards. Fails if cardId isn't trashed. */
     fun restoreCard(projectId: String, cardId: String): HolderCard =
-        fromContractMetadata(saveLane.call { ContractCards.nativeRestoreCard(it, projectId, cardId) })
+        fromContractCard(saveLane.call { Cards.restoreCard(it, projectId, cardId) })
 
     /** Previous JSON restore path, retained for parity and timing during migration. */
     internal fun restoreCardJsonForBenchmark(cardId: String): HolderCard =
@@ -1042,11 +1039,11 @@ object HolderNative {
 
     /** Permanently deletes a trashed card. Irreversible. Fails if cardId isn't trashed. */
     fun purgeCard(projectId: String, cardId: String) {
-        saveLane.call { ContractCards.nativePurgeCard(it, projectId, cardId) }
+        saveLane.call { Trash.deleteProjectTrashItem(it, projectId, DeleteProjectTrashItemType.CARD, cardId) }
     }
 
     fun emptyCardTrash(projectId: String) {
-        saveLane.call { ContractCards.nativeEmptyCardTrash(it, projectId) }
+        saveLane.call { Trash.emptyTrash(it, projectId, EmptyTrashType.CARD) }
     }
 
     /** cardId's editing-session-grouped history within projectId's repository, most-recent
@@ -1239,7 +1236,7 @@ object HolderNative {
 
     /** cardId's #tags, as extracted from its body (including any added via addCardTag). */
     fun listCardTags(projectId: String, cardId: String): List<String> =
-        readLane.call { ContractCards.nativeListCardTags(it, projectId, cardId) }
+        readLane.call { Cards.getCard(it, projectId, cardId) }.tags
 
     /** Previous JSON path, retained for parity during migration. */
     internal fun listCardTagsJsonForBenchmark(cardId: String): List<String> {
@@ -1247,38 +1244,31 @@ object HolderNative {
         return List(tags.length()) { index -> tags.getString(index) }
     }
 
-    enum class AddTagResult { ADDED, ALREADY_PRESENT }
-
     /** Holder's semantic tag operation -- callers should use this instead of editing #tag text
      * into a card's body themselves, so core stays free to change how tags are represented
      * later without every caller changing too.
      *
      * Adds tag to cardId, normalized to lowercase. Writes it to the card's trailing tag line
      * (its last non-blank line, when that line is nothing but #tags), creating one if none
-     * exists yet. A no-op (ALREADY_PRESENT) if the tag already occurs anywhere in the card,
-     * including inline in prose -- a card is either tagged or it isn't, regardless of where the
-     * tag text lives. */
-    fun addCardTag(cardId: String, tag: String): AddTagResult =
-        when (saveLane.call { nativeCardTagAdd(it, cardId, tag) }) {
-            0 -> AddTagResult.ADDED // HOLDER_TAG_ADD_ADDED
-            1 -> AddTagResult.ALREADY_PRESENT // HOLDER_TAG_ADD_ALREADY_PRESENT
-            else -> error("unexpected add_tag status")
-        }
+     * exists yet. A card that already carries the tag, anywhere in it, is left as it is -- a
+     * card is either tagged or it isn't, regardless of where the tag text lives. */
+    fun addCardTag(projectId: String, cardId: String, tag: String) {
+        saveLane.call { Cards.addCardTag(it, projectId, cardId, tag) }
+    }
 
-    enum class RemoveTagResult { REMOVED, NOT_PRESENT, PRESENT_OUTSIDE_EDITABLE_TAG_LINE }
+    enum class RemoveTagResult { REMOVED, PRESENT_OUTSIDE_EDITABLE_TAG_LINE }
 
     /** Removes tag from cardId, normalized to lowercase. Only ever removes text from the card's
-     * trailing tag line (see addCardTag) -- this never rewrites prose. If tag occurs only in
-     * prose, returns PRESENT_OUTSIDE_EDITABLE_TAG_LINE rather than silently failing: the card
-     * remains tagged since nothing was removed, and the caller should point the user at the
-     * text itself. */
-    fun removeCardTag(cardId: String, tag: String): RemoveTagResult =
-        when (saveLane.call { nativeCardTagRemove(it, cardId, tag) }) {
-            0 -> RemoveTagResult.REMOVED // HOLDER_TAG_REMOVE_REMOVED
-            1 -> RemoveTagResult.NOT_PRESENT // HOLDER_TAG_REMOVE_NOT_PRESENT
-            2 -> RemoveTagResult.PRESENT_OUTSIDE_EDITABLE_TAG_LINE // HOLDER_TAG_REMOVE_PRESENT_OUTSIDE_EDITABLE_TAG_LINE
-            else -> error("unexpected remove_tag status")
-        }
+     * trailing tag line (see addCardTag) -- this never rewrites prose; a card that does not
+     * carry the tag is left as it is. If tag occurs only in prose, returns
+     * PRESENT_OUTSIDE_EDITABLE_TAG_LINE rather than silently failing: the card remains tagged
+     * since nothing was removed, and the caller should point the user at the text itself. */
+    fun removeCardTag(projectId: String, cardId: String, tag: String): RemoveTagResult = try {
+        saveLane.call { Cards.removeCardTag(it, projectId, cardId, tag) }
+        RemoveTagResult.REMOVED
+    } catch (_: ConflictException) {
+        RemoveTagResult.PRESENT_OUTSIDE_EDITABLE_TAG_LINE
+    }
 
     /** The subset of cardId's tags that removeCardTag can actually remove -- those on the
      * card's trailing tag line. A tag can be in this list and still occur in prose elsewhere;
@@ -1298,9 +1288,8 @@ object HolderNative {
         readLane.call { context ->
             var cursor: String? = null
             do {
-                val page = ContractOperations.nativeListCards(
-                    context, projectId, tag = tag, order = "updated_desc", limit = pageSize, cursor = cursor,
-                )
+                val page = Cards.listCards(context, projectId, tag = tag, order = ListCardsOrder.UPDATED_DESC,
+                                           limit = pageSize, cursor = cursor)
                 result.ensureCapacity(result.size + page.items.size)
                 page.items.forEach { card -> result.add(HolderCardRef(cardId = card.cardId, title = card.title)) }
                 cursor = page.nextCursor
@@ -1316,7 +1305,7 @@ object HolderNative {
 
     /** Every distinct tag in projectId with how many cards carry it, most-used first. */
     fun listProjectTags(projectId: String): List<HolderTagCount> {
-        return readLane.call { ContractCards.nativeListProjectTags(it, projectId) }
+        return readLane.call { Cards.listProjectTags(it, projectId) }
             .map { HolderTagCount(tag = it.tag, count = it.cardCount) }
     }
 
@@ -1408,7 +1397,7 @@ object HolderNative {
     }
 
     fun searchCards(projectId: String, query: String, limit: Int = 50): List<HolderSearchResult> {
-        return readLane.call { ContractCards.nativeSearchCards(it, projectId, query, limit) }
+        return readLane.call { Search.searchCards(it, projectId, query, limit) }
             .map { HolderSearchResult(cardId = it.cardId, title = it.title, snippet = it.snippet) }
     }
 
@@ -1884,7 +1873,12 @@ object HolderNative {
         privacyMode = json.getString("privacy_mode"),
     )
 
-    private fun fromContractMetadata(card: ContractCardMetadata) = HolderCard(
+    private fun fromContractMetadata(card: CardMetadata) = HolderCard(
+        card.cardId, card.projectId, card.title, card.parentCardId,
+        card.createdAt, card.updatedAt, card.sortKey, card.deletedAt,
+    )
+
+    private fun fromContractCard(card: Card) = HolderCard(
         card.cardId, card.projectId, card.title, card.parentCardId,
         card.createdAt, card.updatedAt, card.sortKey, card.deletedAt,
     )

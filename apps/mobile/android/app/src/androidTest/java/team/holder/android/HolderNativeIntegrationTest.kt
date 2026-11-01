@@ -104,11 +104,11 @@ class HolderNativeIntegrationTest {
         val parent = HolderNative.createCard(project.projectId, "Parent 🌍", "Parent body #proof")
         val child = HolderNative.createCard(project.projectId, "Child", "Child body", parent.cardId)
 
-        val items = ArrayList<team.holder.android.generated.ContractCardListItem>()
+        val items = ArrayList<team.holder.android.contract.CardListItem>()
         var cursor: String? = null
         do {
             val page = HolderNative.listCardsPage(
-                project.projectId, order = "sort_key_asc", limit = 1, cursor = cursor,
+                project.projectId, order = team.holder.android.contract.ListCardsOrder.SORT_KEY_ASC, limit = 1, cursor = cursor,
                 includeContent = true, includeChildCount = true,
             )
             items.addAll(page.items)
@@ -119,11 +119,11 @@ class HolderNativeIntegrationTest {
         assertEquals(1, items.single { it.cardId == parent.cardId }.childCount)
         assertEquals("Child body", items.single { it.cardId == child.cardId }.content)
 
-        val roots = HolderNative.listCardsPage(project.projectId, parent = "roots")
+        val roots = HolderNative.listCardsPage(project.projectId, parent = team.holder.android.contract.ListCardsParent.Roots)
         assertEquals(listOf(parent.cardId), roots.items.map { it.cardId })
         assertNull(roots.items.single().content)
         assertNull(roots.items.single().childCount)
-        val children = HolderNative.listCardsPage(project.projectId, parent = parent.cardId)
+        val children = HolderNative.listCardsPage(project.projectId, parent = team.holder.android.contract.ListCardsParent.CardId(parent.cardId))
         assertEquals(listOf(child.cardId), children.items.map { it.cardId })
         val tagged = HolderNative.listCardsPage(project.projectId, tag = "proof")
         assertEquals(listOf(parent.cardId), tagged.items.map { it.cardId })
