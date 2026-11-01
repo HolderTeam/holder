@@ -90,15 +90,6 @@ class Card(CardMetadata):
     """Each tag written in the content, in order."""
 
 
-class Page[T](Record):
-    """One page of a listing."""
-
-    items: list[T]
-    """The page's items."""
-    next_cursor: str | None
-    """Pass back to get the next page; null on the last page."""
-
-
 class NewCard(Record):
     """A card to create."""
 

@@ -9,6 +9,7 @@ from authoring import Contract, Field, Int32
 from ..card_references import CardReferenceResolveData, CardReferenceResolveRequest
 from ..errors import Conflict, DataCorrupted, HierarchyInvalid, InvalidMove, KeyMissing, KeyringUnavailable, NotFound
 from ..operations.common import KEYS
+from ..pagination.models import Page
 from ..projects.ids import ProjectId
 from .models import (
     Card,
@@ -19,7 +20,6 @@ from .models import (
     CardMove,
     CardUpdate,
     NewCard,
-    Page,
     Tag,
     TagCount,
 )

@@ -18,31 +18,16 @@ SAMPLE = extract(CONTRACT / "tests" / "fixtures", "sample")
 
 
 def pydantic_type(name: str):
-    import interface.ai
-    import interface.card_references
+    import importlib
+
+    import interface
     import interface.cards
-    import interface.daemon_routes
-    import interface.git
-    import interface.history
-    import interface.links
-    import interface.locations
-    import interface.maintenance
-    import interface.milestones
-    import interface.projects
-    import interface.rebuild
-    import interface.recovery
-    import interface.resources
-    import interface.search
-    import interface.trash
+    import interface.pagination.models
 
     if name == "Page":
-        return interface.cards.Page[interface.cards.CardListItem]
-    for module in (interface.ai, interface.card_references, interface.cards, interface.daemon_routes,
-                   interface.git, interface.history,
-                   interface.links, interface.maintenance, interface.milestones,
-                   interface.projects, interface.rebuild, interface.recovery, interface.resources, interface.search,
-                   interface.locations,
-                   interface.trash):
+        return interface.pagination.models.Page[interface.cards.CardListItem]
+    for module_name in interface.DECLARATION_ORDER:
+        module = importlib.import_module(f"interface.{module_name}")
         if hasattr(module, name):
             return getattr(module, name)
     raise AttributeError(name)

@@ -8,6 +8,7 @@ daemon's routes.
 DECLARATION_ORDER = (
     "ai",
     "card_references",
+    "pagination.models",
     "projects.ids",
     "cards.models",
     "daemon_routes",
