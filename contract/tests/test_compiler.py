@@ -1,10 +1,14 @@
 """The compiler reads a supplied declaration package, independent of Holder's models."""
 
+from pathlib import Path
+
 import pytest
 
+from compiler.builder import build_ir
 from compiler.errors import ContractError
 from compiler.ir import NamedType
 from compiler.pipeline import Compiler, ContractSource
+from compiler.source import load_source
 
 
 def test_compiler_accepts_an_unrelated_contract_package(tmp_path):
@@ -81,3 +85,9 @@ class {record_name}(Record):
 def test_missing_source_package_is_a_compiler_error(tmp_path):
     with pytest.raises(ContractError, match="contract package does not exist"):
         Compiler().compile(ContractSource(tmp_path, "missing_catalog"))
+
+
+def test_builder_produces_typed_ir_before_legacy_serialization():
+    root = Path(__file__).resolve().parents[1]
+    ir = build_ir(load_source(ContractSource(root, "interface")))
+    assert isinstance(ir.operation("list_cards").returns, NamedType)

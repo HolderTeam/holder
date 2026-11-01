@@ -17,6 +17,7 @@ class View(BaseModel):
 
 class TypeView(View):
     model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: str
     min_length: int | None = None
     max_length: int | None = None
     pattern: str | None = None
@@ -81,8 +82,8 @@ TypeRef = Annotated[
 
 class FieldView(View):
     name: str
-    type: TypeRef
     doc: str | None = None
+    type: TypeRef
     omittable: bool = False
     default: Any = None
 
@@ -105,9 +106,9 @@ class RecordView(View):
 
 class AliasView(View):
     name: str
-    type: TypeRef
     source: str | None = None
     doc: str | None = None
+    type: TypeRef
 
 
 class EnumMemberView(View):
@@ -124,8 +125,8 @@ class EnumView(View):
 
 class ErrorFieldView(View):
     name: str
-    type: TypeRef
     doc: str | None = None
+    type: TypeRef
 
 
 class ErrorView(View):
@@ -180,11 +181,11 @@ class HttpBindingView(View):
     path: str
     path_parameters: list[str]
     query: list[str]
+    status: int
     headers: list[str] = Field(default_factory=list)
     public: bool = False
-    status: int
-    body: str | None = None
     created_when: str | None = None
+    body: str | None = None
 
 
 class HttpErrorView(View):
@@ -194,9 +195,9 @@ class HttpErrorView(View):
 
 class ContractView(View):
     ir_version: Literal[1]
-    records: list[RecordView]
     aliases: list[AliasView]
     enums: list[EnumView]
+    records: list[RecordView]
     errors: list[ErrorView]
     interfaces: list[InterfaceView]
     operations: list[OperationView]

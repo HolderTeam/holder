@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from holder_contract.extract import build_ir
-
+from .builder import build_ir
 from .ir import ContractView
 from .source import ContractSource, load_source
 
@@ -13,4 +12,4 @@ class Compiler:
 
     def compile(self, source: ContractSource) -> ContractView:
         loaded = load_source(source)
-        return ContractView.model_validate(build_ir(loaded))
+        return build_ir(loaded)
