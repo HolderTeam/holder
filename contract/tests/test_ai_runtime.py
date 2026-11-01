@@ -4,8 +4,8 @@ import json
 import re
 from pathlib import Path
 
+from generators.daemon.paths import route_pattern
 from holder_contract.extract import extract
-from holder_contract.http_routes import route_pattern
 
 ROOT = Path(__file__).resolve().parents[2]
 

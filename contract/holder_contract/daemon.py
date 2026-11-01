@@ -12,8 +12,8 @@ from generators.core.types import CoreTypes
 from generators.daemon.ai_json import generate_ai_codec
 from generators.daemon.ai_routes import generate_ai_routes
 from generators.daemon.contract_json import generate_codec
+from generators.daemon.contract_routes import generate_routes
 
-from .http_routes import generate_routes
 from .openapi import document, dumps, merge
 
 # Included as the daemon includes them: core's C++ declarations from its SDK, the codec beside the routes.

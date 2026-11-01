@@ -14,12 +14,12 @@ import pytest
 
 from compiler.ir import ContractView, HttpBindingView
 from generators.common import Unsupported
+from generators.daemon.contract_routes import generate_routes
 from generators.daemon.http import plan_http
 from generators.daemon.paths import route_pattern, validate_routes
 from holder_contract.daemon import generate_daemon
 from holder_contract.extract import extract, load_contract
 from holder_contract.generate import generate
-from holder_contract.http_routes import generate_routes
 from holder_contract.openapi import ERROR_SCHEMAS, document, dumps, exact_bounds, merge, named_by_title
 
 CONTRACT = Path(__file__).resolve().parents[1]

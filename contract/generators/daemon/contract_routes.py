@@ -22,12 +22,13 @@ import json
 import re
 
 from compiler.ir import ContractView, LiteralType, ScalarType, TypeRef, UnionType
-from generators.common import Unsupported, contract_sources, header_lines
-from generators.core.abi import SCALARS_CPP, snake
-from generators.core.render import cpp_literal
-from generators.core.types import camel
-from generators.daemon.http import HttpArgument, HttpRoute, plan_http
-from generators.daemon.paths import route_pattern, route_priority, route_segments, validate_routes
+
+from ..common import Unsupported, contract_sources, header_lines
+from ..core.abi import SCALARS_CPP, snake
+from ..core.render import cpp_literal
+from ..core.types import camel
+from .http import HttpArgument, HttpRoute, plan_http
+from .paths import route_pattern, route_priority, route_segments, validate_routes
 
 NAMESPACE = "contract_http"
 INVALID_ARGUMENT = (400, "invalid_argument")
@@ -279,7 +280,7 @@ def generate_routes(contract: ContractView, codec_header: str) -> str:
     all_bindings = plan.bindings
     statuses = plan.error_statuses
     lines = [*header_lines(contract_sources(typed), "The daemon's HTTP routes for the contract's operations; "
-                                     "contract/holder_contract/http_routes.py says how they behave.", "cpp"),
+                                     "contract/generators/daemon/contract_routes.py says how they behave.", "cpp"),
              "#pragma once",
              f'#include "{codec_header}"',
              "#include <charconv>",
