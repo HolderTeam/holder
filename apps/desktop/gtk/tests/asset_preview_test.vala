@@ -130,6 +130,13 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
                                                                             string tag) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
+    public async Gee.ArrayList<HolderLinux.LinkKindLabels> list_link_kinds() throws Error {
+        var kinds = new Gee.ArrayList<HolderLinux.LinkKindLabels>();
+        kinds.add(new HolderLinux.LinkKindLabels("ref", "References", "Referenced by"));
+        kinds.add(new HolderLinux.LinkKindLabels("depends_on", "Depends on", "Required by"));
+        return kinds;
+    }
+
     public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string project_id, string card_id) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }

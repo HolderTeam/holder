@@ -112,7 +112,7 @@ public class ConnectionsRelationsPresenter : Object {
                     targets.add(Markup.escape_text(target_id));
                 }
             }
-            lines.add("%s: %s".printf(Markup.escape_text(group.kind), join_parts(", ", targets)));
+            lines.add("%s: %s".printf(Markup.escape_text(controller.link_kind_label(group.kind, outgoing)), join_parts(", ", targets)));
         }
         return join_parts("\n", lines);
     }

@@ -223,16 +223,39 @@ private void test_compact_structure_markup_children_are_space_separated() {
     ));
 }
 
+private Gee.ArrayList<LinkKindLabels> test_link_kind_catalog() {
+    var kinds = new Gee.ArrayList<LinkKindLabels>();
+    kinds.add(new LinkKindLabels("ref", "References", "Referenced by"));
+    kinds.add(new LinkKindLabels("depends_on", "Depends on", "Required by"));
+    return kinds;
+}
+
 private void test_list_available_link_kinds_null_settings_defaults() {
     var controller = new ConnectionsController();
+    // Before the daemon's catalog has loaded, only the default kind is offered.
     var kinds = controller.list_available_link_kinds(null);
-    assert(kinds.size == 5);
+    assert(kinds.size == 1);
+    assert(kinds[0] == "ref");
+
+    controller.set_link_kinds(test_link_kind_catalog());
+    kinds = controller.list_available_link_kinds(null);
+    assert(kinds.size == 2);
     assert(kinds[0] == "ref");
     assert(kinds[1] == "depends_on");
 }
 
+private void test_link_kind_label_reads_each_end_and_capitalises_unknown_kinds() {
+    var controller = new ConnectionsController();
+    controller.set_link_kinds(test_link_kind_catalog());
+    assert(controller.link_kind_label("depends_on", true) == "Depends on");
+    assert(controller.link_kind_label("depends_on", false) == "Required by");
+    assert(controller.link_kind_label("my_kind", true) == "My kind");
+    assert(controller.link_kind_label("my_kind", false) == "My kind");
+}
+
 private void test_list_available_link_kinds_merges_custom_kinds_from_settings() {
     var controller = new ConnectionsController();
+    controller.set_link_kinds(test_link_kind_catalog());
     var settings = AppSettings.open_or_null();
     if (settings == null) {
         assert(true);
@@ -902,6 +925,8 @@ public static int main(string[] args) {
                   test_compact_structure_markup_children_are_space_separated);
     Test.add_func("/holder/connections/list_available_link_kinds_null_settings_defaults",
                   test_list_available_link_kinds_null_settings_defaults);
+    Test.add_func("/holder/connections/link_kind_label_reads_each_end_and_capitalises_unknown_kinds",
+                  test_link_kind_label_reads_each_end_and_capitalises_unknown_kinds);
     Test.add_func("/holder/connections/list_available_link_kinds_merges_custom_kinds_from_settings",
                   test_list_available_link_kinds_merges_custom_kinds_from_settings);
     Test.add_func("/holder/connections/remember_custom_link_kind_with_settings",
