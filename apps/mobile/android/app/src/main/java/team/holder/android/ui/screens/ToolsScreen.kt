@@ -289,7 +289,7 @@ fun ToolsScreen(
                     ToolTile(title = "Resources", onClick = onResourcesClick) {
                         when (linksState) {
                             is LoadState.Loading -> LoadingLine()
-                            else -> ResourcesTileBody(requireNotNull(resourceAttachments))
+                            else -> ResourcesTileBody(projectId, requireNotNull(resourceAttachments))
                         }
                     }
                 }
@@ -424,16 +424,17 @@ private fun ConnectionsTileBody(
  * full Resources screen uses -- a bare count would throw away exactly the glanceable
  * information a preview is for. */
 @Composable
-private fun ResourcesTileBody(attachments: List<HolderOutgoingLink>) {
+private fun ResourcesTileBody(projectId: String, attachments: List<HolderOutgoingLink>) {
     attachments.take(2).forEach { link ->
         val displayName = link.label ?: "Attachment"
-        val kind = rememberResourceAttachmentKind(link.toCardId, displayName)
+        val kind = rememberResourceAttachmentKind(projectId, link.toCardId, displayName)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         ) {
             if (kind is ResourceAttachmentKind.Image) {
                 ResourceImage(
+                    projectId = projectId,
                     resourceId = link.toCardId,
                     altText = displayName,
                     modifier = Modifier.size(24.dp).clip(MaterialTheme.shapes.extraSmall),

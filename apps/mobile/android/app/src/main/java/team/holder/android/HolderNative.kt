@@ -33,6 +33,7 @@ import team.holder.android.contract.NotFoundException
 import team.holder.android.contract.RemoveCardLinkTargetType
 import team.holder.android.contract.History
 import team.holder.android.contract.ListProjectsOrder
+import team.holder.android.contract.Locations
 import team.holder.android.contract.Maintenance
 import team.holder.android.contract.Milestone
 import team.holder.android.contract.MilestoneDate
@@ -40,6 +41,8 @@ import team.holder.android.contract.MilestoneUpdate
 import team.holder.android.contract.Milestones
 import team.holder.android.contract.NewMilestone
 import team.holder.android.contract.NewProject
+import team.holder.android.contract.NewStorageLocation
+import team.holder.android.contract.NewStorageLocationProvider
 import team.holder.android.contract.NewProjectPrivacyMode
 import team.holder.android.contract.Project
 import team.holder.android.contract.ProjectUpdate
@@ -52,6 +55,7 @@ import team.holder.android.contract.RecoveryTokenExportRequest
 import team.holder.android.contract.RecoveryTokenImportRequest
 import team.holder.android.contract.RemoteTest
 import team.holder.android.contract.RemoteTestResultStatus
+import team.holder.android.contract.Resource
 import team.holder.android.contract.Resources
 import org.json.JSONArray
 import org.json.JSONObject
@@ -493,8 +497,6 @@ object HolderNative {
     private external fun nativeCardListEditableTags(contextHandle: Long, cardId: String): String
     private external fun nativeRecoveryTokenInspect(pin: String, recoveryToken: String): String
     private external fun nativeLocationList(contextHandle: Long, projectId: String): String
-    private external fun nativeLocationPutJson(contextHandle: Long, locationJson: String): String
-    private external fun nativeResourceGet(contextHandle: Long, resourceId: String): String
     private external fun nativeAssetImportFile(
         contextHandle: Long,
         projectId: String,
@@ -1457,7 +1459,7 @@ object HolderNative {
 
     /** Creates or updates a storage location. locationId identifies which -- pass a fresh
      * uuid to create one. */
-    fun putLocation(
+    fun createLocation(
         locationId: String,
         projectId: String,
         name: String,
@@ -1465,23 +1467,23 @@ object HolderNative {
         configuration: Map<String, String>,
         now: Long,
     ): HolderLocation {
-        val body = JSONObject().apply {
-            put("location_id", locationId)
-            put("project_id", projectId)
-            put("name", name)
-            put("provider", provider)
-            put("configuration", JSONObject(configuration))
-            put("created_at", now)
-            put("updated_at", now)
-        }
-        return parseLocation(JSONObject(saveLane.call { nativeLocationPutJson(it, body.toString()) }))
+        val location = NewStorageLocation(
+            locationId = locationId, projectId = projectId, name = name,
+            provider = NewStorageLocationProvider.entries.single { it.value == provider },
+            configuration = configuration, createdAt = now, updatedAt = now,
+        )
+        val created = saveLane.call { Locations.createStorageLocation(it, location) }
+        return HolderLocation(created.locationId, created.projectId, created.name, created.provider.value,
+                              created.configuration, created.createdAt, created.updatedAt)
     }
 
-    fun getResource(resourceId: String): HolderResource =
-        parseResourceBundle(JSONObject(readLane.call { nativeResourceGet(it, resourceId) }))
+    fun getResource(projectId: String, resourceId: String): HolderResource =
+        fromContractResource(readLane.call { Resources.getResource(it, projectId, resourceId) })
 
-    fun listResources(projectId: String): List<HolderResource> {
-        return readLane.call { Resources.listResources(it, projectId) }.map { resource ->
+    fun listResources(projectId: String): List<HolderResource> =
+        readLane.call { Resources.listResources(it, projectId) }.map(::fromContractResource)
+
+    private fun fromContractResource(resource: Resource) =
             HolderResource(
                 resourceId = resource.resourceId,
                 projectId = resource.projectId,
@@ -1507,8 +1509,6 @@ object HolderNative {
                     ) },
                 ) },
             )
-        }
-    }
 
     /** Imports sourceFilePath into projectId's Resource/Asset model, stores it via
      * locationId's storage provider (see [team.holder.android.resource.AndroidStorageProvider]),
@@ -1587,43 +1587,6 @@ object HolderNative {
         createdAt = json.getLong("created_at"),
         updatedAt = json.getLong("updated_at"),
     )
-
-    private fun parsePlacement(json: JSONObject) = HolderPlacement(
-        placementId = json.getString("placement_id"),
-        locationId = json.getString("location_id"),
-        encoding = json.getString("encoding"),
-        storedByteSize = json.getLong("stored_byte_size"),
-        createdAt = json.getLong("created_at"),
-    )
-
-    private fun parseAsset(json: JSONObject): HolderAsset {
-        val placements = json.getJSONArray("placements")
-        return HolderAsset(
-            assetId = json.getString("asset_id"),
-            resourceId = json.getString("resource_id"),
-            originalFilename = json.getString("original_filename"),
-            mediaType = json.getString("media_type"),
-            byteSize = json.getLong("byte_size"),
-            plaintextSha256 = json.getString("plaintext_sha256"),
-            createdAt = json.getLong("created_at"),
-            updatedAt = json.getLong("updated_at"),
-            placements = List(placements.length()) { index -> parsePlacement(placements.getJSONObject(index)) },
-        )
-    }
-
-    private fun parseResourceBundle(json: JSONObject): HolderResource {
-        val resource = json.getJSONObject("resource")
-        val assets = json.getJSONArray("assets")
-        return HolderResource(
-            resourceId = resource.getString("resource_id"),
-            projectId = resource.getString("project_id"),
-            type = resource.getString("type"),
-            label = resource.getString("label"),
-            createdAt = resource.getLong("created_at"),
-            updatedAt = resource.getLong("updated_at"),
-            assets = List(assets.length()) { index -> parseAsset(assets.getJSONObject(index)) },
-        )
-    }
 
     /** Mirrors holder-daemon's Bootstrap.cpp: first line, only if it's a markdown heading. */
     private fun deriveWelcomeTitle(content: String, fallback: String): String {

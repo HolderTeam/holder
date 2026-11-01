@@ -409,62 +409,6 @@ Java_team_holder_android_HolderNative_nativeLocationList(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_team_holder_android_HolderNative_nativeLocationPutJson(
-    JNIEnv* env,
-    jobject /* thiz */,
-    jlong context_handle,
-    jstring location_json
-) {
-  holder_context* context = context_from_handle(env, context_handle);
-  if (context == nullptr) {
-    return nullptr;
-  }
-
-  UtfChars location_json_chars(env, location_json);
-  if (location_json_chars.get() == nullptr) {
-    throw_runtime(env, "location_json must not be null");
-    return nullptr;
-  }
-
-  char* json = nullptr;
-  holder_error* error = nullptr;
-  const int rc = holder_location_put_json(context, location_json_chars.get(), &json, &error);
-  if (rc != HOLDER_OK) {
-    throw_runtime(env, error_message(error));
-    return nullptr;
-  }
-  return string_result(env, json);
-}
-
-extern "C" JNIEXPORT jstring JNICALL
-Java_team_holder_android_HolderNative_nativeResourceGet(
-    JNIEnv* env,
-    jobject /* thiz */,
-    jlong context_handle,
-    jstring resource_id
-) {
-  holder_context* context = context_from_handle(env, context_handle);
-  if (context == nullptr) {
-    return nullptr;
-  }
-
-  UtfChars resource_id_chars(env, resource_id);
-  if (resource_id_chars.get() == nullptr) {
-    throw_runtime(env, "resource_id must not be null");
-    return nullptr;
-  }
-
-  char* json = nullptr;
-  holder_error* error = nullptr;
-  const int rc = holder_resource_get(context, resource_id_chars.get(), &json, &error);
-  if (rc != HOLDER_OK) {
-    throw_runtime(env, error_message(error));
-    return nullptr;
-  }
-  return string_result(env, json);
-}
-
-extern "C" JNIEXPORT jstring JNICALL
 Java_team_holder_android_HolderNative_nativeAssetImportFile(
     JNIEnv* env,
     jobject /* thiz */,

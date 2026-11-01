@@ -894,7 +894,7 @@ class HolderNativeIntegrationTest {
         fun addResource(projectId: String, name: String, body: String): String {
             val card = HolderNative.createCard(projectId, "Attachment host", "Body")
             val locationId = UUID.randomUUID().toString()
-            HolderNative.putLocation(locationId, projectId, "Local", "local_directory", emptyMap(),
+            HolderNative.createLocation(locationId, projectId, "Local", "local_directory", emptyMap(),
                 System.currentTimeMillis() / 1000)
             val source = File(dataDir, name).apply { writeText(body) }
             return HolderNative.importAsset(projectId, card.cardId, locationId, source.absolutePath).resourceId

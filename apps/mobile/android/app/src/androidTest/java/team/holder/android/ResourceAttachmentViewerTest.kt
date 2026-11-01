@@ -65,7 +65,7 @@ class ResourceAttachmentViewerTest {
         val card = HolderNative.createCard(project.projectId, "Notes", "# Notes\n\nBody")
 
         val locationId = UUID.randomUUID().toString()
-        HolderNative.putLocation(
+        HolderNative.createLocation(
             locationId = locationId,
             projectId = project.projectId,
             name = "Local",

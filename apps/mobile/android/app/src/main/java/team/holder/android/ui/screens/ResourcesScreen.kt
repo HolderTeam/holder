@@ -181,6 +181,7 @@ fun ResourcesScreen(
                         LazyColumn(modifier = Modifier.padding(innerPadding)) {
                             items(attachments, key = { "attachment:${it.toCardId}" }) { link ->
                                 AttachmentRow(
+                                    projectId = projectId,
                                     link = link,
                                     onOpenImage = { viewerAttachment = link },
                                     onDetach = { detachCandidate = link },
@@ -195,6 +196,7 @@ fun ResourcesScreen(
 
     viewerAttachment?.let { link ->
         ResourceImageViewerDialog(
+            projectId = projectId,
             resourceId = link.toCardId,
             altText = link.label ?: "Photo",
             onDismiss = { viewerAttachment = null },
@@ -319,18 +321,19 @@ fun ResourcesScreen(
  * by the Resource's own recorded media type, not by guesswork. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AttachmentRow(link: HolderOutgoingLink, onOpenImage: () -> Unit, onDetach: () -> Unit) {
+private fun AttachmentRow(projectId: String, link: HolderOutgoingLink, onOpenImage: () -> Unit, onDetach: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var openError by remember(link.toCardId) { mutableStateOf<String?>(null) }
     val displayName = link.label ?: "Attachment"
-    val kind = rememberResourceAttachmentKind(link.toCardId, displayName)
+    val kind = rememberResourceAttachmentKind(projectId, link.toCardId, displayName)
 
     Column {
         ListItem(
             leadingContent = {
                 if (kind is ResourceAttachmentKind.Image) {
                     ResourceImage(
+                        projectId = projectId,
                         resourceId = link.toCardId,
                         altText = displayName,
                         modifier = Modifier.size(48.dp).clip(MaterialTheme.shapes.small),
@@ -352,7 +355,7 @@ private fun AttachmentRow(link: HolderOutgoingLink, onOpenImage: () -> Unit, onD
                     } else {
                         openError = null
                         scope.launch {
-                            runCatching { openResourceExternally(context, link.toCardId) }
+                            runCatching { openResourceExternally(context, projectId, link.toCardId) }
                                 .onFailure { failure -> openError = failure.message ?: failure::class.java.simpleName }
                         }
                     }
