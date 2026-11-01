@@ -457,16 +457,20 @@ class HolderNativeIntegrationTest {
     @Test
     fun cardListing_followsCursorPastTheFirstPage() {
         initialize("# Welcome\n\nWelcome")
-        val cards = JSONArray()
-        repeat(5_001) { index ->
-            cards.put(JSONObject()
+        // Seeded as one restore, from copies of a real card's snapshot line with their identity changed.
+        val source = HolderNative.createProject("Seed source")
+        HolderNative.createCard(source.projectId, "Seed", "Body")
+        val template = JSONObject(HolderNative.recoverySnapshotPage(source.projectId, null, 1).lines.single())
+        val lines = List(5_001) { index ->
+            val card = JSONObject(template.getJSONObject("card").toString())
                 .put("card_id", "seed-$index")
                 .put("title", if (index == 5_000) "Café 日本語 📝" else "Card $index")
-                .put("body", "Body $index")
+                .put("content", "Body $index")
                 .put("created_at", index)
-                .put("updated_at", index))
+                .put("updated_at", index)
+            JSONObject(template.toString()).put("card", card).toString()
         }
-        val project = HolderNative.backupRestore("Paged cards", "plain", cards.toString(), "Seed card page")
+        val project = HolderNative.restoreRecoverySnapshot("Paged cards", "plain", lines.joinToString("\n"), "Seed card page")
 
         val listed = HolderNative.listCards(project.projectId)
         assertEquals(5_001, listed.size)
@@ -474,6 +478,42 @@ class HolderNativeIntegrationTest {
         assertEquals(List(5_000) { "Card $it" }.toSet() + "Café 日本語 📝", listed.map { it.title }.toSet())
         assertEquals(1, listed.count { it.title == "Café 日本語 📝" })
         assertEquals(listed, HolderNative.listCards(project.projectId))
+    }
+
+    @Test
+    fun backupSnapshot_restoresTheCardTreeIntoANewProject() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Backed up")
+        val parent = HolderNative.createCard(project.projectId, "Parent", "Parent body")
+        val child = HolderNative.createCard(project.projectId, "Child", "Child body", parent.cardId)
+        HolderNative.createCard(project.projectId, "Grandchild", "Grandchild body", child.cardId)
+
+        val file = File(dataDir, "backup/snapshot.jsonl.gz")
+        val written = team.holder.android.git.backup.SnapshotWriter.writeDeviceSnapshot(file, pageSize = 2)
+        assertFalse(written.truncated)
+        val group = team.holder.android.git.backup.SnapshotReader.readGroups(file)
+            .single { it.projectName == "Backed up" }
+        assertEquals(3, group.cardCount)
+        val restored = HolderNative.restoreRecoverySnapshot(group.projectName, group.privacyMode, group.snapshot, "Restore")
+
+        assertNotEquals(project.projectId, restored.projectId)
+        val cards = HolderNative.listCards(restored.projectId).associateBy { it.title }
+        assertEquals(setOf("Parent", "Child", "Grandchild"), cards.keys)
+        assertNull(cards.getValue("Parent").parentCardId)
+        assertEquals(cards.getValue("Parent").cardId, cards.getValue("Child").parentCardId)
+        assertEquals(cards.getValue("Child").cardId, cards.getValue("Grandchild").parentCardId)
+        assertTrue(cards.values.none { it.cardId in setOf(parent.cardId, child.cardId) })
+        assertEquals("Child body", HolderNative.getCardContent(restored.projectId, cards.getValue("Child").cardId))
+    }
+
+    @Test
+    fun backupSnapshot_restoreRefusesALineCoreCannotRead() {
+        initialize("# Welcome\n\nWelcome")
+        val before = HolderNative.listProjects().size
+        assertThrows(Exception::class.java) {
+            HolderNative.restoreRecoverySnapshot("Broken", "plain", "not a snapshot line", "Restore")
+        }
+        assertEquals(before, HolderNative.listProjects().size)
     }
 
     @Test

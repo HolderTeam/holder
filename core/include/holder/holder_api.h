@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
+ * Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -270,6 +270,21 @@ typedef struct holder_hierarchy_repair_request {
 typedef struct holder_rebuild_request {
     const char* project_id; /* The project to rebuild. */
 } holder_rebuild_request;
+
+/* The new project's privacy mode. */
+typedef enum holder_recovery_snapshot_restore_privacy_mode {
+    HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_ENCRYPTED_GIT = 1,
+    HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_PLAIN = 2,
+    HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_recovery_snapshot_restore_privacy_mode;
+
+/* A snapshot's cards to restore into a new project. */
+typedef struct holder_recovery_snapshot_restore {
+    const char* project_name; /* The new project's name. */
+    holder_recovery_snapshot_restore_privacy_mode privacy_mode; /* The new project's privacy mode. */
+    const char* snapshot; /* The cards' lines from read_recovery_snapshot, one per line. */
+    const char* commit_message; /* The message of the commit that adds the restored cards. */
+} holder_recovery_snapshot_restore;
 
 /* PIN used to wrap the project key. */
 typedef struct holder_recovery_token_export_request {
@@ -703,6 +718,157 @@ typedef struct holder_rebuild_result {
 typedef struct holder_reindex_result {
     const char* message; /* A short completion message. */
 } holder_reindex_result;
+
+/* What the link points at. Restore keeps links to cards and resources and drops the rest. */
+typedef enum holder_recovery_snapshot_link_target_type {
+    HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_CARD = 1,
+    HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_MESSAGE = 2,
+    HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_THREAD = 3,
+    HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_RESOURCE = 4,
+    HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_recovery_snapshot_link_target_type;
+
+/* A card's link, as a snapshot holds it. */
+typedef struct holder_recovery_snapshot_link {
+    holder_recovery_snapshot_link_target_type target_type; /* What the link points at. Restore keeps links to cards and resources and drops the rest. */
+    const char* target_id; /* What the link points at, by its ID when the snapshot was read. */
+    const char* target_project_id; /* For a card in another project, that project; restore keeps such a link as it is. NULL when absent. */
+    const char* kind; /* What the link means. */
+    const char* label; /* The link's label; null when it has none. May be NULL. */
+} holder_recovery_snapshot_link;
+
+typedef struct holder_recovery_snapshot_link_list {
+    const holder_recovery_snapshot_link* items;
+    size_t count;
+} holder_recovery_snapshot_link_list;
+
+/* A card's milestone, as a snapshot holds it. */
+typedef struct holder_recovery_snapshot_milestone {
+    holder_milestone_date_list dates; /* The milestone's dates. */
+    const char* kind; /* What the milestone is; null when unset. May be NULL. */
+    const char* description; /* More about the milestone; null when unset. May be NULL. */
+} holder_recovery_snapshot_milestone;
+
+typedef struct holder_recovery_snapshot_milestone_list {
+    const holder_recovery_snapshot_milestone* items;
+    size_t count;
+} holder_recovery_snapshot_milestone_list;
+
+/* How the copy's bytes are stored. */
+typedef enum holder_recovery_snapshot_placement_encoding {
+    HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_PLAIN = 1,
+    HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_HOLDER_ASSET_V1 = 2,
+    HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_recovery_snapshot_placement_encoding;
+
+/* Where a stored copy of an asset's bytes is, so a restored resource can still be read. */
+typedef struct holder_recovery_snapshot_placement {
+    const char* placement_id; /* The placement's ID when the snapshot was read; restore gives it a new one. */
+    const char* location_id; /* The storage location holding the copy, one of the snapshot card's locations. */
+    const char* object_key; /* The copy's key within its storage location. */
+    holder_recovery_snapshot_placement_encoding encoding; /* How the copy's bytes are stored. */
+    int64_t stored_byte_size; /* The stored copy's size in bytes. */
+    const char* stored_sha256; /* The SHA-256 of the stored copy's bytes, as hex. */
+    int64_t created_at; /* When the copy was stored. */
+} holder_recovery_snapshot_placement;
+
+typedef struct holder_recovery_snapshot_placement_list {
+    const holder_recovery_snapshot_placement* items;
+    size_t count;
+} holder_recovery_snapshot_placement_list;
+
+/* A file kept for a resource, as a snapshot holds it. */
+typedef struct holder_recovery_snapshot_asset {
+    const char* asset_id; /* The asset's ID when the snapshot was read; restore gives it a new one. */
+    const char* original_filename; /* The file's name when it was imported. */
+    const char* media_type; /* The file's media type. */
+    int64_t byte_size; /* The file's size in bytes. */
+    const char* plaintext_sha256; /* The SHA-256 of the file's bytes, as hex. */
+    holder_recovery_snapshot_placement_list placements; /* Where stored copies of the file are. */
+    int64_t created_at; /* When the asset was imported. */
+    int64_t updated_at; /* When the asset last changed. */
+} holder_recovery_snapshot_asset;
+
+typedef struct holder_recovery_snapshot_asset_list {
+    const holder_recovery_snapshot_asset* items;
+    size_t count;
+} holder_recovery_snapshot_asset_list;
+
+/* A resource a card links to, as a snapshot holds it. */
+typedef struct holder_recovery_snapshot_resource {
+    const char* resource_id; /* The resource's ID when the snapshot was read; restore gives it a new one and updates links and holder://resource/ references in content to it. */
+    const char* type; /* What kind of thing the resource is. */
+    const char* label; /* The resource's label. */
+    holder_resource_metadata metadata; /* The resource's metadata. */
+    holder_recovery_snapshot_asset_list assets; /* The files kept for the resource. */
+    int64_t created_at; /* When the resource was made. */
+    int64_t updated_at; /* When the resource last changed. */
+} holder_recovery_snapshot_resource;
+
+typedef struct holder_recovery_snapshot_resource_list {
+    const holder_recovery_snapshot_resource* items;
+    size_t count;
+} holder_recovery_snapshot_resource_list;
+
+/* Storage provider kind. */
+typedef enum holder_recovery_snapshot_location_provider {
+    HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_LOCAL_DIRECTORY = 1,
+    HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_S3_COMPATIBLE = 2,
+    HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_GOOGLE_DRIVE = 3,
+    HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_recovery_snapshot_location_provider;
+
+/* A storage location a card's resources use, as a snapshot holds it: its portable declaration only. */
+typedef struct holder_recovery_snapshot_location {
+    const char* location_id; /* The location's ID when the snapshot was read; restore gives it a new one. */
+    const char* name; /* Display name. */
+    holder_recovery_snapshot_location_provider provider; /* Storage provider kind. */
+    holder_location_configuration configuration; /* Portable non-secret provider configuration. */
+    int64_t created_at; /* When the declaration was made. */
+    int64_t updated_at; /* When the declaration last changed. */
+} holder_recovery_snapshot_location;
+
+typedef struct holder_recovery_snapshot_location_list {
+    const holder_recovery_snapshot_location* items;
+    size_t count;
+} holder_recovery_snapshot_location_list;
+
+/* That project's privacy mode. */
+typedef enum holder_recovery_snapshot_card_privacy_mode {
+    HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_ENCRYPTED_GIT = 1,
+    HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_PLAIN = 2,
+    HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_recovery_snapshot_card_privacy_mode;
+
+/* A card, as a snapshot holds it. */
+typedef struct holder_recovery_snapshot_card {
+    const char* card_id; /* The card's ID when the snapshot was read. Restore gives every card a new ID and uses this one only to keep links and the card tree between the cards it restores. */
+    const char* project_id; /* The project the card was read from. */
+    const char* project_name; /* That project's name. */
+    holder_recovery_snapshot_card_privacy_mode privacy_mode; /* That project's privacy mode. */
+    const char* title; /* The card's title. */
+    const char* content; /* The card's body. */
+    const char* parent_card_id; /* The card's parent; null for a root card. Restore keeps a parent it also restores, and otherwise makes the card a root. May be NULL. */
+    double sort_key; /* The card's place among its siblings; lower comes first. */
+    int64_t created_at; /* When the card was created. */
+    int64_t updated_at; /* When the card was last changed. */
+    holder_recovery_snapshot_link_list links; /* The card's outgoing links. */
+    holder_recovery_snapshot_milestone_list milestones; /* The card's milestones. */
+    holder_recovery_snapshot_resource_list resources; /* The resources the card links to. */
+    holder_recovery_snapshot_location_list locations; /* The storage locations those resources' assets are placed in. */
+} holder_recovery_snapshot_card;
+
+typedef struct holder_recovery_snapshot_card_list {
+    const holder_recovery_snapshot_card* items;
+    size_t count;
+} holder_recovery_snapshot_card_list;
+
+/* One page of a project's recovery snapshot. */
+typedef struct holder_recovery_snapshot_page {
+    holder_recovery_snapshot_card_list cards; /* The page's cards, most recently updated first. */
+    holder_string_list lines; /* Each card in core's encoding, in the same order: what a platform stores and later restores. */
+    const char* next_cursor; /* Pass back to read the next page; null on the last page. May be NULL. */
+} holder_recovery_snapshot_page;
 
 /* A portable encrypted project key. */
 typedef struct holder_project_recovery_token_export_result {
@@ -1466,6 +1632,23 @@ int holder_rebuild_project(holder_context* context, const holder_rebuild_request
 
 /* Rebuild all search indexes from database state. */
 int holder_reindex_search(holder_context* context, holder_arena* arena, const holder_reindex_result** out_reindex_result, holder_error** out_error);
+
+/* Read one page of a project's recovery snapshot: its live cards, most recently updated first.
+ * Each card comes as a record and as a line in core's encoding; a platform keeps the lines and
+ * later hands them to restore_recovery_snapshot. The daemon does not serve this.
+ * cursor: May be NULL.
+ * limit: NULL for 500.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_read_recovery_snapshot(holder_context* context, const char* project_id, const char* cursor, const int32_t* limit, holder_arena* arena, const holder_recovery_snapshot_page** out_recovery_snapshot_page, holder_error** out_error);
+
+/* Make a new project from a recovery snapshot's lines and commit the restored cards to it.
+ * Cards, resources, assets, placements and storage locations get new IDs; links between the restored
+ * cards and resources, holder://resource/ references in content and the card tree follow them. Lines
+ * are restored in any order. A line core cannot read fails the restore and leaves no project behind.
+ * The daemon does not serve this.
+ */
+int holder_restore_recovery_snapshot(holder_context* context, const holder_recovery_snapshot_restore* request, holder_arena* arena, const holder_project** out_project, holder_error** out_error);
 
 /* Wrap an encrypted project's key in a portable token protected by a PIN.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.

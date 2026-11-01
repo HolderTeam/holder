@@ -19,6 +19,9 @@ import team.holder.android.contract.ListCardsOrder
 import team.holder.android.contract.ListCardsParent
 import team.holder.android.contract.NewCard
 import team.holder.android.contract.Page
+import team.holder.android.contract.RecoverySnapshotPage
+import team.holder.android.contract.RecoverySnapshotRestore
+import team.holder.android.contract.RecoverySnapshotRestorePrivacyMode
 import team.holder.android.contract.Search
 import team.holder.android.contract.Trash
 import team.holder.android.contract.CardHistoryRestoreResult
@@ -95,20 +98,6 @@ data class HolderCard(
 )
 
 data class HolderTrashedCard(val cardId: String, val title: String, val deletedAt: Long)
-
-/** Matches holder_card_query_json's "view" values (lowercased on the wire). */
-/** One page of [HolderNative.backupSnapshotPage]: a project's cards, most-recently-updated
- * first. [cards] are kept as raw [JSONObject]s rather than reshaped into a typed data class --
- * [team.holder.android.git.backup.SnapshotWriter] writes each one straight through as one
- * JSONL line, unchanged, so restore can read the same fields back (card_id, project_id,
- * project_name, privacy_mode, title, body, created_at, updated_at, links, milestones) without
- * a round trip through a Kotlin model that would risk silently dropping a field. */
-data class BackupSnapshotPage(
-    val cards: List<JSONObject>,
-    val nextCursor: BackupSnapshotCursor?,
-)
-
-data class BackupSnapshotCursor(val updatedAt: Long, val cardId: String)
 
 data class HolderOutgoingLink(
     val toCardId: String,
@@ -469,20 +458,6 @@ object HolderNative {
     private external fun nativeContextOpen(dataDir: String, schemaSql: String): Long
     private external fun nativeContextClose(contextHandle: Long)
     private external fun nativeDatabaseRebuild(dataDir: String, schemaSql: String, dryRun: Boolean): String
-    private external fun nativeBackupSnapshotPage(
-        contextHandle: Long,
-        projectId: String,
-        cursorUpdatedAt: Long,
-        cursorCardId: String?,
-        limit: Int,
-    ): String
-    private external fun nativeBackupRestore(
-        contextHandle: Long,
-        projectName: String,
-        privacyMode: String?,
-        cardsJson: String,
-        commitMessage: String,
-    ): String
     private external fun nativeEnsureDefaultProject(
         contextHandle: Long,
         name: String,
@@ -699,41 +674,26 @@ object HolderNative {
         }
     }
 
-    /** One page of projectId's cards, most-recently-updated first, for
-     * [team.holder.android.git.backup.SnapshotWriter]. Pass cursorCardId = null for the first
-     * page; for later pages, pass back the previous page's [BackupSnapshotPage.nextCursor]. */
-    fun backupSnapshotPage(
-        projectId: String,
-        cursorUpdatedAt: Long,
-        cursorCardId: String?,
-        limit: Int,
-    ): BackupSnapshotPage {
-        val json = JSONObject(
-            backgroundLane.call { nativeBackupSnapshotPage(it, projectId, cursorUpdatedAt, cursorCardId, limit) },
-        )
-        val cardsJson = json.getJSONArray("cards")
-        val cards = List(cardsJson.length()) { cardsJson.getJSONObject(it) }
-        val cursorJson = json.optJSONObject("next_cursor")
-        val nextCursor = cursorJson?.let {
-            BackupSnapshotCursor(updatedAt = it.getLong("updated_at"), cardId = it.getString("card_id"))
-        }
-        return BackupSnapshotPage(cards = cards, nextCursor = nextCursor)
-    }
+    /** One page of projectId's recovery snapshot, most recently updated first, for
+     * [team.holder.android.git.backup.SnapshotWriter]. Pass cursor = null for the first page,
+     * then the previous page's [RecoverySnapshotPage.nextCursor]. */
+    fun recoverySnapshotPage(projectId: String, cursor: String?, limit: Int): RecoverySnapshotPage =
+        backgroundLane.call { Recovery.readRecoverySnapshot(it, projectId, cursor, limit) }
 
-    /** Bulk-restores one [team.holder.android.git.backup.SnapshotGroup]'s worth of cards
-     * (already `.toString()`'d as [cardsJson], a JSON array) into a brand-new project --
-     * fresh id, fresh git repo, no remote, one commit. See `holder_backup_restore` in
-     * holder.h for the full contract (fresh card_id per card, dangling-link handling,
-     * rollback on failure). */
-    fun backupRestore(
+    /** Restores [snapshot], recovery snapshot lines one per line, into a new project with one commit.
+     * Core gives every card, resource and storage location a new ID and keeps the card tree and
+     * links between them; a snapshot core cannot read fails and leaves no project behind. */
+    fun restoreRecoverySnapshot(
         projectName: String,
-        privacyMode: String?,
-        cardsJson: String,
+        privacyMode: String,
+        snapshot: String,
         commitMessage: String,
-    ): HolderProject =
-        parseProject(
-            JSONObject(saveLane.call { nativeBackupRestore(it, projectName, privacyMode, cardsJson, commitMessage) }),
-        )
+    ): HolderProject {
+        val mode = RecoverySnapshotRestorePrivacyMode.entries.singleOrNull { it.value == privacyMode }
+            ?: RecoverySnapshotRestorePrivacyMode.PLAIN
+        val request = RecoverySnapshotRestore(projectName, mode, snapshot, commitMessage)
+        return fromContractProject(saveLane.call { Recovery.restoreRecoverySnapshot(it, request) })
+    }
 
     /** Android's absent privacy mode means plain; the contract request defaults to encrypted_git. */
     fun createProject(name: String, privacyMode: String? = null): HolderProject {
@@ -1462,13 +1422,6 @@ object HolderNative {
     fun retrieveAsset(resourceId: String, assetId: String, placementId: String, destinationFilePath: String) {
         backgroundLane.call { nativeAssetRetrieve(it, resourceId, assetId, placementId, destinationFilePath) }
     }
-
-    private fun parseProject(json: JSONObject) = HolderProject(
-        projectId = json.getString("project_id"),
-        name = json.getString("name"),
-        gitRemoteUrl = json.optStringOrNull("git_remote_url"),
-        privacyMode = json.getString("privacy_mode"),
-    )
 
     private fun fromContractMetadata(card: CardMetadata) = HolderCard(
         card.cardId, card.projectId, card.title, card.parentCardId,

@@ -4,10 +4,11 @@ from typing import Annotated
 
 from fastapi import Body, Path
 
-from authoring import Contract
+from authoring import Contract, Field, Int32
 
 from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..projects.ids import ProjectId
+from ..projects.models import Project
 from .errors import RecoveryTokenInvalid
 from .models import (
     ProjectRecoveryTokenExportResult,
@@ -16,9 +17,29 @@ from .models import (
     RecoveryTokenGlobalImportResult,
     RecoveryTokenImportRequest,
 )
+from .snapshot import RecoverySnapshotPage, RecoverySnapshotRestore
 
 
 def register(contract: Contract) -> None:
+    @contract.core_operation(errors=[NotFound])
+    def read_recovery_snapshot(project_id: ProjectId, cursor: str | None = None,
+                               limit: Annotated[Int32, Field(ge=1, le=500)] = 500) -> RecoverySnapshotPage:
+        """Read one page of a project's recovery snapshot: its live cards, most recently updated first.
+
+        Each card comes as a record and as a line in core's encoding; a platform keeps the lines and
+        later hands them to restore_recovery_snapshot. The daemon does not serve this.
+        """
+
+    @contract.core_operation()
+    def restore_recovery_snapshot(request: RecoverySnapshotRestore) -> Project:
+        """Make a new project from a recovery snapshot's lines and commit the restored cards to it.
+
+        Cards, resources, assets, placements and storage locations get new IDs; links between the restored
+        cards and resources, holder://resource/ references in content and the card tree follow them. Lines
+        are restored in any order. A line core cannot read fails the restore and leaves no project behind.
+        The daemon does not serve this.
+        """
+
     @contract.route("POST", "/projects/{project_id}/recovery-token/export",
                     errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def export_project_recovery_token(

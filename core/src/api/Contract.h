@@ -1,4 +1,4 @@
-// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
+// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -250,6 +250,17 @@ struct HierarchyRepairRequest {
 /// The project whose files should be read into the database.
 struct RebuildRequest {
   std::string project_id;  ///< The project to rebuild.
+};
+
+/// The new project's privacy mode.
+enum class RecoverySnapshotRestorePrivacyMode { EncryptedGit, Plain };
+
+/// A snapshot's cards to restore into a new project.
+struct RecoverySnapshotRestore {
+  std::string project_name;  ///< The new project's name.
+  RecoverySnapshotRestorePrivacyMode privacy_mode;  ///< The new project's privacy mode.
+  std::string snapshot;  ///< The cards' lines from read_recovery_snapshot, one per line.
+  std::string commit_message;  ///< The message of the commit that adds the restored cards.
 };
 
 /// PIN used to wrap the project key.
@@ -523,6 +534,103 @@ struct RebuildResult {
 /// Completion of a full database search-index rebuild.
 struct ReindexResult {
   std::string message;  ///< A short completion message.
+};
+
+/// What the link points at. Restore keeps links to cards and resources and drops the rest.
+enum class RecoverySnapshotLinkTargetType { Card, AiMessage, AiThread, Resource };
+
+/// A card's link, as a snapshot holds it.
+struct RecoverySnapshotLink {
+  RecoverySnapshotLinkTargetType target_type;  ///< What the link points at. Restore keeps links to cards and resources and drops the rest.
+  std::string target_id;  ///< What the link points at, by its ID when the snapshot was read.
+  std::optional<std::string> target_project_id;  ///< For a card in another project, that project; restore keeps such a link as it is.
+  std::string kind;  ///< What the link means.
+  std::optional<std::string> label;  ///< The link's label; null when it has none.
+};
+
+/// A card's milestone, as a snapshot holds it.
+struct RecoverySnapshotMilestone {
+  std::vector<MilestoneDate> dates;  ///< The milestone's dates.
+  std::optional<std::string> kind;  ///< What the milestone is; null when unset.
+  std::optional<std::string> description;  ///< More about the milestone; null when unset.
+};
+
+/// How the copy's bytes are stored.
+enum class RecoverySnapshotPlacementEncoding { Plain, HolderAssetV1 };
+
+/// Where a stored copy of an asset's bytes is, so a restored resource can still be read.
+struct RecoverySnapshotPlacement {
+  std::string placement_id;  ///< The placement's ID when the snapshot was read; restore gives it a new one.
+  std::string location_id;  ///< The storage location holding the copy, one of the snapshot card's locations.
+  std::string object_key;  ///< The copy's key within its storage location.
+  RecoverySnapshotPlacementEncoding encoding;  ///< How the copy's bytes are stored.
+  long long stored_byte_size{};  ///< The stored copy's size in bytes.
+  std::string stored_sha256;  ///< The SHA-256 of the stored copy's bytes, as hex.
+  long long created_at{};  ///< When the copy was stored.
+};
+
+/// A file kept for a resource, as a snapshot holds it.
+struct RecoverySnapshotAsset {
+  std::string asset_id;  ///< The asset's ID when the snapshot was read; restore gives it a new one.
+  std::string original_filename;  ///< The file's name when it was imported.
+  std::string media_type;  ///< The file's media type.
+  long long byte_size{};  ///< The file's size in bytes.
+  std::string plaintext_sha256;  ///< The SHA-256 of the file's bytes, as hex.
+  std::vector<RecoverySnapshotPlacement> placements;  ///< Where stored copies of the file are.
+  long long created_at{};  ///< When the asset was imported.
+  long long updated_at{};  ///< When the asset last changed.
+};
+
+/// A resource a card links to, as a snapshot holds it.
+struct RecoverySnapshotResource {
+  std::string resource_id;  ///< The resource's ID when the snapshot was read; restore gives it a new one and updates links and holder://resource/ references in content to it.
+  std::string type;  ///< What kind of thing the resource is.
+  std::string label;  ///< The resource's label.
+  std::map<std::string, std::vector<std::string>> metadata;  ///< The resource's metadata.
+  std::vector<RecoverySnapshotAsset> assets;  ///< The files kept for the resource.
+  long long created_at{};  ///< When the resource was made.
+  long long updated_at{};  ///< When the resource last changed.
+};
+
+/// Storage provider kind.
+enum class RecoverySnapshotLocationProvider { LocalDirectory, S3Compatible, GoogleDrive };
+
+/// A storage location a card's resources use, as a snapshot holds it: its portable declaration only.
+struct RecoverySnapshotLocation {
+  std::string location_id;  ///< The location's ID when the snapshot was read; restore gives it a new one.
+  std::string name;  ///< Display name.
+  RecoverySnapshotLocationProvider provider;  ///< Storage provider kind.
+  std::map<std::string, std::string> configuration;  ///< Portable non-secret provider configuration.
+  long long created_at{};  ///< When the declaration was made.
+  long long updated_at{};  ///< When the declaration last changed.
+};
+
+/// That project's privacy mode.
+enum class RecoverySnapshotCardPrivacyMode { EncryptedGit, Plain };
+
+/// A card, as a snapshot holds it.
+struct RecoverySnapshotCard {
+  std::string card_id;  ///< The card's ID when the snapshot was read. Restore gives every card a new ID and uses this one only to keep links and the card tree between the cards it restores.
+  std::string project_id;  ///< The project the card was read from.
+  std::string project_name;  ///< That project's name.
+  RecoverySnapshotCardPrivacyMode privacy_mode;  ///< That project's privacy mode.
+  std::string title;  ///< The card's title.
+  std::string content;  ///< The card's body.
+  std::optional<std::string> parent_card_id;  ///< The card's parent; null for a root card. Restore keeps a parent it also restores, and otherwise makes the card a root.
+  double sort_key{};  ///< The card's place among its siblings; lower comes first.
+  long long created_at{};  ///< When the card was created.
+  long long updated_at{};  ///< When the card was last changed.
+  std::vector<RecoverySnapshotLink> links;  ///< The card's outgoing links.
+  std::vector<RecoverySnapshotMilestone> milestones;  ///< The card's milestones.
+  std::vector<RecoverySnapshotResource> resources;  ///< The resources the card links to.
+  std::vector<RecoverySnapshotLocation> locations;  ///< The storage locations those resources' assets are placed in.
+};
+
+/// One page of a project's recovery snapshot.
+struct RecoverySnapshotPage {
+  std::vector<RecoverySnapshotCard> cards;  ///< The page's cards, most recently updated first.
+  std::vector<std::string> lines;  ///< Each card in core's encoding, in the same order: what a platform stores and later restores.
+  std::optional<std::string> next_cursor;  ///< Pass back to read the next page; null on the last page.
 };
 
 /// A portable encrypted project key.
@@ -1100,6 +1208,19 @@ RebuildResult rebuild_project(holder_context& context, const RebuildRequest& req
 
 /// Rebuild all search indexes from database state.
 ReindexResult reindex_search(holder_context& context);
+
+/// Read one page of a project's recovery snapshot: its live cards, most recently updated first.
+/// Each card comes as a record and as a line in core's encoding; a platform keeps the lines and
+/// later hands them to restore_recovery_snapshot. The daemon does not serve this.
+/// @throws NotFound
+RecoverySnapshotPage read_recovery_snapshot(holder_context& context, std::string project_id, std::optional<std::string> cursor, std::int32_t limit);
+
+/// Make a new project from a recovery snapshot's lines and commit the restored cards to it.
+/// Cards, resources, assets, placements and storage locations get new IDs; links between the restored
+/// cards and resources, holder://resource/ references in content and the card tree follow them. Lines
+/// are restored in any order. A line core cannot read fails the restore and leaves no project behind.
+/// The daemon does not serve this.
+Project restore_recovery_snapshot(holder_context& context, const RecoverySnapshotRestore& request);
 
 /// Wrap an encrypted project's key in a portable token protected by a PIN.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted

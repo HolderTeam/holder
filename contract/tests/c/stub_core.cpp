@@ -404,6 +404,24 @@ Project create_project(holder_context& context, const NewProject& request) {
   return project;
 }
 
+// A recovery snapshot of the stand-in's projects holds no cards; restoring one makes the project only.
+RecoverySnapshotPage read_recovery_snapshot(holder_context& context, std::string project_id,
+                                            std::optional<std::string> cursor, std::int32_t limit) {
+  (void)cursor, (void)limit;
+  project_named(context, project_id);
+  return {};
+}
+
+Project restore_recovery_snapshot(holder_context& context, const RecoverySnapshotRestore& request) {
+  if (!request.snapshot.empty()) throw InvalidArgument("the stand-in restores only empty snapshots");
+  NewProject project;
+  project.name = request.project_name;
+  project.privacy_mode = request.privacy_mode == RecoverySnapshotRestorePrivacyMode::Plain
+                             ? NewProjectPrivacyMode::Plain
+                             : NewProjectPrivacyMode::EncryptedGit;
+  return create_project(context, project);
+}
+
 Project update_project(holder_context& context, std::string project_id, const ProjectUpdate& update) {
   auto& project = project_named(context, project_id);
   if (update.name) project.name = *update.name;

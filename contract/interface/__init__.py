@@ -27,6 +27,7 @@ DECLARATION_ORDER = (
     "maintenance.rebuild",
     "recovery.models",
     "recovery.errors",
+    "recovery.snapshot",
     "resources.models",
     "search.models",
     "trash.models",

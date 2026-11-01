@@ -157,8 +157,9 @@ screen_has_text() {
 
 # --- Snapshot content helpers ------------------------------------------------------------
 
+# One snapshot file line: the card's project, and the card as core's recovery snapshot encodes it.
 printf '%s\n' \
-  '{"card_id":"regression-c1","project_id":"regression-p1","project_name":"Backup Regression Project","privacy_mode":"plain","title":"Regression Card","body":"Injected by backup_restore_regression.sh.","created_at":1000,"updated_at":1000}' \
+  '{"project_id":"regression-p1","project_name":"Backup Regression Project","privacy_mode":"plain","line":"{\"format\":\"holder-recovery-snapshot\",\"version\":1,\"card\":{\"card_id\":\"regression-c1\",\"project_id\":\"regression-p1\",\"project_name\":\"Backup Regression Project\",\"privacy_mode\":\"plain\",\"title\":\"Regression Card\",\"content\":\"Injected by backup_restore_regression.sh.\",\"parent_card_id\":null,\"sort_key\":1,\"created_at\":1000,\"updated_at\":1000,\"links\":[],\"milestones\":[],\"resources\":[],\"locations\":[]}}"}' \
   | gzip -c > "${FAKE_SNAPSHOT_LOCAL}"
 
 on_device_snapshot_matches_fake() {
