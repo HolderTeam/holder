@@ -6,24 +6,30 @@ modules in the IR, independently of file paths.
 """
 
 DECLARATION_ORDER = (
+    # Error codes in the C API follow error declaration order, from the shared errors first.
+    "errors",
     "ai.models",
     "cards.references",
     "pagination.models",
     "projects.ids",
     "cards.models",
+    "cards.errors",
     "daemon.models",
-    "errors",
     "events.models",
     "git.models",
     "history.models",
+    "history.errors",
     "links.models",
     "locations.models",
     "maintenance.models",
+    "maintenance.errors",
     "milestones.models",
     "projects.models",
     "maintenance.rebuild",
     "recovery.models",
+    "recovery.errors",
     "resources.models",
     "search.models",
     "trash.models",
+    "trash.errors",
 )

@@ -7,8 +7,9 @@ from fastapi import Path, Query
 from authoring import Contract, Int32
 
 from ..cards.models import CardId
-from ..errors import HistoryKeyUnavailable, HistoryResponseTooLarge, HistoryUnavailable, NotFound, RevisionAmbiguous
+from ..errors import NotFound
 from ..projects.ids import ProjectId
+from .errors import HistoryKeyUnavailable, HistoryResponseTooLarge, HistoryUnavailable, RevisionAmbiguous
 from .models import (
     CardHistoryComparison,
     CardHistoryPage,

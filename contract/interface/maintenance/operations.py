@@ -6,9 +6,10 @@ from fastapi import Body, Path
 
 from authoring import Contract
 
-from ..errors import NotFound, RebuildFailed
+from ..errors import NotFound
 from ..operations.common import KEYS
 from ..projects.ids import ProjectId
+from .errors import RebuildFailed
 from .models import HierarchyRepair, HierarchyRepairRequest, ProjectEncryptionCheck
 from .rebuild import RebuildRequest, RebuildResult, ReindexResult
 

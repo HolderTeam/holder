@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
+ * Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -37,14 +37,14 @@ typedef struct holder_arena holder_arena;
 #define HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE 108
 /* A commit ID prefix matches more than one revision; use a longer prefix or the full ID. */
 #define HOLDER_ERROR_REVISION_AMBIGUOUS 109
-/* The item still exists but is not in Trash, so permanent removal is refused. */
-#define HOLDER_ERROR_NOT_TRASHED 110
 /* The bounded History response would exceed 2 MiB. */
-#define HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE 111
+#define HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE 110
+/* A project's files cannot be read back into the database. */
+#define HOLDER_ERROR_REBUILD_FAILED 111
 /* The recovery token or its PIN is invalid, or the token belongs to another project. */
 #define HOLDER_ERROR_RECOVERY_TOKEN_INVALID 112
-/* A project's files cannot be read back into the database. */
-#define HOLDER_ERROR_REBUILD_FAILED 113
+/* The item still exists but is not in Trash, so permanent removal is refused. */
+#define HOLDER_ERROR_NOT_TRASHED 113
 
 holder_arena* holder_arena_new(void);
 void holder_arena_free(holder_arena* arena);

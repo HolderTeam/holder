@@ -6,8 +6,9 @@ from fastapi import Path, Query
 
 from authoring import Contract
 
-from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound, NotTrashed
+from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..projects.ids import ProjectId
+from .errors import NotTrashed
 from .models import TrashDeleteResult, TrashEmptyResult, TrashFilter, TrashItem, TrashItemType
 
 

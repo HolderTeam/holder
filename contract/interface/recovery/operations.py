@@ -6,8 +6,9 @@ from fastapi import Body, Path
 
 from authoring import Contract
 
-from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound, RecoveryTokenInvalid
+from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..projects.ids import ProjectId
+from .errors import RecoveryTokenInvalid
 from .models import (
     ProjectRecoveryTokenExportResult,
     ProjectRecoveryTokenImportResult,
