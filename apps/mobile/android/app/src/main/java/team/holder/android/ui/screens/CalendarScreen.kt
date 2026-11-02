@@ -60,6 +60,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.time.temporal.WeekFields
@@ -86,6 +87,12 @@ private val MONTH_YEAR_FORMAT = DateTimeFormatter.ofPattern("MMMM yyyy")
 
 private fun Long.toLocalDate(): LocalDate = Instant.ofEpochSecond(this).atZone(CALENDAR_ZONE).toLocalDate()
 
+/** The day a milestone starts on. An all-day start is a date, held as UTC midnight, so it is read in
+ * UTC; reading it in the device's zone would move it a day west of UTC. A timed start is an instant,
+ * read where the device is. */
+private fun HolderMilestone.startDay(): LocalDate =
+    if (allDay) Instant.ofEpochSecond(startAt).atOffset(ZoneOffset.UTC).toLocalDate() else startAt.toLocalDate()
+
 internal data class CalendarDayActivity(
     val milestoneDays: Set<LocalDate>,
     val createdDays: Set<LocalDate>,
@@ -97,7 +104,7 @@ internal data class CalendarDayActivity(
  * "created and updated" -- otherwise every fresh card would light two dots instead of one. */
 internal fun calendarDayActivity(milestones: List<HolderMilestone>, cards: List<HolderCard>): CalendarDayActivity =
     CalendarDayActivity(
-        milestoneDays = milestones.map { it.startAt.toLocalDate() }.toSet(),
+        milestoneDays = milestones.map { it.startDay() }.toSet(),
         createdDays = cards.map { it.createdAt.toLocalDate() }.toSet(),
         updatedDays = cards.filter { it.updatedAt != it.createdAt }.map { it.updatedAt.toLocalDate() }.toSet(),
     )
@@ -222,7 +229,7 @@ fun CalendarScreen(
             if (selected != null) {
                 DayDetailPanel(
                     date = selected,
-                    milestones = milestones.filter { it.startAt.toLocalDate() == selected },
+                    milestones = milestones.filter { it.startDay() == selected },
                     createdCards = allCards.filter { it.createdAt.toLocalDate() == selected },
                     updatedCards = allCards.filter {
                         it.updatedAt != it.createdAt && it.updatedAt.toLocalDate() == selected
@@ -257,7 +264,7 @@ fun CalendarScreen(
                             CenteredMessage(Modifier.weight(1f)) { Text("No milestones yet") }
                         } else {
                             val grouped = loaded.value
-                                .groupBy { it.startAt.toLocalDate() }
+                                .groupBy { it.startDay() }
                                 .toSortedMap()
                             var scrollTarget = 0
                             var flatIndex = 0

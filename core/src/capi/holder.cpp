@@ -3,6 +3,7 @@
 #include "api/Contract.h"
 #include "capi/Context.h"
 #include "capi/StorageProviders.h"
+#include "platform/time_zone/TimeZones.h"
 
 #include "card/CardPlacementResolver.h"
 #include "card/CardReferenceResolver.h"
@@ -45,6 +46,7 @@
 #include "sync/PullConflictResolution.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <chrono>
 #include <climits>
@@ -4584,6 +4586,68 @@ int holder_git_sync_now(
   } catch (...) {
     return set_unknown_exception(out_error); // LCOV_EXCL_LINE
   } // LCOV_EXCL_LINE
+}
+
+namespace {
+
+// A host's time-zone provider (holder_time_zone_set_provider), owning its user data.
+class CApiTimeZoneProvider final : public holder::platform::TimeZoneProvider {
+ public:
+  CApiTimeZoneProvider(holder_time_zone_offset_fn offset_fn, holder_time_zone_current_fn current_fn,
+                       void* user_data, holder_destroy_fn destroy_user_data)
+      : offset_fn_(offset_fn), current_fn_(current_fn), user_data_(user_data),
+        destroy_user_data_(destroy_user_data) {}
+
+  CApiTimeZoneProvider(const CApiTimeZoneProvider&) = delete;
+  CApiTimeZoneProvider& operator=(const CApiTimeZoneProvider&) = delete;
+
+  ~CApiTimeZoneProvider() override {
+    if (destroy_user_data_ != nullptr) destroy_user_data_(user_data_);
+  }
+
+  std::optional<long long> utc_offset(const std::string& zone, long long utc_seconds) override {
+    long long offset = 0;
+    if (offset_fn_(user_data_, zone.c_str(), utc_seconds, &offset) != 0) return std::nullopt;
+    return offset;
+  }
+
+  std::string current_zone() override {
+    std::array<char, 256> zone{};
+    if (current_fn_(user_data_, zone.data(), zone.size()) != 0)
+      throw std::runtime_error("the time zone provider could not report the current zone");
+    zone.back() = '\0';
+    return zone.data();
+  }
+
+ private:
+  holder_time_zone_offset_fn offset_fn_;
+  holder_time_zone_current_fn current_fn_;
+  void* user_data_;
+  holder_destroy_fn destroy_user_data_;
+};
+
+} // namespace
+
+int holder_time_zone_set_provider(
+    holder_time_zone_offset_fn offset_fn,
+    holder_time_zone_current_fn current_fn,
+    void* user_data,
+    holder_destroy_fn destroy_user_data,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  std::shared_ptr<CApiTimeZoneProvider> provider;
+  try {
+    provider = std::make_shared<CApiTimeZoneProvider>(offset_fn, current_fn, user_data, destroy_user_data);
+  } catch (const std::bad_alloc&) {
+    if (destroy_user_data != nullptr) destroy_user_data(user_data);
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  }
+  if (offset_fn == nullptr || current_fn == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "offset_fn and current_fn must not be null");
+  }
+  holder::platform::set_time_zone_provider(std::move(provider));
+  return HOLDER_OK;
 }
 
 int holder_keyring_set_provider(

@@ -1191,14 +1191,15 @@ std::vector<Milestone> list_milestones_by_day(holder_context& context, std::stri
 /// @throws NotFound
 std::vector<Milestone> list_milestones_by_instant(holder_context& context, std::string project_id, long long first_instant, long long last_instant, std::optional<std::string> role);
 
-/// What happens in a project over a window of time.
-/// The caller gives the window twice, as instants and as the days they fall on where the caller is, because a day
-/// has no time zone: a milestone is in the window when one of its days is in the days, or one of its instants in
-/// the instants. Cards are made and changed at instants. Either range is empty when its start is after its end.
-/// @param first_day The day first_instant falls on where the caller is.
-/// @param last_day The day last_instant falls on where the caller is.
+/// What happens in a project over a window of days in a time zone.
+/// The window runs from the start of first_day to the end of last_day in the zone, so it is empty when first_day is
+/// after last_day. A milestone is in it when one of its days is in the days, or one of its instants falls in the
+/// window; a day has no time zone, so it is compared with the days, never turned into an instant. Cards are made and
+/// changed at instants. Core works out the window's instants from the zone, across daylight-saving changes, so every
+/// client gets the same answer. An unknown zone is an invalid argument.
+/// @param time_zone The zone the days are in, such as Europe/London; omit for this device's zone.
 /// @throws NotFound
-Calendar get_calendar(holder_context& context, std::string project_id, long long first_instant, long long last_instant, std::string first_day, std::string last_day);
+Calendar get_calendar(holder_context& context, std::string project_id, std::string first_day, std::string last_day, std::optional<std::string> time_zone);
 
 /// Import a local file into a project and attach it to a card.
 /// The file is hashed, stored in the storage location through this device's provider for it,

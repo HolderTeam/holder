@@ -26,8 +26,10 @@ import re
 import shutil
 import tempfile
 import time
-from datetime import date
+from datetime import date, datetime, timedelta
+from datetime import time as clock
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pytest
 from hypothesis import HealthCheck, event, settings
@@ -42,6 +44,9 @@ from test_support.values import CHARACTERS, Values
 CONTRACT = Path(__file__).resolve().parents[2]
 IR = extract(CONTRACT, "interface")
 CONTRACT_APP = load_contract(CONTRACT, "interface")
+# Core's operations that work through an open context, in the IR's order.
+CONTEXT_OPERATIONS = [op["name"] for op in IR["operations"]
+                      if not op["daemon_only"] and op.get("context", "required") == "required"]
 LIBRARY = os.environ.get("HOLDER_LIBRARY")
 DAEMON = os.environ.get("HOLDER_DAEMON")
 needs_library = pytest.mark.skipif(not LIBRARY, reason="set HOLDER_LIBRARY to a shared libholder to run these")
@@ -81,6 +86,22 @@ EPOCH = date(1970, 1, 1).toordinal()
 
 def valid_tag(tag: str) -> bool:
     return bool(TAG.fullmatch(tag)) and not HEX_COLOUR.fullmatch(tag)
+
+
+def known_zone(name: str) -> ZoneInfo | None:
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return None
+
+
+def day_start(day: date, zone: str | None) -> int:
+    """The instant a day starts in zone, or in this machine's zone. A midnight that never happens moves forward by
+    the gap and one that happens twice is the earlier, as core and Python's fold=0 both do."""
+    midnight = datetime.combine(day, clock())
+    if zone is None:
+        return int(midnight.astimezone().timestamp())
+    return int(midnight.replace(tzinfo=ZoneInfo(zone)).timestamp())
 
 
 def calendar_day(text: str) -> date | None:
@@ -833,8 +854,16 @@ class Cards(RuleBasedStateMachine):
     @rule(data=st.data())
     def get_calendar(self, data):
         arguments = data.draw(self.values().arguments("get_calendar"))
-        arguments["first_instant"], arguments["last_instant"] = self.instants(data)
-        first, last = arguments["first_instant"], arguments["last_instant"]
+        # Days core can read, mostly, and zones it knows, mostly, so the window is usually worked out.
+        day = st.one_of(st.dates(min_value=date(1971, 1, 2), max_value=date(2037, 12, 30)).map(str),
+                        st.sampled_from(["October", "2026-02-30"]))
+        arguments["first_day"], arguments["last_day"] = data.draw(day), data.draw(day)
+        zone = data.draw(st.sampled_from(
+            [None, "UTC", "Europe/London", "America/Los_Angeles", "Australia/Lord_Howe", "Mars/Olympus_Mons"]))
+        if zone is None:
+            arguments.pop("time_zone", None)
+        else:
+            arguments["time_zone"] = zone
         first_day, last_day = arguments["first_day"], arguments["last_day"]
         project = arguments["project_id"]
         kinds = set()
@@ -842,10 +871,15 @@ class Cards(RuleBasedStateMachine):
             kinds.add("InvalidArgument")
         elif project not in self.projects:
             kinds.add("NotFound")
+        elif zone is not None and known_zone(zone) is None:
+            kinds.add("InvalidArgument")
         calendar = self.expect("get_calendar", kinds, arguments)
         if calendar is None:
             return
         self.conforms("get_calendar", calendar)
+        # The window runs from the start of first_day to the end of last_day in the zone.
+        first = day_start(calendar_day(first_day), zone)
+        last = day_start(calendar_day(last_day) + timedelta(days=1), zone) - 1
 
         def in_window(d):
             if "date" in d:
@@ -1337,9 +1371,11 @@ class Cards(RuleBasedStateMachine):
                     for tag, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))]
         assert tags == expected
 
-    @rule(data=st.data(), operation=st.sampled_from(
-        [op["name"] for op in IR["operations"] if not op["daemon_only"]]))
-    def invalid_arguments_are_rejected(self, data, operation):
+    @rule(data=st.data())
+    def invalid_arguments_are_rejected(self, data):
+        # Ordinary operations this transport can call. Runtime operations open, close or run without a context, so
+        # they are left out: given junk, context_destroy would release whatever it was handed.
+        operation = data.draw(st.sampled_from([name for name in CONTEXT_OPERATIONS if self.core.serves(name)]))
         arguments, name = data.draw(self.values().invalid_arguments(operation))
         try:
             self.core.call(operation, **arguments)

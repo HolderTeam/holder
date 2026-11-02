@@ -202,7 +202,7 @@ int main(void) {
     printf("clear a milestone's dates and kind: status %d, %zu dates, kind %s\n", status, milestone->dates.count,
            milestone->kind ? milestone->kind : "(null)");
     const holder_calendar* calendar = NULL;
-    status = holder_get_calendar(context, "p1", 0, 1, "2026-10-01", "2026-10-31", arena, &calendar, &error);
+    status = holder_get_calendar(context, "p1", "2026-10-01", "2026-10-31", "UTC", arena, &calendar, &error);
     printf("calendar: status %d, %s on %s\n", status, calendar->milestones.items[0].milestone_id,
            calendar->milestones.items[0].card_title);
     const holder_milestone_list* milestones = NULL;

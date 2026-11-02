@@ -271,20 +271,21 @@ def test_full_card_milestones_against_daemon(daemon):
         utc = datetime(2026, 6, 1, 22, 0, tzinfo=UTC)
         instants = project.milestones.between(utc, utc)
         assert [item.id for item in instants] == [dated.id]
-        epoch = int(occurred.astimezone(UTC).timestamp())
-        calendar = raw.get(
-            f"/projects/{project.id}/calendar",
-            params={
-                "first_instant": epoch,
-                "last_instant": epoch,
-                "first_day": "2026-06-03",
-                "last_day": "2026-06-03",
-            },
-        )
-        assert calendar.status_code == 200
-        assert [
-            item["milestone_id"] for item in calendar.json()["data"]["milestones"]
-        ] == [dated.id]
+        def on_calendar(day: str, zone: str) -> list[str]:
+            calendar = raw.get(
+                f"/projects/{project.id}/calendar",
+                params={"first_day": day, "last_day": day, "time_zone": zone},
+            )
+            assert calendar.status_code == 200
+            return [
+                item["milestone_id"] for item in calendar.json()["data"]["milestones"]
+            ]
+
+        # A day is the same wherever the caller is.
+        assert on_calendar("2026-06-03", "Asia/Tokyo") == [dated.id]
+        # The instant, 22:00 UTC on June 1, is June 1 in UTC but already June 2 in Tokyo.
+        assert on_calendar("2026-06-01", "UTC") == [dated.id]
+        assert on_calendar("2026-06-01", "Asia/Tokyo") == []
 
         assert dated.update(description=None) is dated
         assert dated.description is None

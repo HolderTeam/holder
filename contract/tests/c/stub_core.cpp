@@ -282,9 +282,9 @@ std::vector<Milestone> list_milestones_by_instant(holder_context& context, std::
   return {};
 }
 
-Calendar get_calendar(holder_context& context, std::string project_id, long long first_instant,
-                      long long last_instant, std::string first_day, std::string last_day) {
-  (void)first_instant, (void)last_instant, (void)first_day, (void)last_day;
+Calendar get_calendar(holder_context& context, std::string project_id, std::string first_day, std::string last_day,
+                      std::optional<std::string> time_zone) {
+  (void)first_day, (void)last_day, (void)time_zone;
   Calendar out;
   for (const auto& milestone : context.milestones)
     if (milestone.project_id == project_id)

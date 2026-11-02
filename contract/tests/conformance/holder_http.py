@@ -158,6 +158,10 @@ class Http:
         body = json.dumps({"name": name, "privacy_mode": "plain"}).encode()
         return self.expect(*self.daemon.request("POST", "/projects", body))["project_id"]
 
+    def serves(self, operation: str) -> bool:
+        """Whether the daemon has a route for the operation; operations only core's C API has do not."""
+        return operation in self.bindings
+
     def call(self, operation: str, **arguments: Any) -> Any:
         """Call an operation; raises OperationError with the error kind's name when it fails."""
         binding = self.bindings[operation]

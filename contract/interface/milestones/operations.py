@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import Body, Path, Query
 
-from authoring import Contract, Timestamp
+from authoring import Contract, Field, Timestamp
 
 from ..cards.models import CardId
 from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
@@ -98,14 +98,16 @@ def register(contract: Contract) -> None:
     @contract.route("GET", "/projects/{project_id}/calendar", errors=[NotFound])
     def get_calendar(
         project_id: Annotated[ProjectId, Path()],
-        first_instant: Annotated[Timestamp, Query()],
-        last_instant: Annotated[Timestamp, Query()],
-        first_day: Annotated[Day, Query(description="The day first_instant falls on where the caller is.")],
-        last_day: Annotated[Day, Query(description="The day last_instant falls on where the caller is.")],
+        first_day: Annotated[Day, Query()],
+        last_day: Annotated[Day, Query()],
+        time_zone: Annotated[Annotated[str, Field(min_length=1)] | None, Query(
+            description="The zone the days are in, such as Europe/London; omit for this device's zone.")] = None,
     ) -> Calendar:
-        """What happens in a project over a window of time.
+        """What happens in a project over a window of days in a time zone.
 
-        The caller gives the window twice, as instants and as the days they fall on where the caller is, because a day
-        has no time zone: a milestone is in the window when one of its days is in the days, or one of its instants in
-        the instants. Cards are made and changed at instants. Either range is empty when its start is after its end.
+        The window runs from the start of first_day to the end of last_day in the zone, so it is empty when first_day is
+        after last_day. A milestone is in it when one of its days is in the days, or one of its instants falls in the
+        window; a day has no time zone, so it is compared with the days, never turned into an instant. Cards are made and
+        changed at instants. Core works out the window's instants from the zone, across daylight-saving changes, so every
+        client gets the same answer. An unknown zone is an invalid argument.
         """

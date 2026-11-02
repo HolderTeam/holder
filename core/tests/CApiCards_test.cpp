@@ -751,36 +751,53 @@ TEST_CASE("A project's milestones by day, by instant and on its calendar", "[cap
           HOLDER_OK);
   REQUIRE(list->count == 0);
 
-  // A window of October where the caller is: its days, and its instants for card activity and timed milestones.
+  // A window of days in a zone, reaching past today so the cards made by this test are in it.
   const holder_calendar* calendar = nullptr;
-  REQUIRE(holder_get_calendar(f.context, project, 0, std::numeric_limits<int64_t>::max(), "2026-10-01",
-                              "2026-10-31", f.arena, &calendar, &f.error) == HOLDER_OK);
+  REQUIRE(holder_get_calendar(f.context, project, "2026-10-01", "2099-12-31", "UTC", f.arena, &calendar, &f.error) ==
+          HOLDER_OK);
   std::map<std::string, std::string> titles;
   for (std::size_t i = 0; i < calendar->milestones.count; ++i)
     titles[calendar->milestones.items[i].milestone_id] = calendar->milestones.items[i].card_title;
-  REQUIRE(titles == std::map<std::string, std::string>{{on_day, "First"}, {at_instant, "Second"}});
+  REQUIRE(titles.size() == 3);
+  REQUIRE(titles.at(on_day) == "First");
+  REQUIRE(titles.at(at_instant) == "Second");
   REQUIRE(calendar->created_cards.count == 2);
   const auto& made = calendar->created_cards.items;
   REQUIRE(std::tuple(made[0].created_at, std::string(made[0].card_id)) <
           std::tuple(made[1].created_at, std::string(made[1].card_id)));
 
-  // Only the days: the timed milestone and the cards fall outside the instants.
-  REQUIRE(holder_get_calendar(f.context, project, 0, 0, "2026-10-01", "2026-10-31", f.arena, &calendar, &f.error) ==
-          HOLDER_OK);
-  REQUIRE(calendar->milestones.count == 1);
+  // One day's milestones in a zone. The timed milestone, at 01:30 UTC on the 18th, is on the 18th in UTC but still
+  // the 17th in Los Angeles. The day milestone's start, the 16th, is on the 16th wherever the caller is.
+  const auto on = [&](const char* day, const char* zone) {
+    REQUIRE(holder_get_calendar(f.context, project, day, day, zone, f.arena, &calendar, &f.error) == HOLDER_OK);
+    std::vector<std::string> out;
+    for (std::size_t i = 0; i < calendar->milestones.count; ++i)
+      out.emplace_back(calendar->milestones.items[i].milestone_id);
+    return out;
+  };
+  REQUIRE(on("2026-10-18", "UTC") == std::vector<std::string>{at_instant});
+  REQUIRE(on("2026-10-18", "America/Los_Angeles").empty());
+  REQUIRE(on("2026-10-17", "America/Los_Angeles") == std::vector<std::string>{at_instant});
+  REQUIRE(on("2026-10-16", "UTC") == std::vector<std::string>{on_day});
+  REQUIRE(on("2026-10-16", "America/Los_Angeles") == std::vector<std::string>{on_day});
   REQUIRE(calendar->created_cards.count == 0);
-  REQUIRE(calendar->updated_cards.count == 0);
 
   // Milestones on a card in the trash are left out.
   const holder_card* trashed = nullptr;
   REQUIRE(holder_trash_card(f.context, project, first.c_str(), HOLDER_TRASH_CARD_CHILDREN_DEFAULT, f.arena, &trashed,
                             &f.error) == HOLDER_OK);
-  REQUIRE(holder_get_calendar(f.context, project, 0, std::numeric_limits<int64_t>::max(), "2026-10-01",
-                              "2026-10-31", f.arena, &calendar, &f.error) == HOLDER_OK);
-  REQUIRE(calendar->milestones.count == 1);
+  REQUIRE(holder_get_calendar(f.context, project, "2026-10-01", "2099-12-31", "UTC", f.arena, &calendar, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(calendar->milestones.count == 2);
   REQUIRE(calendar->created_cards.count == 1);
-  REQUIRE(f.failed(holder_get_calendar(f.context, project, 0, 1, "2026-10-01", "October", f.arena, &calendar,
+  REQUIRE(f.failed(holder_get_calendar(f.context, project, "2026-10-01", "October", "UTC", f.arena, &calendar,
                                        &f.error)) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(f.failed(holder_get_calendar(f.context, project, "2026-10-01", "2026-10-31", "Mars/Olympus_Mons", f.arena,
+                                       &calendar, &f.error)) == HOLDER_ERROR_INVALID_ARGUMENT);
+  // Without a zone, the device's own zone.
+  REQUIRE(holder_get_calendar(f.context, project, "2026-10-01", "2099-12-31", nullptr, f.arena, &calendar, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(calendar->milestones.count == 2);
 }
 
 namespace {

@@ -524,6 +524,37 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun calendar_findsMilestonesOnTheDeviceLocalDay_westOfUtc() {
+        val previous = java.util.TimeZone.getDefault()
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("America/Los_Angeles"))
+        try {
+            initialize()
+            val project = HolderNative.createProject("Calendar zones")
+            val card = HolderNative.createCard(project.projectId, "Plans", "Plans")
+            val zone = java.time.ZoneId.of("America/Los_Angeles")
+            // An all-day milestone on 2 November, held as UTC midnight on the 2nd.
+            val allDay = HolderNative.addCardMilestone(project.projectId, card.cardId,
+                startAt = java.time.LocalDate.of(2026, 11, 2).atStartOfDay(java.time.ZoneOffset.UTC).toEpochSecond(),
+                allDay = true, kind = "Birthday")
+            // A timed milestone at 18:00 on 2 November in Los Angeles: 02:00 UTC on the 3rd.
+            val timed = HolderNative.addCardMilestone(project.projectId, card.cardId,
+                startAt = java.time.LocalDateTime.of(2026, 11, 2, 18, 0).atZone(zone).toEpochSecond(),
+                kind = "Dinner")
+            // The whole of 2 November in Los Angeles.
+            val from = java.time.LocalDate.of(2026, 11, 2).atStartOfDay(zone).toEpochSecond()
+            val to = java.time.LocalDate.of(2026, 11, 3).atStartOfDay(zone).toEpochSecond() - 1
+            val found = HolderNative.listMilestonesInRange(project.projectId, from, to).map { it.milestoneId }.toSet()
+            assertEquals(setOf(allDay.milestoneId, timed.milestoneId), found)
+            // 3 November in Los Angeles has neither: the timed one is the 2nd here, though the 3rd in UTC.
+            val nextFrom = to + 1
+            val nextTo = java.time.LocalDate.of(2026, 11, 4).atStartOfDay(zone).toEpochSecond() - 1
+            assertTrue(HolderNative.listMilestonesInRange(project.projectId, nextFrom, nextTo).isEmpty())
+        } finally {
+            java.util.TimeZone.setDefault(previous)
+        }
+    }
+
+    @Test
     fun cardListing_errorLeavesReadLaneUsable() {
         initialize()
         val project = HolderNative.listProjects().single()
@@ -836,7 +867,14 @@ class HolderNativeIntegrationTest {
         assertEquals(added.milestoneId, inRange.single().milestoneId)
         assertEquals("Renewal", inRange.single().cardTitle)
 
-        assertTrue(HolderNative.listMilestonesInRange(project.projectId, start + 7200, start + 10_800).isEmpty())
+        // An all-day milestone is on its whole day, not just at midnight; the next day has none.
+        val startDay = java.time.Instant.ofEpochSecond(start).atOffset(java.time.ZoneOffset.UTC).toLocalDate()
+        val zone = java.time.ZoneId.systemDefault()
+        val laterThatDay = startDay.atTime(15, 0).atZone(zone).toEpochSecond()
+        assertEquals(added.milestoneId,
+            HolderNative.listMilestonesInRange(project.projectId, laterThatDay, laterThatDay + 3600).single().milestoneId)
+        val nextDay = startDay.plusDays(1).atTime(15, 0).atZone(zone).toEpochSecond()
+        assertTrue(HolderNative.listMilestonesInRange(project.projectId, nextDay, nextDay + 3600).isEmpty())
 
         HolderNative.removeCardMilestone(project.projectId, card.cardId, added.milestoneId)
         assertTrue(HolderNative.listCardMilestones(project.projectId, card.cardId).isEmpty())

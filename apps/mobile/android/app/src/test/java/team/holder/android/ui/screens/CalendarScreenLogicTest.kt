@@ -11,12 +11,15 @@ import team.holder.android.HolderMilestone
 
 private fun epochSecondsAt(date: LocalDate): Long = date.atStartOfDay(java.time.ZoneId.systemDefault()).toEpochSecond()
 
-private fun milestone(id: String, startAt: Long) = HolderMilestone(
+// HolderMilestone holds an all-day date as UTC midnight, as HolderNative does.
+private fun utcMidnight(date: LocalDate): Long = date.atStartOfDay(java.time.ZoneOffset.UTC).toEpochSecond()
+
+private fun milestone(id: String, startAt: Long, allDay: Boolean = true) = HolderMilestone(
     milestoneId = id,
     cardId = "card-$id",
     startAt = startAt,
     endAt = null,
-    allDay = true,
+    allDay = allDay,
     kind = null,
     description = null,
     createdAt = startAt,
@@ -38,13 +41,23 @@ class CalendarScreenLogicTest {
     @Test
     fun calendarDayActivity_bucketsMilestonesByStartDay() {
         val day = LocalDate.of(2026, 8, 22)
-        val milestones = listOf(milestone("m1", epochSecondsAt(day)))
+        val milestones = listOf(milestone("m1", utcMidnight(day)))
 
         val activity = calendarDayActivity(milestones, emptyList())
 
         assertEquals(setOf(day), activity.milestoneDays)
         assertTrue(activity.createdDays.isEmpty())
         assertTrue(activity.updatedDays.isEmpty())
+    }
+
+    @Test
+    fun calendarDayActivity_bucketsATimedMilestoneByTheDeviceLocalDay() {
+        val day = LocalDate.of(2026, 8, 22)
+        val evening = day.atTime(23, 30).atZone(java.time.ZoneId.systemDefault()).toEpochSecond()
+
+        val activity = calendarDayActivity(listOf(milestone("m1", evening, allDay = false)), emptyList())
+
+        assertEquals(setOf(day), activity.milestoneDays)
     }
 
     @Test

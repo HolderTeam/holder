@@ -499,13 +499,12 @@ int command_calendar(const holder::core::Paths& paths, int argc, char* argv[]) {
     const auto project = require_current_project_payload(paths);
     const auto project_id = json_string(project, "project_id");
     const auto range = resolve_cli_calendar_range(options.from, options.to);
-    // The window again as the local days it covers, for milestones on calendar days.
+    // The window as the local days it covers.
     const auto first_day = format_milestone_when(range.from, true);
     const auto last_day = format_milestone_when(range.to, true);
+    // The daemon works out the days' instants in its own zone, which is this machine's.
     const auto target = "/projects/" + url_encode_component(project_id) +
-                        "/calendar?first_instant=" + std::to_string(range.from) +
-                        "&last_instant=" + std::to_string(range.to) + "&first_day=" + first_day +
-                        "&last_day=" + last_day;
+                        "/calendar?first_day=" + first_day + "&last_day=" + last_day;
     const auto payload = milestone_api_request(
         paths,
         boost::beast::http::verb::get,

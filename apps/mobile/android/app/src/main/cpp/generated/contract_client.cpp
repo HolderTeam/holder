@@ -3570,27 +3570,26 @@ Java_team_holder_android_contract_Milestones_listMilestonesByInstant(JNIEnv* env
 }
 
 extern "C" JNIEXPORT jobject JNICALL
-Java_team_holder_android_contract_Milestones_getCalendar(JNIEnv* env, jobject, jlong context_handle, jstring a_project_id, jlong a_first_instant, jlong a_last_instant, jstring a_first_day, jstring a_last_day) {
+Java_team_holder_android_contract_Milestones_getCalendar(JNIEnv* env, jobject, jlong context_handle, jstring a_project_id, jstring a_first_day, jstring a_last_day, jstring a_time_zone) {
   if (!context_handle) { fail(env, "context is required"); return nullptr; }
   Keep keep;
   const char* p_project_id = nullptr;
   if (!c_text(env, a_project_id, keep, p_project_id)) return nullptr;
-  const int64_t p_first_instant = static_cast<int64_t>(a_first_instant);
-  const int64_t p_last_instant = static_cast<int64_t>(a_last_instant);
   const char* p_first_day = nullptr;
   if (!c_text(env, a_first_day, keep, p_first_day)) return nullptr;
   const char* p_last_day = nullptr;
   if (!c_text(env, a_last_day, keep, p_last_day)) return nullptr;
+  const char* p_time_zone = nullptr;
+  if (!c_text(env, a_time_zone, keep, p_time_zone)) return nullptr;
   Arena arena;
   if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
   const holder_calendar* out = nullptr;
   holder_error* error = nullptr;
   const int status = holder_get_calendar(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
       p_project_id,
-      p_first_instant,
-      p_last_instant,
       p_first_day,
       p_last_day,
+      p_time_zone,
       arena.value, &out, &error);
   if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
   return to_java_holder_calendar(env, (*out));
