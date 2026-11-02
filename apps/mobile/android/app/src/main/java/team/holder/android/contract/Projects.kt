@@ -130,6 +130,18 @@ object Projects {
     ): HomeProject
 
     /**
+     * Register a durable plain project in an empty context database.
+     * The project must be an immediate child of the context's projects directory and
+     * contain independent ordinary files. This preserves project and card identities,
+     * rebuilds indexes, and leaves the durable files untouched. Encrypted projects are
+     * not supported. No other operation may use this context during import.
+     */
+    external fun importProject(
+        contextHandle: Long,
+        projectRoot: String,
+    ): Project
+
+    /**
      * List the projects on this device.
      * Filters combine. Projects that tie in the order keep the order they were stored in.
      */

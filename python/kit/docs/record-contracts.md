@@ -23,7 +23,6 @@ requiring a sample row.
 | `name` | `str` | Project display name |
 | `root_path` | `str` | Project storage root reported by libholder |
 | `privacy_mode` | `str` | Current privacy mode |
-| `id_scheme` | `str` | Identifier scheme reported by libholder |
 | `created_at` | `int` | Creation time as Unix seconds |
 | `updated_at` | `int` | Last update time as Unix seconds |
 | `git_remote_url` | `str \| None` | Configured Git remote URL |
@@ -177,11 +176,11 @@ in Trash raises `ValueError`. Restoring the Card makes its retained adapters
 usable again. There is no cached membership data or automatic reopening.
 
 - `card.tags.list()` and `.list_editable()` return tag names. `.add(tag)` and
-  `.remove(tag)` retain `TagAddResult` and `TagRemoveResult`, including the
-  distinction between trailing tags and occurrences in prose. `.to_records()`
+  `.remove(tag)` retain `TagAddResult` and `TagRemoveResult`. Removing a tag
+  that also occurs in prose raises `HolderError`. `.to_records()`
   returns only that card's `TagRecord` values; `.to_dataframe()` uses the tag
   schema and dtypes. Core's editable-tag read still reads the authoritative
-  body and retains its existing missing-file policy.
+  body and raises `HolderError` when the card file is missing.
 - `card.connections.add(target_card, kind, label=None)` and
   `.remove(target_card, kind)` accept a Card, not an ID. Both owners must be
   open, target identity must exist, and the Cards must share a Context. Targets
@@ -363,17 +362,15 @@ The pandas adapter and combined `tags` table use nullable `string` columns and
 nullable `boolean` for `editable`, even when empty. Join on `project_id` and
 `card_id` to the cards table, and on `project_id` to projects.
 
-The normalized tag list is read from core's extracted index, in alphabetical
-order. `editable` is membership in core's trailing-tag-line list, read from
-the authoritative body; it is not a guarantee that removing that occurrence
-will leave the card untagged. A tag may also occur in prose. There is one
-indexed tag read per selected card and, for tagged cards, one editable-list
-read. These separate reads do not form an atomic snapshot. No Python-side
-Markdown parsing or extra body/content column is introduced.
+The normalized tag list and `editable` flag come from the generated Card
+record. `editable` means `remove_card_tag` can remove the tag from its trailing
+line without leaving another occurrence in prose. Reading these fields requires
+the card body. Separate reads do not form an atomic snapshot. Kit does no
+Python-side Markdown parsing.
 
 `tags.list(card_id)` returns normalized names; `tags.list_editable(card_id)`
 returns trailing-line names in core's order. `tags.project_counts(project_id)`
-returns `ProjectTagRecord` dictionaries (`project_id`, `tag`, integer `count`),
+returns `ProjectTagRecord` dictionaries (`project_id`, `tag`, integer `card_count`),
 ordered by count descending then tag ascending. `tags.cards_with_tag(project_id,
 tag)` returns `TaggedCardRecord` dictionaries (`card_id`, `title`), using
 core's case-insensitive live-card search; equal-time matches have no promised
@@ -383,21 +380,18 @@ or mutations for unknown cards raise `HolderError`.
 `tags.add(card_id, tag)` returns `TagAddResult.ADDED` or `.ALREADY_PRESENT`.
 Core lowercases a valid bare tag and adds it to the trailing tag line only if
 it does not occur anywhere in the body. `tags.remove(card_id, tag)` returns
-`TagRemoveResult.REMOVED`, `.NOT_PRESENT` or
-`.PRESENT_OUTSIDE_EDITABLE_TAG_LINE`; it never rewrites prose. `REMOVED` means
-the trailing occurrence was removed, not necessarily that the tag disappeared
-from the card. These `IntEnum` members mirror core statuses; successful changes
-have numeric value zero, so compare named members rather than testing truthiness.
+`TagRemoveResult.REMOVED` or `.NOT_PRESENT`. A tag also present in prose raises
+`HolderError` because the generated operation leaves the card unchanged. These
+`IntEnum` members are Kit results; compare named members rather than testing
+truthiness.
 Malformed tags raise `ValueError`; non-string arguments raise `TypeError`.
 Core owns tag grammar, extraction, durable edits and reindexing. No bulk/atomic
 mutation contract is implied, and exported records/tables do not
 refresh automatically after a mutation. Live Card properties read the changes.
 
-Core's editable-list read currently substitutes an empty body if a card file
-is missing. The flag can therefore be false in that situation despite an indexed
-tag remaining present. By contrast, `include_content=True` still uses complete
-card extraction, whose missing-body failure propagates. Native read failures
-propagate without returning partial exports; closed contexts raise `RuntimeError`.
+Missing card bodies cause tag reads and exports to fail with `HolderError`.
+Native read failures propagate without returning partial exports; closed
+contexts raise `RuntimeError`.
 
 ## Milestone records and operations
 

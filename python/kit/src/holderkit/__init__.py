@@ -151,13 +151,13 @@ class Context:
     def list_cards(self, project_id: str) -> list[Card]:
         return self.cards.list(project_id)
 
-    def get_card_content(self, card_id: str) -> str:
-        return self._context.get_card_content(card_id)
+    def get_card_content(self, project_id: str, card_id: str) -> str:
+        return self._context.get_card_content(project_id, card_id)
 
     def update_card(
-        self, card_id: str, content: str, title: str | None = None
+        self, project_id: str, card_id: str, content: str, title: str | None = None
     ) -> Card:
-        metadata = self._context.update_card(card_id, content, title)
+        metadata = self._context.update_card(project_id, card_id, content, title)
         return Card._from_native(metadata, Project(self._context, str(metadata["project_id"])))
 
     def __enter__(self) -> Context:

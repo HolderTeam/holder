@@ -128,7 +128,7 @@ def test_context_cards_borrow_project_and_follow_context_lifetime(tmp_path: Path
         listed = context.cards.list()[0]
         listed.project.close()
         assert not context.closed and not card.project.closed
-        updated = context.update_card(card.card_id, 'Changed')
+        updated = context.update_card(project.project_id, card.card_id, 'Changed')
         assert updated.project.project_id == project.project_id and card.content == 'Changed'
         card.trash()
         project.restore(card)
@@ -190,7 +190,7 @@ def test_lifecycle_validation_and_native_closed_errors(tmp_path: Path) -> None:
         native = project._live_context()
     for operation in (native.trash_card, native.restore_card, native.purge_card):
         with pytest.raises(RuntimeError, match='closed'):
-            operation(card.card_id)
+            operation(card.project_id, card.card_id)
     with pytest.raises(RuntimeError, match='closed'):
         native.resolve_card(project.project_id, card.card_id)
     with pytest.raises(RuntimeError, match='closed'):

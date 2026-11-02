@@ -223,6 +223,20 @@ TEST_CASE("holder_get_card_metadata reads only a live card in the requested proj
                                              &f.error)) == HOLDER_ERROR_NOT_FOUND);
 }
 
+TEST_CASE("holder_get_card_any_state reads trashed metadata only in its project", "[capi][contract]") {
+  Fixture f;
+  const auto* created = f.create("Binned", "Durable body");
+  const std::string id = created->card_id;
+  REQUIRE(holder_card_delete(f.context, id.c_str(), &f.error) == HOLDER_OK);
+  const holder_card_metadata* metadata = nullptr;
+  REQUIRE(holder_get_card_any_state(f.context, f.project_id.c_str(), id.c_str(), f.arena, &metadata, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(std::string(metadata->title) == "Binned");
+  REQUIRE(metadata->deleted_at != nullptr);
+  REQUIRE(f.failed(holder_get_card_any_state(f.context, "another-project", id.c_str(), f.arena, &metadata,
+                                              &f.error)) == HOLDER_ERROR_NOT_FOUND);
+}
+
 TEST_CASE("holder_list_cards filters by level and adds content and counts on request", "[capi][contract]") {
   Fixture f;
   const auto* root = f.create("Root", "Body");

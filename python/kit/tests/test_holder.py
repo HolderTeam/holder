@@ -43,29 +43,20 @@ def test_complete_card_lifecycle(tmp_path: Path) -> None:
 
         assert _native.DIRECT_LOOKUP_SUPPORTED
         assert context._context.get_project(project.project_id)["name"] == "Python test"
-        assert context._context.get_card(card.card_id)["project_id"] == project.project_id
+        assert context._context.get_card(project.project_id, card.card_id)["project_id"] == project.project_id
 
-        assert context.get_card_content(card.card_id) == "Initial body"
+        assert context.get_card_content(project.project_id, card.card_id) == "Initial body"
         assert context.list_cards(project.project_id) == [card]
 
         updated = context.update_card(
-            card.card_id, "Updated body", title="Updated card"
+            project.project_id, card.card_id, "Updated body", title="Updated card"
         )
         assert updated.card_id == card.card_id
         assert updated.title == "Updated card"
-        assert context.get_card_content(card.card_id) == "Updated body"
+        assert context.get_card_content(project.project_id, card.card_id) == "Updated body"
         assert context.list_cards(project.project_id)[0].title == "Updated card"
 
     assert context.closed
-
-
-def test_direct_lookup_falls_back_with_older_core(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    with holderkit.Context(tmp_path / "holder-data") as context:
-        project = context.create_project("Fallback")
-        card = context.create_card(project.project_id, "One")
-        monkeypatch.setattr(_native, "DIRECT_LOOKUP_SUPPORTED", 0)
-        assert project.name == "Fallback"
-        assert project.cards.get(card.card_id).title == "One"
 
 
 def test_invalid_input_and_native_failures(tmp_path: Path) -> None:
@@ -81,6 +72,16 @@ def test_invalid_input_and_native_failures(tmp_path: Path) -> None:
     context.close()
     with pytest.raises(RuntimeError, match="closed"):
         context.list_cards("anything")
+
+
+def test_generated_reference_result_is_detached(tmp_path: Path) -> None:
+    with holderkit.Context(tmp_path / "holder-data") as context:
+        project = context.create_project("References")
+        card = context.create_card(project.project_id, "One")
+        resolved = context._context.resolve_card(project.project_id, card.card_id)
+        assert resolved["status"] == "resolved"
+        assert resolved["card"]["card_id"] == card.card_id
+    assert resolved["card"]["title"] == "One"
 
 
 def test_context_destruction_releases_native_resources(tmp_path: Path) -> None:
@@ -121,7 +122,7 @@ def test_context_keeps_working_after_result_objects_are_released(tmp_path: Path)
     del card
     gc.collect()
 
-    assert context.get_card_content(card_id) == "body"
+    assert context.get_card_content(project_id, card_id) == "body"
     context.close()
 
 
@@ -216,7 +217,8 @@ def test_native_complete_card_pages_use_opaque_lookahead_cursor(
         assert len(first_page["cards"]) == 1
         first_card = first_page["cards"][0]
         assert first_card["content"] == expected[first_card["card_id"]]
-        assert first_page["next_cursor"] == first_card["card_id"]
+        assert isinstance(first_page["next_cursor"], str)
+        assert first_page["next_cursor"]
 
         second_page = context._context.list_complete_cards_page(
             project.project_id, first_page["next_cursor"], 1

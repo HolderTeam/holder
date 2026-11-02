@@ -101,23 +101,47 @@ class TagCollection:
     def __init__(self, context: _native.Context) -> None:
         self._context = context
 
+    def _project_id(self, card_id: str) -> str:
+        if not card_id:
+            raise ValueError("card_id must not be empty")
+        for project in self._context.list_projects():
+            project_id = str(project["project_id"])
+            try:
+                self._context.get_card(project_id, card_id)
+            except _native.HolderError as error:
+                if not str(error).startswith("card not found:"):
+                    raise
+                continue
+            return project_id
+        raise _native.HolderError(f"card not found: {card_id}")
+
     def list(self, card_id: str) -> builtins.list[str]:
-        return self._context.list_tags(card_id)
+        return self._context.list_tags(self._project_id(card_id), card_id)
 
     def list_editable(self, card_id: str) -> builtins.list[str]:
-        return self._context.list_editable_tags(card_id)
+        return self._context.list_editable_tags(self._project_id(card_id), card_id)
 
     def add(self, card_id: str, tag: str) -> TagAddResult:
-        return TagAddResult(self._context.add_tag(card_id, tag))
+        if not isinstance(tag, str):
+            raise TypeError("tag must be str")
+        project_id = self._project_id(card_id)
+        present = tag.lower() in self._context.list_tags(project_id, card_id)
+        self._context.add_tag(project_id, card_id, tag)
+        return TagAddResult.ALREADY_PRESENT if present else TagAddResult.ADDED
 
     def remove(self, card_id: str, tag: str) -> TagRemoveResult:
-        return TagRemoveResult(self._context.remove_tag(card_id, tag))
+        if not isinstance(tag, str):
+            raise TypeError("tag must be str")
+        project_id = self._project_id(card_id)
+        present = tag.lower() in self._context.list_tags(project_id, card_id)
+        self._context.remove_tag(project_id, card_id, tag)
+        return TagRemoveResult.REMOVED if present else TagRemoveResult.NOT_PRESENT
 
     def project_counts(self, project_id: str) -> builtins.list[ProjectTagRecord]:
         """Return core's live-card counts, most-used first, then tag name."""
 
         return [
-            {"project_id": project_id, "tag": str(item["tag"]), "count": int(item["count"])}
+            {"project_id": project_id, "tag": str(item["tag"]), "card_count": int(item["card_count"])}
             for item in self._context.list_project_tags(project_id)
         ]
 
@@ -137,10 +161,10 @@ class TagCollection:
     ) -> builtins.list[TagRecord]:
         records: builtins.list[TagRecord] = []
         for card in cards:
-            tags = self.list(card["card_id"])
+            tags = self._context.list_tags(card["project_id"], card["card_id"])
             if not tags:
                 continue
-            editable = set(self.list_editable(card["card_id"]))
+            editable = set(self._context.list_editable_tags(card["project_id"], card["card_id"]))
             records.extend({
                 "project_id": card["project_id"], "card_id": card["card_id"],
                 "tag": tag, "editable": tag in editable,
@@ -165,12 +189,20 @@ class ConnectionCollection:
     ) -> None:
         """Add or update a connection using core's existing upsert semantics."""
 
-        self._context.add_link(from_card_id, to_card_id, kind, label)
+        source_project_id = TagCollection(self._context)._project_id(from_card_id)
+        target_project_id = TagCollection(self._context)._project_id(to_card_id)
+        self._context.add_link(source_project_id, from_card_id,
+            target_project_id if target_project_id != source_project_id else None,
+            to_card_id, kind, label)
 
     def remove(self, from_card_id: str, to_card_id: str, kind: str) -> None:
         """Remove a connection; an absent matching connection is a no-op."""
 
-        self._context.remove_link(from_card_id, to_card_id, kind)
+        source_project_id = TagCollection(self._context)._project_id(from_card_id)
+        target_project_id = TagCollection(self._context)._project_id(to_card_id)
+        self._context.remove_link(source_project_id, from_card_id,
+            target_project_id if target_project_id != source_project_id else None,
+            to_card_id, kind)
 
     def to_records(self, project_id: str | None = None) -> builtins.list[ConnectionRecord]:
         return self._records_from_cards(CardCollection(self._context).to_records(project_id))

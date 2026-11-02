@@ -1347,6 +1347,13 @@ int holder_get_card(holder_context* context, const char* project_id, const char*
  */
 int holder_get_card_metadata(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card_metadata** out_card_metadata, holder_error** out_error);
 
+/* Read a card's metadata in its owning project, including a card in Trash.
+ * Embedders use this to keep a card handle usable for restore and purge. It does
+ * not read the card's content or expose a cross-project lookup.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_get_card_any_state(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card_metadata** out_card_metadata, holder_error** out_error);
+
 /* Read a live card's path from its project root.
  * The project comes first, then live ancestor cards and the requested card. A missing or trashed
  * card is not found; a broken or cyclic ancestor chain is invalid.
@@ -1665,6 +1672,14 @@ int holder_detach_card_resource(holder_context* context, const char* project_id,
  * Errors: HOLDER_ERROR_KEYRING_UNAVAILABLE.
  */
 int holder_ensure_home_project(holder_context* context, holder_arena* arena, const holder_home_project** out_home_project, holder_error** out_error);
+
+/* Register a durable plain project in an empty context database.
+ * The project must be an immediate child of the context's projects directory and
+ * contain independent ordinary files. This preserves project and card identities,
+ * rebuilds indexes, and leaves the durable files untouched. Encrypted projects are
+ * not supported. No other operation may use this context during import.
+ */
+int holder_import_project(holder_context* context, const char* project_root, holder_arena* arena, const holder_project** out_project, holder_error** out_error);
 
 typedef enum holder_list_projects_order {
     HOLDER_LIST_PROJECTS_ORDER_NONE = 0, /* null */

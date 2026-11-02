@@ -81,7 +81,7 @@ def test_project_operations_are_scoped_in_a_shared_context(tmp_path: Path) -> No
         assert [card.card_id for card in first.list_cards()] == [a.card_id]
         assert first.cards.to_records()[0]["project_id"] == first.project_id
         assert first.tags.cards_with_tag("science")[0]["card_id"] == a.card_id
-        assert first.tags.project_counts()[0]["count"] == 1
+        assert first.tags.project_counts()[0]["card_count"] == 1
         assert len(first.milestones.to_records()) == 1
         # Core allows an outgoing connection to a card in another project.
         first.connections.add(a.card_id, b.card_id, "related")

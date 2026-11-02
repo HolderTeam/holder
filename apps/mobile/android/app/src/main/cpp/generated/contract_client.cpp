@@ -3052,6 +3052,26 @@ Java_team_holder_android_contract_Cards_getCardMetadata(JNIEnv* env, jobject, jl
 }
 
 extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_contract_Cards_getCardAnyState(JNIEnv* env, jobject, jlong context_handle, jstring a_project_id, jstring a_card_id) {
+  if (!context_handle) { fail(env, "context is required"); return nullptr; }
+  Keep keep;
+  const char* p_project_id = nullptr;
+  if (!c_text(env, a_project_id, keep, p_project_id)) return nullptr;
+  const char* p_card_id = nullptr;
+  if (!c_text(env, a_card_id, keep, p_card_id)) return nullptr;
+  Arena arena;
+  if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
+  const holder_card_metadata* out = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_get_card_any_state(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      p_project_id,
+      p_card_id,
+      arena.value, &out, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
+  return to_java_holder_card_metadata(env, (*out));
+}
+
+extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_contract_Cards_getCardBreadcrumbs(JNIEnv* env, jobject, jlong context_handle, jstring a_project_id, jstring a_card_id) {
   if (!context_handle) { fail(env, "context is required"); return nullptr; }
   Keep keep;
@@ -3841,6 +3861,23 @@ Java_team_holder_android_contract_Projects_ensureHomeProject(JNIEnv* env, jobjec
       arena.value, &out, &error);
   if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
   return to_java_holder_home_project(env, (*out));
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_contract_Projects_importProject(JNIEnv* env, jobject, jlong context_handle, jstring a_project_root) {
+  if (!context_handle) { fail(env, "context is required"); return nullptr; }
+  Keep keep;
+  const char* p_project_root = nullptr;
+  if (!c_text(env, a_project_root, keep, p_project_root)) return nullptr;
+  Arena arena;
+  if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
+  const holder_project* out = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_import_project(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      p_project_root,
+      arena.value, &out, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
+  return to_java_holder_project(env, (*out));
 }
 
 extern "C" JNIEXPORT jobject JNICALL

@@ -40,7 +40,7 @@ def test_milestone_lifecycle_and_partial_updates(tmp_path: Path) -> None:
         assert cleared["kind"] is None and cleared["description"] is None
         assert cleared["created_at"] == milestone["created_at"]
         assert context.milestones.update(project.project_id, card.card_id, milestone["milestone_id"], {}) == cleared
-        assert context.get_card_content(card.card_id) == "Body #keep"
+        assert context.get_card_content(project.project_id, card.card_id) == "Body #keep"
         assert context.tags.list(card.card_id) == ["keep"]
         records = context.milestones.to_records(project.project_id)
         assert all(tuple(row) == holderkit.PROJECT_MILESTONE_RECORD_FIELDS for row in records)

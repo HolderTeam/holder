@@ -23,6 +23,16 @@ def register(contract: Contract) -> None:
         decides when to call it: the daemon calls it when it starts, and does not serve it over HTTP.
         """
 
+    @contract.core_operation()
+    def import_project(project_root: Annotated[str, Field(min_length=1)]) -> Project:
+        """Register a durable plain project in an empty context database.
+
+        The project must be an immediate child of the context's projects directory and
+        contain independent ordinary files. This preserves project and card identities,
+        rebuilds indexes, and leaves the durable files untouched. Encrypted projects are
+        not supported. No other operation may use this context during import.
+        """
+
     @contract.route("GET", "/projects", errors=[])
     def list_projects(
         name: Annotated[Annotated[str, Field(min_length=1)] | None, Query(

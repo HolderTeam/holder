@@ -18,7 +18,8 @@ def test_card_tags_share_project_semantics_and_detached_exports(tmp_path: Path) 
         assert tags.list_editable() == ['todo']
         assert tags.add('EXPERIMENT') == holderkit.TagAddResult.ADDED
         assert tags.add('experiment') == holderkit.TagAddResult.ALREADY_PRESENT
-        assert tags.remove('prose') == holderkit.TagRemoveResult.PRESENT_OUTSIDE_EDITABLE_TAG_LINE
+        with pytest.raises(holderkit.HolderError, match='prose'):
+            tags.remove('prose')
         assert tags.remove('todo') == holderkit.TagRemoveResult.REMOVED
         assert tags.remove('missing') == holderkit.TagRemoveResult.NOT_PRESENT
         assert '#experiment' in card.content
@@ -180,9 +181,9 @@ def test_card_exports_do_not_scan_other_cards_or_request_complete_bodies(tmp_pat
         monkeypatch.setattr(_native.Context, 'list_cards', forbidden)
         monkeypatch.setattr(_native.Context, 'get_card_content', forbidden)
         monkeypatch.setattr(_native.Context, 'list_complete_cards_page', forbidden)
-        # Editable tag reads inherit Core's missing-file policy; the membership
-        # remains indexed and no complete body export is requested.
-        assert card.tags.to_records()[0]['tag'] == 'work'
+        # Generated Card tag details require the card body to be readable.
+        with pytest.raises(holderkit.HolderError, match='card content missing'):
+            card.tags.to_records()
         assert card.connections.to_records()[0]['to_card_id'] == target.card_id
         assert card.milestones.to_records()[0]['start_at'] == 100
 

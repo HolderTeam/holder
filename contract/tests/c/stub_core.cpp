@@ -49,6 +49,10 @@ CardMetadata get_card_metadata(holder_context& context, std::string project_id, 
   return live_card(context, project_id, card_id);
 }
 
+CardMetadata get_card_any_state(holder_context& context, std::string project_id, std::string card_id) {
+  return card_in(context, project_id, card_id);
+}
+
 std::vector<CardBreadcrumb> get_card_breadcrumbs(holder_context& context, std::string project_id,
                                                  std::string card_id) {
   live_card(context, project_id, card_id);
@@ -392,6 +396,14 @@ HomeProject ensure_home_project(holder_context& context) {
   NewProject home;
   home.name = std::string(HOME_PROJECT_NAME);
   return {create_project(context, home)};
+}
+
+Project import_project(holder_context& context, std::string project_root) {
+  NewProject project;
+  project.name = "Imported";
+  project.root_path = std::move(project_root);
+  project.privacy_mode = NewProjectPrivacyMode::Plain;
+  return create_project(context, project);
 }
 
 Project get_project(holder_context& context, std::string project_id) { return project_named(context, project_id); }

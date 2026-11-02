@@ -27,7 +27,6 @@ PROJECT_DTYPES = {
     "name": "string",
     "root_path": "string",
     "privacy_mode": "string",
-    "id_scheme": "string",
     "created_at": "datetime64[ns, UTC]",
     "updated_at": "datetime64[ns, UTC]",
     "git_remote_url": "string",
@@ -192,7 +191,7 @@ def test_combined_exports_match_collection_tables_and_join_after_close(tmp_path:
     tables["connections"].loc[:, "kind"] = "local kind"
     tables["projects"].loc[:, "name"] = "local name"
     with holderkit.open(data) as reopened:
-        assert reopened.get_card_content(source.card_id) == "body"
+        assert reopened.get_card_content(source.project_id, source.card_id) == "body"
         assert reopened.connections.to_records()[0]["kind"] == "references"
         assert {project.name for project in reopened.list_projects()} == {"First", "Second"}
 
@@ -248,7 +247,9 @@ def test_combined_export_content_failures_and_closed_context(tmp_path: Path) -> 
         project = context.create_project("Missing body")
         card = context.create_card(project.project_id, "Card", "body")
         (Path(project.root_path) / card.rel_path).unlink()
-        assert "content" not in context.to_dataframes()["cards"].columns
+        assert "content" not in context.cards.to_dataframe().columns
+        with pytest.raises(holderkit.HolderError, match="card content missing"):
+            context.to_dataframes()
         with pytest.raises(holderkit.HolderError, match="card content missing"):
             context.to_dataframes(include_content=True)
     with pytest.raises(RuntimeError, match="closed"):

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import json
 from typing import TYPE_CHECKING, Any, Literal, Mapping, TypedDict, overload
 
 if TYPE_CHECKING:
@@ -155,7 +154,7 @@ class Card:
     def _content(self, record: Mapping[str, Any]) -> str:
         if record["deleted_at"] is not None:
             raise ValueError("Card is in Trash; restore it before reading content")
-        return self.project._live_context().get_card_content(self.card_id)
+        return self.project._live_context().get_card_content(self.project_id, self.card_id)
 
     @property
     def rel_path(self) -> str:
@@ -251,8 +250,7 @@ class Card:
         self.project._require_card(self.card_id)
         self.project._require_owned_card(target)
         self.project._require_card(target.card_id)
-        request = json.dumps({"intent": intent, "target_card_id": target.card_id})
-        self.project._live_context().move_card(self.project_id, self.card_id, request)
+        self.project._live_context().move_card(self.project_id, self.card_id, intent, target.card_id)
         return self
 
     def delete(self, *, hard: bool = False) -> None:

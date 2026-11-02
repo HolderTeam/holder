@@ -42,6 +42,14 @@ def register(contract: Contract) -> None:
         A card in the trash or in another project is not found.
         """
 
+    @contract.core_operation(errors=[NotFound])
+    def get_card_any_state(project_id: ProjectId, card_id: CardId) -> CardMetadata:
+        """Read a card's metadata in its owning project, including a card in Trash.
+
+        Embedders use this to keep a card handle usable for restore and purge. It does
+        not read the card's content or expose a cross-project lookup.
+        """
+
 
     @contract.route("GET", "/projects/{project_id}/cards/{card_id}/breadcrumbs",
                     errors=[NotFound, HierarchyInvalid])

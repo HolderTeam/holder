@@ -12,7 +12,6 @@ class TagAddResult(IntEnum):
 class TagRemoveResult(IntEnum):
     REMOVED = 0
     NOT_PRESENT = 1
-    PRESENT_OUTSIDE_EDITABLE_TAG_LINE = 2
 
 
 class TagRecord(TypedDict):
@@ -27,7 +26,7 @@ class TagRecord(TypedDict):
 class ProjectTagRecord(TypedDict):
     project_id: str
     tag: str
-    count: int
+    card_count: int
 
 
 class TaggedCardRecord(TypedDict):
