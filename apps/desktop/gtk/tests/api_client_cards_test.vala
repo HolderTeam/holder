@@ -334,9 +334,9 @@ private void test_calendar_and_milestone_endpoints() {
     assert(calendar != null && calendar.project_id == "p1");
     assert(calendar.from_epoch == 100 && calendar.to_epoch == 500);
     assert(transport.last_uri.contains("/projects/p1/calendar"));
-    assert(transport.last_uri.contains("first_instant=100"));
-    assert(transport.last_uri.contains("last_instant=500"));
-    // The window's days are where the app is.
+    // Only the window's days, where the app is; the daemon works out their instants.
+    assert(!transport.last_uri.contains("first_instant"));
+    assert(!transport.last_uri.contains("last_instant"));
     assert(transport.last_uri.contains(
         "first_day=" + new DateTime.from_unix_local(100).format("%Y-%m-%d")));
     assert(transport.last_uri.contains(

@@ -192,6 +192,7 @@ set(HOLDER_CORE_SOURCES
   src/platform/Fs.cpp
   src/platform/Migrations.cpp
   src/platform/Tx.cpp
+  src/platform/time_zone/TimeZones.cpp
   src/privacy/CryptoService.cpp
   src/privacy/PlatformKeyring.cpp
   src/privacy/ProjectPrivacy.cpp
@@ -221,6 +222,17 @@ set(HOLDER_CORE_SOURCES
   src/sync/ProjectSyncPolicy.cpp
   src/sync/PullConflictResolution.cpp
 )
+
+# The built-in time-zone provider (src/platform/time_zone/TimeZones.h): std::chrono where the C++
+# library has its time-zone database, Core Foundation on macOS, and none on Android, whose app
+# registers one.
+if(ANDROID)
+  list(APPEND HOLDER_CORE_SOURCES src/platform/time_zone/TimeZonesNone.cpp)
+elseif(APPLE)
+  list(APPEND HOLDER_CORE_SOURCES src/platform/time_zone/TimeZonesCoreFoundation.cpp)
+else()
+  list(APPEND HOLDER_CORE_SOURCES src/platform/time_zone/TimeZonesChrono.cpp)
+endif()
 add_library(holder STATIC ${HOLDER_CORE_SOURCES})
 add_library(Holder::Core ALIAS holder)
 set_target_properties(holder PROPERTIES
@@ -291,6 +303,10 @@ function(holder_configure_library target)
       "${HOLDER_CORE_SECURITY_FRAMEWORK}"
       "${HOLDER_CORE_COREFOUNDATION_FRAMEWORK}"
     )
+  endif()
+  if(APPLE)
+    # Time zones (src/platform/time_zone/TimeZonesCoreFoundation.cpp).
+    target_link_libraries(${target} PUBLIC "-framework CoreFoundation")
   endif()
 
   if(HOLDER_CORE_HAVE_WINDOWS_CREDENTIAL_MANAGER)

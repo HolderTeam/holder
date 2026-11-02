@@ -181,8 +181,7 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
                                                              int64 from_epoch,
                                                              int64 to_epoch) throws Error {
         var query = new HashTable<string, string>(str_hash, str_equal);
-        query.insert("first_instant", from_epoch.to_string());
-        query.insert("last_instant", to_epoch.to_string());
+        // The local days the window covers; the daemon works out their instants in this machine's zone.
         query.insert("first_day", new DateTime.from_unix_local(from_epoch).format("%Y-%m-%d"));
         query.insert("last_day", new DateTime.from_unix_local(to_epoch).format("%Y-%m-%d"));
         var root = yield client.request_json(

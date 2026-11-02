@@ -2156,18 +2156,17 @@ int holder_list_milestones_by_instant(holder_context* context, const char* proje
   });
 }
 
-int holder_get_calendar(holder_context* context, const char* project_id, int64_t first_instant, int64_t last_instant, const char* first_day, const char* last_day, holder_arena* arena, const holder_calendar** out_calendar, holder_error** out_error) {
+int holder_get_calendar(holder_context* context, const char* project_id, const char* first_day, const char* last_day, const char* time_zone, holder_arena* arena, const holder_calendar** out_calendar, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
     require(out_calendar != nullptr, "out_calendar must not be null");
     *out_calendar = nullptr;
     const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
-    const auto first_instant_value = first_instant;
-    const auto last_instant_value = last_instant;
     const auto first_day_value = text(first_day, "first_day", 10, 10);
     const auto last_day_value = text(last_day, "last_day", 10, 10);
+    const auto time_zone_value = optional_text(time_zone, "time_zone", 1, SIZE_MAX);
     auto* out = make<holder_calendar>(arena);
-    *out = to_c(arena, contract::get_calendar(*context, project_id_value, first_instant_value, last_instant_value, first_day_value, last_day_value));
+    *out = to_c(arena, contract::get_calendar(*context, project_id_value, first_day_value, last_day_value, time_zone_value));
     *out_calendar = out;
   });
 }

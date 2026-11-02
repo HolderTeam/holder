@@ -755,28 +755,13 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
     static const std::regex route_28("^/projects/([^/]+)/calendar$");
     if (method == "GET" && std::regex_match(route_path, match, route_28)) {
         std::string project_id{};
-        long long first_instant{};
-        long long last_instant{};
         std::string first_day{};
         std::string last_day{};
+        std::optional<std::string> time_zone{};
         try {
             const auto query_values = decode_query(query_string);
-            check_query_names(query_values, {"first_instant", "last_instant", "first_day", "last_day"});
+            check_query_names(query_values, {"first_day", "last_day", "time_zone"});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
-            const auto query_first_instant = query_values.find("first_instant");
-            if (query_first_instant != query_values.end()) {
-                const auto& text = query_first_instant->second;
-                first_instant = decode_integer<long long>(text, "first_instant");
-            } else {
-                throw std::invalid_argument("the query parameter first_instant is required");
-            }
-            const auto query_last_instant = query_values.find("last_instant");
-            if (query_last_instant != query_values.end()) {
-                const auto& text = query_last_instant->second;
-                last_instant = decode_integer<long long>(text, "last_instant");
-            } else {
-                throw std::invalid_argument("the query parameter last_instant is required");
-            }
             const auto query_first_day = query_values.find("first_day");
             if (query_first_day != query_values.end()) {
                 const auto& text = query_first_day->second;
@@ -791,11 +776,16 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             } else {
                 throw std::invalid_argument("the query parameter last_day is required");
             }
+            const auto query_time_zone = query_values.find("time_zone");
+            if (query_time_zone != query_values.end()) {
+                const auto& text = query_time_zone->second;
+                time_zone = contract_json::check_text(text, "time_zone", 1, std::numeric_limits<std::size_t>::max());
+            }
         } catch (const std::invalid_argument& error) {
             return failure(400, "invalid_argument", error.what(), "get_calendar");
         }
         try {
-            return success(200, contract_json::encode(holder::contract::get_calendar(context, std::move(project_id), std::move(first_instant), std::move(last_instant), std::move(first_day), std::move(last_day))), "get_calendar");
+            return success(200, contract_json::encode(holder::contract::get_calendar(context, std::move(project_id), std::move(first_day), std::move(last_day), std::move(time_zone))), "get_calendar");
         } catch (const holder::contract::NotFound& error) {
             return failure(404, "not_found", error.what(), "get_calendar");
         } catch (const holder::contract::InvalidArgument& error) {

@@ -6139,8 +6139,8 @@
     },
     "/projects/{project_id}/calendar": {
       "get": {
-        "summary": "What happens in a project over a window of time.",
-        "description": "The caller gives the window twice, as instants and as the days they fall on where the caller is, because a day\nhas no time zone: a milestone is in the window when one of its days is in the days, or one of its instants in\nthe instants. Cards are made and changed at instants. Either range is empty when its start is after its end.",
+        "summary": "What happens in a project over a window of days in a time zone.",
+        "description": "The window runs from the start of first_day to the end of last_day in the zone, so it is empty when first_day is\nafter last_day. A milestone is in it when one of its days is in the days, or one of its instants falls in the\nwindow; a day has no time zone, so it is compared with the days, never turned into an instant. Cards are made and\nchanged at instants. Core works out the window's instants from the zone, across daylight-saving changes, so every\nclient gets the same answer. An unknown zone is an invalid argument.",
         "parameters": [
           {
             "name": "project_id",
@@ -6151,48 +6151,39 @@
             }
           },
           {
-            "name": "first_instant",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "format": "int64",
-              "title": "First Instant"
-            }
-          },
-          {
-            "name": "last_instant",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "format": "int64",
-              "title": "Last Instant"
-            }
-          },
-          {
             "name": "first_day",
             "in": "query",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/Day",
-              "description": "The day first_instant falls on where the caller is."
-            },
-            "description": "The day first_instant falls on where the caller is."
+              "$ref": "#/components/schemas/Day"
+            }
           },
           {
             "name": "last_day",
             "in": "query",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/Day",
-              "description": "The day last_instant falls on where the caller is."
+              "$ref": "#/components/schemas/Day"
+            }
+          },
+          {
+            "name": "time_zone",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The zone the days are in, such as Europe/London; omit for this device's zone.",
+              "title": "Time Zone"
             },
-            "description": "The day last_instant falls on where the caller is."
+            "description": "The zone the days are in, such as Europe/London; omit for this device's zone."
           }
         ],
         "responses": {

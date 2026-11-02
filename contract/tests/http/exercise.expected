@@ -88,7 +88,7 @@ GET /projects/p1/milestones/days?first_day=2026-10-01&last_day=2026-10-31&role=s
   200 list_milestones_by_day {"data":[],"ok":true}
 GET /projects/p1/milestones/instants?first_instant=0&last_instant=x
   400 list_milestones_by_instant {"error":{"code":"invalid_argument","message":"last_instant must be an integer in range"},"ok":false}
-GET /projects/p1/calendar?first_instant=0&last_instant=1&first_day=2026-10-01
+GET /projects/p1/calendar?first_day=2026-10-01&time_zone=UTC
   400 get_calendar {"error":{"code":"invalid_argument","message":"the query parameter last_day is required"},"ok":false}
 POST /projects/p1/resources {"resource_id": "res-1", "type": "book", "label": "A book", "metadata": {"author": ["Ada", "Grace"]}}
   201 create_resource {"data":{"assets":[],"created_at":1793000500,"label":"A book","metadata":{"author":["Ada","Grace"]},"project_id":"p1","resource_id":"res-1","type":"book","updated_at":1793000500},"ok":true}

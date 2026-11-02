@@ -1069,6 +1069,38 @@ int holder_storage_provider_register(
     holder_error** out_error
 );
 
+// -- Time zones --
+//
+// The calendar (get_calendar) turns days in a time zone into instants. It asks a time-zone
+// provider for a zone's UTC offset at an instant and for the device's current zone, using the
+// operating system's own zone data. Linux, Windows and macOS have a built-in provider; Android
+// has none, so its app registers one. Registering replaces the built-in provider for the process.
+//
+// offset_fn sets *out_offset_seconds to the zone's offset from UTC, in seconds east, at
+// utc_seconds (seconds since the epoch), and returns 0, or nonzero for an unknown zone.
+// current_fn writes the device's current zone (such as "Europe/London") into out_zone as a
+// NUL-terminated string of at most capacity bytes, and returns 0, or nonzero on failure. Both may
+// be called from any thread.
+typedef int (*holder_time_zone_offset_fn)(
+    void* user_data,
+    const char* zone,
+    long long utc_seconds,
+    long long* out_offset_seconds
+);
+
+typedef int (*holder_time_zone_current_fn)(void* user_data, char* out_zone, size_t capacity);
+
+// OWNERSHIP: unconditional from the moment this is called, exactly like
+// holder_keyring_set_provider -- destroy_user_data runs exactly once, either immediately if this
+// call fails, or when a later call replaces this provider and nothing is using it any more.
+int holder_time_zone_set_provider(
+    holder_time_zone_offset_fn offset_fn,
+    holder_time_zone_current_fn current_fn,
+    void* user_data,
+    holder_destroy_fn destroy_user_data,
+    holder_error** out_error
+);
+
 // -- Encryption / recovery --
 
 // Runs the encrypted_git safety check (verifies every file under the

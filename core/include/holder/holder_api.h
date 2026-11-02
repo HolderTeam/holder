@@ -1565,15 +1565,16 @@ int holder_list_milestones_by_day(holder_context* context, const char* project_i
  */
 int holder_list_milestones_by_instant(holder_context* context, const char* project_id, int64_t first_instant, int64_t last_instant, const char* role, holder_arena* arena, const holder_milestone_list** out_milestone_list, holder_error** out_error);
 
-/* What happens in a project over a window of time.
- * The caller gives the window twice, as instants and as the days they fall on where the caller is, because a day
- * has no time zone: a milestone is in the window when one of its days is in the days, or one of its instants in
- * the instants. Cards are made and changed at instants. Either range is empty when its start is after its end.
- * first_day: The day first_instant falls on where the caller is.
- * last_day: The day last_instant falls on where the caller is.
+/* What happens in a project over a window of days in a time zone.
+ * The window runs from the start of first_day to the end of last_day in the zone, so it is empty when first_day is
+ * after last_day. A milestone is in it when one of its days is in the days, or one of its instants falls in the
+ * window; a day has no time zone, so it is compared with the days, never turned into an instant. Cards are made and
+ * changed at instants. Core works out the window's instants from the zone, across daylight-saving changes, so every
+ * client gets the same answer. An unknown zone is an invalid argument.
+ * time_zone: The zone the days are in, such as Europe/London; omit for this device's zone. May be NULL.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_get_calendar(holder_context* context, const char* project_id, int64_t first_instant, int64_t last_instant, const char* first_day, const char* last_day, holder_arena* arena, const holder_calendar** out_calendar, holder_error** out_error);
+int holder_get_calendar(holder_context* context, const char* project_id, const char* first_day, const char* last_day, const char* time_zone, holder_arena* arena, const holder_calendar** out_calendar, holder_error** out_error);
 
 /* Import a local file into a project and attach it to a card.
  * The file is hashed, stored in the storage location through this device's provider for it,

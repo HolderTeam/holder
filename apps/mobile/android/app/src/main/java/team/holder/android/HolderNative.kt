@@ -481,6 +481,8 @@ object HolderNative {
             // remains best-effort here: a plain profile does not need it, while core
             // will fail closed if reconstruction actually needs an unavailable key.
             runCatching { team.holder.android.keyring.AndroidKeyringStore.registerWithNative(context) }
+            // Android's C++ library has no time-zone database, so core's calendar asks java.time.
+            team.holder.android.time.AndroidTimeZones.register()
             // One context per lane, opened one after another: the first open may rebuild the
             // database, and the others then find it healthy.
             try {
@@ -990,6 +992,7 @@ object HolderNative {
     private const val END = "end"
     private val INSTANT_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX")
 
+    // HolderMilestone holds an all-day date as UTC midnight; these convert between the two.
     private fun dayOf(epoch: Long): String = Instant.ofEpochSecond(epoch).atOffset(ZoneOffset.UTC).toLocalDate().toString()
 
     private fun milestoneDate(role: String, epoch: Long, allDay: Boolean) = if (allDay) {
@@ -1081,15 +1084,19 @@ object HolderNative {
         }
     }
 
-    /** Every milestone in projectId whose start falls within [from, to] (inclusive), ordered by
-     * start -- the Calendar's primary query. Never includes a trashed card's milestones. */
-    fun listMilestonesInRange(projectId: String, from: Long, to: Long): List<HolderMilestone> =
-        readLane.call { Milestones.getCalendar(it, projectId, from, to, dayOf(from), dayOf(to)) }.milestones
+    /** Every milestone in projectId with a date in the device-local days from [from] to [to], ordered
+     * by start -- the Calendar's primary query. Core decides what is in the window: a day milestone by
+     * its days, a timed one by its instants in this zone. Never includes a trashed card's milestones. */
+    fun listMilestonesInRange(projectId: String, from: Long, to: Long): List<HolderMilestone> {
+        val zone = ZoneId.systemDefault()
+        val firstDay = Instant.ofEpochSecond(from).atZone(zone).toLocalDate().toString()
+        val lastDay = Instant.ofEpochSecond(to).atZone(zone).toLocalDate().toString()
+        return readLane.call { Milestones.getCalendar(it, projectId, firstDay, lastDay, zone.id) }.milestones
             .mapNotNull { m ->
                 holderMilestone(m.milestoneId, m.cardId, m.dates, m.kind, m.description, m.createdAt, m.updatedAt, m.cardTitle)
             }
-            .filter { it.startAt in from..to }
             .sortedBy { it.startAt }
+    }
 
     fun searchCards(projectId: String, query: String, limit: Int = 50): List<HolderSearchResult> {
         return readLane.call { Search.searchCards(it, projectId, query, limit) }

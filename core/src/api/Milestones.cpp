@@ -9,6 +9,7 @@
 #include "card/MilestoneRepo.h"
 #include "model/Milestone.h"
 #include "model/MilestoneDate.h"
+#include "platform/time_zone/TimeZones.h"
 #include "project/ProjectRepo.h"
 
 #include <algorithm>
@@ -128,11 +129,27 @@ std::vector<Milestone> by_instant(holder_context& context, const std::string& pr
       holder::card::MilestoneRepo(context.db).list_instants_in_range(project_id, role, first_instant, last_instant));
 }
 
-Calendar calendar(holder_context& context, const std::string& project_id, long long first_instant,
-                  long long last_instant, const std::string& first_day, const std::string& last_day) {
+// The instants from the start of first_day to the end of last_day in zone, or the device's zone.
+std::pair<long long, long long> instant_window(const std::string& first_day, const std::string& last_day,
+                                               const std::optional<std::string>& time_zone) {
+  constexpr long long day = 24 * 60 * 60;
+  const auto provider = holder::platform::time_zone_provider();
+  const auto zone = time_zone ? *time_zone : provider->current_zone();
+  try {
+    const auto first = holder::platform::local_to_utc(*provider, zone, holder::model::milestone_day_utc_epoch(first_day));
+    const auto after = holder::platform::local_to_utc(*provider, zone, holder::model::milestone_day_utc_epoch(last_day) + day);
+    return {first, after - 1};
+  } catch (const std::invalid_argument& error) {
+    throw InvalidArgument(error.what());
+  }
+}
+
+Calendar calendar(holder_context& context, const std::string& project_id, const std::string& first_day,
+                  const std::string& last_day, const std::optional<std::string>& time_zone) {
   checked_day(first_day, "first_day");
   checked_day(last_day, "last_day");
   require_project(context, project_id);
+  const auto [first_instant, last_instant] = instant_window(first_day, last_day, time_zone);
   Calendar out;
   std::map<std::string, std::string> titles;
   for (auto& card : holder::card::CardRepo(context.db).list_all(project_id)) {
@@ -192,10 +209,9 @@ std::vector<Milestone> list_milestones_by_instant(holder_context& context, std::
   return with_contract_errors([&] { return by_instant(context, project_id, first_instant, last_instant, role); });
 }
 
-Calendar get_calendar(holder_context& context, std::string project_id, long long first_instant,
-                      long long last_instant, std::string first_day, std::string last_day) {
-  return with_contract_errors(
-      [&] { return calendar(context, project_id, first_instant, last_instant, first_day, last_day); });
+Calendar get_calendar(holder_context& context, std::string project_id, std::string first_day, std::string last_day,
+                      std::optional<std::string> time_zone) {
+  return with_contract_errors([&] { return calendar(context, project_id, first_day, last_day, time_zone); });
 }
 
 } // namespace holder::contract

@@ -52,6 +52,7 @@ add_executable(holder_core_tests
   ContractProjects_test.cpp
   ContractRecoverySnapshots_test.cpp
   ContractAssets_test.cpp
+  TimeZones_test.cpp
   CardFrontMatter_test.cpp
   CardPaths_test.cpp
   CardPlacementResolver_test.cpp

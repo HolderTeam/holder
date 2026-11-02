@@ -166,17 +166,18 @@ object Milestones {
     ): List<Milestone>
 
     /**
-     * What happens in a project over a window of time.
-     * The caller gives the window twice, as instants and as the days they fall on where the caller is, because a day
-     * has no time zone: a milestone is in the window when one of its days is in the days, or one of its instants in
-     * the instants. Cards are made and changed at instants. Either range is empty when its start is after its end.
+     * What happens in a project over a window of days in a time zone.
+     * The window runs from the start of first_day to the end of last_day in the zone, so it is empty when first_day is
+     * after last_day. A milestone is in it when one of its days is in the days, or one of its instants falls in the
+     * window; a day has no time zone, so it is compared with the days, never turned into an instant. Cards are made and
+     * changed at instants. Core works out the window's instants from the zone, across daylight-saving changes, so every
+     * client gets the same answer. An unknown zone is an invalid argument.
      */
     external fun getCalendar(
         contextHandle: Long,
         projectId: String,
-        firstInstant: Long,
-        lastInstant: Long,
         firstDay: String,
         lastDay: String,
+        timeZone: String? = null,
     ): Calendar
 }
