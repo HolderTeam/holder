@@ -44,6 +44,9 @@ from test_support.values import CHARACTERS, Values
 CONTRACT = Path(__file__).resolve().parents[2]
 IR = extract(CONTRACT, "interface")
 CONTRACT_APP = load_contract(CONTRACT, "interface")
+# Core's operations that work through an open context, in the IR's order.
+CONTEXT_OPERATIONS = [op["name"] for op in IR["operations"]
+                      if not op["daemon_only"] and op.get("context", "required") == "required"]
 LIBRARY = os.environ.get("HOLDER_LIBRARY")
 DAEMON = os.environ.get("HOLDER_DAEMON")
 needs_library = pytest.mark.skipif(not LIBRARY, reason="set HOLDER_LIBRARY to a shared libholder to run these")
@@ -1368,9 +1371,11 @@ class Cards(RuleBasedStateMachine):
                     for tag, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))]
         assert tags == expected
 
-    @rule(data=st.data(), operation=st.sampled_from(
-        [op["name"] for op in IR["operations"] if not op["daemon_only"]]))
-    def invalid_arguments_are_rejected(self, data, operation):
+    @rule(data=st.data())
+    def invalid_arguments_are_rejected(self, data):
+        # Ordinary operations this transport can call. Runtime operations open, close or run without a context, so
+        # they are left out: given junk, context_destroy would release whatever it was handed.
+        operation = data.draw(st.sampled_from([name for name in CONTEXT_OPERATIONS if self.core.serves(name)]))
         arguments, name = data.draw(self.values().invalid_arguments(operation))
         try:
             self.core.call(operation, **arguments)

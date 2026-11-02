@@ -99,6 +99,10 @@ class Core:
 
     # ---- contract operations ------------------------------------------------------------------
 
+    def serves(self, operation: str) -> bool:
+        """Whether core's C API has the operation: every operation but the daemon's own."""
+        return not self.model.contract.operation(operation).daemon_only
+
     def call(self, operation: str, **arguments: Any) -> Any:
         """Call an operation; raises OperationError with the error kind's name when it fails."""
         op = next(o for o in self.model.operations if o.name == operation)
