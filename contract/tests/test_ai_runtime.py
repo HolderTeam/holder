@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 from generators.daemon.paths import route_pattern
-from holder_contract.extract import extract
+from test_support.contract import extract
 
 ROOT = Path(__file__).resolve().parents[2]
 

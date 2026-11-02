@@ -1,4 +1,4 @@
-"""python -m holder_contract: check the contract, write its IR, or generate code from it."""
+"""python -m compiler: check the contract, write its IR, or generate code from it."""
 
 from __future__ import annotations
 
@@ -11,14 +11,14 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from compiler.errors import ContractError
-from compiler.ir import ContractView
-from compiler.pipeline import Compiler, ContractSource
 from generators.android.client import generate_android_client
 from generators.common import Unsupported
+from generators.core import CORE_PATHS, generate_core
+from generators.daemon import DAEMON_PATHS, OPENAPI_PATHS, api_documents, generate_daemon
 
-from .daemon import DAEMON_PATHS, OPENAPI_PATHS, api_documents, generate_daemon
-from .extract import load_contract
-from .generate import CORE_PATHS, generate
+from .ir import ContractView
+from .pipeline import Compiler, ContractSource
+from .source import load_contract
 
 CONTRACT = Path(__file__).resolve().parents[1]
 REPOSITORY = CONTRACT.parent
@@ -41,11 +41,11 @@ def collisions(files: dict[str, str]) -> list[str]:
     return sorted(generated & existing)
 
 
-def repository_files(ir: dict, contract, files: dict[str, str]) -> dict[str, str]:
+def repository_files(ir: ContractView, contract, files: dict[str, str]) -> dict[str, str]:
     """Every generated file the repository holds, by its path in the repository."""
     daemon = generate_daemon(ir, contract)
     return {**{CORE_PATHS[name]: text for name, text in files.items()},
-            **generate_android_client(ContractView.model_validate(ir)),
+            **generate_android_client(ir),
             **{DAEMON_PATHS[name]: daemon[name] for name in DAEMON_PATHS},
             **{OPENAPI_PATHS[name]: text for name, text in api_documents(contract, REPOSITORY).items()}}
 
@@ -60,7 +60,7 @@ def stale_files(files: dict[str, str]) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m holder_contract", description=__doc__,
+    parser = argparse.ArgumentParser(prog="python -m compiler", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter,
                                      epilog="\n".join(f"  {name}: {text}" for name, text in COMMANDS.items()))
     parser.add_argument("command", choices=list(COMMANDS))
@@ -69,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, help="ir: a file instead of standard output; generate: a directory")
     args = parser.parse_args(argv)
     try:
-        ir = Compiler().compile(ContractSource(args.root, args.package)).model_dump(exclude_unset=True)
+        ir = Compiler().compile(ContractSource(args.root, args.package))
     except ContractError as error:
         print(error, file=sys.stderr)
         print(f"{len(error.problems)} problem(s) in the contract.", file=sys.stderr)
@@ -78,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"The extractor produced invalid IR: {error}", file=sys.stderr)
         return 1
     if args.command == "ir":
-        text = json.dumps(ir, indent=2, ensure_ascii=False) + "\n"
+        text = json.dumps(ir.model_dump(exclude_unset=True), indent=2, ensure_ascii=False) + "\n"
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(text, encoding="utf-8")
@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "check" and (args.root.resolve(), args.package) != (CONTRACT, "interface"):
         return 0
     try:
-        files = generate(ir)
+        files = generate_core(ir)
     except Unsupported as error:
         print(f"The C generator does not support this yet: {error}", file=sys.stderr)
         return 1
@@ -114,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             files = {**files, **generate_daemon(ir, load_contract(args.root, args.package)),
                      **{path.rsplit('/', 1)[-1]: text
-                        for path, text in generate_android_client(ContractView.model_validate(ir)).items()}}
+                        for path, text in generate_android_client(ir).items()}}
         except (Unsupported, ValueError) as error:
             print(f"A generator does not support this yet: {error}", file=sys.stderr)
             return 1

@@ -1,6 +1,6 @@
 # The contract's IR, version 1
 
-`python -m holder_contract ir` reads the contract and writes one JSON object, the input of every generator. The same contract always gives the same bytes. `tests/fixtures/sample.ir.json` is a complete example.
+`python -m compiler ir` reads the contract and writes one JSON object, the input of every generator. The same contract always gives the same bytes. `tests/fixtures/sample.ir.json` is a complete example.
 
 ```json
 {

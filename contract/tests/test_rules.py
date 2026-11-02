@@ -8,7 +8,7 @@ import pytest
 
 from compiler.errors import ContractError
 from compiler.rules import check_file
-from holder_contract.extract import extract
+from test_support.contract import extract
 
 PREAMBLE = """\
 from enum import StrEnum

@@ -28,8 +28,8 @@ from schemathesis.checks import not_a_server_error
 from schemathesis.config import SchemathesisConfig
 from schemathesis.specs.openapi.checks import negative_data_rejection, positive_data_acceptance
 
-from holder_contract.extract import extract
 from holder_http import MAX_TARGET, shared_daemon
+from test_support.contract import extract
 
 ROOT = Path(__file__).resolve().parents[3]
 IR = extract(ROOT / "contract", "interface")

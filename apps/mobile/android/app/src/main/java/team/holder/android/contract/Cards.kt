@@ -1,4 +1,4 @@
-// Generated from contract/interface by holder_contract. Do not edit; run make -C contract update.
+// Generated from contract/interface by compiler. Do not edit; run make -C contract update.
 package team.holder.android.contract
 
 enum class ListCardsOrder(val value: String) {

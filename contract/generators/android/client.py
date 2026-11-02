@@ -495,7 +495,7 @@ class AndroidClient:
 def generate_android_client(contract: ContractView) -> dict[str, str]:
     client = AndroidClient(contract)
     domains, conversions, enums, operations = client.plan()
-    header = "// Generated from contract/interface by holder_contract. Do not edit; run make -C contract update.\n"
+    header = "// Generated from contract/interface by compiler. Do not edit; run make -C contract update.\n"
     files = {}
     for plan in domains.values():
         files[f"{KOTLIN_DIR}/{plan.kotlin_name}.kt"] = header + TEMPLATES.get_template("client_domain.kt.j2").render(

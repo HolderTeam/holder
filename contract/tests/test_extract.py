@@ -1,15 +1,15 @@
 """The extractor on the sample contract, which uses every part of the vocabulary.
 
 tests/fixtures/sample.ir.json is the expected IR. After an intended change to the IR, rewrite it with
-    python -m holder_contract ir --root tests/fixtures --package sample --output tests/fixtures/sample.ir.json
+    python -m compiler ir --root tests/fixtures --package sample --output tests/fixtures/sample.ir.json
 and review the difference.
 """
 
 import json
 from pathlib import Path
 
-from holder_contract.__main__ import main
-from holder_contract.extract import extract
+from compiler.__main__ import main
+from test_support.contract import extract
 
 CONTRACT = Path(__file__).resolve().parents[1]
 FIXTURES = CONTRACT / "tests" / "fixtures"

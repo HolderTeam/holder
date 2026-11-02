@@ -20,7 +20,8 @@ Download Holder for Windows, macOS or Linux from [holder.team](https://holder.te
 
 - [`core/`](core/) - Holder Core (`libholder`): the engine, its C API and its own CMake build, which does not depend on anything else here.
 - [`daemon/`](daemon/) - the Holder daemon (`holderd`), its HTTP API and its CMake build, which also builds `holderctl`.
-- [`api/`](api/) - the HTTP contract: `openapi.yaml`, `API_VERSION` and the client documentation.
+- [`contract/`](contract/) - the Python source of truth for shared operations and types, with generators for core's C API, Android's Kotlin/JNI client, the daemon's HTTP routes and OpenAPI.
+- [`api/`](api/) - the generated HTTP schema (`openapi.yaml`), `API_VERSION` and client documentation.
 - [`cli/`](cli/) - `holderctl`, the command line client, including `holderctl ensure`.
 - [`common/`](common/) - platform code shared by the daemon and `holderctl`.
 - [`staging/`](staging/) - assembles and checks build artifacts for each platform.

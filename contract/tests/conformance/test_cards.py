@@ -2,7 +2,7 @@
 HTTP, against the contract.
 
 Hypothesis drives a model of a project with the contract's operations, drawing arguments from the
-strategies in holder_contract.values, and checks every result two ways: it conforms to the
+strategies in test_support.values, and checks every result two ways: it conforms to the
 operation's declared result type, and it is what the model expects. Over HTTP, every response must
 also be one its route in interface/cards/operations.py declares (see holder_http). The machine talks to Holder
 through a transport's call method and a few set-up helpers, and runs once per transport:
@@ -35,9 +35,9 @@ from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, rule
 
 from holder_capi import Core, OperationError, Unrepresentable
-from holder_contract.extract import extract, load_contract
-from holder_contract.values import CHARACTERS, Values
 from holder_http import Http, Nonconforming, shared_daemon
+from test_support.contract import extract, load_contract
+from test_support.values import CHARACTERS, Values
 
 CONTRACT = Path(__file__).resolve().parents[2]
 IR = extract(CONTRACT, "interface")

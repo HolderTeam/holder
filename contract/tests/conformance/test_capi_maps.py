@@ -7,8 +7,7 @@ import cffi
 from compiler.ir import ContractView, NamedType
 from generators.core.types import CoreTypes
 from holder_capi import HAND_WRITTEN, Core, declarations
-from holder_contract.extract import extract
-from holder_contract.generate import generate
+from test_support.contract import extract, generate
 
 
 def test_c_api_transport_encodes_string_and_string_list_maps():

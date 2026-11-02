@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:authoring|compiler|generators|holder_contract)\b")
+IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:authoring|compiler|generators|test_support)\b")
 DEPENDENCY = re.compile(r"holder[_-]contract")
 MANIFESTS = {"pyproject.toml", "setup.py", "setup.cfg", "CMakeLists.txt", "meson.build", "package.json",
              "build.gradle", "build.gradle.kts", "settings.gradle.kts", "vcpkg.json"}

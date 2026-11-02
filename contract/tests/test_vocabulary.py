@@ -12,7 +12,7 @@ import pytest
 
 from authoring import Field, Float64, Int32, Int64, Record, Timestamp
 from authoring.vocabulary import Native
-from holder_contract.extract import extract
+from test_support.contract import extract
 
 INT32 = {"type": "integer", "format": "int32", "minimum": -(2**31), "maximum": 2**31 - 1}
 INT64 = {"type": "integer", "format": "int64", "minimum": -(2**63), "maximum": 2**63 - 1}

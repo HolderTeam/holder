@@ -1,5 +1,6 @@
 #include "ai/AiProviderCredentialRepo.h"
 #include "api/GeneratedRoutes.h"
+#include "api/support/ProviderUtils.h"
 #include "http_test_helpers.h"
 #include "platform/Paths.h"
 #include "privacy/SecretStore.h"
@@ -61,6 +62,14 @@ http::request<http::string_body> make_req(
   return req;
 }
 } // namespace
+
+TEST_CASE("API key preview preserves UTF-8 characters", "[ai-credentials]") {
+  const std::string key = "abc€defghij";
+  const auto preview = holder::api::support::mask_api_key(key);
+  REQUIRE(preview == "abc€...ij");
+  REQUIRE_NOTHROW(nlohmann::json(preview).dump());
+  REQUIRE(holder::api::support::mask_api_key("short") == "****");
+}
 
 TEST_CASE("HTTP ai provider credentials put/get/delete", "[http]") {
   const auto dir = make_temp_dir();

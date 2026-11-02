@@ -12,9 +12,7 @@ from generators.android.client import JNI_PATH as CLIENT_JNI_PATH
 from generators.android.client import KOTLIN_DIR, generate_android_client
 from generators.core.abi import CAbi
 from generators.daemon.bindings import RuntimeBinding, bindings
-from holder_contract.daemon import generate_daemon
-from holder_contract.extract import extract, load_contract
-from holder_contract.generate import generate
+from test_support.contract import extract, generate, generate_daemon, load_contract
 
 CONTRACT = Path(__file__).resolve().parents[1]
 CARDS_KOTLIN = f"{KOTLIN_DIR}/Cards.kt"

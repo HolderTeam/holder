@@ -19,6 +19,6 @@ def contract_sources(contract: ContractView) -> list[str]:
 
 def header_lines(sources: Iterable[str], what: str, style: str) -> list[str]:
     """A generated file's opening comment: where it comes from, not to edit it, and what it is."""
-    text = [f"Generated from contract/{', contract/'.join(sources)} by holder_contract.",
+    text = [f"Generated from contract/{', contract/'.join(sources)} by compiler.",
             "Do not edit; change the contract, then run make -C contract update.", "", what]
     return [("// " if style == "cpp" else " * ") + line if line else ("//" if style == "cpp" else " *") for line in text]
