@@ -23,7 +23,7 @@ def test_connection_lifecycle_and_detached_records(tmp_path: Path) -> None:
         context.connections.add(target.card_id, source.card_id, "depends_on")
         records = context.connections.to_records(project.project_id)
         assert len(records) == 3  # upsert, parallel kinds, reverse direction
-        assert len(context._context.list_links(target.card_id)["backlinks"]) == 2
+        assert len(context._context.list_links(project.project_id, source.card_id)) == 2
         assert context.connections.to_records(other.project_id) == []
         assert all(tuple(record) == holderkit.CONNECTION_RECORD_FIELDS for record in records)
         assert all(record["project_id"] == project.project_id for record in records)
@@ -51,7 +51,7 @@ def test_connection_errors_and_closed_context(tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="embedded null"):
             connections.add(card.card_id, card.card_id, "bad\x00kind")
         with pytest.raises(holderkit.HolderError, match="card not found"):
-            context._context.list_links("missing")
+            context._context.list_links(project.project_id, "missing")
     with pytest.raises(RuntimeError, match="closed"):
         connections.to_records()
     with pytest.raises(RuntimeError, match="closed"):

@@ -230,7 +230,7 @@ def test_combined_export_reuses_card_selection_during_later_changes(
         def changing_list_cards(native_context: _native.Context, project_id: str) -> list[dict[str, Any]]:
             selected = list_cards(native_context, project_id)
             added = context.create_card(project_id, "Added after selection", "#later")
-            context.milestones.add(added.card_id, 100)
+            context.milestones.add(added.project_id, added.card_id)
             context.connections.add(added.card_id, original_card.card_id, "references")
             return selected
 

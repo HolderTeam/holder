@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import builtins
-import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Iterable, Mapping
 
+from . import _native
 from .collections import ConnectionCollection, TagCollection
 from .data import Card, ConnectionRecord, MilestoneRecord, MilestoneUpdate, TagAddResult, TagRecord, TagRemoveResult
 from .data.card import CardMetadataRecord, _metadata_record_from_native
@@ -42,11 +42,17 @@ class CardChildren(_CardCollection):
     def list(self) -> builtins.list[Card]:
         """Return current children with the same Project owner, without reading bodies."""
         project = self._project()
-        result = project._live_context().query_cards(
-            project.project_id,
-            json.dumps({"view": "children", "parent_card_id": self._card.card_id}),
-        )
-        return [Card._from_native(record, project) for record in result["cards"]]
+        records: builtins.list[Mapping[str, Any]] = []
+        cursor: str | None = None
+        while True:
+            page = project._live_context().list_cards_page(
+                project.project_id, parent_card_id=self._card.card_id, order="sort_key",
+                limit=_native.CARD_PAGE_MAX_LIMIT, cursor=cursor,
+            )
+            records.extend(page["cards"])
+            cursor = page["next_cursor"]
+            if cursor is None:
+                return [Card._from_native(record, project) for record in records]
 
 
 class CardTags(_CardCollection):
@@ -111,20 +117,20 @@ class CardMilestones(_CardCollection):
         return self._project().milestones.list(self._card.card_id)
 
     def add(
-        self, start_at: int, *, end_at: int | None = None, all_day: bool = False,
+        self, dates: Iterable[Mapping[str, Any]] = (), *,
         kind: str | None = None, description: str | None = None,
-    ) -> builtins.list[MilestoneRecord]:
-        """Return the updated full milestone list, matching the Project operation."""
+    ) -> MilestoneRecord:
+        """Add a milestone with labelled dates and return it."""
         return self._project().milestones.add(
-            self._card.card_id, start_at, end_at=end_at, all_day=all_day,
-            kind=kind, description=description,
+            self._card.card_id, dates, kind=kind, description=description,
         )
 
     def update(self, milestone_id: str, changes: MilestoneUpdate) -> MilestoneRecord:
         return self._project().milestones.update(self._card.card_id, milestone_id, changes)
 
-    def remove(self, milestone_id: str) -> None:
-        self._project().milestones.remove(self._card.card_id, milestone_id)
+    def remove(self, milestone_id: str) -> builtins.list[MilestoneRecord]:
+        """Remove a milestone and return the card's remaining milestones."""
+        return self._project().milestones.remove(self._card.card_id, milestone_id)
 
     def to_records(self) -> builtins.list[MilestoneRecord]:
         return self.list()

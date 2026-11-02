@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -49,19 +48,14 @@ def test_batches_are_lazy_and_do_not_use_unbounded_lists(
     with holderkit.create("Lazy", workspace=tmp_path / "project") as project:
         for index in range(5):
             project.create_card(str(index), str(index))
-        original_complete = _native.Context.list_complete_cards_page
-        original_query = _native.Context.query_cards
+        original = _native.Context.list_cards_page
         calls: list[int] = []
-        def complete(self: _native.Context, project_id: str, cursor: str | None = None, limit: int = 256) -> dict[str, Any]:
-            calls.append(limit)
-            return original_complete(self, project_id, cursor, limit)
-        def query(self: _native.Context, project_id: str, request_json: str) -> dict[str, Any]:
-            calls.append(json.loads(request_json)["limit"])
-            return original_query(self, project_id, request_json)
+        def page(self: _native.Context, project_id: str, **options: Any) -> dict[str, Any]:
+            calls.append(options["limit"])
+            return original(self, project_id, **options)
         def unbounded(self: _native.Context, project_id: str) -> list[dict[str, Any]]:
             raise AssertionError("Batch iteration used an unbounded list")
-        monkeypatch.setattr(_native.Context, "list_complete_cards_page", complete)
-        monkeypatch.setattr(_native.Context, "query_cards", query)
+        monkeypatch.setattr(_native.Context, "list_cards_page", page)
         monkeypatch.setattr(_native.Context, "list_cards", unbounded)
         batches = project.cards(batch_size=2, include_content=include_content)
         assert calls == []
@@ -128,18 +122,12 @@ def test_native_query_propagates_invalid_request_and_closed_errors(tmp_path: Pat
     with holderkit.open(tmp_path / "data") as context:
         project = context.create_project("Query")
         with pytest.raises(ValueError):
-            context._context.query_cards(project.project_id, '{"view":"recent","limit":0}')
+            context._context.list_cards_page(project.project_id, limit=0)
         native = context._context
     with pytest.raises(RuntimeError, match="closed"):
-        native.query_cards(project.project_id, '{"view":"recent","limit":2}')
+        native.list_cards_page(project.project_id, limit=2)
 
 
-collection_support = pytest.mark.skipif(
-    not _native.CARD_COLLECTION_SUPPORTED, reason="Requires Core collection pagination SDK",
-)
-
-
-@collection_support
 @pytest.mark.parametrize("include_content", [False, True])
 @pytest.mark.parametrize("order", [None, "card_id", "updated"])
 def test_filtered_batches_combine_tags_and_hierarchy(
@@ -182,7 +170,6 @@ def test_filtered_batches_combine_tags_and_hierarchy(
         assert list(project.cards(parent_card_id=foreign.card_id)) == []
 
 
-@collection_support
 @pytest.mark.parametrize("include_content", [False, True])
 def test_filtered_batches_are_lazy_bounded_and_invalidated_on_close(
     tmp_path: Path, include_content: bool, monkeypatch: pytest.MonkeyPatch,
@@ -190,16 +177,15 @@ def test_filtered_batches_are_lazy_bounded_and_invalidated_on_close(
     project = holderkit.create("Filtered", workspace=tmp_path / "project")
     for i in range(5):
         project.create_card(str(i), "#work")
-    original = _native.Context.collection_cards_page
+    original = _native.Context.list_cards_page
     calls: list[dict[str, Any]] = []
-    def page(self: _native.Context, project_id: str, request_json: str) -> dict[str, Any]:
-        calls.append(json.loads(request_json))
-        return original(self, project_id, request_json)
+    def page(self: _native.Context, project_id: str, **options: Any) -> dict[str, Any]:
+        calls.append(options)
+        return original(self, project_id, **options)
     def forbidden(*args: Any, **kwargs: Any) -> Any:
         raise AssertionError("Filtered batches must use Core collection pagination")
-    monkeypatch.setattr(_native.Context, "collection_cards_page", page)
+    monkeypatch.setattr(_native.Context, "list_cards_page", page)
     monkeypatch.setattr(_native.Context, "list_cards", forbidden)
-    monkeypatch.setattr(_native.Context, "query_cards", forbidden)
     monkeypatch.setattr(_native.Context, "get_card_content", forbidden)
     monkeypatch.setattr(_native, "CARD_PAGE_MAX_LIMIT", 2)
     iterator = project.cards(tag="work", include_content=include_content, batch_size=3)
@@ -208,7 +194,7 @@ def test_filtered_batches_are_lazy_bounded_and_invalidated_on_close(
     assert len(returned) == 3
     assert len(calls) == 2
     assert all(request["limit"] == 2 and request["tag"] == "work" for request in calls)
-    assert "cursor" not in calls[0] and calls[1]["cursor"] is not None
+    assert calls[0]["cursor"] is None and calls[1]["cursor"] is not None
     project.close()
     with pytest.raises(RuntimeError, match="closed"):
         next(iterator)
@@ -216,7 +202,6 @@ def test_filtered_batches_are_lazy_bounded_and_invalidated_on_close(
     assert len(returned) == 3
 
 
-@collection_support
 def test_filtered_metadata_avoids_files_and_body_errors_propagate(tmp_path: Path) -> None:
     with holderkit.create("Files", workspace=tmp_path / "project") as project:
         card = project.create_card("Missing", "#work")
@@ -227,7 +212,7 @@ def test_filtered_metadata_avoids_files_and_body_errors_propagate(tmp_path: Path
         with pytest.raises(ValueError):
             list(project.cards(tag="#work"))
         with pytest.raises(ValueError):
-            project._live_context().collection_cards_page(project.project_id, '{"limit":0}')
+            project._live_context().list_cards_page(project.project_id, limit=0)
 
 
 @pytest.mark.parametrize("options,error", [
@@ -241,13 +226,3 @@ def test_filter_argument_validation_is_immediate(tmp_path: Path, options: Any, e
         with pytest.raises(error):
             project.cards(**options)
 
-
-def test_old_sdk_refuses_filters_but_keeps_existing_batches(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(_native, "CARD_COLLECTION_SUPPORTED", 0)
-    with holderkit.create("Old SDK", workspace=tmp_path / "project") as project:
-        project.create_card("Card", "#work")
-        assert len(list(project.cards())) == 1
-        with pytest.raises(NotImplementedError, match="Core SDK"):
-            project.cards(tag="work")

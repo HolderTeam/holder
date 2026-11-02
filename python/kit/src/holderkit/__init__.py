@@ -23,7 +23,7 @@ from .graph import records_to_networkx
 from .dataframe import DataFrames, _require_pandas, records_to_dataframe
 from .data import (
     MILESTONE_RECORD_FIELDS, PROJECT_MILESTONE_RECORD_FIELDS,
-    MilestoneRecord, ProjectMilestoneRecord, MilestoneUpdate,
+    MilestoneDateRecord, MilestoneRecord, ProjectMilestoneRecord, MilestoneUpdate,
     TAG_RECORD_FIELDS, ProjectTagRecord, TaggedCardRecord, TagRecord, TagAddResult, TagRemoveResult,
     CARD_METADATA_RECORD_FIELDS,
     CARD_RECORD_FIELDS,
@@ -181,7 +181,7 @@ from ._storage import clone, create, reopen
 __all__ = [
     "clone", "create", "reopen",
     "MILESTONE_RECORD_FIELDS", "PROJECT_MILESTONE_RECORD_FIELDS", "MilestoneCollection",
-    "MilestoneRecord", "ProjectMilestoneRecord", "MilestoneUpdate",
+    "MilestoneDateRecord", "MilestoneRecord", "ProjectMilestoneRecord", "MilestoneUpdate",
     "TAG_RECORD_FIELDS", "TagCollection", "ProjectTagRecord", "TaggedCardRecord",
     "TagRecord", "TagAddResult", "TagRemoveResult",
     "CONNECTION_RECORD_FIELDS",

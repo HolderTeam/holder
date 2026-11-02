@@ -262,14 +262,10 @@ def clone(
     ref may be a branch, tag or commit available in the clone. No pull/reset or
     reuse is implicit. Local paths, encrypted projects and submodules are unsupported.
     """
-    from . import Context, _native
+    from . import Context
     from .data import Project
 
     source = _remote(remote_url)
-    if not _native.PROJECT_IMPORT_SUPPORTED:
-        raise NotImplementedError(
-            "Clone requires a core build with explicit project import support"
-        )
     if ref is not None and (
         not isinstance(ref, str)
         or not ref

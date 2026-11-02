@@ -143,13 +143,7 @@ class Project:
         return self._context
 
     def _current(self) -> Mapping[str, Any]:
-        context = self._live_context()
-        if _native.DIRECT_LOOKUP_SUPPORTED:
-            return context.get_project(self._project_id)
-        for record in context.list_projects():
-            if record["project_id"] == self._project_id:
-                return record
-        raise _native.HolderError("project not found: " + self._project_id)
+        return self._live_context().get_project(self._project_id)
 
     @property
     def name(self) -> str:

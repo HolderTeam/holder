@@ -41,7 +41,6 @@ def test_complete_card_lifecycle(tmp_path: Path) -> None:
             project.project_id, "First card", "Initial body"
         )
 
-        assert _native.DIRECT_LOOKUP_SUPPORTED
         assert context._context.get_project(project.project_id)["name"] == "Python test"
         assert context._context.get_card(project.project_id, card.card_id)["project_id"] == project.project_id
 
@@ -211,8 +210,8 @@ def test_native_complete_card_pages_use_opaque_lookahead_cursor(
             second.card_id: second.content,
         }
 
-        first_page = context._context.list_complete_cards_page(
-            project.project_id, limit=1
+        first_page = context._context.list_cards_page(
+            project.project_id, limit=1, include_content=True
         )
         assert len(first_page["cards"]) == 1
         first_card = first_page["cards"][0]
@@ -220,8 +219,8 @@ def test_native_complete_card_pages_use_opaque_lookahead_cursor(
         assert isinstance(first_page["next_cursor"], str)
         assert first_page["next_cursor"]
 
-        second_page = context._context.list_complete_cards_page(
-            project.project_id, first_page["next_cursor"], 1
+        second_page = context._context.list_cards_page(
+            project.project_id, cursor=first_page["next_cursor"], limit=1, include_content=True
         )
         assert len(second_page["cards"]) == 1
         second_card = second_page["cards"][0]
@@ -230,9 +229,9 @@ def test_native_complete_card_pages_use_opaque_lookahead_cursor(
         assert first_card["card_id"] != second_card["card_id"]
 
         with pytest.raises(ValueError, match="limit"):
-            context._context.list_complete_cards_page(project.project_id, limit=0)
+            context._context.list_cards_page(project.project_id, limit=0, include_content=True)
         with pytest.raises(ValueError, match="limit"):
-            context._context.list_complete_cards_page(project.project_id, limit=1001)
+            context._context.list_cards_page(project.project_id, limit=1001, include_content=True)
 
 
 def test_metadata_records_do_not_require_card_files(tmp_path: Path) -> None:

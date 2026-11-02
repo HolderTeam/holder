@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import builtins
-import json
-from typing import TYPE_CHECKING, Any, Iterator, Literal, Mapping, overload
+from datetime import date
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, Literal, Mapping, overload
 
 from .collections import (
     CardCollection,
@@ -104,58 +104,35 @@ class ProjectCards(_ProjectCollection):
         if order is not None and order not in ("card_id", "updated"):
             raise ValueError("order must be 'card_id' or 'updated'")
         self._project._live_context()
-        request: dict[str, Any] | None = None
-        if tag is not None or roots or parent_card_id is not None or order is not None:
-            if not _native.CARD_COLLECTION_SUPPORTED:
-                raise NotImplementedError(
-                    "Filtered card batches require a Core SDK with collection pagination support"
-                )
-            request = {
-                "view": "children" if parent_card_id is not None else "roots" if roots else "all",
-                "include_content": include_content,
-                "order": order or ("card_id" if include_content else "updated"),
-            }
-            if tag is not None:
-                request["tag"] = tag
-            if parent_card_id is not None:
-                request["parent_card_id"] = parent_card_id
-        return self._batches(batch_size, include_content, request)
+        query: dict[str, Any] = {
+            "roots": roots,
+            "parent_card_id": parent_card_id,
+            "tag": tag,
+            "order": order or ("card_id" if include_content else "updated"),
+        }
+        return self._batches(batch_size, include_content, query)
 
     def _pages(
-        self, batch_size: int, include_content: bool, collection_request: dict[str, Any] | None,
+        self, batch_size: int, include_content: bool, query: dict[str, Any],
     ) -> Iterator[builtins.list[Mapping[str, Any]]]:
         limit = min(batch_size, _native.CARD_PAGE_MAX_LIMIT)
         cursor: str | None = None
-        request: dict[str, Any] = {"view": "recent", "limit": limit}
-        if collection_request is not None:
-            collection_request = {**collection_request, "limit": limit}
         while True:
             context = self._project._live_context()
-            if collection_request is not None:
-                page = context.collection_cards_page(self._project.project_id, json.dumps(collection_request))
-                collection_request["cursor"] = page["next_cursor"]
-                finished = page["next_cursor"] is None
-            elif include_content:
-                page = context.list_complete_cards_page(self._project.project_id, cursor, limit)
-                cursor = page["next_cursor"]
-                finished = cursor is None
-            else:
-                page = context.query_cards(self._project.project_id, json.dumps(request))
-                finished = len(page["cards"]) < limit
-                if page["cards"]:
-                    last = page["cards"][-1]
-                    request["before_updated_at"] = last["updated_at"]
-                    request["before_card_id"] = last["card_id"]
+            page = context.list_cards_page(
+                self._project.project_id, limit=limit, cursor=cursor, include_content=include_content, **query,
+            )
+            cursor = page["next_cursor"]
             if page["cards"]:
                 yield page["cards"]
-            if finished:
+            if cursor is None:
                 return
 
     def _batches(
-        self, batch_size: int, include_content: bool, collection_request: dict[str, Any] | None,
+        self, batch_size: int, include_content: bool, query: dict[str, Any],
     ) -> Iterator[builtins.list[CardMetadataRecord] | builtins.list[CompleteCardRecord]]:
         pending: builtins.list[Mapping[str, Any]] = []
-        for page in self._pages(batch_size, include_content, collection_request):
+        for page in self._pages(batch_size, include_content, query):
             pending.extend(page)
             while len(pending) >= batch_size:
                 records, pending = pending[:batch_size], pending[batch_size:]
@@ -280,26 +257,19 @@ class ProjectMilestones(_ProjectCollection):
 
     def list(self, card_id: str) -> builtins.list[MilestoneRecord]:
         self._project._require_card(card_id)
-        return MilestoneCollection(self._project._live_context()).list(card_id)
+        return MilestoneCollection(self._project._live_context()).list(self._project.project_id, card_id)
 
     def add(
         self,
         card_id: str,
-        start_at: int,
+        dates: Iterable[Mapping[str, Any]] = (),
         *,
-        end_at: int | None = None,
-        all_day: bool = False,
         kind: str | None = None,
         description: str | None = None,
-    ) -> builtins.list[MilestoneRecord]:
+    ) -> MilestoneRecord:
         self._project._require_card(card_id)
         return MilestoneCollection(self._project._live_context()).add(
-            card_id,
-            start_at,
-            end_at=end_at,
-            all_day=all_day,
-            kind=kind,
-            description=description,
+            self._project.project_id, card_id, dates, kind=kind, description=description,
         )
 
     def update(
@@ -313,17 +283,18 @@ class ProjectMilestones(_ProjectCollection):
             changes,
         )
 
-    def remove(self, card_id: str, milestone_id: str) -> None:
+    def remove(self, card_id: str, milestone_id: str) -> builtins.list[MilestoneRecord]:
         self._project._require_card(card_id)
-        MilestoneCollection(self._project._live_context()).remove(card_id, milestone_id)
+        return MilestoneCollection(self._project._live_context()).remove(
+            self._project.project_id, card_id, milestone_id)
 
-    def in_range(
-        self, from_at: int, to_at: int
+    def calendar(
+        self, first_day: date | str, last_day: date | str, *, time_zone: str | None = None,
     ) -> builtins.list[ProjectMilestoneRecord]:
-        return MilestoneCollection(self._project._live_context()).in_range(
-            self._project.project_id,
-            from_at,
-            to_at,
+        """Milestones with a date in the days from first_day to last_day in time_zone (this
+        device's zone when omitted)."""
+        return MilestoneCollection(self._project._live_context()).calendar(
+            self._project.project_id, first_day, last_day, time_zone=time_zone,
         )
 
     def to_records(self) -> builtins.list[ProjectMilestoneRecord]:
