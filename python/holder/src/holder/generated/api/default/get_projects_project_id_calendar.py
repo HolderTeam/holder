@@ -8,27 +8,29 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.calendar_response import CalendarResponse
 from ...models.error_response import ErrorResponse
-from ...types import UNSET, Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     project_id: str,
     *,
-    first_instant: int,
-    last_instant: int,
     first_day: str,
     last_day: str,
+    time_zone: None | str | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
-    params["first_instant"] = first_instant
-
-    params["last_instant"] = last_instant
-
     params["first_day"] = first_day
 
     params["last_day"] = last_day
+
+    json_time_zone: None | str | Unset
+    if isinstance(time_zone, Unset):
+        json_time_zone = UNSET
+    else:
+        json_time_zone = time_zone
+    params["time_zone"] = json_time_zone
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -92,26 +94,28 @@ def sync_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    first_instant: int,
-    last_instant: int,
     first_day: str,
     last_day: str,
+    time_zone: None | str | Unset = UNSET,
 ) -> Response[CalendarResponse | ErrorResponse]:
-    """What happens in a project over a window of time.
+    """What happens in a project over a window of days in a time zone.
 
-     The caller gives the window twice, as instants and as the days they fall on where the caller is,
-    because a day
-    has no time zone: a milestone is in the window when one of its days is in the days, or one of its
-    instants in
-    the instants. Cards are made and changed at instants. Either range is empty when its start is after
-    its end.
+     The window runs from the start of first_day to the end of last_day in the zone, so it is empty when
+    first_day is
+    after last_day. A milestone is in it when one of its days is in the days, or one of its instants
+    falls in the
+    window; a day has no time zone, so it is compared with the days, never turned into an instant. Cards
+    are made and
+    changed at instants. Core works out the window's instants from the zone, across daylight-saving
+    changes, so every
+    client gets the same answer. An unknown zone is an invalid argument.
 
     Args:
         project_id (str):
-        first_instant (int):
-        last_instant (int):
         first_day (str):
         last_day (str):
+        time_zone (None | str | Unset): The zone the days are in, such as Europe/London; omit for
+            this device's zone.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -123,10 +127,9 @@ def sync_detailed(
 
     kwargs = _get_kwargs(
         project_id=project_id,
-        first_instant=first_instant,
-        last_instant=last_instant,
         first_day=first_day,
         last_day=last_day,
+        time_zone=time_zone,
     )
 
     response = client.get_httpx_client().request(
@@ -140,26 +143,28 @@ def sync(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    first_instant: int,
-    last_instant: int,
     first_day: str,
     last_day: str,
+    time_zone: None | str | Unset = UNSET,
 ) -> CalendarResponse | ErrorResponse | None:
-    """What happens in a project over a window of time.
+    """What happens in a project over a window of days in a time zone.
 
-     The caller gives the window twice, as instants and as the days they fall on where the caller is,
-    because a day
-    has no time zone: a milestone is in the window when one of its days is in the days, or one of its
-    instants in
-    the instants. Cards are made and changed at instants. Either range is empty when its start is after
-    its end.
+     The window runs from the start of first_day to the end of last_day in the zone, so it is empty when
+    first_day is
+    after last_day. A milestone is in it when one of its days is in the days, or one of its instants
+    falls in the
+    window; a day has no time zone, so it is compared with the days, never turned into an instant. Cards
+    are made and
+    changed at instants. Core works out the window's instants from the zone, across daylight-saving
+    changes, so every
+    client gets the same answer. An unknown zone is an invalid argument.
 
     Args:
         project_id (str):
-        first_instant (int):
-        last_instant (int):
         first_day (str):
         last_day (str):
+        time_zone (None | str | Unset): The zone the days are in, such as Europe/London; omit for
+            this device's zone.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -172,10 +177,9 @@ def sync(
     return sync_detailed(
         project_id=project_id,
         client=client,
-        first_instant=first_instant,
-        last_instant=last_instant,
         first_day=first_day,
         last_day=last_day,
+        time_zone=time_zone,
     ).parsed
 
 
@@ -183,26 +187,28 @@ async def asyncio_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    first_instant: int,
-    last_instant: int,
     first_day: str,
     last_day: str,
+    time_zone: None | str | Unset = UNSET,
 ) -> Response[CalendarResponse | ErrorResponse]:
-    """What happens in a project over a window of time.
+    """What happens in a project over a window of days in a time zone.
 
-     The caller gives the window twice, as instants and as the days they fall on where the caller is,
-    because a day
-    has no time zone: a milestone is in the window when one of its days is in the days, or one of its
-    instants in
-    the instants. Cards are made and changed at instants. Either range is empty when its start is after
-    its end.
+     The window runs from the start of first_day to the end of last_day in the zone, so it is empty when
+    first_day is
+    after last_day. A milestone is in it when one of its days is in the days, or one of its instants
+    falls in the
+    window; a day has no time zone, so it is compared with the days, never turned into an instant. Cards
+    are made and
+    changed at instants. Core works out the window's instants from the zone, across daylight-saving
+    changes, so every
+    client gets the same answer. An unknown zone is an invalid argument.
 
     Args:
         project_id (str):
-        first_instant (int):
-        last_instant (int):
         first_day (str):
         last_day (str):
+        time_zone (None | str | Unset): The zone the days are in, such as Europe/London; omit for
+            this device's zone.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -214,10 +220,9 @@ async def asyncio_detailed(
 
     kwargs = _get_kwargs(
         project_id=project_id,
-        first_instant=first_instant,
-        last_instant=last_instant,
         first_day=first_day,
         last_day=last_day,
+        time_zone=time_zone,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -229,26 +234,28 @@ async def asyncio(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    first_instant: int,
-    last_instant: int,
     first_day: str,
     last_day: str,
+    time_zone: None | str | Unset = UNSET,
 ) -> CalendarResponse | ErrorResponse | None:
-    """What happens in a project over a window of time.
+    """What happens in a project over a window of days in a time zone.
 
-     The caller gives the window twice, as instants and as the days they fall on where the caller is,
-    because a day
-    has no time zone: a milestone is in the window when one of its days is in the days, or one of its
-    instants in
-    the instants. Cards are made and changed at instants. Either range is empty when its start is after
-    its end.
+     The window runs from the start of first_day to the end of last_day in the zone, so it is empty when
+    first_day is
+    after last_day. A milestone is in it when one of its days is in the days, or one of its instants
+    falls in the
+    window; a day has no time zone, so it is compared with the days, never turned into an instant. Cards
+    are made and
+    changed at instants. Core works out the window's instants from the zone, across daylight-saving
+    changes, so every
+    client gets the same answer. An unknown zone is an invalid argument.
 
     Args:
         project_id (str):
-        first_instant (int):
-        last_instant (int):
         first_day (str):
         last_day (str):
+        time_zone (None | str | Unset): The zone the days are in, such as Europe/London; omit for
+            this device's zone.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -262,9 +269,8 @@ async def asyncio(
         await asyncio_detailed(
             project_id=project_id,
             client=client,
-            first_instant=first_instant,
-            last_instant=last_instant,
             first_day=first_day,
             last_day=last_day,
+            time_zone=time_zone,
         )
     ).parsed
