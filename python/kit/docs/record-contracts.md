@@ -190,13 +190,11 @@ usable again. There is no cached membership data or automatic reopening.
   including external or unresolved targets already stored by Core. They do not
   add backlinks, hierarchy connections or inline wikilinks.
 - `card.milestones.list()` and `.to_records()` return `MilestoneRecord` values
-  for that card. `.add(start_at, end_at=None, all_day=False, kind=None,
-  description=None)` retains the Project operation's keyword-only options and
-  returns the updated full list. `.update(milestone_id, changes)` returns one
-  record and uses the existing tri-state `MilestoneUpdate` validation and
-  ownership checks. `.remove(milestone_id)` retains Core's no-op behaviour for
-  absent or foreign IDs. `.to_dataframe()` uses the milestone schema without
-  the project/title columns of a project-wide export.
+  for that card. `.add(dates=(), *, kind=None, description=None)` returns the
+  new milestone. `.update(milestone_id, changes)` returns the updated record.
+  `.remove(milestone_id)` returns the card's remaining milestones; removing an
+  absent ID, or one on another card, changes nothing. `.to_dataframe()` uses the
+  milestone schema without the `card_title` column of a project-wide export.
 
 These single-card exports use existing scoped reads and do not scan all project
 cards. Results are detached and remain usable after close; changing them does
@@ -395,71 +393,66 @@ contexts raise `RuntimeError`.
 
 ## Milestone records and operations
 
-`context.milestones.list(card_id)` returns detached `MilestoneRecord` dictionaries
-from Core's scheduled timestamp view in ascending `start_at` order. Undated
-milestones are not exposed through these Kit methods yet. Calendar days appear
-as UTC-midnight timestamps with `all_day=True`.
-`MILESTONE_RECORD_FIELDS` defines their schema:
+Milestones have the contract's shape: labelled dates. Each date has a `role`
+(what it is for, such as `"start"` or `"deadline"`) and exactly one of `date`, a
+calendar day `YYYY-MM-DD` with no time zone, or `datetime`, an instant in RFC 3339
+with an offset and whole seconds. A milestone may have no dates.
+
+`context.milestones.list(project_id, card_id)` returns detached `MilestoneRecord`
+dictionaries. `MILESTONE_RECORD_FIELDS` defines their schema:
 
 | Field | Python type | Meaning |
 |---|---|---|
 | `milestone_id` | `str` | Core-generated milestone UUID |
+| `project_id` | `str` | The project of the owning card |
 | `card_id` | `str` | Owning card identifier |
-| `start_at` | `int` | Start time in Unix seconds |
-| `end_at` | `int \| None` | Optional end time; None denotes a point |
-| `all_day` | `bool` | Legacy all-day flag; no Python timezone/date normalization |
+| `dates` | `list[MilestoneDateRecord]` | The labelled dates, in the order given |
 | `kind` | `str \| None` | Optional kind, including custom values |
 | `description` | `str \| None` | Optional description |
 | `created_at` | `int` | Core creation time in Unix seconds |
 | `updated_at` | `int` | Core last-update time in Unix seconds |
 
 `milestones.to_records(project_id=None)` selects live cards and reads their
-milestones once per card. It returns `ProjectMilestoneRecord` dictionaries adding
-`project_id` and `card_title` from the selected card metadata. Field order is
-`PROJECT_MILESTONE_RECORD_FIELDS`: `project_id`, the milestone fields above, then
-`card_title`. `milestones.in_range(project_id, from_at, to_at)` returns the same
-contract, with the project ID supplied by the query and nullable `card_title`
-resolved by core. It uses core's bulk calendar query and excludes trashed cards.
-Unknown projects and empty selections yield empty results.
+milestones once per card, adding the card's title as `card_title`
+(`PROJECT_MILESTONE_RECORD_FIELDS`). Unknown projects and empty selections yield
+empty results.
 
-Range selection is `from_at <= start_at <= to_at`, **not interval overlap**.
-A span beginning before the range is omitted even if it ends inside it. Reversed
-query bounds return an empty list. Equal-start ordering is unspecified. Card-local
-lists are start-ordered; whole-context exports preserve selected card order, not
-a globally sorted calendar. Sort detached data explicitly when needed.
+`milestones.calendar(project_id, first_day, last_day, *, time_zone=None)` returns
+the same `ProjectMilestoneRecord` values for milestones with a date in the days
+from `first_day` to `last_day` (a `date` or `YYYY-MM-DD`) in `time_zone`, such as
+`"Europe/London"`, or this device's zone when omitted. A day date is in it when
+its day is in those days, whatever the zone; an instant is in it when it falls in
+those days in the zone. Core works out the window, across daylight-saving
+changes. Trashed cards are left out; reversed days give an empty list; an unknown
+zone or a malformed day raises `ValueError` and an unknown project `HolderError`.
 
 `milestones.to_dataframe()` and the combined `milestones` table preserve that
-extended schema. IDs/text use nullable strings, `all_day` uses nullable `boolean`,
-and all four time columns use `datetime64[ns, UTC]`; `end_at=None` becomes `NaT`.
-Empty tables keep the same columns/dtypes. Join on `project_id` and `card_id` to
-cards. Timestamps outside pandas' nanosecond range can remain valid core/record
-values but cannot be represented by this DataFrame contract; conversion errors
-propagate rather than silently clipping or changing precision.
+schema. IDs and text use nullable strings, `dates` stays a Python list per row
+(an `object` column), and `created_at`/`updated_at` use `datetime64[ns, UTC]`.
+Empty tables keep the same columns and dtypes. Join on `project_id` and `card_id`
+to cards.
 
 ### Explicit mutations and partial updates
 
-`milestones.add(card_id, start_at, *, end_at=None, all_day=False, kind=None,
-description=None)` returns the **full updated card milestone list**, not just the
-new row. Each addition gets a new core ID; repeating a successful add creates
-another milestone. Empty kind/description strings on add are normalized to None
-by core. With `all_day=True`, input epochs select UTC calendar dates and returned
-epochs are normalized to UTC midnight. `milestones.remove(card_id, milestone_id)`
-returns None; absent IDs and IDs owned by another card are no-ops, but an
-unknown card raises `HolderError`.
+`milestones.add(project_id, card_id, dates=(), *, kind=None, description=None)`
+returns the new milestone. `dates` is a sequence of mappings with a `role` and one
+of `date` (a `date` or `YYYY-MM-DD`) or `datetime` (an aware `datetime` or an RFC
+3339 string); Kit converts `date` and `datetime` objects to the contract's
+strings. Each addition gets a new core ID. `milestones.remove(project_id, card_id,
+milestone_id)` returns the card's remaining milestones; absent IDs and IDs owned
+by another card change nothing, but an unknown card raises `HolderError`.
 
-`milestones.update(project_id, card_id, milestone_id, changes)` accepts a typed
-`MilestoneUpdate` dictionary and returns the single updated `MilestoneRecord`:
+`milestones.update(project_id, card_id, milestone_id, changes)` accepts a
+`MilestoneUpdate` dictionary and returns the updated `MilestoneRecord`:
 
-- Absent fields stay unchanged; an empty dictionary is a no-op for an existing,
-  correctly owned live milestone.
-- `end_at`, `kind` and `description` accept None to clear their value.
-- `start_at` and `all_day` cannot be cleared; None raises `ValueError`.
-- Unknown keys raise `ValueError`. Times must be signed 64-bit integer Unix
-  seconds, not bool/float; flags must be bool; text must be str or None. Invalid
-  Python field types raise `TypeError`, out-of-range integers `OverflowError`.
-- Core verifies the matching project/card/milestone ownership and live-card
-  status. Mismatch raises `HolderError`. An update creating `end_at < start_at`
-  also raises `HolderError` through the current C ABI exception translation.
+- Absent fields stay unchanged; an empty dictionary changes nothing.
+- `dates` replaces all of the milestone's dates; `kind` and `description` accept
+  None to clear them.
+- Unknown keys, a date without a role or without exactly one of `date` and
+  `datetime`, and a naive `datetime` raise `ValueError`; wrong Python types raise
+  `TypeError`. Core rejects a malformed day or instant with `ValueError`.
+- Core checks the project, card and milestone belong together and the card is
+  live; a mismatch raises `HolderError`.
 
 Core owns durable front-matter editing, index updates and Git commits; Python
 does not parse or rewrite Markdown. Exported records do not
@@ -467,17 +460,3 @@ refresh automatically. Live Card properties read current state. Valid calls on a
 Failed reads abort exports without a partial result; no export-wide snapshot,
 transaction, revision check or bulk mutation guarantee is implied.
 
-### Current core limitations
-
-The public add operation does not enforce the update operation's reversed-span
-validation. Direct card-list/add/remove operations also do not expose the same
-explicit live-card ownership check as update and the calendar query; use selected
-live cards. Python preserves these contracts rather than duplicating domain policy.
-
-Add/remove replace index rows before attempting their durable card-file write.
-A missing file or another durable-write failure can therefore raise an error
-after index changes already occurred. Update checks/reads the file before changing
-the index, but none of these APIs promises an atomic multi-store transaction or
-automatic rollback on every failure. Do not blindly retry failed additions or
-infer unchanged storage from an exception. Strengthening this behavior requires
-an owning core change, not a Python-only transaction wrapper.
