@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from compiler.builder import BASE_ERROR_CODES
 from compiler.ir import ListType, LiteralType, MapType, NamedType
 
 from ..common import Unsupported, contract_sources, header_lines
@@ -57,9 +58,11 @@ def generate_c_header(types: CoreTypes) -> str:
            "#include <stdint.h>", "", "#ifdef __cplusplus", 'extern "C" {', "#endif", "",
            "typedef struct holder_context holder_context;", "typedef struct holder_error holder_error;",
            "typedef struct holder_arena holder_arena;", "",
-           "/* Base status codes shared with the legacy C API. */", "#define HOLDER_OK 0",
-           "#define HOLDER_ERROR_INVALID_ARGUMENT 4000", "#define HOLDER_ERROR_RUNTIME 5000",
-           "#define HOLDER_ERROR_ALLOCATION 5001", ""]
+           "/* An error code is the HTTP status it echoes plus one digit, so it reads as that",
+           " * status: an invalid argument is 4000, an unexpected failure is 5000.",
+           " * Contract error kinds use the same scheme. */", "#define HOLDER_OK 0"]
+    out += [f"#define HOLDER_ERROR_{base.name} {code}" for code, base in sorted(BASE_ERROR_CODES.items())]
+    out.append("")
     for error in sorted(types.errors, key=lambda e: e.code):
         out += comment(error.doc)
         out.append(f"#define HOLDER_ERROR_{snake(error.name).upper()} {types.codes[error.name]}")

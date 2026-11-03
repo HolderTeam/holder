@@ -19,7 +19,9 @@ typedef struct holder_context holder_context;
 typedef struct holder_error holder_error;
 typedef struct holder_arena holder_arena;
 
-/* Base status codes shared with the legacy C API. */
+/* An error code is the HTTP status it echoes plus one digit, so it reads as that
+ * status: an invalid argument is 4000, an unexpected failure is 5000.
+ * Contract error kinds use the same scheme. */
 #define HOLDER_OK 0
 #define HOLDER_ERROR_INVALID_ARGUMENT 4000
 #define HOLDER_ERROR_RUNTIME 5000
