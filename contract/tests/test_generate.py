@@ -36,9 +36,9 @@ def test_cores_generated_files_are_up_to_date():
         assert text == (CONTRACT.parent / CORE_PATHS[name]).read_text(encoding="utf-8"), CORE_PATHS[name]
 
 
-def test_generated_names_still_check_against_legacy_declarations():
-    assert collisions({"holder_api.h": "int holder_project_list(void);\nvoid holder_string_free(char*);\n"}) == [
-        "holder_project_list", "holder_string_free"]
+def test_generated_names_still_check_against_host_declarations():
+    assert collisions({"holder_api.h": "int holder_git_set_homedir(void);\nint holder_keyring_set_provider(void);\n"}) == [
+        "holder_git_set_homedir", "holder_keyring_set_provider"]
     assert collisions({"holder_api.h": "typedef struct holder_context holder_context;\n"}) == []
 
 

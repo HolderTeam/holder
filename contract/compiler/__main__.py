@@ -33,7 +33,7 @@ COMMANDS = {
 
 
 def collisions(files: dict[str, str]) -> list[str]:
-    """Generated C names that the hand-written part of holder.h already uses."""
+    """Generated C names that the remaining host callback header already uses."""
     header = (REPOSITORY / "core/include/holder/holder.h").read_text(encoding="utf-8")
     declarations = r"(?:typedef (?:struct|enum) |(?:int|void|const char\*)\s+)(holder_\w+)\b"
     existing = set(re.findall(rf"(?m)^{declarations}", header))

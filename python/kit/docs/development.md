@@ -105,10 +105,8 @@ dependencies, ownership checks and failure behavior where relevant.
 
 ## Clone build requirements
 
-Clone uses core's `holder_project_import` API, which the core beside Kit
-provides. Building against an older core SDK without project import support
-still makes clone raise `NotImplementedError` before creating storage or
-contacting the remote.
+Clone uses core's generated `holder_import_project` API. Build Kit against a
+core SDK from the same revision so this operation is available.
 
 ## Native sanitizers
 
