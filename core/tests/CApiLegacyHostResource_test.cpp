@@ -1,0 +1,1546 @@
+#if __has_include(<catch2/catch_test_macros.hpp>)
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
+#else
+#include <catch2/catch.hpp>
+#endif
+
+// Legacy host registrations remain until #364; asset/resource JSON calls are outside #363.
+#include "capi_asset_helpers.h"
+#include "core_test_helpers.h"
+#include "model/Project.h"
+#include "platform/Db.h"
+#include "privacy/PlatformKeyring.h"
+#include "project/ProjectRepo.h"
+
+#include <git2.h>
+#include <holder/holder.h>
+#include <nlohmann/json.hpp>
+
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
+
+namespace {
+
+std::string read_schema_sql() {
+  std::ifstream in(SCHEMA_SQL_PATH);
+  REQUIRE(in.is_open());
+  return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+}
+
+// Seeds a project whose root_path is a real, writable directory (unlike
+// seed_project's placeholder /tmp/home), for tests that need to actually
+// perform git operations against it.
+void seed_git_project(
+    const std::filesystem::path& data_dir,
+    const std::string& project_id,
+    const std::filesystem::path& root_path,
+    const std::optional<std::string>& remote_url,
+    holder::model::IdScheme id_scheme = holder::model::IdScheme::Uuid4
+) {
+  const auto db_path = data_dir / "server" / "holder.db";
+  std::filesystem::create_directories(db_path.parent_path());
+  holder::platform::Db db;
+  db.open(db_path);
+  db.exec(read_schema_sql());
+
+  holder::model::Project project;
+  project.project_id = project_id;
+  project.name = "Git Project";
+  project.root_path = root_path.string();
+  project.git_remote_url = remote_url;
+  project.id_scheme = id_scheme;
+  // Tests using this helper write plain (unencrypted) markdown directly to
+  // the working tree, so this must not be the default "encrypted_git" --
+  // that would (correctly) trip assert_encryption_push_safe.
+  project.privacy_mode = "plain";
+  project.created_at = 10;
+  project.updated_at = 20;
+
+  holder::project::ProjectRepo repo(db);
+  repo.create(project);
+}
+
+// A bare repo, unlike GitRepo::open_or_init, accepts a non-force push to its
+// currently checked-out branch -- git refuses that against a working-tree repo.
+void init_bare_repo(const std::filesystem::path& repo_path) {
+  git_libgit2_init();
+  std::filesystem::create_directories(repo_path.parent_path());
+  git_repository* repo = nullptr;
+  git_repository_init_options opts{};
+  REQUIRE(git_repository_init_options_init(&opts, GIT_REPOSITORY_INIT_OPTIONS_VERSION) == 0);
+  opts.flags = GIT_REPOSITORY_INIT_BARE | GIT_REPOSITORY_INIT_MKPATH;
+  REQUIRE(git_repository_init_ext(&repo, repo_path.string().c_str(), &opts) == 0);
+  git_repository_free(repo);
+  git_libgit2_shutdown();
+}
+
+} // namespace
+
+TEST_CASE("C API git_set_homedir validates its argument and applies process-wide", "[capi][git]") {
+  holder_error* error = nullptr;
+  REQUIRE(holder_git_set_homedir("", &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(error != nullptr);
+  holder_error_destroy(error);
+
+  error = nullptr;
+  const auto dir = holder::test::make_temp_dir();
+  REQUIRE(holder_git_set_homedir(dir.string().c_str(), &error) == HOLDER_OK);
+  REQUIRE(error == nullptr);
+}
+
+namespace {
+
+int fake_sign_ok(
+    void*,
+    const unsigned char*,
+    size_t,
+    unsigned char** out_der_sig,
+    size_t* out_der_sig_len
+) {
+  auto* buf = static_cast<unsigned char*>(std::malloc(1));
+  buf[0] = 0x00;
+  *out_der_sig = buf;
+  *out_der_sig_len = 1;
+  return 0;
+}
+
+} // namespace
+
+TEST_CASE(
+    "C API git_set_ssh_signer validates arguments and destroys user_data exactly once on replace/destroy",
+    "[capi][git]"
+) {
+  const auto data_dir = holder::test::make_temp_dir();
+  seed_git_project(data_dir, "project-1", data_dir / "repo", std::nullopt);
+
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  const auto schema = read_schema_sql();
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+
+  const unsigned char pubkey[] = {0x01, 0x02, 0x03};
+
+  SECTION("rejects a null sign_fn, still destroying user_data exactly once") {
+    int destroy_count = 0;
+    auto destroy = [](void* user_data) {
+      *static_cast<int*>(user_data) += 1;
+    };
+    REQUIRE(
+        holder_git_set_ssh_signer(
+            context,
+            "git",
+            pubkey,
+            sizeof(pubkey),
+            nullptr,
+            &destroy_count,
+            destroy,
+            &error
+        ) == HOLDER_ERROR_INVALID_ARGUMENT
+    );
+    REQUIRE(destroy_count == 1);
+  }
+
+  SECTION("rejects an empty username, still destroying user_data exactly once") {
+    int destroy_count = 0;
+    auto destroy = [](void* user_data) {
+      *static_cast<int*>(user_data) += 1;
+    };
+    REQUIRE(
+        holder_git_set_ssh_signer(
+            context,
+            "",
+            pubkey,
+            sizeof(pubkey),
+            fake_sign_ok,
+            &destroy_count,
+            destroy,
+            &error
+        ) == HOLDER_ERROR_INVALID_ARGUMENT
+    );
+    REQUIRE(destroy_count == 1);
+  }
+
+  SECTION(
+      "destroy_user_data fires once when replaced, and once more for the replacement at context destroy"
+  ) {
+    int first_destroy_count = 0;
+    int second_destroy_count = 0;
+
+    auto destroy_first = [](void* user_data) {
+      *static_cast<int*>(user_data) += 1;
+    };
+    auto destroy_second = [](void* user_data) {
+      *static_cast<int*>(user_data) += 1;
+    };
+
+    REQUIRE(
+        holder_git_set_ssh_signer(
+            context,
+            "git",
+            pubkey,
+            sizeof(pubkey),
+            fake_sign_ok,
+            &first_destroy_count,
+            destroy_first,
+            &error
+        ) == HOLDER_OK
+    );
+    REQUIRE(first_destroy_count == 0);
+
+    // Installing a second signer drops the last reference to the first,
+    // running its destroy_user_data exactly once.
+    REQUIRE(
+        holder_git_set_ssh_signer(
+            context,
+            "git",
+            pubkey,
+            sizeof(pubkey),
+            fake_sign_ok,
+            &second_destroy_count,
+            destroy_second,
+            &error
+        ) == HOLDER_OK
+    );
+    REQUIRE(first_destroy_count == 1);
+    REQUIRE(second_destroy_count == 0);
+
+    holder_context_destroy(context);
+    context = nullptr;
+    REQUIRE(second_destroy_count == 1);
+    REQUIRE(first_destroy_count == 1); // unchanged
+  }
+
+  holder_error_destroy(error);
+  if (context != nullptr) {
+    holder_context_destroy(context);
+  }
+}
+
+TEST_CASE(
+    "C API git_set_ssh_signer's provider is actually wired into git operations",
+    "[capi][git]"
+) {
+  const auto data_dir = holder::test::make_temp_dir();
+  const auto remote_dir = data_dir / "remote";
+  init_bare_repo(remote_dir);
+  seed_git_project(data_dir, "project-1", data_dir / "repo", remote_dir.string());
+
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  const auto schema = read_schema_sql();
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+
+  const unsigned char pubkey[] = {0x01, 0x02, 0x03};
+  REQUIRE(
+      holder_git_set_ssh_signer(
+          context,
+          "git",
+          pubkey,
+          sizeof(pubkey),
+          fake_sign_ok,
+          nullptr,
+          nullptr,
+          &error
+      ) == HOLDER_OK
+  );
+
+  // A local-path remote never actually calls back into the signer, but this still exercises
+  // open_project_git's "context has a credential provider installed" branch.
+  char* json = nullptr;
+  REQUIRE(holder_git_test_remote(context, "project-1", nullptr, &json, &error) == HOLDER_OK);
+  const auto body = nlohmann::json::parse(json);
+  REQUIRE(body["status"] == "reachable");
+  holder_string_free(json);
+
+  holder_context_destroy(context);
+}
+
+namespace {
+
+// A fake external keyring provider for the C ABI, backed by plain in-memory
+// state passed as user_data -- exactly the shape Android's JNI bridge to
+// EncryptedSharedPreferences plays in production.
+struct FakeKeyringState {
+  std::map<std::string, std::string> secrets;
+  std::vector<std::string> observed_project_ids;
+};
+
+void record_project_id(FakeKeyringState& state, const char* project_id) {
+  state.observed_project_ids.emplace_back(project_id != nullptr ? project_id : "");
+}
+
+int fake_keyring_lookup(
+    void* user_data,
+    int /*kind*/,
+    const char* /*service*/,
+    const char* account,
+    const char* project_id,
+    int* out_found,
+    char** out_secret,
+    char** /*out_error*/
+) {
+  auto* state = static_cast<FakeKeyringState*>(user_data);
+  record_project_id(*state, project_id);
+  const auto it = state->secrets.find(account);
+  if (it == state->secrets.end()) {
+    *out_found = 0;
+    return 0;
+  }
+  *out_found = 1;
+  auto* buf = static_cast<char*>(std::malloc(it->second.size() + 1));
+  std::memcpy(buf, it->second.c_str(), it->second.size() + 1);
+  *out_secret = buf;
+  return 0;
+}
+
+int fake_keyring_store(
+    void* user_data,
+    int /*kind*/,
+    const char* /*service*/,
+    const char* account,
+    const char* project_id,
+    const char* /*label*/,
+    const char* secret,
+    char** /*out_error*/
+) {
+  auto* state = static_cast<FakeKeyringState*>(user_data);
+  record_project_id(*state, project_id);
+  state->secrets[account] = secret;
+  return 0;
+}
+
+int fake_keyring_remove(
+    void* user_data,
+    int /*kind*/,
+    const char* /*service*/,
+    const char* account,
+    const char* project_id,
+    char** /*out_error*/
+) {
+  auto* state = static_cast<FakeKeyringState*>(user_data);
+  record_project_id(*state, project_id);
+  state->secrets.erase(account);
+  return 0;
+}
+
+void noop_keyring_destroy(void*) {}
+
+char* malloc_copy(const char* text) {
+  const size_t len = std::strlen(text);
+  auto* buf = static_cast<char*>(std::malloc(len + 1));
+  std::memcpy(buf, text, len + 1);
+  return buf;
+}
+
+// "_with_message" variants set *out_error; "_silent" variants report failure (rc != 0) without
+// setting it, forcing the CApiKeyringProviderHandle wrapper's fallback message.
+int failing_keyring_lookup_with_message(
+    void*,
+    int,
+    const char*,
+    const char*,
+    const char*,
+    int*,
+    char**,
+    char** out_error
+) {
+  *out_error = malloc_copy("lookup exploded");
+  return 1;
+}
+int failing_keyring_lookup_silent(void*, int, const char*, const char*, const char*, int*, char**, char**) {
+  return 1;
+}
+int failing_keyring_store_with_message(
+    void*,
+    int,
+    const char*,
+    const char*,
+    const char*,
+    const char*,
+    const char*,
+    char** out_error
+) {
+  *out_error = malloc_copy("store exploded");
+  return 1;
+}
+int failing_keyring_store_silent(void*, int, const char*, const char*, const char*, const char*, const char*, char**) {
+  return 1;
+}
+int failing_keyring_remove_with_message(
+    void*,
+    int,
+    const char*,
+    const char*,
+    const char*,
+    char** out_error
+) {
+  *out_error = malloc_copy("remove exploded");
+  return 1;
+}
+int failing_keyring_remove_silent(void*, int, const char*, const char*, const char*, char**) {
+  return 1;
+}
+
+} // namespace
+
+TEST_CASE(
+    "C API keyring_set_provider validates arguments, still destroying user_data exactly once",
+    "[capi][privacy]"
+) {
+  int destroy_count = 0;
+  auto destroy = [](void* user_data) {
+    *static_cast<int*>(user_data) += 1;
+  };
+  holder_error* error = nullptr;
+
+  REQUIRE(
+      holder_keyring_set_provider(
+          nullptr,
+          fake_keyring_store,
+          fake_keyring_remove,
+          &destroy_count,
+          destroy,
+          &error
+      ) == HOLDER_ERROR_INVALID_ARGUMENT
+  );
+  REQUIRE(destroy_count == 1);
+  holder_error_destroy(error);
+
+  holder::privacy::platform_keyring_clear_external_provider();
+}
+
+TEST_CASE(
+    "C API keyring_set_provider destroys user_data exactly once on replace and on clear",
+    "[capi][privacy]"
+) {
+  int first_destroy_count = 0;
+  int second_destroy_count = 0;
+  auto destroy_first = [](void* user_data) {
+    *static_cast<int*>(user_data) += 1;
+  };
+  auto destroy_second = [](void* user_data) {
+    *static_cast<int*>(user_data) += 1;
+  };
+  holder_error* error = nullptr;
+
+  // lookup_fn/store_fn/remove_fn are never actually invoked in this test (nothing here
+  // calls platform_keyring_lookup/store/remove_secret), so passing fake_keyring_lookup/
+  // store/remove here is only about satisfying holder_keyring_set_provider's non-null
+  // validation -- user_data is exercised solely by the destroy_* callbacks below.
+  REQUIRE(
+      holder_keyring_set_provider(
+          fake_keyring_lookup,
+          fake_keyring_store,
+          fake_keyring_remove,
+          &first_destroy_count,
+          destroy_first,
+          &error
+      ) == HOLDER_OK
+  );
+  REQUIRE(first_destroy_count == 0);
+
+  REQUIRE(
+      holder_keyring_set_provider(
+          fake_keyring_lookup,
+          fake_keyring_store,
+          fake_keyring_remove,
+          &second_destroy_count,
+          destroy_second,
+          &error
+      ) == HOLDER_OK
+  );
+  REQUIRE(first_destroy_count == 1);
+  REQUIRE(second_destroy_count == 0);
+
+  holder::privacy::platform_keyring_clear_external_provider();
+  REQUIRE(second_destroy_count == 1);
+  REQUIRE(first_destroy_count == 1); // unchanged
+}
+
+TEST_CASE(
+    "C API keyring_set_provider round-trips lookup/store/remove through the registered callbacks",
+    "[capi][privacy]"
+) {
+  FakeKeyringState state;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_keyring_set_provider(
+          fake_keyring_lookup,
+          fake_keyring_store,
+          fake_keyring_remove,
+          &state,
+          noop_keyring_destroy,
+          &error
+      ) == HOLDER_OK
+  );
+
+  const holder::privacy::PlatformKeyringSecretRef ref{
+      .kind = holder::privacy::PlatformKeyringSecretKind::GenericSecret,
+      .service = "holder.test",
+      .account = "acct",
+      .project_id = "project-1",
+  };
+
+  REQUIRE_FALSE(holder::privacy::platform_keyring_lookup_secret(ref).secret.has_value());
+
+  holder::privacy::platform_keyring_store_secret(ref, "label", "secret-value");
+  REQUIRE(state.secrets.at("acct") == "secret-value");
+  REQUIRE(holder::privacy::platform_keyring_lookup_secret(ref).secret == "secret-value");
+
+  holder::privacy::platform_keyring_remove_secret(ref);
+  REQUIRE(state.secrets.find("acct") == state.secrets.end());
+  REQUIRE(state.observed_project_ids == std::vector<std::string>(4, "project-1"));
+
+  holder::privacy::platform_keyring_clear_external_provider();
+}
+
+TEST_CASE(
+    "C API keyring_set_provider surfaces lookup/store/remove failures, with and without a message",
+    "[capi][privacy]"
+) {
+  const holder::privacy::PlatformKeyringSecretRef ref{
+      .kind = holder::privacy::PlatformKeyringSecretKind::GenericSecret,
+      .service = "holder.test",
+      .account = "acct",
+      .project_id = std::nullopt,
+  };
+  holder_error* error = nullptr;
+
+  SECTION("lookup failure with a message") {
+    REQUIRE(
+        holder_keyring_set_provider(
+            failing_keyring_lookup_with_message,
+            fake_keyring_store,
+            fake_keyring_remove,
+            nullptr,
+            noop_keyring_destroy,
+            &error
+        ) == HOLDER_OK
+    );
+    const auto result = holder::privacy::platform_keyring_lookup_secret(ref);
+    REQUIRE(result.error_message == "lookup exploded");
+  }
+
+  SECTION("lookup failure without a message falls back to a default") {
+    REQUIRE(
+        holder_keyring_set_provider(
+            failing_keyring_lookup_silent,
+            fake_keyring_store,
+            fake_keyring_remove,
+            nullptr,
+            noop_keyring_destroy,
+            &error
+        ) == HOLDER_OK
+    );
+    const auto result = holder::privacy::platform_keyring_lookup_secret(ref);
+    REQUIRE(result.error_message == "keyring lookup failed");
+  }
+
+  SECTION("store failure with a message throws with that message") {
+    REQUIRE(
+        holder_keyring_set_provider(
+            fake_keyring_lookup,
+            failing_keyring_store_with_message,
+            fake_keyring_remove,
+            nullptr,
+            noop_keyring_destroy,
+            &error
+        ) == HOLDER_OK
+    );
+    REQUIRE_THROWS_WITH(
+        holder::privacy::platform_keyring_store_secret(ref, "label", "secret"),
+        Catch::Matchers::Equals("store exploded")
+    );
+  }
+
+  SECTION("store failure without a message falls back to a default") {
+    REQUIRE(
+        holder_keyring_set_provider(
+            fake_keyring_lookup,
+            failing_keyring_store_silent,
+            fake_keyring_remove,
+            nullptr,
+            noop_keyring_destroy,
+            &error
+        ) == HOLDER_OK
+    );
+    REQUIRE_THROWS_WITH(
+        holder::privacy::platform_keyring_store_secret(ref, "label", "secret"),
+        Catch::Matchers::Equals("keyring store failed")
+    );
+  }
+
+  SECTION("remove failure with a message throws with that message") {
+    REQUIRE(
+        holder_keyring_set_provider(
+            fake_keyring_lookup,
+            fake_keyring_store,
+            failing_keyring_remove_with_message,
+            nullptr,
+            noop_keyring_destroy,
+            &error
+        ) == HOLDER_OK
+    );
+    REQUIRE_THROWS_WITH(
+        holder::privacy::platform_keyring_remove_secret(ref),
+        Catch::Matchers::Equals("remove exploded")
+    );
+  }
+
+  SECTION("remove failure without a message falls back to a default") {
+    REQUIRE(
+        holder_keyring_set_provider(
+            fake_keyring_lookup,
+            fake_keyring_store,
+            failing_keyring_remove_silent,
+            nullptr,
+            noop_keyring_destroy,
+            &error
+        ) == HOLDER_OK
+    );
+    REQUIRE_THROWS_WITH(
+        holder::privacy::platform_keyring_remove_secret(ref),
+        Catch::Matchers::Equals("keyring remove failed")
+    );
+  }
+
+  holder::privacy::platform_keyring_clear_external_provider();
+}
+
+namespace {
+
+// A minimal StorageProvider stand-in for the tests below: objects are just files under
+// `root`, named by their object_key (which already contains '/', so it doubles as a
+// relative path). Exercises the same C callback shape a real Kotlin/JNI-backed provider
+// would implement.
+struct FakeStorageBackend {
+  std::filesystem::path root;
+  int put_calls = 0;
+  int get_calls = 0;
+  int exists_calls = 0;
+  int remove_calls = 0;
+};
+
+std::filesystem::path fake_storage_object_path(
+    FakeStorageBackend* backend,
+    const std::string& object_key
+) {
+  const auto path = backend->root / object_key;
+  std::filesystem::create_directories(path.parent_path());
+  return path;
+}
+
+int fake_storage_put(
+    void* user_data,
+    const char* object_key,
+    const char* staged_file_path,
+    long long /*stored_size*/,
+    const char* /*stored_sha256*/,
+    int* /*out_error_code*/,
+    char** /*out_error*/
+) {
+  auto* backend = static_cast<FakeStorageBackend*>(user_data);
+  backend->put_calls++;
+  std::filesystem::copy_file(
+      staged_file_path,
+      fake_storage_object_path(backend, object_key),
+      std::filesystem::copy_options::overwrite_existing
+  );
+  return 0;
+}
+
+int fake_storage_get(
+    void* user_data,
+    const char* object_key,
+    const char* destination_file_path,
+    int* out_error_code,
+    char** out_error
+) {
+  auto* backend = static_cast<FakeStorageBackend*>(user_data);
+  backend->get_calls++;
+  const auto path = backend->root / object_key;
+  if (!std::filesystem::is_regular_file(path)) {
+    *out_error_code = HOLDER_STORAGE_ERROR_INTEGRITY;
+    *out_error = malloc_copy("object not found");
+    return 1;
+  }
+  std::filesystem::copy_file(
+      path,
+      destination_file_path,
+      std::filesystem::copy_options::overwrite_existing
+  );
+  return 0;
+}
+
+int fake_storage_exists(
+    void* user_data,
+    const char* object_key,
+    int* out_exists,
+    int* /*out_error_code*/,
+    char** /*out_error*/
+) {
+  auto* backend = static_cast<FakeStorageBackend*>(user_data);
+  backend->exists_calls++;
+  *out_exists = std::filesystem::is_regular_file(backend->root / object_key) ? 1 : 0;
+  return 0;
+}
+
+int fake_storage_remove(
+    void* user_data,
+    const char* object_key,
+    int* /*out_error_code*/,
+    char** /*out_error*/
+) {
+  auto* backend = static_cast<FakeStorageBackend*>(user_data);
+  backend->remove_calls++;
+  std::error_code ec;
+  std::filesystem::remove(backend->root / object_key, ec);
+  return 0;
+}
+
+int failing_storage_put_with_message(
+    void* user_data,
+    const char*,
+    const char*,
+    long long,
+    const char*,
+    int* out_error_code,
+    char** out_error
+) {
+  *out_error_code = user_data == nullptr ? HOLDER_STORAGE_ERROR_CAPACITY
+                                         : *static_cast<int*>(user_data);
+  *out_error = malloc_copy("storage failure");
+  return 1;
+}
+
+int fake_storage_exists_but_block_git_write(void* user_data, const char* object_key, int* out_exists, int*, char**) {
+  auto* backend = static_cast<FakeStorageBackend*>(user_data);
+  backend->exists_calls++;
+  *out_exists = std::filesystem::is_regular_file(backend->root / object_key) ? 1 : 0;
+  return 0;
+}
+
+void noop_storage_destroy(void*) {}
+
+std::string write_source_file(const std::filesystem::path& path, const std::string& content) {
+  std::filesystem::create_directories(path.parent_path());
+  std::ofstream out(path, std::ios::binary);
+  out << content;
+  out.close();
+  return path.string();
+}
+
+} // namespace
+
+TEST_CASE(
+    "C API storage_provider_register validates arguments, still destroying user_data exactly once",
+    "[capi][resource]"
+) {
+  int destroy_count = 0;
+  auto destroy = [](void* user_data) {
+    *static_cast<int*>(user_data) += 1;
+  };
+  holder_error* error = nullptr;
+
+  SECTION("empty provider_name") {
+    REQUIRE(
+        holder_storage_provider_register(
+            "",
+            fake_storage_put,
+            fake_storage_get,
+            fake_storage_exists,
+            fake_storage_remove,
+            &destroy_count,
+            destroy,
+            &error
+        ) == HOLDER_ERROR_INVALID_ARGUMENT
+    );
+  }
+
+  SECTION("'local_directory' cannot be overridden") {
+    REQUIRE(
+        holder_storage_provider_register(
+            "local_directory",
+            fake_storage_put,
+            fake_storage_get,
+            fake_storage_exists,
+            fake_storage_remove,
+            &destroy_count,
+            destroy,
+            &error
+        ) == HOLDER_ERROR_INVALID_ARGUMENT
+    );
+  }
+
+  SECTION("null callback") {
+    REQUIRE(
+        holder_storage_provider_register(
+            "google-drive",
+            nullptr,
+            fake_storage_get,
+            fake_storage_exists,
+            fake_storage_remove,
+            &destroy_count,
+            destroy,
+            &error
+        ) == HOLDER_ERROR_INVALID_ARGUMENT
+    );
+  }
+
+  REQUIRE(destroy_count == 1);
+  holder_error_destroy(error);
+}
+
+TEST_CASE(
+    "C API storage_provider_register destroys user_data exactly once on replace",
+    "[capi][resource]"
+) {
+  // The registry can retain a provider until process exit, even if an assertion fails.
+  // Give each provider shared ownership of its counter instead of a pointer into this stack.
+  auto first_destroy_count = std::make_shared<int>(0);
+  auto second_destroy_count = std::make_shared<int>(0);
+  auto destroy = [](void* user_data) {
+    const std::unique_ptr<std::shared_ptr<int>> count(static_cast<std::shared_ptr<int>*>(user_data)
+    );
+    ++**count;
+  };
+  holder_error* error = nullptr;
+
+  REQUIRE(
+      holder_storage_provider_register(
+          "storage-replace-test",
+          fake_storage_put,
+          fake_storage_get,
+          fake_storage_exists,
+          fake_storage_remove,
+          new std::shared_ptr<int>(first_destroy_count),
+          destroy,
+          &error
+      ) == HOLDER_OK
+  );
+  REQUIRE(*first_destroy_count == 0);
+
+  REQUIRE(
+      holder_storage_provider_register(
+          "storage-replace-test",
+          fake_storage_put,
+          fake_storage_get,
+          fake_storage_exists,
+          fake_storage_remove,
+          new std::shared_ptr<int>(second_destroy_count),
+          destroy,
+          &error
+      ) == HOLDER_OK
+  );
+  REQUIRE(*first_destroy_count == 1);
+  REQUIRE(*second_destroy_count == 0);
+}
+
+TEST_CASE(
+    "C API asset_import_file/asset_retrieve round-trip through the built-in local provider",
+    "[capi][resource]"
+) {
+  const auto data_dir = holder::test::make_temp_dir();
+  const auto schema = read_schema_sql();
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+
+  char* project_json = nullptr;
+  REQUIRE(
+      holder_project_create(context, "Photos", nullptr, nullptr, &project_json, &error) == HOLDER_OK
+  );
+  const auto project_id = nlohmann::json::parse(project_json).at("project_id").get<std::string>();
+  holder_string_free(project_json);
+
+  char* card_json = nullptr;
+  REQUIRE(
+      holder_card_create(
+          context,
+          project_id.c_str(),
+          "Trip",
+          nullptr,
+          nullptr,
+          &card_json,
+          &error
+      ) == HOLDER_OK
+  );
+  const auto card_id = nlohmann::json::parse(card_json).at("card_id").get<std::string>();
+  holder_string_free(card_json);
+
+  const auto now = std::chrono::duration_cast<std::chrono::seconds>(
+                       std::chrono::system_clock::now().time_since_epoch()
+  )
+                       .count();
+  const nlohmann::json location_body = {
+      {"location_id", "loc-local-1"},
+      {"project_id", project_id},
+      {"name", "Local"},
+      {"provider", "local_directory"},
+      {"configuration", nlohmann::json::object()},
+      {"created_at", now},
+      {"updated_at", now},
+  };
+  char* location_json = nullptr;
+  REQUIRE(
+      holder_location_put_json(context, location_body.dump().c_str(), &location_json, &error) ==
+      HOLDER_OK
+  );
+  holder_string_free(location_json);
+
+  const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "fake jpeg bytes");
+
+  nlohmann::json import_result;
+  REQUIRE(
+      holder::test::import_asset_file(
+          context,
+          project_id.c_str(),
+          card_id.c_str(),
+          "loc-local-1",
+          source_path.c_str(),
+          &import_result,
+          &error
+      ) == HOLDER_OK
+  );
+  REQUIRE(import_result.at("duplicate_reused").get<bool>() == false);
+  REQUIRE(import_result.at("link_created").get<bool>() == true);
+  const auto resource_id = import_result.at("resource_id").get<std::string>();
+  const auto asset_id = import_result.at("asset_id").get<std::string>();
+
+  char* resource_json = nullptr;
+  REQUIRE(holder_resource_get(context, resource_id.c_str(), &resource_json, &error) == HOLDER_OK);
+  const auto resource_body = nlohmann::json::parse(resource_json);
+  holder_string_free(resource_json);
+  const auto placement_id =
+      resource_body.at("assets").at(0).at("placements").at(0).at("placement_id").get<std::string>();
+
+  const auto destination = (data_dir / "downloaded" / "photo.jpg").string();
+  REQUIRE(
+      holder::test::retrieve_asset_file(
+          context,
+          resource_id.c_str(),
+          asset_id.c_str(),
+          placement_id.c_str(),
+          destination.c_str(),
+          &error
+      ) == HOLDER_OK
+  );
+  std::ifstream downloaded(destination, std::ios::binary);
+  const std::string downloaded_content(
+      (std::istreambuf_iterator<char>(downloaded)),
+      std::istreambuf_iterator<char>()
+  );
+  REQUIRE(downloaded_content == "fake jpeg bytes");
+
+  holder_context_destroy(context);
+}
+
+TEST_CASE(
+    "C API asset_import_file/asset_retrieve round-trip through a registered storage provider",
+    "[capi][resource]"
+) {
+  const auto data_dir = holder::test::make_temp_dir();
+  const auto schema = read_schema_sql();
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+
+  FakeStorageBackend backend{.root = data_dir / "fake-drive"};
+  REQUIRE(
+      holder_storage_provider_register(
+          "google-drive",
+          fake_storage_put,
+          fake_storage_get,
+          fake_storage_exists,
+          fake_storage_remove,
+          &backend,
+          noop_storage_destroy,
+          &error
+      ) == HOLDER_OK
+  );
+
+  char* project_json = nullptr;
+  REQUIRE(
+      holder_project_create(context, "Photos", nullptr, nullptr, &project_json, &error) == HOLDER_OK
+  );
+  const auto project_id = nlohmann::json::parse(project_json).at("project_id").get<std::string>();
+  holder_string_free(project_json);
+
+  char* card_json = nullptr;
+  REQUIRE(
+      holder_card_create(
+          context,
+          project_id.c_str(),
+          "Trip",
+          nullptr,
+          nullptr,
+          &card_json,
+          &error
+      ) == HOLDER_OK
+  );
+  const auto card_id = nlohmann::json::parse(card_json).at("card_id").get<std::string>();
+  holder_string_free(card_json);
+
+  const auto now = std::chrono::duration_cast<std::chrono::seconds>(
+                       std::chrono::system_clock::now().time_since_epoch()
+  )
+                       .count();
+  const nlohmann::json location_body = {
+      {"location_id", "loc-drive-1"},
+      {"project_id", project_id},
+      {"name", "My Drive"},
+      {"provider", "google-drive"},
+      {"configuration", {{"folder_id", "drive-folder-abc"}}},
+      {"created_at", now},
+      {"updated_at", now},
+  };
+  char* location_json = nullptr;
+  REQUIRE(
+      holder_location_put_json(context, location_body.dump().c_str(), &location_json, &error) ==
+      HOLDER_OK
+  );
+  holder_string_free(location_json);
+
+  const auto source_path =
+      write_source_file(data_dir / "source" / "photo.jpg", "drive-backed bytes");
+
+  nlohmann::json import_result;
+  REQUIRE(
+      holder::test::import_asset_file(
+          context,
+          project_id.c_str(),
+          card_id.c_str(),
+          "loc-drive-1",
+          source_path.c_str(),
+          &import_result,
+          &error
+      ) == HOLDER_OK
+  );
+  REQUIRE(backend.put_calls == 1);
+  REQUIRE(backend.exists_calls >= 1);
+  const auto resource_id = import_result.at("resource_id").get<std::string>();
+  const auto asset_id = import_result.at("asset_id").get<std::string>();
+
+  char* resource_json = nullptr;
+  REQUIRE(holder_resource_get(context, resource_id.c_str(), &resource_json, &error) == HOLDER_OK);
+  const auto placement_id = nlohmann::json::parse(resource_json)
+                                .at("assets")
+                                .at(0)
+                                .at("placements")
+                                .at(0)
+                                .at("placement_id")
+                                .get<std::string>();
+  holder_string_free(resource_json);
+
+  const auto destination = (data_dir / "downloaded" / "photo.jpg").string();
+  REQUIRE(
+      holder::test::retrieve_asset_file(
+          context,
+          resource_id.c_str(),
+          asset_id.c_str(),
+          placement_id.c_str(),
+          destination.c_str(),
+          &error
+      ) == HOLDER_OK
+  );
+  REQUIRE(backend.get_calls == 1);
+  std::ifstream downloaded(destination, std::ios::binary);
+  const std::string downloaded_content(
+      (std::istreambuf_iterator<char>(downloaded)),
+      std::istreambuf_iterator<char>()
+  );
+  REQUIRE(downloaded_content == "drive-backed bytes");
+
+  holder_context_destroy(context);
+}
+
+TEST_CASE(
+    "C API asset_import_file surfaces a registered provider's put failure",
+    "[capi][resource]"
+) {
+  const auto data_dir = holder::test::make_temp_dir();
+  const auto schema = read_schema_sql();
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+
+  int failure_code = HOLDER_STORAGE_ERROR_CAPACITY;
+  REQUIRE(
+      holder_storage_provider_register(
+          "quota-limited",
+          failing_storage_put_with_message,
+          fake_storage_get,
+          fake_storage_exists,
+          fake_storage_remove,
+          &failure_code,
+          noop_storage_destroy,
+          &error
+      ) == HOLDER_OK
+  );
+
+  char* project_json = nullptr;
+  REQUIRE(
+      holder_project_create(context, "Photos", nullptr, nullptr, &project_json, &error) == HOLDER_OK
+  );
+  const auto project_id = nlohmann::json::parse(project_json).at("project_id").get<std::string>();
+  holder_string_free(project_json);
+
+  char* card_json = nullptr;
+  REQUIRE(
+      holder_card_create(
+          context,
+          project_id.c_str(),
+          "Trip",
+          nullptr,
+          nullptr,
+          &card_json,
+          &error
+      ) == HOLDER_OK
+  );
+  const auto card_id = nlohmann::json::parse(card_json).at("card_id").get<std::string>();
+  holder_string_free(card_json);
+
+  const auto now = std::chrono::duration_cast<std::chrono::seconds>(
+                       std::chrono::system_clock::now().time_since_epoch()
+  )
+                       .count();
+  const nlohmann::json location_body = {
+      {"location_id", "loc-quota-1"},
+      {"project_id", project_id},
+      {"name", "Full Drive"},
+      {"provider", "quota-limited"},
+      {"configuration", nlohmann::json::object()},
+      {"created_at", now},
+      {"updated_at", now},
+  };
+  char* location_json = nullptr;
+  REQUIRE(
+      holder_location_put_json(context, location_body.dump().c_str(), &location_json, &error) ==
+      HOLDER_OK
+  );
+  holder_string_free(location_json);
+
+  const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "won't fit");
+
+  const int rc = holder::test::import_asset_file(
+      context,
+      project_id.c_str(),
+      card_id.c_str(),
+      "loc-quota-1",
+      source_path.c_str(),
+      nullptr,
+      &error
+  );
+  REQUIRE(rc == HOLDER_ERROR_RUNTIME);
+  REQUIRE(error != nullptr);
+  REQUIRE(std::string(holder_error_message(error)).find("storage failure") != std::string::npos);
+  holder_error_destroy(error);
+
+  for (const int code : std::array{
+           static_cast<int>(HOLDER_STORAGE_ERROR_AUTHENTICATION),
+           static_cast<int>(HOLDER_STORAGE_ERROR_PERMISSION),
+           static_cast<int>(HOLDER_STORAGE_ERROR_INTEGRITY),
+           static_cast<int>(HOLDER_STORAGE_ERROR_CONFLICT),
+           static_cast<int>(HOLDER_STORAGE_ERROR_INVALID_CONFIGURATION),
+           static_cast<int>(HOLDER_STORAGE_ERROR_TRANSIENT),
+           999,
+       }) {
+    failure_code = code;
+    error = nullptr;
+    REQUIRE(
+        holder::test::import_asset_file(
+            context,
+            project_id.c_str(),
+            card_id.c_str(),
+            "loc-quota-1",
+            source_path.c_str(),
+            nullptr,
+            &error
+        ) == (code == HOLDER_STORAGE_ERROR_INTEGRITY ? HOLDER_ERROR_DATA_CORRUPTED : HOLDER_ERROR_RUNTIME)
+    );
+    REQUIRE(error != nullptr);
+    holder_error_destroy(error);
+  }
+
+  // Nothing should have been left behind for a resource that never actually got stored.
+  char* resource_list_json = nullptr;
+  error = nullptr;
+  REQUIRE(
+      holder_resource_list_json(context, project_id.c_str(), &resource_list_json, &error) == HOLDER_OK
+  );
+  REQUIRE(nlohmann::json::parse(resource_list_json).empty());
+  holder_string_free(resource_list_json);
+
+  holder_context_destroy(context);
+}
+
+TEST_CASE(
+    "C API asset import removes a newly stored object when the Git write fails",
+    "[capi][resource]"
+) {
+  const auto data_dir = holder::test::make_temp_dir();
+  const auto schema = read_schema_sql();
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+
+  FakeStorageBackend backend{.root = data_dir / "rollback-provider"};
+  REQUIRE(
+      holder_storage_provider_register(
+          "rollback-provider",
+          fake_storage_put,
+          fake_storage_get,
+          fake_storage_exists_but_block_git_write,
+          fake_storage_remove,
+          &backend,
+          noop_storage_destroy,
+          &error
+      ) == HOLDER_OK
+  );
+
+  char* project_json = nullptr;
+  REQUIRE(
+      holder_project_create(context, "Photos", nullptr, nullptr, &project_json, &error) == HOLDER_OK
+  );
+  const auto project_id = nlohmann::json::parse(project_json).at("project_id").get<std::string>();
+  const auto project_root = nlohmann::json::parse(project_json).at("root_path").get<std::string>();
+  holder_string_free(project_json);
+
+  char* card_json = nullptr;
+  REQUIRE(
+      holder_card_create(
+          context,
+          project_id.c_str(),
+          "Trip",
+          nullptr,
+          nullptr,
+          &card_json,
+          &error
+      ) == HOLDER_OK
+  );
+  const auto card_id = nlohmann::json::parse(card_json).at("card_id").get<std::string>();
+  holder_string_free(card_json);
+
+  const nlohmann::json location_body = {
+      {"location_id", "loc-rollback-1"},
+      {"project_id", project_id},
+      {"name", "Rollback provider"},
+      {"provider", "rollback-provider"},
+      {"configuration", nlohmann::json::object()},
+      {"created_at", 10},
+      {"updated_at", 10},
+  };
+  char* location_json = nullptr;
+  REQUIRE(
+      holder_location_put_json(context, location_body.dump().c_str(), &location_json, &error) ==
+      HOLDER_OK
+  );
+  holder_string_free(location_json);
+
+  // A regular file where the resource directory must be makes the Git-backed manifest write
+  // fail after the provider has accepted the bytes.
+  write_source_file(std::filesystem::path(project_root) / "resources", "blocks resource directory");
+  const auto source_path =
+      write_source_file(data_dir / "source" / "photo.jpg", "stored then rolled back");
+  nlohmann::json import_result;
+  REQUIRE(
+      holder::test::import_asset_file(
+          context,
+          project_id.c_str(),
+          card_id.c_str(),
+          "loc-rollback-1",
+          source_path.c_str(),
+          nullptr,
+          &error
+      ) == HOLDER_ERROR_RUNTIME
+  );
+  REQUIRE(backend.put_calls == 1);
+  REQUIRE(backend.exists_calls == 1);
+  REQUIRE(backend.remove_calls == 1);
+  holder_error_destroy(error);
+
+  holder_context_destroy(context);
+}
+
+TEST_CASE("C API asset_import_file reports an unregistered provider by name", "[capi][resource]") {
+  const auto data_dir = holder::test::make_temp_dir();
+  const auto schema = read_schema_sql();
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+
+  char* project_json = nullptr;
+  REQUIRE(
+      holder_project_create(context, "Photos", nullptr, nullptr, &project_json, &error) == HOLDER_OK
+  );
+  const auto project_id = nlohmann::json::parse(project_json).at("project_id").get<std::string>();
+  holder_string_free(project_json);
+
+  char* card_json = nullptr;
+  REQUIRE(
+      holder_card_create(
+          context,
+          project_id.c_str(),
+          "Trip",
+          nullptr,
+          nullptr,
+          &card_json,
+          &error
+      ) == HOLDER_OK
+  );
+  const auto card_id = nlohmann::json::parse(card_json).at("card_id").get<std::string>();
+  holder_string_free(card_json);
+
+  const auto now = std::chrono::duration_cast<std::chrono::seconds>(
+                       std::chrono::system_clock::now().time_since_epoch()
+  )
+                       .count();
+  const nlohmann::json location_body = {
+      {"location_id", "loc-unregistered-1"},
+      {"project_id", project_id},
+      {"name", "Dropbox (not wired up yet)"},
+      {"provider", "dropbox"},
+      {"configuration", nlohmann::json::object()},
+      {"created_at", now},
+      {"updated_at", now},
+  };
+  char* location_json = nullptr;
+  REQUIRE(
+      holder_location_put_json(context, location_body.dump().c_str(), &location_json, &error) ==
+      HOLDER_OK
+  );
+  holder_string_free(location_json);
+
+  const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "bytes");
+
+  const int rc = holder::test::import_asset_file(
+      context,
+      project_id.c_str(),
+      card_id.c_str(),
+      "loc-unregistered-1",
+      source_path.c_str(),
+      nullptr,
+      &error
+  );
+  REQUIRE(rc == HOLDER_ERROR_RUNTIME);
+  REQUIRE(error != nullptr);
+  REQUIRE(std::string(holder_error_message(error)).find("dropbox") != std::string::npos);
+  holder_error_destroy(error);
+
+  holder_context_destroy(context);
+}
+
+TEST_CASE(
+    "C API resources assets and locations share the Git-backed JSON model",
+    "[capi][resource]"
+) {
+  const auto data_dir = holder::test::make_temp_dir();
+  seed_git_project(data_dir, "project-1", data_dir / "repo", std::nullopt);
+
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  const auto schema = read_schema_sql();
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+
+  const nlohmann::json location = {
+      {"location_id", "location-1234"},
+      {"project_id", "project-1"},
+      {"name", "Family Assets"},
+      {"provider", "local_directory"},
+      {"configuration", nlohmann::json::object()},
+      {"created_at", 10},
+      {"updated_at", 10},
+  };
+  char* json = nullptr;
+  const auto location_text = location.dump();
+  REQUIRE(holder_location_put_json(context, location_text.c_str(), &json, &error) == HOLDER_OK);
+  REQUIRE(nlohmann::json::parse(json)["name"] == "Family Assets");
+  holder_string_free(json);
+
+  json = nullptr;
+  REQUIRE(holder_location_list(context, "project-1", &json, &error) == HOLDER_OK);
+  REQUIRE(nlohmann::json::parse(json) == nlohmann::json::array({location}));
+  holder_string_free(json);
+
+  json = nullptr;
+  REQUIRE(holder_location_get(context, "location-1234", &json, &error) == HOLDER_OK);
+  REQUIRE(nlohmann::json::parse(json) == location);
+  holder_string_free(json);
+
+  const nlohmann::json bundle = {
+      {"resource",
+       {
+           {"resource_id", "resource-1234"},
+           {"project_id", "project-1"},
+           {"type", "document"},
+           {"label", "Homework.pdf"},
+           {"metadata", {{"description", nlohmann::json::array({"Revision notes"})}}},
+           {"created_at", 20},
+           {"updated_at", 20},
+       }},
+      {"assets",
+       nlohmann::json::array({
+           {
+               {"asset_id", "asset-1234"},
+               {"resource_id", "resource-1234"},
+               {"original_filename", "Homework.pdf"},
+               {"media_type", "application/pdf"},
+               {"byte_size", 42},
+               {"plaintext_sha256", std::string(64, 'a')},
+               {"created_at", 20},
+               {"updated_at", 20},
+               {"placements",
+                nlohmann::json::array({
+                    {
+                        {"placement_id", "placement-1234"},
+                        {"asset_id", "asset-1234"},
+                        {"location_id", "location-1234"},
+                        {"object_key", "project-1/asset-1234.holderasset"},
+                        {"encoding", "plain"},
+                        {"stored_byte_size", 42},
+                        {"stored_sha256", std::string(64, 'a')},
+                        {"created_at", 20},
+                    },
+                })},
+           },
+       })},
+  };
+  const auto bundle_text = bundle.dump();
+  json = nullptr;
+  REQUIRE(holder_resource_put_json(context, bundle_text.c_str(), &json, &error) == HOLDER_OK);
+  REQUIRE(nlohmann::json::parse(json)["assets"].size() == 1);
+  holder_string_free(json);
+
+  auto replacement_asset = bundle.at("assets").at(0);
+  replacement_asset["original_filename"] = "Homework revised.pdf";
+  replacement_asset["updated_at"] = 21;
+  json = nullptr;
+  REQUIRE(
+      holder_asset_put_json(
+          context,
+          "resource-1234",
+          replacement_asset.dump().c_str(),
+          &json,
+          &error
+      ) == HOLDER_OK
+  );
+  REQUIRE(nlohmann::json::parse(json)["original_filename"] == "Homework revised.pdf");
+  holder_string_free(json);
+
+  auto second_asset = replacement_asset;
+  second_asset["asset_id"] = "asset-5678";
+  second_asset["original_filename"] = "Answers.txt";
+  second_asset["media_type"] = "text/plain";
+  second_asset["plaintext_sha256"] = std::string(64, 'b');
+  second_asset["placements"] = nlohmann::json::array();
+  json = nullptr;
+  REQUIRE(
+      holder_asset_put_json(context, "resource-1234", second_asset.dump().c_str(), &json, &error) ==
+      HOLDER_OK
+  );
+  REQUIRE(nlohmann::json::parse(json)["asset_id"] == "asset-5678");
+  holder_string_free(json);
+
+  json = nullptr;
+  REQUIRE(holder_resource_list_json(context, "project-1", &json, &error) == HOLDER_OK);
+  REQUIRE(nlohmann::json::parse(json).size() == 1);
+  holder_string_free(json);
+
+  json = nullptr;
+  REQUIRE(holder_asset_get(context, "asset-1234", &json, &error) == HOLDER_OK);
+  REQUIRE(nlohmann::json::parse(json)["original_filename"] == "Homework revised.pdf");
+  holder_string_free(json);
+
+  REQUIRE(
+      holder::test::retrieve_asset_file(
+          context,
+          "resource-1234",
+          "missing-asset",
+          "placement-1234",
+          "/tmp/not-written",
+          &error
+      ) == HOLDER_ERROR_NOT_FOUND
+  );
+  holder_error_destroy(error);
+  error = nullptr;
+  REQUIRE(
+      holder::test::retrieve_asset_file(
+          context,
+          "resource-1234",
+          "asset-1234",
+          "missing-placement",
+          "/tmp/not-written",
+          &error
+      ) == HOLDER_ERROR_NOT_FOUND
+  );
+  holder_error_destroy(error);
+  error = nullptr;
+
+  {
+    // A damaged projection may retain a placement whose location has disappeared.
+    holder::platform::Db damaged;
+    damaged.open(data_dir / "server" / "holder.db");
+    damaged.exec("PRAGMA foreign_keys=OFF;");
+    damaged.exec(
+        "UPDATE asset_placements SET location_id = 'missing-location' WHERE placement_id = 'placement-1234';"
+    );
+    const auto destination = data_dir / "missing-location-download";
+    REQUIRE(
+        holder::test::retrieve_asset_file(
+            context,
+            "resource-1234",
+            "asset-1234",
+            "placement-1234",
+            destination.string().c_str(),
+            &error
+        ) == HOLDER_ERROR_NOT_FOUND
+    );
+    REQUIRE(std::string(holder_error_message(error)) == "storage location not found in project: missing-location");
+    REQUIRE_FALSE(std::filesystem::exists(destination));
+    holder_error_destroy(error);
+    error = nullptr;
+    damaged.exec(
+        "UPDATE asset_placements SET location_id = 'location-1234' WHERE placement_id = 'placement-1234';"
+    );
+  }
+
+  json = nullptr;
+  REQUIRE(holder_asset_delete(context, "asset-5678", &json, &error) == HOLDER_OK);
+  REQUIRE(nlohmann::json::parse(json)["assets"].size() == 1);
+  holder_string_free(json);
+
+  json = nullptr;
+  REQUIRE(holder_asset_delete(context, "asset-1234", &json, &error) == HOLDER_OK);
+  REQUIRE(nlohmann::json::parse(json)["assets"].empty());
+  holder_string_free(json);
+
+  REQUIRE(holder_location_delete(context, "location-1234", &error) == HOLDER_OK);
+  REQUIRE(holder_resource_delete(context, "resource-1234", &error) == HOLDER_OK);
+  REQUIRE(std::filesystem::exists(data_dir / "repo" / ".git"));
+
+  holder_context_destroy(context);
+}

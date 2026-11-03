@@ -12,6 +12,7 @@
 #include "project/ProjectRegistry.h"
 #include "project/ProjectRepo.h"
 #include "project/ProjectSyncRepo.h"
+#include "sync/PullConflictResolution.h"
 
 #include <optional>
 #include <string>
@@ -95,7 +96,12 @@ RecoveryTokenGlobalImportResult import_global(
     }
     if (configured) {
       try {
-        git.pull_remote_ff_only("origin");
+        try {
+          git.pull_remote_ff_only("origin");
+        } catch (const holder::git::NonFastForwardPullError& diverged) {
+          holder::sync::resolve_pull_conflicts(context.db, &context.fts, refreshed, git, diverged, now);
+        }
+        holder::sync::reconcile_index_after_pull(context.db, &context.fts, refreshed);
         pull_status = RecoveryTokenGlobalImportResultPullStatus::Succeeded;
         sync_repo.record_pull_result(metadata.project_id, "succeeded", true, std::nullopt, now);
       } catch (const std::exception& error) {
@@ -117,9 +123,13 @@ RecoveryTokenGlobalImportResult import_global(
     }
   }
 
+  // A local metadata commit before the first successful pull would create an unrelated
+  // history, so a later retry could not fast-forward from the hinted remote.
   const auto refreshed = find_project(context.db, metadata.project_id);
-  holder::project::write_project_manifest(git, refreshed);
-  git.commit("Restore encrypted project metadata");
+  if (!has_remote || pull_status == RecoveryTokenGlobalImportResultPullStatus::Succeeded) {
+    holder::project::write_project_manifest(git, refreshed);
+    git.commit("Restore encrypted project metadata");
+  }
   if (!context.registry_path.empty())
     holder::core::ProjectRegistry(context.registry_path).restore(refreshed);
   return {

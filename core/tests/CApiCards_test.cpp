@@ -7,6 +7,7 @@
 #endif
 
 #include "core_test_helpers.h"
+#include "card/CardPaths.h"
 
 #include <holder/holder_api.h>
 
@@ -28,13 +29,13 @@ std::string read_schema_sql() {
 
 // A context on a fresh data directory with one plain project, freed with its arena.
 struct Fixture {
+  std::filesystem::path data_dir = holder::test::make_temp_dir();
   holder_context* context = nullptr;
   holder_arena* arena = holder_arena_new();
   holder_error* error = nullptr;
   std::string project_id;
 
   Fixture() {
-    const auto data_dir = holder::test::make_temp_dir();
     const auto schema = read_schema_sql();
     REQUIRE(holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK);
     project_id = new_project("Cards");
@@ -213,6 +214,57 @@ TEST_CASE("holder_get_card does not find trashed or unknown cards, or cards in a
           HOLDER_ERROR_NOT_FOUND);
 }
 
+TEST_CASE("holder_get_card reports a missing durable content file", "[capi][contract]") {
+  Fixture f;
+  const holder_card* card = f.create("Missing file", "Durable body");
+  const std::string id = card->card_id;
+  const std::string path = card->rel_path;
+  const holder_project* project = nullptr;
+  REQUIRE(holder_get_project(f.context, f.project_id.c_str(), f.arena, &project, &f.error) == HOLDER_OK);
+  REQUIRE(std::filesystem::remove(std::filesystem::path(project->root_path) / path));
+  REQUIRE(f.failed(holder_get_card(f.context, f.project_id.c_str(), id.c_str(), f.arena, &card, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
+}
+
+TEST_CASE("holder_resolve_card_reference reports full IDs, prefixes, titles and ambiguity", "[capi][contract]") {
+  Fixture f;
+  const std::string first = f.create("Shared title")->card_id;
+  holder_card_reference_resolve_request request{};
+  request.project_id = f.project_id.c_str();
+  request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_LIVE;
+  const holder_card_reference_resolve_data* result = nullptr;
+
+  request.reference = first.c_str();
+  REQUIRE(holder_resolve_card_reference(f.context, &request, f.arena, &result, &f.error) == HOLDER_OK);
+  REQUIRE(result->status == HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_RESOLVED);
+  REQUIRE(std::string(result->match_kind) == "full_id");
+  REQUIRE(std::string(result->card->card_id) == first);
+
+  const std::string prefix = first.substr(0, 12);
+  request.reference = prefix.c_str();
+  REQUIRE(holder_resolve_card_reference(f.context, &request, f.arena, &result, &f.error) == HOLDER_OK);
+  REQUIRE(result->status == HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_RESOLVED);
+  REQUIRE(std::string(result->match_kind) == "id_prefix");
+
+  request.reference = "Shared title";
+  REQUIRE(holder_resolve_card_reference(f.context, &request, f.arena, &result, &f.error) == HOLDER_OK);
+  REQUIRE(result->status == HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_RESOLVED);
+  REQUIRE(std::string(result->match_kind) == "exact_title");
+
+  f.create("Shared title");
+  REQUIRE(holder_resolve_card_reference(f.context, &request, f.arena, &result, &f.error) == HOLDER_OK);
+  REQUIRE(result->status == HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_AMBIGUOUS);
+  REQUIRE(result->candidates != nullptr);
+  REQUIRE(result->candidates->count == 2);
+
+  request.reference = "No such card";
+  REQUIRE(holder_resolve_card_reference(f.context, &request, f.arena, &result, &f.error) == HOLDER_OK);
+  REQUIRE(result->status == HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_NOT_FOUND);
+  request.reference = "";
+  REQUIRE(f.failed(holder_resolve_card_reference(f.context, &request, f.arena, &result, &f.error)) ==
+          HOLDER_ERROR_INVALID_ARGUMENT);
+}
+
 TEST_CASE("holder_get_card_metadata reads only a live card in the requested project", "[capi][contract]") {
   Fixture f;
   const auto* created = f.create("Café", "A large body #tag");
@@ -243,6 +295,86 @@ TEST_CASE("holder_get_card_any_state reads trashed metadata only in its project"
   REQUIRE(metadata->deleted_at != nullptr);
   REQUIRE(f.failed(holder_get_card_any_state(f.context, "another-project", id.c_str(), f.arena, &metadata,
                                               &f.error)) == HOLDER_ERROR_NOT_FOUND);
+}
+
+TEST_CASE("holder_update_card and holder_move_card change a card and reject cycles", "[capi][contract]") {
+  Fixture f;
+  const std::string parent_id = f.create("Parent")->card_id;
+  const std::string child_id = f.create("Child", "Old body")->card_id;
+  holder_card_update update{};
+  update.title = "Renamed";
+  update.content = "New body";
+  const holder_card* card = nullptr;
+  REQUIRE(holder_update_card(f.context, f.project_id.c_str(), child_id.c_str(), &update, f.arena, &card,
+                             &f.error) == HOLDER_OK);
+  REQUIRE(std::string(card->title) == "Renamed");
+  REQUIRE(std::string(card->content) == "New body");
+
+  holder_card_move move{};
+  move.intent = HOLDER_CARD_MOVE_INTENT_INTO;
+  move.target_card_id = parent_id.c_str();
+  REQUIRE(holder_move_card(f.context, f.project_id.c_str(), child_id.c_str(), &move, f.arena, &card,
+                           &f.error) == HOLDER_OK);
+  REQUIRE(std::string(card->parent_card_id) == parent_id);
+
+  move.target_card_id = child_id.c_str();
+  REQUIRE(f.failed(holder_move_card(f.context, f.project_id.c_str(), parent_id.c_str(), &move, f.arena,
+                                    &card, &f.error)) == HOLDER_ERROR_INVALID_MOVE);
+  move.target_card_id = "missing-card";
+  REQUIRE(f.failed(holder_move_card(f.context, f.project_id.c_str(), child_id.c_str(), &move, f.arena,
+                                    &card, &f.error)) == HOLDER_ERROR_NOT_FOUND);
+  move.intent = HOLDER_CARD_MOVE_INTENT_MAX_ENUM;
+  REQUIRE(f.failed(holder_move_card(f.context, f.project_id.c_str(), child_id.c_str(), &move, f.arena,
+                                    &card, &f.error)) == HOLDER_ERROR_INVALID_ARGUMENT);
+}
+
+TEST_CASE("holder_trash_card, holder_restore_card and Trash removal preserve card content", "[capi][contract]") {
+  Fixture f;
+  const std::string id = f.create("Binned", "Durable body")->card_id;
+  f.trash(id.c_str());
+  const holder_card* card = nullptr;
+  REQUIRE(f.failed(holder_get_card(f.context, f.project_id.c_str(), id.c_str(), f.arena, &card, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
+  const holder_trash_item_list* trash = nullptr;
+  REQUIRE(holder_list_trash(f.context, f.project_id.c_str(), "card", f.arena, &trash, &f.error) == HOLDER_OK);
+  REQUIRE(trash->count == 1);
+
+  REQUIRE(holder_restore_card(f.context, f.project_id.c_str(), id.c_str(), f.arena, &card, &f.error) == HOLDER_OK);
+  REQUIRE(std::string(card->content) == "Durable body");
+  f.trash(id.c_str());
+  const holder_trash_delete_result* removed = nullptr;
+  REQUIRE(holder_delete_project_trash_item(f.context, f.project_id.c_str(),
+                                           HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_CARD, id.c_str(), f.arena,
+                                           &removed, &f.error) == HOLDER_OK);
+  REQUIRE(holder_list_trash(f.context, f.project_id.c_str(), "card", f.arena, &trash, &f.error) == HOLDER_OK);
+  REQUIRE(trash->count == 0);
+}
+
+TEST_CASE("holder_restore_card reports a missing durable trash file", "[capi][contract]") {
+  Fixture f;
+  const std::string id = f.create("Doomed", "content")->card_id;
+  const holder_project* project = nullptr;
+  REQUIRE(holder_get_project(f.context, f.project_id.c_str(), f.arena, &project, &f.error) == HOLDER_OK);
+  const std::filesystem::path root = project->root_path;
+  f.trash(id.c_str());
+  REQUIRE(std::filesystem::remove(root / holder::core::card_trash_rel_path(id)));
+  const holder_card* card = nullptr;
+  REQUIRE(f.failed(holder_restore_card(f.context, f.project_id.c_str(), id.c_str(), f.arena, &card,
+                                       &f.error)) == HOLDER_ERROR_RUNTIME);
+}
+
+TEST_CASE("holder_trash_card promotes children and restore keeps their placement", "[capi][contract]") {
+  Fixture f;
+  const std::string parent_id = f.create("Parent")->card_id;
+  const std::string child_id = f.create("Child", nullptr, parent_id.c_str())->card_id;
+  f.trash(parent_id.c_str());
+  const holder_card* card = nullptr;
+  REQUIRE(holder_get_card(f.context, f.project_id.c_str(), child_id.c_str(), f.arena, &card, &f.error) == HOLDER_OK);
+  REQUIRE(card->parent_card_id == nullptr);
+  REQUIRE(holder_restore_card(f.context, f.project_id.c_str(), parent_id.c_str(), f.arena, &card, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(holder_get_card(f.context, f.project_id.c_str(), child_id.c_str(), f.arena, &card, &f.error) == HOLDER_OK);
+  REQUIRE(card->parent_card_id == nullptr);
 }
 
 TEST_CASE("holder_list_cards filters by level and adds content and counts on request", "[capi][contract]") {
@@ -283,6 +415,60 @@ TEST_CASE("holder_list_cards pages through every card once", "[capi][contract]")
   } while (!cursor.empty());
   REQUIRE(pages == 3);
   REQUIRE(seen.size() == 5);
+}
+
+TEST_CASE("holder_list_cards filters tags without case sensitivity", "[capi][contract]") {
+  Fixture f;
+  const std::string tagged = f.create("Tagged", "Body #Draft")->card_id;
+  f.create("Other", "Body #review");
+  const holder_card_list_item_page* page = nullptr;
+  REQUIRE(holder_list_cards(f.context, f.project_id.c_str(), {}, "draft", HOLDER_LIST_CARDS_ORDER_DEFAULT,
+                            nullptr, nullptr, false, false, f.arena, &page, &f.error) == HOLDER_OK);
+  REQUIRE(page->items.count == 1);
+  REQUIRE(std::string(page->items.items[0].card_id) == tagged);
+}
+
+TEST_CASE("holder_search_cards follows card changes and reindexing", "[capi][contract]") {
+  Fixture f;
+  const std::string id = f.create("Searchable", "alpha marker")->card_id;
+  const holder_search_card_list* results = nullptr;
+  REQUIRE(holder_search_cards(f.context, f.project_id.c_str(), "alpha", nullptr, 0, f.arena,
+                              &results, &f.error) == HOLDER_OK);
+  REQUIRE(results->count == 1);
+  REQUIRE(std::string(results->items[0].card_id) == id);
+
+  holder_card_update update{};
+  update.content = "beta marker";
+  const holder_card* card = nullptr;
+  REQUIRE(holder_update_card(f.context, f.project_id.c_str(), id.c_str(), &update, f.arena, &card, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(holder_search_cards(f.context, f.project_id.c_str(), "beta", nullptr, 0, f.arena,
+                              &results, &f.error) == HOLDER_OK);
+  REQUIRE(results->count == 1);
+  const holder_reindex_result* reindexed = nullptr;
+  REQUIRE(holder_reindex_search(f.context, f.arena, &reindexed, &f.error) == HOLDER_OK);
+  REQUIRE(holder_search_cards(f.context, f.project_id.c_str(), "Searchable", nullptr, 0, f.arena,
+                              &results, &f.error) == HOLDER_OK);
+  REQUIRE(results->count == 1);
+  f.trash(id.c_str());
+  REQUIRE(holder_search_cards(f.context, f.project_id.c_str(), "Searchable", nullptr, 0, f.arena,
+                              &results, &f.error) == HOLDER_OK);
+  REQUIRE(results->count == 0);
+}
+
+TEST_CASE("holder_list_card_history reads committed card changes", "[capi][contract]") {
+  Fixture f;
+  const std::string id = f.create("History", "First body")->card_id;
+  holder_card_update update{};
+  update.content = "Second body";
+  const holder_card* card = nullptr;
+  REQUIRE(holder_update_card(f.context, f.project_id.c_str(), id.c_str(), &update, f.arena, &card, &f.error) ==
+          HOLDER_OK);
+  const holder_card_history_page* page = nullptr;
+  REQUIRE(holder_list_card_history(f.context, f.project_id.c_str(), id.c_str(), nullptr, nullptr, f.arena,
+                                   &page, &f.error) == HOLDER_OK);
+  REQUIRE(page->entries.count > 0);
+  REQUIRE(page->head_oid != nullptr);
 }
 
 TEST_CASE("holder_list_cards rejects bad queries", "[capi][contract]") {
