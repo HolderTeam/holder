@@ -2,7 +2,7 @@
 
 `make -C contract update` writes three files from the contract into core, and `make -C contract check` fails when they are out of date:
 
-- **`core/include/holder/holder_api.h`:** the standalone C declarations consumers use: opaque handles, records, operations, error codes, and the arena. `holder.h` also includes it for existing consumers.
+- **`core/include/holder/holder_api.h`:** the standalone C declarations consumers use: opaque handles, records, operations, error codes, and the arena. `holder.h` includes it alongside the remaining host callback registrations.
 - **`core/src/api/Contract.h`:** the C++ declarations core implements, one function per operation, in `holder::contract`, a namespace of its own so nothing clashes with the daemon's `holder::api`. A missing implementation fails to link.
 - **`core/src/api/ContractCApi.cpp`:** the C entry points. Each checks its arguments against the contract, calls core's function, copies the result into the caller's arena, and turns error kinds into status codes. Core never sees a null pointer, an out-of-range number or an unknown enum value.
 
@@ -12,7 +12,7 @@ Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A recor
 
 - **Operations:**
   - Every operation is `int holder_<operation>(holder_context* context, <parameters>, holder_arena* arena, const <result>** out_<result>, holder_error** out_error)`.
-  - It returns `HOLDER_OK` (0) or an error code, and sets `*out_error` as the rest of `holder.h` does (free it with `holder_error_destroy`).
+  - It returns `HOLDER_OK` (0) or an error code, and sets `*out_error` as the host registration functions do (free it with `holder_error_destroy`).
   - An operation with no result has no `out_` parameter.
   - An operation that returns a list returns it as a `{items, count}` struct, in `out_<record>_list`, such as `const holder_tag_count_list** out_tag_count_list`.
   - An operation on a card takes the card's `project_id` before its `card_id`, and does not find a card in another project.

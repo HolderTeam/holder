@@ -44,7 +44,7 @@ requiring a sample row.
 | `deleted_at` | `int \| None` | Soft-deletion time; live exports use `None` |
 
 This inexpensive contract is returned by `cards.to_records()`. It comes from
-`holder_card_list` and does not open or decrypt card files.
+`holder_list_cards` with `include_content=false` and does not open or decrypt card files.
 
 ## `CompleteCardRecord`
 
@@ -64,9 +64,9 @@ columns in either card record contract.
 
 ## Extraction behavior and limitations
 
-Metadata-only extraction calls `holder_card_list` once per selected project.
-Complete extraction uses `holder_card_list_complete_page` and follows its
-opaque cursor until exhausted, avoiding one native operation per card. Each
+Metadata-only extraction calls `holder_list_cards` with `include_content=false`
+and follows its opaque cursor. Complete extraction calls the same operation
+with `include_content=true`, avoiding one native operation per card. Each
 page is ordered by `card_id`, contains live cards only, and reads bodies from
 their authoritative durable files rather than the disposable FTS index.
 
@@ -291,7 +291,7 @@ same rules as the other tables. Join `from_card_id` to card records' `card_id`,
 and join card targets by both the effective target project and `to_card_id` after
 selecting `to_type == "card"`.
 
-Extraction first selects card metadata and then calls `holder_card_list_links`
+Extraction first selects card metadata and then calls `holder_list_card_links`
 once per source card. It does not read bodies or provide an atomic snapshot
 across cards/projects. Errors propagate instead of returning a partial list.
 Targets may be outside the selected project, unresolved, or trashed; target

@@ -1,7 +1,7 @@
 #pragma once
 
-// What the C API's opaque handles hold. Shared by the hand-written C API (holder.cpp) and the
-// implementations of the contract's operations (src/api/), which receive a holder_context&.
+// What the C API's opaque handles hold. Shared by the host callback adapters (holder.cpp) and
+// the implementations of the contract's operations (src/api/), which receive a holder_context&.
 
 #include "git/GitCredentialProvider.h"
 #include "index/FtsIndexer.h"

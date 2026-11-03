@@ -1,8 +1,7 @@
 """Core's generated C API, called through cffi, for the conformance tests.
 
 Operations take and return values as test_support.values describes them, converted to and from C
-by the conventions in C_API.md, using the generator's own reading of the IR. A few hand-written
-functions from holder.h set up a data directory and a project.
+by the conventions in C_API.md, using the generator's own reading of the IR. The generated runtime and create_project operation set up the test directory and project.
 """
 
 from __future__ import annotations
@@ -26,13 +25,6 @@ STATUS = {4000: "InvalidArgument", 5000: "Runtime", 5001: "Allocation"}
 # An enum value outside every enum, which the glue must reject.
 BAD_ENUM = 1000
 
-HAND_WRITTEN = """
-typedef struct holder_context holder_context;
-typedef struct holder_error holder_error;
-int holder_project_create(holder_context* context, const char* name, const char* root_path,
-                          const char* privacy_mode, char** out_json, holder_error** out_error);
-void holder_string_free(char* value);
-"""
 
 
 class OperationError(Exception):
@@ -65,7 +57,7 @@ class Core:
     def __init__(self, ir: dict[str, Any], library_path: str, data_dir: Path):
         self.model = CoreTypes(ContractView.model_validate(ir))
         self.ffi = cffi.FFI()
-        self.ffi.cdef(HAND_WRITTEN + declarations(generate(ir)["holder_api.h"]))
+        self.ffi.cdef(declarations(generate(ir)["holder_api.h"]))
         self.lib = self.ffi.dlopen(library_path)
         self.kinds = {**STATUS, **{code: name for name, code in self.model.codes.items()}}
         context = self.ffi.new("holder_context**")
@@ -88,12 +80,7 @@ class Core:
         raise OperationError(self.kinds.get(status, f"status {status}"), message)
 
     def create_project(self, name: str) -> str:
-        out = self.ffi.new("char**")
-        self.check(self.lib.holder_project_create(self.context, name.encode(), self.ffi.NULL, self.ffi.NULL, out,
-                                                  self.error_slot()))
-        text = self.ffi.string(out[0]).decode()
-        self.lib.holder_string_free(out[0])
-        return re.search(r'"project_id"\s*:\s*"([^"]+)"', text).group(1)
+        return self.call("create_project", project={"name": name, "privacy_mode": "plain"})["project_id"]
 
     # ---- contract operations ------------------------------------------------------------------
 
