@@ -1,5 +1,5 @@
 /* Calls the generated C API the way a consumer would, printing what comes back. */
-#include "holder/holder.h"
+#include "holder/holder_api.h"
 
 #include <stdio.h>
 

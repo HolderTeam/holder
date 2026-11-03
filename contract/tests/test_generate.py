@@ -181,12 +181,11 @@ def test_an_optional_choice_in_a_record_stops_generation():
 @pytest.mark.skipif(not (shutil.which("gcc") and shutil.which("g++")), reason="needs gcc and g++")
 def test_a_partial_update_keeps_sets_or_clears_through_the_c_api(tmp_path):
     (tmp_path / "holder").mkdir()
-    shutil.copy(CONTRACT.parent / "core/include/holder/holder.h", tmp_path / "holder" / "holder.h")
     for name, text in generate(with_partial_update(holder_ir())).items():
         (tmp_path / ("holder" if name == "holder_api.h" else ".") / name).write_text(text, encoding="utf-8")
     (tmp_path / "change_card.cpp").write_text(CHANGE_CARD, encoding="utf-8")
     (tmp_path / "main.c").write_text(r"""
-#include "holder/holder.h"
+#include "holder/holder_api.h"
 
 #include <stdio.h>
 

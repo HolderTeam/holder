@@ -245,9 +245,10 @@ above; move aside any copied versions before running them on the new system.
 
 Core has two interfaces, with different promises:
 
-- **The C API in `include/holder/holder.h` is the stable interface** for embedders such as
-  Holder Kit (Python) and the Android app, and for anyone outside this repository. Within an
-  ABI generation (the SONAME, currently `libholder.so.0`) it stays compatible.
+- **The generated C API in `include/holder/holder_api.h` is the public interface** for embedders
+  such as Holder Kit (Python) and the Android app. The handwritten `holder.h` remains for host
+  callbacks while their generated adapters are built. Within an ABI generation (the SONAME,
+  currently `libholder.so.0`) released C symbols stay compatible.
 - **The C++ headers, installed from `src/` under `include/holder/`, are first-party only.**
   The daemon and `holderctl` use them, built from the same commit. They carry no compatibility
   promise and change in any release. The daemon's Ubuntu package therefore requires the
@@ -348,4 +349,4 @@ compiler, dependencies, and hardening flags. These packages do not use the
 GitHub Linux SDK archive. Check Launchpad binary build/publication results
 before relying on an uploaded package.
 
-Non-C++ consumers, such as a future C# frontend, should use the C API in `include/holder/holder.h` rather than binding to the C++ headers.
+Non-C++ consumers, such as a future C# frontend, should use `include/holder/holder_api.h` rather than binding to the C++ headers.
