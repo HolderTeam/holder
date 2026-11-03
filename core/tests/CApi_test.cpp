@@ -9771,13 +9771,14 @@ TEST_CASE("C API imports an independent project into an empty context", "[capi][
   std::filesystem::copy(source_root, root, std::filesystem::copy_options::recursive);
 
   SECTION("identity, roots, body and tags survive import and database recovery") {
-    const int import_rc = holder_project_import(target, root.string().c_str(), &json, &error);
+    holder_arena* arena = holder_arena_new();
+    const holder_project* generated_project = nullptr;
+    const int import_rc = holder_import_project(target, root.string().c_str(), arena, &generated_project, &error);
     INFO(holder_error_message(error));
     REQUIRE(import_rc == HOLDER_OK);
-    const auto imported = nlohmann::json::parse(json);
-    REQUIRE(imported.at("project_id") == project_id);
-    REQUIRE(imported.at("root_path") == std::filesystem::canonical(root).string());
-    holder_string_free(json);
+    REQUIRE(std::string(generated_project->project_id) == project_id);
+    REQUIRE(std::string(generated_project->root_path) == std::filesystem::canonical(root).string());
+    holder_arena_free(arena);
     REQUIRE(holder_card_get_content(target, card_id.c_str(), &json, &error) == HOLDER_OK);
     REQUIRE(std::string(json) == "Body #science");
     holder_string_free(json);

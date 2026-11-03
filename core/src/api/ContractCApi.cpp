@@ -1807,6 +1807,19 @@ int holder_get_card_metadata(holder_context* context, const char* project_id, co
   });
 }
 
+int holder_get_card_any_state(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card_metadata** out_card_metadata, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card_metadata != nullptr, "out_card_metadata must not be null");
+    *out_card_metadata = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    auto* out = make<holder_card_metadata>(arena);
+    *out = to_c(arena, contract::get_card_any_state(*context, project_id_value, card_id_value));
+    *out_card_metadata = out;
+  });
+}
+
 int holder_get_card_breadcrumbs(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card_breadcrumb_list** out_card_breadcrumb_list, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
@@ -2329,6 +2342,18 @@ int holder_ensure_home_project(holder_context* context, holder_arena* arena, con
     auto* out = make<holder_home_project>(arena);
     *out = to_c(arena, contract::ensure_home_project(*context));
     *out_home_project = out;
+  });
+}
+
+int holder_import_project(holder_context* context, const char* project_root, holder_arena* arena, const holder_project** out_project, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project != nullptr, "out_project must not be null");
+    *out_project = nullptr;
+    const auto project_root_value = text(project_root, "project_root", 1, SIZE_MAX);
+    auto* out = make<holder_project>(arena);
+    *out = to_c(arena, contract::import_project(*context, project_root_value));
+    *out_project = out;
   });
 }
 

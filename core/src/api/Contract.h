@@ -1029,6 +1029,12 @@ Card get_card(holder_context& context, std::string project_id, std::string card_
 /// @throws NotFound
 CardMetadata get_card_metadata(holder_context& context, std::string project_id, std::string card_id);
 
+/// Read a card's metadata in its owning project, including a card in Trash.
+/// Embedders use this to keep a card handle usable for restore and purge. It does
+/// not read the card's content or expose a cross-project lookup.
+/// @throws NotFound
+CardMetadata get_card_any_state(holder_context& context, std::string project_id, std::string card_id);
+
 /// Read a live card's path from its project root.
 /// The project comes first, then live ancestor cards and the requested card. A missing or trashed
 /// card is not found; a broken or cyclic ancestor chain is invalid.
@@ -1278,6 +1284,13 @@ std::vector<Resource> detach_card_resource(holder_context& context, std::string 
 /// decides when to call it: the daemon calls it when it starts, and does not serve it over HTTP.
 /// @throws KeyringUnavailable
 HomeProject ensure_home_project(holder_context& context);
+
+/// Register a durable plain project in an empty context database.
+/// The project must be an immediate child of the context's projects directory and
+/// contain independent ordinary files. This preserves project and card identities,
+/// rebuilds indexes, and leaves the durable files untouched. Encrypted projects are
+/// not supported. No other operation may use this context during import.
+Project import_project(holder_context& context, std::string project_root);
 
 enum class ListProjectsOrder { UpdatedAtDesc, UpdatedAtAsc, CreatedAtDesc, CreatedAtAsc, NameDesc, NameAsc };
 

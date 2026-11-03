@@ -13,6 +13,7 @@
 #include "project/DefaultProject.h"
 #include "project/ProjectManifest.h"
 #include "project/ProjectRegistry.h"
+#include "project/ProjectImport.h"
 #include "project/ProjectRepo.h"
 #include "project/ProjectStore.h"
 #include "project/ProjectSyncRepo.h"
@@ -205,6 +206,17 @@ HomeProject ensure_home_project(holder_context& context) {
     if (!created) return HomeProject{};
     if (!context.registry_path.empty()) holder::core::ProjectRegistry(context.registry_path).restore(*created);
     return HomeProject{to_project(*created)};
+  });
+}
+
+Project import_project(holder_context& context, std::string project_root) {
+  return with_contract_errors([&] {
+    try {
+      return to_project(holder::project::import_project_into_empty_database(
+          context.db, context.fts, context.data_dir, project_root));
+    } catch (const std::invalid_argument& error) {
+      throw InvalidArgument(error.what());
+    }
   });
 }
 

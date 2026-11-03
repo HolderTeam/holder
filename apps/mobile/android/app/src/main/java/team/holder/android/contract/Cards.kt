@@ -263,6 +263,17 @@ object Cards {
     ): CardMetadata
 
     /**
+     * Read a card's metadata in its owning project, including a card in Trash.
+     * Embedders use this to keep a card handle usable for restore and purge. It does
+     * not read the card's content or expose a cross-project lookup.
+     */
+    external fun getCardAnyState(
+        contextHandle: Long,
+        projectId: String,
+        cardId: String,
+    ): CardMetadata
+
+    /**
      * Read a live card's path from its project root.
      * The project comes first, then live ancestor cards and the requested card. A missing or trashed
      * card is not found; a broken or cyclic ancestor chain is invalid.

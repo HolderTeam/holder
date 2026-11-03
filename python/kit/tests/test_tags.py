@@ -16,17 +16,18 @@ def test_tag_mutations_preserve_core_semantics(tmp_path: Path) -> None:
         project = context.create_project("Tags")
         card = context.create_card(project.project_id, "Card", "Prose #Mixed.\n\n#mixed #todo\n")
         assert context.tags.list(card.card_id) == ["mixed", "todo"]
-        assert context.tags.list_editable(card.card_id) == ["mixed", "todo"]
-        original = context.get_card_content(card.card_id)
-        assert context.tags.add(card.card_id, "MIXED") is holderkit.TagAddResult.ALREADY_PRESENT
-        assert context.get_card_content(card.card_id) == original
-        assert context.tags.remove(card.card_id, "MiXeD") is holderkit.TagRemoveResult.REMOVED
-        assert context.tags.list(card.card_id) == ["mixed", "todo"]  # prose untouched
         assert context.tags.list_editable(card.card_id) == ["todo"]
-        unchanged = context.get_card_content(card.card_id)
-        assert context.tags.remove(card.card_id, "mixed") is holderkit.TagRemoveResult.PRESENT_OUTSIDE_EDITABLE_TAG_LINE
+        original = context.get_card_content(project.project_id, card.card_id)
+        assert context.tags.add(card.card_id, "MIXED") is holderkit.TagAddResult.ALREADY_PRESENT
+        assert context.get_card_content(project.project_id, card.card_id) == original
+        with pytest.raises(holderkit.HolderError, match="prose"):
+            context.tags.remove(card.card_id, "MiXeD")
+        assert context.tags.list(card.card_id) == ["mixed", "todo"]
+        unchanged = context.get_card_content(project.project_id, card.card_id)
+        with pytest.raises(holderkit.HolderError, match="prose"):
+            context.tags.remove(card.card_id, "mixed")
         assert context.tags.remove(card.card_id, "absent") is holderkit.TagRemoveResult.NOT_PRESENT
-        assert context.get_card_content(card.card_id) == unchanged
+        assert context.get_card_content(project.project_id, card.card_id) == unchanged
         assert context.tags.add(card.card_id, "URGENT") is holderkit.TagAddResult.ADDED
         assert context.tags.remove(card.card_id, "todo") is holderkit.TagRemoveResult.REMOVED
         records = context.tags.to_records()
@@ -35,11 +36,11 @@ def test_tag_mutations_preserve_core_semantics(tmp_path: Path) -> None:
             {"project_id": project.project_id, "card_id": card.card_id, "tag": "urgent", "editable": True},
         ]
         assert all(tuple(record) == holderkit.TAG_RECORD_FIELDS for record in records)
-        assert "#Mixed" in context.get_card_content(card.card_id)
+        assert "#Mixed" in context.get_card_content(project.project_id, card.card_id)
     assert json.loads(json.dumps(records)) == records
     with holderkit.open(data) as context:
         assert context.tags.to_records() == records
-        context.update_card(card.card_id, "Replaced #replacement")
+        context.update_card(project.project_id, card.card_id, "Replaced #replacement")
         assert context.tags.list(card.card_id) == ["replacement"]
 
 
@@ -52,8 +53,8 @@ def test_tag_queries_and_scoping(tmp_path: Path) -> None:
         outside = context.create_card(other.project_id, "Outside", "#other")
         context.create_card(project.project_id, "No tags")
         assert context.tags.project_counts(project.project_id) == [
-            {"project_id": project.project_id, "tag": "same", "count": 2},
-            {"project_id": project.project_id, "tag": "unique", "count": 1},
+            {"project_id": project.project_id, "tag": "same", "card_count": 2},
+            {"project_id": project.project_id, "tag": "unique", "card_count": 1},
         ]
         matches = context.tags.cards_with_tag(project.project_id, "SAME")
         assert {item["card_id"] for item in matches} == {first.card_id, second.card_id}
@@ -75,7 +76,7 @@ def test_invalid_tag_mutations(tmp_path: Path, tag: str) -> None:
         for operation in (context.tags.add, context.tags.remove):
             with pytest.raises(ValueError):
                 operation(card.card_id, tag)
-        assert context.get_card_content(card.card_id) == "Keep this body"
+        assert context.get_card_content(project.project_id, card.card_id) == "Keep this body"
 
 
 def test_tag_errors_and_closed_context(tmp_path: Path) -> None:
@@ -152,7 +153,7 @@ def test_tag_read_failure_does_not_return_partial_export(
         project = context.create_project("Failure")
         context.create_card(project.project_id, "Tagged", "#tag")
 
-        def fail(self: _native.Context, card_id: str) -> list[str]:
+        def fail(self: _native.Context, project_id: str, card_id: str) -> list[str]:
             raise holderkit.HolderError("tag read failed")
 
         monkeypatch.setattr(_native.Context, "list_tags", fail)

@@ -18,7 +18,8 @@ def test_card_tags_share_project_semantics_and_detached_exports(tmp_path: Path) 
         assert tags.list_editable() == ['todo']
         assert tags.add('EXPERIMENT') == holderkit.TagAddResult.ADDED
         assert tags.add('experiment') == holderkit.TagAddResult.ALREADY_PRESENT
-        assert tags.remove('prose') == holderkit.TagRemoveResult.PRESENT_OUTSIDE_EDITABLE_TAG_LINE
+        with pytest.raises(holderkit.HolderError, match='prose'):
+            tags.remove('prose')
         assert tags.remove('todo') == holderkit.TagRemoveResult.REMOVED
         assert tags.remove('missing') == holderkit.TagRemoveResult.NOT_PRESENT
         assert '#experiment' in card.content
@@ -97,25 +98,24 @@ def test_card_milestones_match_project_results_and_isolate_ownership(tmp_path: P
         other = project.create_card('Other', '')
         milestones = card.milestones
         assert milestones.list() == milestones.to_records() == []
-        added = milestones.add(100, end_at=200, all_day=True, kind='review', description='Check')
-        assert added == project.milestones.list(card.card_id)
-        assert len(added) == 1 and tuple(added[0]) == holderkit.MILESTONE_RECORD_FIELDS
-        identity = added[0]['milestone_id']
-        foreign = other.milestones.add(300)[0]['milestone_id']
-        updated = milestones.update(identity, {'description':None, 'start_at':150})
-        assert updated['description'] is None and updated['start_at'] == 0
-        assert added[0]['start_at'] == 0
-        with pytest.raises(holderkit.HolderError):
-            milestones.update(foreign, {'start_at':400})
-        milestones.remove(foreign)  # Existing Core policy: an unmatched ID is a no-op.
-        assert other.milestones.list()[0]['start_at'] == 300
-        with pytest.raises(holderkit.HolderError):
-            milestones.update(identity, {'end_at':-86400})
+        added = milestones.add([{'role': 'review', 'date': '2026-06-02'}], kind='review', description='Check')
+        assert [added] == project.milestones.list(card.card_id)
+        assert tuple(added) == holderkit.MILESTONE_RECORD_FIELDS
+        identity = added['milestone_id']
+        foreign = other.milestones.add([{'role': 'due', 'date': '2026-07-01'}])['milestone_id']
+        updated = milestones.update(identity, {'description': None, 'dates': [{'role': 'review', 'date': '2026-06-03'}]})
+        assert updated['description'] is None and updated['dates'] == [{'role': 'review', 'date': '2026-06-03'}]
+        with pytest.raises(holderkit.HolderError, match='milestone not found'):
+            milestones.update(foreign, {'kind': 'wrong'})
+        milestones.remove(foreign)  # Another card's milestone: removing it through this card changes nothing.
+        assert other.milestones.list()[0]['dates'] == [{'role': 'due', 'date': '2026-07-01'}]
+        with pytest.raises(ValueError):
+            milestones.update(identity, {'dates': [{'role': 'review', 'date': 'June'}]})
         with pytest.raises(TypeError):
-            milestones.update(identity, {'start_at':True})
+            milestones.update(identity, {'kind': True})  # type: ignore[typeddict-item]
         assert milestones.list()[0] == updated
-        milestones.remove(identity)
-        milestones.remove(identity)
+        assert milestones.remove(identity) == []
+        assert milestones.remove(identity) == []
         assert milestones.to_records() == []
     assert updated['card_id'] == card.card_id
 
@@ -125,7 +125,7 @@ def _operations(card: holderkit.Card) -> list[Callable[[], object]]:
     return [tags.list, tags.list_editable, tags.to_records, lambda: tags.add('work'),
             lambda: tags.remove('work'), connections.to_records,
             lambda: connections.add(card, kind='references'), lambda: connections.remove(card, kind='references'),
-            milestones.list, milestones.to_records, lambda: milestones.add(100),
+            milestones.list, milestones.to_records, lambda: milestones.add(),
             lambda: milestones.update('missing', {}), lambda: milestones.remove('missing')]
 
 
@@ -173,18 +173,18 @@ def test_card_exports_do_not_scan_other_cards_or_request_complete_bodies(tmp_pat
         card = project.create_card('Card', '#work')
         target = project.create_card('Target', '')
         card.connections.add(target, 'references')
-        card.milestones.add(100)
+        card.milestones.add([{'role': 'due', 'date': '2026-06-02'}])
         (Path(project.root_path) / card.rel_path).unlink()
         def forbidden(*args: Any, **kwargs: Any) -> Any:
             raise AssertionError('Card export must not scan a project or read bodies')
         monkeypatch.setattr(_native.Context, 'list_cards', forbidden)
         monkeypatch.setattr(_native.Context, 'get_card_content', forbidden)
-        monkeypatch.setattr(_native.Context, 'list_complete_cards_page', forbidden)
-        # Editable tag reads inherit Core's missing-file policy; the membership
-        # remains indexed and no complete body export is requested.
-        assert card.tags.to_records()[0]['tag'] == 'work'
+        monkeypatch.setattr(_native.Context, 'list_cards_page', forbidden)
+        # Generated Card tag details require the card body to be readable.
+        with pytest.raises(holderkit.HolderError, match='card content missing'):
+            card.tags.to_records()
         assert card.connections.to_records()[0]['to_card_id'] == target.card_id
-        assert card.milestones.to_records()[0]['start_at'] == 100
+        assert card.milestones.to_records()[0]['dates'] == [{'role': 'due', 'date': '2026-06-02'}]
 
 
 def test_card_dataframes_are_scoped_and_detached(tmp_path: Path) -> None:
@@ -193,13 +193,13 @@ def test_card_dataframes_are_scoped_and_detached(tmp_path: Path) -> None:
         card = project.create_card('Card', '#work')
         other = project.create_card('Other', '#other')
         card.connections.add(other, 'references')
-        card.milestones.add(100)
+        card.milestones.add([{'role': 'due', 'date': '2026-06-02'}])
         frames = [card.tags.to_dataframe(), card.connections.to_dataframe(), card.milestones.to_dataframe()]
         assert list(frames[0].columns) == list(holderkit.TAG_RECORD_FIELDS)
         assert list(frames[1].columns) == list(holderkit.CONNECTION_RECORD_FIELDS)
         assert list(frames[2].columns) == list(holderkit.MILESTONE_RECORD_FIELDS)
         assert all(frame.shape[0] == 1 for frame in frames)
-        assert frames[2].iloc[0]['start_at'] == pd.Timestamp(100, unit='s', tz='UTC')
+        assert frames[2].iloc[0]['dates'] == [{'role': 'due', 'date': '2026-06-02'}]
         frames[0].loc[0, 'tag'] = 'local'
         assert card.tags.list() == ['work']
         empty = other.milestones.to_dataframe()

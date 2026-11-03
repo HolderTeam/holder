@@ -73,15 +73,15 @@ def test_project_operations_are_scoped_in_a_shared_context(tmp_path: Path) -> No
         first.tags.add(a.card_id, "science")
         second.tags.add(b.card_id, "other")
         second_body = second.get_card_content(b.card_id)
-        milestone = first.milestones.add(a.card_id, 100)[0]
+        milestone = first.milestones.add(a.card_id, [{"role": "due", "date": "2026-06-02"}])
         first.milestones.update(
             a.card_id, milestone["milestone_id"], {"description": "Review"}
         )
-        assert first.milestones.in_range(0, 200)[0]["description"] == "Review"
+        assert first.milestones.calendar("2026-06-02", "2026-06-02", time_zone="UTC")[0]["description"] == "Review"
         assert [card.card_id for card in first.list_cards()] == [a.card_id]
         assert first.cards.to_records()[0]["project_id"] == first.project_id
         assert first.tags.cards_with_tag("science")[0]["card_id"] == a.card_id
-        assert first.tags.project_counts()[0]["count"] == 1
+        assert first.tags.project_counts()[0]["card_count"] == 1
         assert len(first.milestones.to_records()) == 1
         # Core allows an outgoing connection to a card in another project.
         first.connections.add(a.card_id, b.card_id, "related")
@@ -104,7 +104,7 @@ def test_project_operations_are_scoped_in_a_shared_context(tmp_path: Path) -> No
             lambda: first.tags.remove(b.card_id, "other"),
             lambda: first.tags.list(b.card_id),
             lambda: first.tags.list_editable(b.card_id),
-            lambda: first.milestones.add(b.card_id, 200),
+            lambda: first.milestones.add(b.card_id),
             lambda: first.milestones.list(b.card_id),
             lambda: first.milestones.remove(b.card_id, milestone["milestone_id"]),
             lambda: first.milestones.update(
@@ -169,10 +169,6 @@ class Remote:
 
 @pytest.fixture(params=["ssh"] if sys.platform == "win32" else ["daemon", "ssh"])
 def remote(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest) -> Iterator[Remote]:
-    if not holderkit._native.PROJECT_IMPORT_SUPPORTED:
-        pytest.skip(
-            "Remote import needs the newer core API; use an explicit development source override"
-        )
     # Bound every Git client used by these disposable remotes, including Kit's
     # subprocess calls. A stalled fixture must fail with the command identified
     # rather than occupying a runner until the entire workflow times out.
@@ -190,7 +186,7 @@ def remote(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.Fixt
         )
         second = context.create_card(project.project_id, "Question", "Other body")
         context.connections.add(first.card_id, second.card_id, "related")
-        context.milestones.add(first.card_id, 100, description="Review")
+        context.milestones.add(project.project_id, first.card_id, description="Review")
         source = Path(project.root_path)
     bare = tmp_path / "research.git"
     subprocess.run(
@@ -766,16 +762,6 @@ def test_reopen_rejects_git_alternates_and_encryption(tmp_path: Path) -> None:
     bootstrap.write_text(json.dumps(data))
     with pytest.raises(ValueError, match="plain projects"):
         holderkit.reopen(workspace.path)
-
-
-def test_clone_requires_import_capability_before_allocating(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(holderkit._native, "PROJECT_IMPORT_SUPPORTED", 0)
-    path = tmp_path / "private"
-    with pytest.raises(NotImplementedError, match="import support"):
-        holderkit.clone("https://example.test/project.git", workspace=path)
-    assert not path.exists()
 
 
 def test_checkout_does_not_run_configured_filters(

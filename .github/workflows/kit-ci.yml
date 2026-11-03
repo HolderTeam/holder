@@ -259,7 +259,7 @@ jobs:
                   card = context.create_card(
                       project.project_id, "Installed wheel", "standalone body"
                   )
-                  assert context.get_card_content(card.card_id) == "standalone body"
+                  assert context.get_card_content(project.project_id, card.card_id) == "standalone body"
                   assert context.cards.to_records(project.project_id)[0]["card_id"] == card.card_id
                   try:
                       context.cards.to_dataframe(project.project_id)

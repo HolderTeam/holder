@@ -355,6 +355,15 @@ CardMetadata get_card_metadata(holder_context& context, std::string project_id, 
   });
 }
 
+CardMetadata get_card_any_state(holder_context& context, std::string project_id, std::string card_id) {
+  return with_contract_errors([&] {
+    auto store = card_store(context);
+    auto card = card_in(store, project_id, card_id);
+    if (!card) throw NotFound("card not found: " + card_id);
+    return *card;
+  });
+}
+
 Page<CardListItem> list_cards(holder_context& context, std::string project_id, std::optional<ListCardsParent> parent,
                               std::optional<std::string> tag, ListCardsOrder order, std::int32_t limit,
                               std::optional<std::string> cursor, bool include_content, bool include_child_count) {

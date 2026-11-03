@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory() as directory:
         project = context.create_project("Installed package")
         first = context.create_card(project.project_id, "First", "Before")
         second = context.create_card(project.project_id, "Second")
-        context.update_card(first.card_id, "After", "Renamed")
+        context.update_card(project.project_id, first.card_id, "After", "Renamed")
         context.connections.add(second.card_id, first.card_id, "depends_on")
         assert context.connections.to_records(project.project_id)
         records = context.cards.to_records(project.project_id, include_content=True)

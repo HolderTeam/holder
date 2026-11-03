@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import builtins
-import json
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Iterable, Literal, Mapping, overload
 
 from . import _native
@@ -25,7 +25,8 @@ from .data.tag import (
 from .dataframe import records_to_dataframe
 from .data.milestone import (
     PROJECT_MILESTONE_RECORD_FIELDS, MilestoneRecord, ProjectMilestoneRecord,
-    MilestoneUpdate, _milestone_record_from_native, _validate_update,
+    MilestoneUpdate, _dates_to_native, _milestone_record_from_native,
+    _project_milestone_record_from_native, _update_to_native,
 )
 
 if TYPE_CHECKING:
@@ -33,6 +34,14 @@ if TYPE_CHECKING:
 
 
 _COMPLETE_CARD_PAGE_SIZE = 256
+
+
+def _day(value: date | str, name: str) -> str:
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, str):
+        return value
+    raise TypeError(f"{name} must be a date or a YYYY-MM-DD string")
 
 
 class MilestoneCollection:
@@ -43,41 +52,42 @@ class MilestoneCollection:
     def __init__(self, context: _native.Context) -> None:
         self._context = context
 
-    def list(self, card_id: str) -> builtins.list[MilestoneRecord]:
-        return [_milestone_record_from_native(item) for item in self._context.list_milestones(card_id)]
+    def list(self, project_id: str, card_id: str) -> builtins.list[MilestoneRecord]:
+        return [_milestone_record_from_native(item)
+                for item in self._context.list_milestones(project_id, card_id)]
 
     def add(
-        self, card_id: str, start_at: int, *, end_at: int | None = None,
-        all_day: bool = False, kind: str | None = None, description: str | None = None,
-    ) -> builtins.list[MilestoneRecord]:
-        """Return the card's updated full milestone list, not just the new row."""
+        self, project_id: str, card_id: str, dates: Iterable[Mapping[str, Any]] = (), *,
+        kind: str | None = None, description: str | None = None,
+    ) -> MilestoneRecord:
+        """Add a milestone with labelled dates and return it."""
 
-        return [_milestone_record_from_native(item) for item in self._context.add_milestone(
-            card_id, start_at, end_at, all_day, kind, description,
-        )]
+        return _milestone_record_from_native(self._context.add_milestone(
+            project_id, card_id, _dates_to_native(dates), kind, description,
+        ))
 
     def update(
         self, project_id: str, card_id: str, milestone_id: str, changes: MilestoneUpdate,
     ) -> MilestoneRecord:
-        _validate_update(changes)
         return _milestone_record_from_native(self._context.update_milestone(
-            project_id, card_id, milestone_id, json.dumps(changes),
+            project_id, card_id, milestone_id, _update_to_native(changes),
         ))
 
-    def remove(self, card_id: str, milestone_id: str) -> None:
-        """Absent IDs or IDs belonging to another card are no-ops."""
+    def remove(self, project_id: str, card_id: str, milestone_id: str) -> builtins.list[MilestoneRecord]:
+        """Remove a milestone and return the card's remaining milestones."""
 
-        self._context.remove_milestone(card_id, milestone_id)
+        return [_milestone_record_from_native(item)
+                for item in self._context.remove_milestone(project_id, card_id, milestone_id)]
 
-    def in_range(
-        self, project_id: str, from_at: int, to_at: int,
+    def calendar(
+        self, project_id: str, first_day: date | str, last_day: date | str, *, time_zone: str | None = None,
     ) -> builtins.list[ProjectMilestoneRecord]:
-        """Select start times in [from_at, to_at], not overlapping intervals."""
+        """Milestones with a date in the days from first_day to last_day in time_zone (this device's
+        zone when omitted): a day date by its day, an instant by whether it falls in those days there."""
 
-        return [{
-            "project_id": project_id, **_milestone_record_from_native(item),
-            "card_title": None if item["card_title"] is None else str(item["card_title"]),
-        } for item in self._context.milestones_in_range(project_id, from_at, to_at)]
+        return [_project_milestone_record_from_native(item) for item in self._context.calendar_milestones(
+            project_id, _day(first_day, "first_day"), _day(last_day, "last_day"), time_zone,
+        )]
 
     def to_records(self, project_id: str | None = None) -> builtins.list[ProjectMilestoneRecord]:
         return self._records_from_cards(CardCollection(self._context).to_records(project_id))
@@ -85,9 +95,8 @@ class MilestoneCollection:
     def _records_from_cards(
         self, cards: Iterable[CardMetadataRecord],
     ) -> builtins.list[ProjectMilestoneRecord]:
-        return [{
-            "project_id": card["project_id"], **milestone, "card_title": card["title"],
-        } for card in cards for milestone in self.list(card["card_id"])]
+        return [{**milestone, "card_title": card["title"]}
+                for card in cards for milestone in self.list(card["project_id"], card["card_id"])]
 
     def to_dataframe(self, project_id: str | None = None) -> pd.DataFrame:
         return records_to_dataframe(self.to_records(project_id), PROJECT_MILESTONE_RECORD_FIELDS)
@@ -101,23 +110,47 @@ class TagCollection:
     def __init__(self, context: _native.Context) -> None:
         self._context = context
 
+    def _project_id(self, card_id: str) -> str:
+        if not card_id:
+            raise ValueError("card_id must not be empty")
+        for project in self._context.list_projects():
+            project_id = str(project["project_id"])
+            try:
+                self._context.get_card(project_id, card_id)
+            except _native.HolderError as error:
+                if not str(error).startswith("card not found:"):
+                    raise
+                continue
+            return project_id
+        raise _native.HolderError(f"card not found: {card_id}")
+
     def list(self, card_id: str) -> builtins.list[str]:
-        return self._context.list_tags(card_id)
+        return self._context.list_tags(self._project_id(card_id), card_id)
 
     def list_editable(self, card_id: str) -> builtins.list[str]:
-        return self._context.list_editable_tags(card_id)
+        return self._context.list_editable_tags(self._project_id(card_id), card_id)
 
     def add(self, card_id: str, tag: str) -> TagAddResult:
-        return TagAddResult(self._context.add_tag(card_id, tag))
+        if not isinstance(tag, str):
+            raise TypeError("tag must be str")
+        project_id = self._project_id(card_id)
+        present = tag.lower() in self._context.list_tags(project_id, card_id)
+        self._context.add_tag(project_id, card_id, tag)
+        return TagAddResult.ALREADY_PRESENT if present else TagAddResult.ADDED
 
     def remove(self, card_id: str, tag: str) -> TagRemoveResult:
-        return TagRemoveResult(self._context.remove_tag(card_id, tag))
+        if not isinstance(tag, str):
+            raise TypeError("tag must be str")
+        project_id = self._project_id(card_id)
+        present = tag.lower() in self._context.list_tags(project_id, card_id)
+        self._context.remove_tag(project_id, card_id, tag)
+        return TagRemoveResult.REMOVED if present else TagRemoveResult.NOT_PRESENT
 
     def project_counts(self, project_id: str) -> builtins.list[ProjectTagRecord]:
         """Return core's live-card counts, most-used first, then tag name."""
 
         return [
-            {"project_id": project_id, "tag": str(item["tag"]), "count": int(item["count"])}
+            {"project_id": project_id, "tag": str(item["tag"]), "card_count": int(item["card_count"])}
             for item in self._context.list_project_tags(project_id)
         ]
 
@@ -137,10 +170,10 @@ class TagCollection:
     ) -> builtins.list[TagRecord]:
         records: builtins.list[TagRecord] = []
         for card in cards:
-            tags = self.list(card["card_id"])
+            tags = self._context.list_tags(card["project_id"], card["card_id"])
             if not tags:
                 continue
-            editable = set(self.list_editable(card["card_id"]))
+            editable = set(self._context.list_editable_tags(card["project_id"], card["card_id"]))
             records.extend({
                 "project_id": card["project_id"], "card_id": card["card_id"],
                 "tag": tag, "editable": tag in editable,
@@ -165,12 +198,20 @@ class ConnectionCollection:
     ) -> None:
         """Add or update a connection using core's existing upsert semantics."""
 
-        self._context.add_link(from_card_id, to_card_id, kind, label)
+        source_project_id = TagCollection(self._context)._project_id(from_card_id)
+        target_project_id = TagCollection(self._context)._project_id(to_card_id)
+        self._context.add_link(source_project_id, from_card_id,
+            target_project_id if target_project_id != source_project_id else None,
+            to_card_id, kind, label)
 
     def remove(self, from_card_id: str, to_card_id: str, kind: str) -> None:
         """Remove a connection; an absent matching connection is a no-op."""
 
-        self._context.remove_link(from_card_id, to_card_id, kind)
+        source_project_id = TagCollection(self._context)._project_id(from_card_id)
+        target_project_id = TagCollection(self._context)._project_id(to_card_id)
+        self._context.remove_link(source_project_id, from_card_id,
+            target_project_id if target_project_id != source_project_id else None,
+            to_card_id, kind)
 
     def to_records(self, project_id: str | None = None) -> builtins.list[ConnectionRecord]:
         return self._records_from_cards(CardCollection(self._context).to_records(project_id))
@@ -179,23 +220,41 @@ class ConnectionCollection:
         self, cards: Iterable[CardMetadataRecord],
     ) -> builtins.list[ConnectionRecord]:
         records: builtins.list[ConnectionRecord] = []
+        titles: dict[tuple[str, str], str | None] = {}
         for card in cards:
-            for link in self._context.list_links(card["card_id"])["outgoing"]:
+            titles[(card["project_id"], card["card_id"])] = card["title"]
+        for card in cards:
+            for link in self._context.list_links(card["project_id"], card["card_id"]):
+                target_project = str(link["target_project_id"])
+                target_id = str(link["target_id"])
                 records.append({
                     "project_id": card["project_id"],
                     "from_card_id": card["card_id"],
-                    "to_card_id": str(link["to_card_id"]),
-                    "target_project_id": (
-                        None if link["target_project_id"] is None
-                        else str(link["target_project_id"])
-                    ),
-                    "to_type": str(link["to_type"]),
+                    "to_card_id": target_id,
+                    # Null for a target in the card's own project, as before.
+                    "target_project_id": None if target_project == card["project_id"] else target_project,
+                    "to_type": str(link["target_type"]),
                     "kind": str(link["kind"]),
                     "label": None if link["label"] is None else str(link["label"]),
                     "created_at": int(link["created_at"]),
-                    "to_title": None if link["to_title"] is None else str(link["to_title"]),
+                    "to_title": self._title(titles, target_project, target_id, str(link["target_type"])),
                 })
         return records
+
+    def _title(
+        self, titles: dict[tuple[str, str], str | None], project_id: str, card_id: str, target_type: str,
+    ) -> str | None:
+        """A live card target's title; None for a target that is not a live card on this device."""
+        if target_type != "card":
+            return None
+        key = (project_id, card_id)
+        if key not in titles:
+            try:
+                record = self._context.get_card(project_id, card_id)
+                titles[key] = None if record["deleted_at"] is not None else str(record["title"])
+            except _native.HolderError:
+                titles[key] = None
+        return titles[key]
 
     def to_dataframe(self, project_id: str | None = None) -> pd.DataFrame:
         """Return a detached connection table with the shared record schema."""
@@ -245,8 +304,8 @@ class CardCollection:
         for current_project_id in self._project_ids(project_id):
             cursor: str | None = None
             while True:
-                page: Mapping[str, Any] = self._context.list_complete_cards_page(
-                    current_project_id, cursor, _COMPLETE_CARD_PAGE_SIZE
+                page: Mapping[str, Any] = self._context.list_cards_page(
+                    current_project_id, cursor=cursor, limit=_COMPLETE_CARD_PAGE_SIZE, include_content=True
                 )
                 records.extend(
                     _complete_record_from_native(item) for item in page["cards"]
