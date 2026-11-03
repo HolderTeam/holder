@@ -41,6 +41,7 @@ add_executable(holder_core_tests
   CApiLegacyHostResource_test.cpp
   CApiCards_test.cpp
   CApiImport_test.cpp
+  CApiLocations_test.cpp
   CApiProjects_test.cpp
   CApiRecovery_test.cpp
   CApiRuntime_test.cpp

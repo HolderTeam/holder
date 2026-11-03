@@ -8,10 +8,12 @@
 // Legacy host registrations remain until #364; asset/resource JSON calls are outside #363.
 #include "capi_asset_helpers.h"
 #include "core_test_helpers.h"
+#include "model/Location.h"
 #include "model/Project.h"
 #include "platform/Db.h"
 #include "privacy/PlatformKeyring.h"
 #include "project/ProjectRepo.h"
+#include "resource/LocationStore.h"
 
 #include <git2.h>
 #include <holder/holder.h>
@@ -66,6 +68,39 @@ void seed_git_project(
 
   holder::project::ProjectRepo repo(db);
   repo.create(project);
+}
+
+void seed_location(const std::filesystem::path& data_dir, const std::string& project_id,
+                   const std::string& location_id, const std::string& name,
+                   const std::string& provider,
+                   std::map<std::string, std::string> configuration = {}) {
+  holder::platform::Db db;
+  db.open(data_dir / "server" / "holder.db");
+  holder::model::Location location;
+  location.location_id = location_id;
+  location.project_id = project_id;
+  location.name = name;
+  location.provider = provider;
+  location.configuration = std::move(configuration);
+  location.created_at = 10;
+  location.updated_at = 10;
+  holder::resource::LocationStore(db).put(location);
+}
+
+std::string asset_placement_id(holder_context* context, const std::string& project_id,
+                               const std::string& resource_id) {
+  const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(holder_arena_new(), holder_arena_free);
+  holder_error* error = nullptr;
+  const holder_resource* resource = nullptr;
+  const int rc = holder_get_resource(context, project_id.c_str(), resource_id.c_str(), arena.get(),
+                                     &resource, &error);
+  INFO((error ? holder_error_message(error) : "no C API error"));
+  REQUIRE(rc == HOLDER_OK);
+  REQUIRE(resource->assets.count == 1);
+  REQUIRE(resource->assets.items[0].placements.count == 1);
+  const std::string id = resource->assets.items[0].placements.items[0].placement_id;
+  holder_error_destroy(error);
+  return id;
 }
 
 // A bare repo, unlike GitRepo::open_or_init, accepts a non-force push to its
@@ -882,25 +917,7 @@ TEST_CASE(
   const auto card_id = nlohmann::json::parse(card_json).at("card_id").get<std::string>();
   holder_string_free(card_json);
 
-  const auto now = std::chrono::duration_cast<std::chrono::seconds>(
-                       std::chrono::system_clock::now().time_since_epoch()
-  )
-                       .count();
-  const nlohmann::json location_body = {
-      {"location_id", "loc-local-1"},
-      {"project_id", project_id},
-      {"name", "Local"},
-      {"provider", "local_directory"},
-      {"configuration", nlohmann::json::object()},
-      {"created_at", now},
-      {"updated_at", now},
-  };
-  char* location_json = nullptr;
-  REQUIRE(
-      holder_location_put_json(context, location_body.dump().c_str(), &location_json, &error) ==
-      HOLDER_OK
-  );
-  holder_string_free(location_json);
+  seed_location(data_dir, project_id, "loc-local-1", "Local", "local_directory");
 
   const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "fake jpeg bytes");
 
@@ -921,12 +938,7 @@ TEST_CASE(
   const auto resource_id = import_result.at("resource_id").get<std::string>();
   const auto asset_id = import_result.at("asset_id").get<std::string>();
 
-  char* resource_json = nullptr;
-  REQUIRE(holder_resource_get(context, resource_id.c_str(), &resource_json, &error) == HOLDER_OK);
-  const auto resource_body = nlohmann::json::parse(resource_json);
-  holder_string_free(resource_json);
-  const auto placement_id =
-      resource_body.at("assets").at(0).at("placements").at(0).at("placement_id").get<std::string>();
+  const auto placement_id = asset_placement_id(context, project_id, resource_id);
 
   const auto destination = (data_dir / "downloaded" / "photo.jpg").string();
   REQUIRE(
@@ -997,25 +1009,7 @@ TEST_CASE(
   const auto card_id = nlohmann::json::parse(card_json).at("card_id").get<std::string>();
   holder_string_free(card_json);
 
-  const auto now = std::chrono::duration_cast<std::chrono::seconds>(
-                       std::chrono::system_clock::now().time_since_epoch()
-  )
-                       .count();
-  const nlohmann::json location_body = {
-      {"location_id", "loc-drive-1"},
-      {"project_id", project_id},
-      {"name", "My Drive"},
-      {"provider", "google-drive"},
-      {"configuration", {{"folder_id", "drive-folder-abc"}}},
-      {"created_at", now},
-      {"updated_at", now},
-  };
-  char* location_json = nullptr;
-  REQUIRE(
-      holder_location_put_json(context, location_body.dump().c_str(), &location_json, &error) ==
-      HOLDER_OK
-  );
-  holder_string_free(location_json);
+  seed_location(data_dir, project_id, "loc-drive-1", "My Drive", "google-drive", {{"folder_id", "drive-folder-abc"}});
 
   const auto source_path =
       write_source_file(data_dir / "source" / "photo.jpg", "drive-backed bytes");
@@ -1037,16 +1031,7 @@ TEST_CASE(
   const auto resource_id = import_result.at("resource_id").get<std::string>();
   const auto asset_id = import_result.at("asset_id").get<std::string>();
 
-  char* resource_json = nullptr;
-  REQUIRE(holder_resource_get(context, resource_id.c_str(), &resource_json, &error) == HOLDER_OK);
-  const auto placement_id = nlohmann::json::parse(resource_json)
-                                .at("assets")
-                                .at(0)
-                                .at("placements")
-                                .at(0)
-                                .at("placement_id")
-                                .get<std::string>();
-  holder_string_free(resource_json);
+  const auto placement_id = asset_placement_id(context, project_id, resource_id);
 
   const auto destination = (data_dir / "downloaded" / "photo.jpg").string();
   REQUIRE(
@@ -1118,25 +1103,7 @@ TEST_CASE(
   const auto card_id = nlohmann::json::parse(card_json).at("card_id").get<std::string>();
   holder_string_free(card_json);
 
-  const auto now = std::chrono::duration_cast<std::chrono::seconds>(
-                       std::chrono::system_clock::now().time_since_epoch()
-  )
-                       .count();
-  const nlohmann::json location_body = {
-      {"location_id", "loc-quota-1"},
-      {"project_id", project_id},
-      {"name", "Full Drive"},
-      {"provider", "quota-limited"},
-      {"configuration", nlohmann::json::object()},
-      {"created_at", now},
-      {"updated_at", now},
-  };
-  char* location_json = nullptr;
-  REQUIRE(
-      holder_location_put_json(context, location_body.dump().c_str(), &location_json, &error) ==
-      HOLDER_OK
-  );
-  holder_string_free(location_json);
+  seed_location(data_dir, project_id, "loc-quota-1", "Full Drive", "quota-limited");
 
   const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "won't fit");
 
@@ -1181,13 +1148,11 @@ TEST_CASE(
   }
 
   // Nothing should have been left behind for a resource that never actually got stored.
-  char* resource_list_json = nullptr;
+  const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(holder_arena_new(), holder_arena_free);
+  const holder_resource_list* resources = nullptr;
   error = nullptr;
-  REQUIRE(
-      holder_resource_list_json(context, project_id.c_str(), &resource_list_json, &error) == HOLDER_OK
-  );
-  REQUIRE(nlohmann::json::parse(resource_list_json).empty());
-  holder_string_free(resource_list_json);
+  REQUIRE(holder_list_resources(context, project_id.c_str(), arena.get(), &resources, &error) == HOLDER_OK);
+  REQUIRE(resources->count == 0);
 
   holder_context_destroy(context);
 }
@@ -1241,21 +1206,7 @@ TEST_CASE(
   const auto card_id = nlohmann::json::parse(card_json).at("card_id").get<std::string>();
   holder_string_free(card_json);
 
-  const nlohmann::json location_body = {
-      {"location_id", "loc-rollback-1"},
-      {"project_id", project_id},
-      {"name", "Rollback provider"},
-      {"provider", "rollback-provider"},
-      {"configuration", nlohmann::json::object()},
-      {"created_at", 10},
-      {"updated_at", 10},
-  };
-  char* location_json = nullptr;
-  REQUIRE(
-      holder_location_put_json(context, location_body.dump().c_str(), &location_json, &error) ==
-      HOLDER_OK
-  );
-  holder_string_free(location_json);
+  seed_location(data_dir, project_id, "loc-rollback-1", "Rollback provider", "rollback-provider");
 
   // A regular file where the resource directory must be makes the Git-backed manifest write
   // fail after the provider has accepted the bytes.
@@ -1313,25 +1264,7 @@ TEST_CASE("C API asset_import_file reports an unregistered provider by name", "[
   const auto card_id = nlohmann::json::parse(card_json).at("card_id").get<std::string>();
   holder_string_free(card_json);
 
-  const auto now = std::chrono::duration_cast<std::chrono::seconds>(
-                       std::chrono::system_clock::now().time_since_epoch()
-  )
-                       .count();
-  const nlohmann::json location_body = {
-      {"location_id", "loc-unregistered-1"},
-      {"project_id", project_id},
-      {"name", "Dropbox (not wired up yet)"},
-      {"provider", "dropbox"},
-      {"configuration", nlohmann::json::object()},
-      {"created_at", now},
-      {"updated_at", now},
-  };
-  char* location_json = nullptr;
-  REQUIRE(
-      holder_location_put_json(context, location_body.dump().c_str(), &location_json, &error) ==
-      HOLDER_OK
-  );
-  holder_string_free(location_json);
+  seed_location(data_dir, project_id, "loc-unregistered-1", "Dropbox (not wired up yet)", "dropbox");
 
   const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "bytes");
 
@@ -1352,8 +1285,10 @@ TEST_CASE("C API asset_import_file reports an unregistered provider by name", "[
   holder_context_destroy(context);
 }
 
+// No generated operation writes a whole resource bundle or edits asset metadata directly.
+// Keep this legacy-only behavior covered until the handwritten API is retired in #363.
 TEST_CASE(
-    "C API resources assets and locations share the Git-backed JSON model",
+    "C API legacy bundle and asset metadata edits are visible through generated reads",
     "[capi][resource]"
 ) {
   const auto data_dir = holder::test::make_temp_dir();
@@ -1365,31 +1300,8 @@ TEST_CASE(
   REQUIRE(
       holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
   );
-
-  const nlohmann::json location = {
-      {"location_id", "location-1234"},
-      {"project_id", "project-1"},
-      {"name", "Family Assets"},
-      {"provider", "local_directory"},
-      {"configuration", nlohmann::json::object()},
-      {"created_at", 10},
-      {"updated_at", 10},
-  };
-  char* json = nullptr;
-  const auto location_text = location.dump();
-  REQUIRE(holder_location_put_json(context, location_text.c_str(), &json, &error) == HOLDER_OK);
-  REQUIRE(nlohmann::json::parse(json)["name"] == "Family Assets");
-  holder_string_free(json);
-
-  json = nullptr;
-  REQUIRE(holder_location_list(context, "project-1", &json, &error) == HOLDER_OK);
-  REQUIRE(nlohmann::json::parse(json) == nlohmann::json::array({location}));
-  holder_string_free(json);
-
-  json = nullptr;
-  REQUIRE(holder_location_get(context, "location-1234", &json, &error) == HOLDER_OK);
-  REQUIRE(nlohmann::json::parse(json) == location);
-  holder_string_free(json);
+  seed_location(data_dir, "project-1", "location-1234", "Family Assets", "local_directory");
+  const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(holder_arena_new(), holder_arena_free);
 
   const nlohmann::json bundle = {
       {"resource",
@@ -1430,7 +1342,7 @@ TEST_CASE(
        })},
   };
   const auto bundle_text = bundle.dump();
-  json = nullptr;
+  char* json = nullptr;
   REQUIRE(holder_resource_put_json(context, bundle_text.c_str(), &json, &error) == HOLDER_OK);
   REQUIRE(nlohmann::json::parse(json)["assets"].size() == 1);
   holder_string_free(json);
@@ -1465,15 +1377,13 @@ TEST_CASE(
   REQUIRE(nlohmann::json::parse(json)["asset_id"] == "asset-5678");
   holder_string_free(json);
 
-  json = nullptr;
-  REQUIRE(holder_resource_list_json(context, "project-1", &json, &error) == HOLDER_OK);
-  REQUIRE(nlohmann::json::parse(json).size() == 1);
-  holder_string_free(json);
-
-  json = nullptr;
-  REQUIRE(holder_asset_get(context, "asset-1234", &json, &error) == HOLDER_OK);
-  REQUIRE(nlohmann::json::parse(json)["original_filename"] == "Homework revised.pdf");
-  holder_string_free(json);
+  const holder_resource_list* resources = nullptr;
+  REQUIRE(holder_list_resources(context, "project-1", arena.get(), &resources, &error) == HOLDER_OK);
+  REQUIRE(resources->count == 1);
+  const holder_resource* resource = nullptr;
+  REQUIRE(holder_get_resource(context, "project-1", "resource-1234", arena.get(), &resource, &error) == HOLDER_OK);
+  REQUIRE(resource->assets.count == 2);
+  REQUIRE(std::string(resource->assets.items[0].original_filename) == "Homework revised.pdf");
 
   REQUIRE(
       holder::test::retrieve_asset_file(
@@ -1538,8 +1448,6 @@ TEST_CASE(
   REQUIRE(nlohmann::json::parse(json)["assets"].empty());
   holder_string_free(json);
 
-  REQUIRE(holder_location_delete(context, "location-1234", &error) == HOLDER_OK);
-  REQUIRE(holder_resource_delete(context, "resource-1234", &error) == HOLDER_OK);
   REQUIRE(std::filesystem::exists(data_dir / "repo" / ".git"));
 
   holder_context_destroy(context);
