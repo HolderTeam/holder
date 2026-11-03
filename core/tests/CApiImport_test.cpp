@@ -128,5 +128,28 @@ TEST_CASE("Generated C API rejects unsafe or invalid project imports", "[capi][p
     f.error = nullptr;
     REQUIRE(std::filesystem::remove(escape));
   }
+
+  const auto hardlink = f.root / "hardlink";
+  std::filesystem::create_hard_link(f.root / ".holder" / "project.json", hardlink, ec);
+  if (!ec) {
+    REQUIRE(holder_import_project(f.target, f.root.string().c_str(), f.arena, &imported, &f.error) ==
+            HOLDER_ERROR_INVALID_ARGUMENT);
+    holder_error_destroy(f.error);
+    f.error = nullptr;
+    REQUIRE(std::filesystem::remove(hardlink));
+  }
+
+  const auto privacy_path = f.root / ".holder" / "privacy.json";
+  std::ifstream privacy_file(privacy_path);
+  REQUIRE(privacy_file.is_open());
+  const std::string original_privacy(std::istreambuf_iterator<char>{privacy_file}, std::istreambuf_iterator<char>{});
+  privacy_file.close();
+  std::ofstream(privacy_path) << R"({"mode":"encrypted_git"})";
+  REQUIRE(holder_import_project(f.target, f.root.string().c_str(), f.arena, &imported, &f.error) ==
+          HOLDER_ERROR_INVALID_ARGUMENT);
+  holder_error_destroy(f.error);
+  f.error = nullptr;
+  std::ofstream(privacy_path) << original_privacy;
+
   REQUIRE(holder_import_project(f.target, f.root.string().c_str(), f.arena, &imported, &f.error) == HOLDER_OK);
 }
