@@ -38,8 +38,12 @@ add_executable(holder_core_tests
   AiThreadRepo_test.cpp
   AiThreadManifest_test.cpp
   AssetStorage_test.cpp
-  CApi_test.cpp
+  CApiLegacyHostResource_test.cpp
   CApiCards_test.cpp
+  CApiImport_test.cpp
+  CApiProjects_test.cpp
+  CApiRecovery_test.cpp
+  CApiRuntime_test.cpp
   ContractContext_test.cpp
   ContractGit_test.cpp
   ContractHistory_test.cpp

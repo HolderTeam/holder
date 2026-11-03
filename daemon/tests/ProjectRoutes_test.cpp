@@ -58,7 +58,9 @@ class ProjectRoutesTestGitOps final : public holder::git::GitOps {
   bool throw_on_pull = false;
   std::vector<std::string> calls;
 
-  void open_or_init(const std::filesystem::path&) override {}
+  void open_or_init(const std::filesystem::path& path) override {
+    std::filesystem::create_directories(path);
+  }
   void write_file(const std::filesystem::path&, const std::string&) override {}
   void stage_path(const std::filesystem::path&) override {}
   void remove_path(const std::filesystem::path&) override {}

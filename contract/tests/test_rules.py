@@ -284,10 +284,8 @@ def test_base_error_codes_match_holder_api_h():
 
     header = (Path(__file__).resolve().parents[2] / "core" / "include" / "holder" / "holder_api.h").read_text()
     declared = dict(re.findall(r"^#define (HOLDER_ERROR_\w+) (\d+)$", header, flags=re.MULTILINE))
-    expected = {"HOLDER_ERROR_INVALID_ARGUMENT": 4000, "HOLDER_ERROR_RUNTIME": 5000,
-                "HOLDER_ERROR_ALLOCATION": 5001}
+    expected = {f"HOLDER_ERROR_{base.name}": code for code, base in BASE_ERROR_CODES.items()}
     assert {name: int(declared[name]) for name in expected} == expected
-    assert set(expected.values()) == set(BASE_ERROR_CODES)
 
 
 def test_a_documented_string_constant_is_declared(tmp_path):
