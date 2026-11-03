@@ -154,9 +154,7 @@ former `holder` distribution and replace `import holder` with `import holderkit`
 Dependency declarations use `holder-kit`, `holder-kit[pandas]` or
 `holder-kit[graph]`. There is no compatibility import shim.
 
-## Filtered card batch build requirements
+## Card batches
 
-Filtered `project.cards(...)` batches use Core's `holder_card_collection_page_json`
-API, advertised by `HOLDER_HAS_CARD_COLLECTION_PAGE`, which the core beside Kit
-provides. Existing unfiltered batches work with older SDKs; requesting filters
-or explicit ordering without this API raises `NotImplementedError`.
+`project.cards(...)` batches, filtered or not, page through Core's generated
+`list_cards` operation, which Kit builds against from the same commit.

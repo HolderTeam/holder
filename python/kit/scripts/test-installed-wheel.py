@@ -21,7 +21,6 @@ def main() -> None:
     installed = distribution("holder-kit")
     assert installed.version == args.version, installed.version
     assert _native.Context.__module__ == "holderkit._native"
-    assert _native.PROJECT_IMPORT_SUPPORTED, "Release SDK must support cloning"
     assert importlib.util.find_spec("holder") is None
     assert importlib.util.find_spec("pandas") is None
     assert importlib.util.find_spec("networkx") is None
@@ -43,7 +42,7 @@ def main() -> None:
             project = context.create_project("Installed wheel")
             first = context.create_card(project.project_id, "First", "Before")
             second = context.create_card(project.project_id, "Second", "Second body")
-            context.update_card(first.card_id, "After", "Renamed")
+            context.update_card(project.project_id, first.card_id, "After", "Renamed")
             context.connections.add(second.card_id, first.card_id, "depends_on")
             assert context.connections.to_records(project.project_id)
             records = context.cards.to_records(project.project_id, include_content=True)
@@ -54,7 +53,6 @@ def main() -> None:
             assert [len(batch) for batch in complete_batches] == [1, 1]
             assert all("content" not in batch[0] for batch in metadata_batches)
             assert any(batch[0]["content"] == "After" for batch in complete_batches)
-            assert holderkit._native.CARD_COLLECTION_SUPPORTED, "Pinned SDK must support filtered card batches"
             project.tags.add(first.card_id, "experiment")
             filtered = list(project.cards(tag="EXPERIMENT", roots=True, batch_size=1, include_content=True))
             assert len(filtered) == 1 and filtered[0][0]["card_id"] == first.card_id
@@ -73,7 +71,7 @@ def main() -> None:
             assert lifecycle.connections.to_records()[0]["to_card_id"] == first.card_id
             lifecycle.connections.remove(first, kind="references")
             assert lifecycle.connections.to_records() == []
-            milestone = lifecycle.milestones.add(100)[0]
+            milestone = lifecycle.milestones.add([{"role": "review", "date": "2026-10-12"}])
             lifecycle.milestones.update(milestone["milestone_id"], {"description": "Review"})
             assert lifecycle.milestones.list()[0]["description"] == "Review"
             lifecycle.milestones.remove(milestone["milestone_id"])
