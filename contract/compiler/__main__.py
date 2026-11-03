@@ -35,9 +35,9 @@ COMMANDS = {
 def collisions(files: dict[str, str]) -> list[str]:
     """Generated C names that the hand-written part of holder.h already uses."""
     header = (REPOSITORY / "core/include/holder/holder.h").read_text(encoding="utf-8")
-    header = header.split('#include "holder_api.h"')[0]
-    existing = set(re.findall(r"\bholder_\w+", header))
-    generated = set(re.findall(r"(?:typedef (?:struct|enum) |int )(holder_\w+)", files["holder_api.h"]))
+    declarations = r"(?:typedef (?:struct|enum) |(?:int|void|const char\*)\s+)(holder_\w+)\b"
+    existing = set(re.findall(rf"(?m)^{declarations}", header))
+    generated = set(re.findall(rf"(?m)^{declarations}", files["holder_api.h"]))
     return sorted(generated & existing)
 
 

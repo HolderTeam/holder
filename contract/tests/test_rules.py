@@ -275,16 +275,19 @@ class One(Record):
     assert len(found.splitlines()) == 2
 
 
-def test_base_error_codes_match_holder_h():
-    """The codes the compiler reserves are the ones holder.h declares."""
+def test_base_error_codes_match_holder_api_h():
+    """The codes the compiler reserves are the ones the generated C header declares."""
     import re
     from pathlib import Path
 
     from compiler.builder import BASE_ERROR_CODES
 
-    header = (Path(__file__).resolve().parents[2] / "core" / "include" / "holder" / "holder.h").read_text()
-    declared = {int(code) for code in re.findall(r"^#define HOLDER_ERROR_\w+ (\d+)$", header, flags=re.MULTILINE)}
-    assert declared == set(BASE_ERROR_CODES)
+    header = (Path(__file__).resolve().parents[2] / "core" / "include" / "holder" / "holder_api.h").read_text()
+    declared = dict(re.findall(r"^#define (HOLDER_ERROR_\w+) (\d+)$", header, flags=re.MULTILINE))
+    expected = {"HOLDER_ERROR_INVALID_ARGUMENT": 4000, "HOLDER_ERROR_RUNTIME": 5000,
+                "HOLDER_ERROR_ALLOCATION": 5001}
+    assert {name: int(declared[name]) for name in expected} == expected
+    assert set(expected.values()) == set(BASE_ERROR_CODES)
 
 
 def test_a_documented_string_constant_is_declared(tmp_path):

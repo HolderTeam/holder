@@ -50,13 +50,16 @@ def c_field_note(slot: Slot) -> str:
 
 def generate_c_header(types: CoreTypes) -> str:
     out = ["/*", *header_lines(contract_sources(types.contract),
-                               "The C declarations for the contract's operations, included by holder/holder.h, "
-                               "which declares holder_context, holder_error and the base status codes. "
+                               "The standalone C declarations for the contract's operations. "
                                "Results live in the holder_arena the caller passes, until holder_arena_free.",
                                "c"), " */",
            "#ifndef HOLDER_API_H", "#define HOLDER_API_H", "", "#include <stdbool.h>", "#include <stddef.h>",
            "#include <stdint.h>", "", "#ifdef __cplusplus", 'extern "C" {', "#endif", "",
-           "typedef struct holder_arena holder_arena;", ""]
+           "typedef struct holder_context holder_context;", "typedef struct holder_error holder_error;",
+           "typedef struct holder_arena holder_arena;", "",
+           "/* Base status codes shared with the legacy C API. */", "#define HOLDER_OK 0",
+           "#define HOLDER_ERROR_INVALID_ARGUMENT 4000", "#define HOLDER_ERROR_RUNTIME 5000",
+           "#define HOLDER_ERROR_ALLOCATION 5001", ""]
     for error in sorted(types.errors, key=lambda e: e.code):
         out += comment(error.doc)
         out.append(f"#define HOLDER_ERROR_{snake(error.name).upper()} {types.codes[error.name]}")
