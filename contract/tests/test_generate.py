@@ -280,3 +280,14 @@ def test_runtime_operations_get_the_c_and_cpp_signatures_of_their_context_modes(
     assert "CoreVersion version();" in cpp
     assert "{ contract::context_destroy(context); }" in glue
     assert "*out_context = contract::context_open(data_dir_value, schema_sql_value);" in glue
+
+
+def test_error_operations_keep_their_c_signatures_and_forward_to_core():
+    files = generate(holder_ir())
+    header, cpp, glue = files["holder_api.h"], files["Contract.h"], files["ContractCApi.cpp"]
+    assert "const char* holder_error_message(const holder_error* error);" in header
+    assert "void holder_error_destroy(holder_error* error);" in header
+    assert "const char* error_message(const holder_error* error) noexcept;" in cpp
+    assert "void error_destroy(holder_error* error) noexcept;" in cpp
+    assert "{ return contract::error_message(error); }" in glue
+    assert "{ contract::error_destroy(error); }" in glue

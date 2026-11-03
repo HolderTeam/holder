@@ -263,8 +263,10 @@ class _Builder:
                                                        parameters=signature.parameters, returns=signature.returns,
                                                        errors=errors, daemon_only=not operation.core,
                                                        **({"context": operation.context}
-                                                          if operation.context != "required" else {})))
+                                                          if operation.context != "required" else {}),
+                                                       **({"error": operation.error} if operation.error else {})))
             self.check_context(function.__name__, operation.context, signature)
+            self.check_error(function.__name__, operation.error, signature)
             if operation.route:
                 self.bind(function, routes[function], operation.created_when, operation.public,
                           operation.core)
@@ -278,6 +280,17 @@ class _Builder:
             self.problem(f"{name}: an operation that {context} a context returns None")
         if context == "closes" and signature.parameters:
             self.problem(f"{name}: an operation that closes a context takes only that context")
+
+    def check_error(self, name: str, error: str | None, signature: _Signature) -> None:
+        """An operation on an error takes only that error; one that reads it returns text, one that closes it None."""
+        if error is None:
+            return
+        if signature.parameters:
+            self.problem(f"{name}: an operation on an error takes only that error")
+        if error == "reads" and signature.returns.kind != "string":
+            self.problem(f"{name}: an operation that reads an error returns str")
+        if error == "closes" and signature.returns.kind != "none":
+            self.problem(f"{name}: an operation that closes an error returns None")
 
     def callable(self, function: Any, where: str, skip_self: bool = False, allow_stream: bool = False) -> _Signature:
         doc = _doc(function)

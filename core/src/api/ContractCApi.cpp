@@ -1718,6 +1718,10 @@ int holder_database_rebuild(const char* data_dir, const char* schema_sql, bool d
   });
 }
 
+const char* holder_error_message(const holder_error* error) { return contract::error_message(error); }
+
+void holder_error_destroy(holder_error* error) { contract::error_destroy(error); }
+
 int holder_list_storage_locations(holder_context* context, const char* project_id, holder_arena* arena, const holder_storage_location_list** out_storage_location_list, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");

@@ -337,3 +337,26 @@ def open_it(path: str) -> None:
 def close_it() -> None:
     """Close."""
 ''') == ""
+
+
+@pytest.mark.parametrize("decorator, signature, message", [
+    ('error="reads"', "def message_of(code: int) -> str:", "message_of: an operation on an error takes only that error"),
+    ('error="reads"', "def message_of() -> None:", "message_of: an operation that reads an error returns str"),
+    ('error="closes"', "def release() -> str:", "release: an operation that closes an error returns None"),
+])
+def test_error_operations_are_checked(tmp_path, decorator, signature, message):
+    found = problems(tmp_path, app=f'''
+@contract.runtime_operation(context="none", {decorator})
+{signature}
+    """Do it."""
+''')
+    assert message in found
+
+
+def test_an_error_operation_takes_no_context():
+    from authoring import Contract
+
+    with pytest.raises(ValueError, match="takes no context"):
+        Contract().runtime_operation(context="closes", error="closes")
+    with pytest.raises(ValueError, match="reads or closes"):
+        Contract().runtime_operation(context="none", error="opens")

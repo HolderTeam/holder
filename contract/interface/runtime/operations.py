@@ -36,3 +36,15 @@ def register(contract: Contract) -> None:
         again after. The platform keyring must be registered first when encrypted projects are present.
         A dry run only counts what a rebuild would read.
         """
+
+    @contract.runtime_operation(context="none", error="reads")
+    def error_message() -> str:
+        """The message of an error core returned, as UTF-8 text.
+
+        The text belongs to the error and lasts until error_destroy releases it. An error that is null has the
+        empty message.
+        """
+
+    @contract.runtime_operation(context="none", error="closes")
+    def error_destroy() -> None:
+        """Release an error core returned. Releasing null does nothing; an error must not be used again."""

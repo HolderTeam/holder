@@ -467,6 +467,8 @@ class AndroidClient:
 
         operations = []
         for op in self.types.operations:
+            if op.error:
+                continue  # Kotlin never holds an error: the JNI layer turns each into an exception.
             plan = self.operation_plan(op)
             operations.append(plan)
             of(domain(op.source)).operations.append(plan)
