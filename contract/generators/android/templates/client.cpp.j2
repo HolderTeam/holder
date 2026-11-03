@@ -77,7 +77,7 @@ to_java_{{ "list" if v.list_values else "text" }}_map(env, {{ e }})
 {{ indent }}if (!from_java_{{ "list" if v.list_values else "text" }}_map(env, {{ o }}, keep, {{ target }})) return false;
 {% endif -%}
 {%- endmacro -%}
-#include "holder/holder.h"
+#include "holder/holder_api.h"
 #include <jni.h>
 #include <cstddef>
 #include <cstdint>

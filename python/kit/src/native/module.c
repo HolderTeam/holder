@@ -1,7 +1,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include <holder/holder.h>
+#include <holder/holder_api.h>
 
 #include <string.h>
 

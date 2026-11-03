@@ -31,7 +31,7 @@ def main():
         parser.error("installed SDK commit does not match the checkout")
     if manifest["build_type"] not in ("RelWithDebInfo", "Release"):
         parser.error("unsupported SDK build type")
-    for required in ("include/holder/holder.h", "share/holder/schema/schema.sql"):
+    for required in ("include/holder/holder_api.h", "share/holder/schema/schema.sql"):
         if not (args.install / required).is_file():
             parser.error(f"installed SDK is missing {required}")
     platform = manifest["platform"]
@@ -106,7 +106,7 @@ def main():
             "enable_testing()\nadd_test(NAME smoke COMMAND smoke)\n"
         )
         (source / "main.cpp").write_text(
-            '#include <holder/holder.h>\n#include <string>\n'
+            '#include <holder/holder_api.h>\n#include <string>\n'
             'int main() {\n'
             '  holder_arena* arena = holder_arena_new();\n'
             '  const holder_core_version* version = nullptr;\n'

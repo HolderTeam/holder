@@ -104,7 +104,7 @@ class Developer:
 
     def validate_source(self, source: Path) -> Path:
         source = source.resolve()
-        required = ("CMakeLists.txt", "include/holder/holder.h", "schema/schema.sql", "README.md")
+        required = ("CMakeLists.txt", "include/holder/holder_api.h", "schema/schema.sql", "README.md")
         if not all((source / name).is_file() for name in required):
             raise AdviceError(
                 f"Not a usable core source directory: {source}\n"

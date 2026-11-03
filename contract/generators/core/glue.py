@@ -253,7 +253,7 @@ def generate_glue(types: CoreTypes) -> str:
     errors = [{"name": error.name, "code": snake(error.name).upper()} for error in types.errors]
     out = [*header_lines(contract_sources(types.contract),
                          "The C entry points: argument checks, conversions and error codes.", "cpp"),
-           '#include "Contract.h"', '#include "holder/holder.h"', "", "#include <cmath>", "#include <cstddef>", "#include <cstdint>",
+           '#include "Contract.h"', '#include "holder/holder_api.h"', "", "#include <cmath>", "#include <cstddef>", "#include <cstdint>",
            "#include <cstring>", "#include <limits>", "#include <map>", "#include <memory>", "#include <new>",
            "#include <optional>",
            "#include <stdexcept>", "#include <string>",

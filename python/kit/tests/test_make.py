@@ -20,7 +20,7 @@ PIN = "a" * 40
 
 
 def create_core(path: Path, revision: str = PIN) -> Path:
-    for name in ("CMakeLists.txt", "include/holder/holder.h", "schema/schema.sql", "README.md"):
+    for name in ("CMakeLists.txt", "include/holder/holder_api.h", "schema/schema.sql", "README.md"):
         target = path / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("fixture", encoding="utf-8")

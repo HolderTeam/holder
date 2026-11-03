@@ -1,5 +1,5 @@
 // Generated from contract/interface by compiler. Do not edit; run make -C contract update.
-#include "holder/holder.h"
+#include "holder/holder_api.h"
 #include <jni.h>
 #include <cstddef>
 #include <cstdint>

@@ -3,7 +3,7 @@
 //
 // The C entry points: argument checks, conversions and error codes.
 #include "Contract.h"
-#include "holder/holder.h"
+#include "holder/holder_api.h"
 
 #include <cmath>
 #include <cstddef>

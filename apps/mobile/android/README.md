@@ -13,7 +13,8 @@ A persistent search bar can sit at the top of many primary views. Most other int
 ## Local Development
 
 The app embeds [core](../../../core/README.md) through its stable C API. Native
-code includes `holder/holder.h`, not core's other headers. Keep shared domain
+code includes `holder/holder_api.h` for generated operations and `holder/holder.h`
+for host callback registration. Keep shared domain
 behavior and its tests in core; change core and the app in the same pull request
 when both need an update. Gradle builds core from this checkout for each target
 ABI, using core's vcpkg manifest, and packages its schema and resources as
