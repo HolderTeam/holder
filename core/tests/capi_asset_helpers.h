@@ -2,7 +2,7 @@
 
 // The generated asset file operations for the C API's tests, with an import's result as JSON.
 
-#include <holder/holder.h>
+#include <holder/holder_api.h>
 #include <nlohmann/json.hpp>
 
 namespace holder::test {

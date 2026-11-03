@@ -16,8 +16,7 @@
 #include "privacy/PrivacyError.h"
 #include "project/ProjectRepo.h"
 
-#include <holder/holder.h>
-#include <nlohmann/json.hpp>
+#include <holder/holder_api.h>
 
 #include <fstream>
 #include <string>
@@ -109,10 +108,12 @@ TEST_CASE("The C API reports an encrypted project's missing key as HOLDER_ERROR_
   holder_error* error = nullptr;
   holder_arena* arena = holder_arena_new();
   REQUIRE(holder_context_open((dir / "data").string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK);
-  char* json = nullptr;
-  REQUIRE(holder_project_create(context, "Secret", nullptr, "encrypted_git", &json, &error) == HOLDER_OK);
-  const auto project_id = nlohmann::json::parse(json).at("project_id").get<std::string>();
-  holder_string_free(json);
+  holder_new_project project_request{};
+  project_request.name = "Secret";
+  project_request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT;
+  const holder_project* project = nullptr;
+  REQUIRE(holder_create_project(context, &project_request, arena, &project, &error) == HOLDER_OK);
+  const std::string project_id = project->project_id;
   holder_new_card request{};
   request.title = "Sealed";
   request.content = "Secret body";

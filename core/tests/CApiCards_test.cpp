@@ -8,8 +8,7 @@
 
 #include "core_test_helpers.h"
 
-#include <holder/holder.h>
-#include <nlohmann/json.hpp>
+#include <holder/holder_api.h>
 
 #include <fstream>
 #include <limits>
@@ -38,10 +37,7 @@ struct Fixture {
     const auto data_dir = holder::test::make_temp_dir();
     const auto schema = read_schema_sql();
     REQUIRE(holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK);
-    char* json = nullptr;
-    REQUIRE(holder_project_create(context, "Cards", nullptr, nullptr, &json, &error) == HOLDER_OK);
-    project_id = nlohmann::json::parse(json).at("project_id").get<std::string>();
-    holder_string_free(json);
+    project_id = new_project("Cards");
   }
   ~Fixture() {
     holder_error_destroy(error);
@@ -57,6 +53,21 @@ struct Fixture {
     const holder_card* out = nullptr;
     REQUIRE(holder_create_card(context, project_id.c_str(), &card, arena, &out, &error) == HOLDER_OK);
     return out;
+  }
+
+  std::string new_project(const char* name) {
+    holder_new_project request{};
+    request.name = name;
+    request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN;
+    const holder_project* project = nullptr;
+    REQUIRE(holder_create_project(context, &request, arena, &project, &error) == HOLDER_OK);
+    return project->project_id;
+  }
+
+  void trash(const char* card_id) {
+    const holder_card* card = nullptr;
+    REQUIRE(holder_trash_card(context, project_id.c_str(), card_id, HOLDER_TRASH_CARD_CHILDREN_DEFAULT,
+                              arena, &card, &error) == HOLDER_OK);
   }
 
   // The status of a failing call, freeing its error.
@@ -185,7 +196,7 @@ TEST_CASE("holder_create_card reports missing projects, missing parents and bad 
 TEST_CASE("holder_get_card does not find trashed or unknown cards, or cards in another project", "[capi][contract]") {
   Fixture f;
   const auto* card = f.create("Binned");
-  REQUIRE(holder_card_delete(f.context, card->card_id, &f.error) == HOLDER_OK);
+  f.trash(card->card_id);
   const holder_card* out = nullptr;
   REQUIRE(f.failed(holder_get_card(f.context, f.project_id.c_str(), card->card_id, f.arena, &out, &f.error)) ==
           HOLDER_ERROR_NOT_FOUND);
@@ -195,10 +206,7 @@ TEST_CASE("holder_get_card does not find trashed or unknown cards, or cards in a
           HOLDER_ERROR_INVALID_ARGUMENT);
 
   const auto* live = f.create("Elsewhere");
-  char* json = nullptr;
-  REQUIRE(holder_project_create(f.context, "Other", nullptr, nullptr, &json, &f.error) == HOLDER_OK);
-  const auto other = nlohmann::json::parse(json).at("project_id").get<std::string>();
-  holder_string_free(json);
+  const auto other = f.new_project("Other");
   REQUIRE(f.failed(holder_get_card(f.context, other.c_str(), live->card_id, f.arena, &out, &f.error)) ==
           HOLDER_ERROR_NOT_FOUND);
   REQUIRE(f.failed(holder_get_card(f.context, "no-such-project", live->card_id, f.arena, &out, &f.error)) ==
@@ -218,7 +226,7 @@ TEST_CASE("holder_get_card_metadata reads only a live card in the requested proj
 
   REQUIRE(f.failed(holder_get_card_metadata(f.context, "other-project", id.c_str(), f.arena, &metadata, &f.error)) ==
           HOLDER_ERROR_NOT_FOUND);
-  REQUIRE(holder_card_delete(f.context, id.c_str(), &f.error) == HOLDER_OK);
+  f.trash(id.c_str());
   REQUIRE(f.failed(holder_get_card_metadata(f.context, f.project_id.c_str(), id.c_str(), f.arena, &metadata,
                                              &f.error)) == HOLDER_ERROR_NOT_FOUND);
 }
@@ -227,7 +235,7 @@ TEST_CASE("holder_get_card_any_state reads trashed metadata only in its project"
   Fixture f;
   const auto* created = f.create("Binned", "Durable body");
   const std::string id = created->card_id;
-  REQUIRE(holder_card_delete(f.context, id.c_str(), &f.error) == HOLDER_OK);
+  f.trash(id.c_str());
   const holder_card_metadata* metadata = nullptr;
   REQUIRE(holder_get_card_any_state(f.context, f.project_id.c_str(), id.c_str(), f.arena, &metadata, &f.error) ==
           HOLDER_OK);
@@ -366,7 +374,7 @@ TEST_CASE("holder_list_project_tags counts live cards, most used first", "[capi]
   f.create("One", "#beta #alpha");
   f.create("Two", "#beta");
   const auto* trashed = f.create("Three", "#gamma #beta");
-  REQUIRE(holder_card_delete(f.context, trashed->card_id, &f.error) == HOLDER_OK);
+  f.trash(trashed->card_id);
 
   const holder_tag_count_list* tags = nullptr;
   REQUIRE(holder_list_project_tags(f.context, f.project_id.c_str(), f.arena, &tags, &f.error) == HOLDER_OK);
@@ -381,14 +389,6 @@ TEST_CASE("holder_list_project_tags counts live cards, most used first", "[capi]
 }
 
 namespace {
-
-std::string new_project(Fixture& f, const char* name) {
-  char* json = nullptr;
-  REQUIRE(holder_project_create(f.context, name, nullptr, nullptr, &json, &f.error) == HOLDER_OK);
-  auto id = nlohmann::json::parse(json).at("project_id").get<std::string>();
-  holder_string_free(json);
-  return id;
-}
 
 holder_new_link card_link(const char* target, const char* kind = "ref", const char* project = nullptr) {
   holder_new_link link{};
@@ -493,7 +493,7 @@ TEST_CASE("holder_add_card_link makes one link per target and kind, and keeps wh
   REQUIRE(links->count == 2);
 
   // A link to a card in the trash is listed only when asked for.
-  REQUIRE(holder_card_delete(f.context, to.c_str(), &f.error) == HOLDER_OK);
+  f.trash(to.c_str());
   REQUIRE(holder_list_card_links(f.context, project, from.c_str(), false, f.arena, &links, &f.error) == HOLDER_OK);
   REQUIRE(links->count == 0);
   REQUIRE(holder_list_card_links(f.context, project, from.c_str(), true, f.arena, &links, &f.error) == HOLDER_OK);
@@ -518,7 +518,7 @@ TEST_CASE("holder_add_card_link makes one link per target and kind, and keeps wh
 TEST_CASE("Links to cards in other projects, and the backlinks they make", "[capi][contract]") {
   Fixture f;
   const auto* project = f.project_id.c_str();
-  const auto other = new_project(f, "Other");
+  const auto other = f.new_project("Other");
   const std::string from = f.create("From")->card_id;
   const std::string local = f.create("Local")->card_id;
   holder_new_card there{};
@@ -702,10 +702,7 @@ TEST_CASE("Milestone dates must be real days and instants, and their cards live 
   REQUIRE(add(instant("due", "2026-10-17T09:30:00Z")) == HOLDER_OK);
 
   // Not on a card in another project, or in the trash.
-  char* json = nullptr;
-  REQUIRE(holder_project_create(f.context, "Other", nullptr, nullptr, &json, &f.error) == HOLDER_OK);
-  const auto other = nlohmann::json::parse(json).at("project_id").get<std::string>();
-  holder_string_free(json);
+  const auto other = f.new_project("Other");
   const holder_milestone_list* list = nullptr;
   REQUIRE(f.failed(holder_list_card_milestones(f.context, other.c_str(), card_id.c_str(), f.arena, &list,
                                                &f.error)) == HOLDER_ERROR_NOT_FOUND);
@@ -902,10 +899,7 @@ TEST_CASE("Resources keep their metadata by name, and change one name at a time"
   REQUIRE(std::string(resource->label) == "Renamed");
 
   // Not from another project.
-  char* json = nullptr;
-  REQUIRE(holder_project_create(f.context, "Other", nullptr, nullptr, &json, &f.error) == HOLDER_OK);
-  const auto other = nlohmann::json::parse(json).at("project_id").get<std::string>();
-  holder_string_free(json);
+  const auto other = f.new_project("Other");
   REQUIRE(f.failed(holder_get_resource(f.context, other.c_str(), "res-1", f.arena, &resource, &f.error)) ==
           HOLDER_ERROR_NOT_FOUND);
   REQUIRE(f.failed(holder_create_resource(f.context, "no-such-project", &request, f.arena, &resource,
