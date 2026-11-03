@@ -95,6 +95,9 @@ class Operation:
     # without one (such as an offline rebuild), "opens" for one that makes a context and "closes" for
     # the one that releases it.
     context: str = "required"
+    # For an operation on an error core returned rather than on a context: "reads" its message,
+    # "closes" releases it. None for every other operation.
+    error: str | None = None
 
 
 @dataclass
@@ -172,15 +175,20 @@ class Contract:
 
         return register
 
-    def runtime_operation(self, *, context: str, errors: list[type[HolderError]] = ()) -> Callable[
-            [Callable[..., Any]], Callable[..., Any]]:
+    def runtime_operation(self, *, context: str, error: str | None = None,
+                          errors: list[type[HolderError]] = ()) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Declare one of core's runtime operations, which the daemon does not serve: context="none" runs
-        without a context, "opens" makes one (its result) and "closes" releases the one it is given."""
+        without a context, "opens" makes one (its result) and "closes" releases the one it is given. With
+        context="none", error="reads" reads an error core returned (its result) and error="closes" releases it."""
         if context not in ("none", "opens", "closes"):
             raise ValueError(f"runtime_operation context must be none, opens or closes, not {context!r}")
+        if error not in (None, "reads", "closes"):
+            raise ValueError(f"runtime_operation error must be reads or closes, not {error!r}")
+        if error is not None and context != "none":
+            raise ValueError("an operation on an error takes no context: use context=\"none\"")
 
         def register(function: Callable[..., Any]) -> Callable[..., Any]:
-            self.operations.append(Operation(function, list(errors), route=False, context=context))
+            self.operations.append(Operation(function, list(errors), route=False, context=context, error=error))
             return function
 
         return register

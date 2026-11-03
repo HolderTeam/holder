@@ -90,6 +90,10 @@ def c_signature(types: CoreTypes, op: OperationView) -> str:
     """The operation's C function, without a semicolon. An operation that opens a context returns it through
     out_context; the one that closes a context takes it and reports nothing; one that runs without a context
     takes none."""
+    if op.error == "reads":
+        return f"const char* holder_{op.name}(const holder_error* error)"
+    if op.error == "closes":
+        return f"void holder_{op.name}(holder_error* error)"
     params = [c_param(types, op, p) for p in op.parameters]
     if op.context == "closes":
         return f"void holder_{op.name}(holder_context* context)"

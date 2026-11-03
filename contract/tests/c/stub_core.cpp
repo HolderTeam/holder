@@ -703,5 +703,7 @@ LocationDeleteResult delete_storage_location(holder_context& context, std::strin
 
 extern "C" holder_context* stub_context_new(void) { return new holder_context; }
 extern "C" void stub_context_free(holder_context* context) { delete context; }
-extern "C" const char* holder_error_message(const holder_error* error) { return error ? error->message.c_str() : ""; }
-extern "C" void holder_error_destroy(holder_error* error) { delete error; }
+const char* holder::contract::error_message(const holder_error* error) noexcept {
+  return error ? error->message.c_str() : "";
+}
+void holder::contract::error_destroy(holder_error* error) noexcept { delete error; }

@@ -675,9 +675,6 @@ int holder_reindex(holder_context* context, holder_error** out_error);
 
 void holder_string_free(char* value);
 
-const char* holder_error_message(const holder_error* error);
-void holder_error_destroy(holder_error* error);
-
 // -- Card history --
 //
 // Mirrors holder::history::CardHistoryService exactly (see src/history/CardHistory.h) --

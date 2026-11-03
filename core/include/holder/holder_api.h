@@ -1309,6 +1309,15 @@ void holder_context_destroy(holder_context* context);
  */
 int holder_database_rebuild(const char* data_dir, const char* schema_sql, bool dry_run, holder_arena* arena, const holder_database_rebuild_report** out_database_rebuild_report, holder_error** out_error);
 
+/* The message of an error core returned, as UTF-8 text.
+ * The text belongs to the error and lasts until error_destroy releases it. An error that is null has the
+ * empty message.
+ */
+const char* holder_error_message(const holder_error* error);
+
+/* Release an error core returned. Releasing null does nothing; an error must not be used again. */
+void holder_error_destroy(holder_error* error);
+
 /* List a project's storage declarations, with this device's binding status and preferred location.
  * Locations are most recently updated first. A project with none, or one this device does not have, lists none.
  * The daemon serves this as GET /locations.

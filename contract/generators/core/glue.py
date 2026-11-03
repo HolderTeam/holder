@@ -212,9 +212,12 @@ def glue_param(types: CoreTypes, op: OperationView, param: Param) -> list[str]:
 
 
 def glue_operation(types: CoreTypes, op: OperationView) -> list[str]:
+    if op.error == "reads":
+        return [c_signature(types, op) + " { return contract::" + op.name + "(error); }", ""]
+    if op.error == "closes" or op.context == "closes":
+        handle = "error" if op.error else "context"
+        return [c_signature(types, op) + " { contract::" + op.name + f"({handle}); }}", ""]
     params = [c_param(types, op, p) for p in op.parameters]
-    if op.context == "closes":
-        return [c_signature(types, op) + " { contract::" + op.name + "(context); }", ""]
     result = c_out(types, op)
     if op.context == "opens":
         lines = [c_signature(types, op) + " {", "  return run_guarded(out_error, [&] {",

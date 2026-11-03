@@ -5119,11 +5119,9 @@ int holder_recovery_token_import_global(
 
 void holder_string_free(char* value) { std::free(value); }
 
-const char* holder_error_message(const holder_error* error) {
-  if (error == nullptr) {
-    return "";
-  }
-  return error->message.c_str();
+// The contract's error operations (contract/interface/runtime): holder_error is core's type.
+const char* holder::contract::error_message(const holder_error* error) noexcept {
+  return error == nullptr ? "" : error->message.c_str();
 }
 
-void holder_error_destroy(holder_error* error) { delete error; }
+void holder::contract::error_destroy(holder_error* error) noexcept { delete error; }

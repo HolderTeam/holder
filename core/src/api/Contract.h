@@ -998,6 +998,14 @@ void context_destroy(holder_context* context) noexcept;
 /// A dry run only counts what a rebuild would read.
 DatabaseRebuildReport database_rebuild(std::string data_dir, std::string schema_sql, bool dry_run);
 
+/// The message of an error core returned, as UTF-8 text.
+/// The text belongs to the error and lasts until error_destroy releases it. An error that is null has the
+/// empty message.
+const char* error_message(const holder_error* error) noexcept;
+
+/// Release an error core returned. Releasing null does nothing; an error must not be used again.
+void error_destroy(holder_error* error) noexcept;
+
 /// List a project's storage declarations, with this device's binding status and preferred location.
 /// Locations are most recently updated first. A project with none, or one this device does not have, lists none.
 /// The daemon serves this as GET /locations.

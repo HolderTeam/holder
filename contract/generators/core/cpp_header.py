@@ -127,7 +127,11 @@ def generate_cpp_header(types: CoreTypes) -> str:
             out.append(f"/// @throws {', '.join(op.errors)}")
         result = types.resolve(op.returns).type
         returns = "void" if result.kind == "none" else cpp_base(types, result, {})
-        if op.context == "opens":
+        if op.error == "reads":
+            out.append(f"const char* {op.name}(const holder_error* error) noexcept;")
+        elif op.error == "closes":
+            out.append(f"void {op.name}(holder_error* error) noexcept;")
+        elif op.context == "opens":
             out.append("/// @return A new context, which the caller owns and releases with the closing operation.")
             out.append(f"holder_context* {op.name}(" + ", ".join(declarations) + ");")
         elif op.context == "closes":

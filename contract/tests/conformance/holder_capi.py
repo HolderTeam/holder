@@ -32,8 +32,6 @@ typedef struct holder_error holder_error;
 int holder_project_create(holder_context* context, const char* name, const char* root_path,
                           const char* privacy_mode, char** out_json, holder_error** out_error);
 void holder_string_free(char* value);
-const char* holder_error_message(const holder_error* error);
-void holder_error_destroy(holder_error* error);
 """
 
 

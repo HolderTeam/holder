@@ -23,7 +23,7 @@ def test_every_core_operation_has_a_kotlin_function_and_a_jni_entry_point():
     files = client(ir)
     kotlin = "\n".join(text for path, text in files.items() if path.endswith(".kt"))
     for op in ir["operations"]:
-        if op["daemon_only"]:
+        if op["daemon_only"] or op.get("error"):
             continue
         name = op["name"].split("_")[0] + "".join(part.title() for part in op["name"].split("_")[1:])
         assert f"external fun {name}(" in kotlin, op["name"]
@@ -68,3 +68,10 @@ def test_runtime_operations_follow_their_context_modes():
     assert "holder_context_open(\n      p_data_dir,\n      p_schema_sql,\n      &opened, &error);" in jni
     assert "Runtime_contextDestroy(JNIEnv*, jobject, jlong context_handle)" in jni
     assert "holder_database_rebuild(\n      p_data_dir," in jni
+
+
+def test_error_operations_stay_out_of_the_kotlin_client():
+    files = client(holder_ir())
+    kotlin = "\n".join(text for path, text in files.items() if path.endswith(".kt"))
+    assert "fun errorMessage(" not in kotlin and "fun errorDestroy(" not in kotlin
+    assert "Runtime_errorMessage" not in files[JNI_PATH]
