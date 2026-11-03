@@ -61,20 +61,19 @@ TEST_CASE("The generated C API exposes the core version", "[capi][runtime]") {
 }
 
 TEST_CASE("The generated C API configures libgit2's process-wide home", "[capi][git]") {
-  holder_arena* arena = holder_arena_new();
   holder_error* error = nullptr;
-  REQUIRE(holder_configure_git_home(nullptr, arena, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(holder_configure_git_home(nullptr, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
   REQUIRE(error != nullptr);
   holder_error_destroy(error);
 
   error = nullptr;
-  REQUIRE(holder_configure_git_home("", arena, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(holder_configure_git_home("", &error) == HOLDER_ERROR_INVALID_ARGUMENT);
   REQUIRE(error != nullptr);
   holder_error_destroy(error);
 
   error = nullptr;
   const auto dir = holder::test::make_temp_dir();
-  REQUIRE(holder_configure_git_home(dir.string().c_str(), arena, &error) == HOLDER_OK);
+  REQUIRE(holder_configure_git_home(dir.string().c_str(), &error) == HOLDER_OK);
   REQUIRE(error == nullptr);
 
   git_buf actual = GIT_BUF_INIT;
@@ -82,7 +81,6 @@ TEST_CASE("The generated C API configures libgit2's process-wide home", "[capi][
   const std::filesystem::path actual_path(actual.ptr);
   git_buf_dispose(&actual);
   REQUIRE(std::filesystem::equivalent(actual_path, dir));
-  holder_arena_free(arena);
 }
 
 TEST_CASE("The generated C API opens a context with no projects", "[capi][runtime]") {
