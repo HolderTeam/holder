@@ -1,6 +1,9 @@
 #include "capi_asset_helpers.h"
 #include "core_test_helpers.h"
+#include "model/Location.h"
+#include "platform/Db.h"
 #include "resource/LocalDirectoryProvider.h"
+#include "resource/LocationStore.h"
 
 #include <holder/holder.h>
 #include <nlohmann/json.hpp>
@@ -76,20 +79,6 @@ int register_probe(const char* name, const ProbeOwner& probe) {
   return result;
 }
 
-template <typename Fn> nlohmann::json call_json(Fn&& fn) {
-  char* raw = nullptr;
-  holder_error* error = nullptr;
-  const int result = fn(&raw, &error);
-  const std::unique_ptr<char, decltype(&holder_string_free)> output(raw, holder_string_free);
-  const std::unique_ptr<holder_error, decltype(&holder_error_destroy)> failure(
-      error,
-      holder_error_destroy
-  );
-  INFO((error ? holder_error_message(error) : "no C API error"));
-  REQUIRE(result == HOLDER_OK);
-  return nlohmann::json::parse(raw);
-}
-
 struct AssetFixture {
   std::filesystem::path root = holder::test::make_temp_dir();
   std::unique_ptr<holder_context, decltype(&holder_context_destroy)> context{
@@ -109,37 +98,45 @@ struct AssetFixture {
     context.reset(raw_context);
     holder_error_destroy(error);
     REQUIRE(result == HOLDER_OK);
-    project_id =
-        call_json([&](char** out, holder_error** err) {
-          return holder_project_create(context.get(), "Lifetime", nullptr, nullptr, out, err);
-        })
-            .at("project_id")
-            .get<std::string>();
-    card_id = call_json([&](char** out, holder_error** err) {
-                return holder_card_create(
-                    context.get(),
-                    project_id.c_str(),
-                    "Asset",
-                    nullptr,
-                    nullptr,
-                    out,
-                    err
-                );
-              })
-                  .at("card_id")
-                  .get<std::string>();
-    const auto location = nlohmann::json{
-        {"location_id", "lifetime-location"},
-        {"project_id", project_id},
-        {"name", "Lifetime"},
-        {"provider", provider},
-        {"configuration", nlohmann::json::object()},
-        {"created_at", 1},
-        {"updated_at", 1}
-    }.dump();
-    call_json([&](char** out, holder_error** err) {
-      return holder_location_put_json(context.get(), location.c_str(), out, err);
-    });
+    const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(holder_arena_new(), holder_arena_free);
+    holder_new_project project_request{};
+    project_request.name = "Lifetime";
+    project_request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN;
+    const holder_project* project = nullptr;
+    REQUIRE(holder_create_project(context.get(), &project_request, arena.get(), &project, &error) == HOLDER_OK);
+    project_id = project->project_id;
+    holder_new_card card_request{};
+    card_request.title = "Asset";
+    const holder_card* card = nullptr;
+    REQUIRE(holder_create_card(context.get(), project_id.c_str(), &card_request, arena.get(), &card, &error) ==
+            HOLDER_OK);
+    card_id = card->card_id;
+    holder::platform::Db db;
+    db.open(root / "server" / "holder.db");
+    holder::model::Location location;
+    location.location_id = "lifetime-location";
+    location.project_id = project_id;
+    location.name = "Lifetime";
+    location.provider = provider;
+    location.created_at = 1;
+    location.updated_at = 1;
+    holder::resource::LocationStore(db).put(location);
+    holder_error_destroy(error);
+  }
+
+  std::string placement_id(const std::string& resource_id) const {
+    const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(holder_arena_new(), holder_arena_free);
+    holder_error* error = nullptr;
+    const holder_resource* resource = nullptr;
+    const int rc = holder_get_resource(context.get(), project_id.c_str(), resource_id.c_str(),
+                                       arena.get(), &resource, &error);
+    INFO((error ? holder_error_message(error) : "no C API error"));
+    REQUIRE(rc == HOLDER_OK);
+    REQUIRE(resource->assets.count == 1);
+    REQUIRE(resource->assets.items[0].placements.count == 1);
+    const std::string id = resource->assets.items[0].placements.items[0].placement_id;
+    holder_error_destroy(error);
+    return id;
   }
 
   nlohmann::json import() {
@@ -177,11 +174,7 @@ TEST_CASE("C API asset operations retain providers replaced inside callbacks", "
     const auto imported = fixture.import();
     const auto resource_id = imported.at("resource_id").get<std::string>();
     const auto asset_id = imported.at("asset_id").get<std::string>();
-    const auto resource = call_json([&](char** out, holder_error** err) {
-      return holder_resource_get(fixture.context.get(), resource_id.c_str(), out, err);
-    });
-    const auto placement_id =
-        resource.at("assets").at(0).at("placements").at(0).at("placement_id").get<std::string>();
+    const auto placement_id = fixture.placement_id(resource_id);
     original->on_get = replace;
     holder_error* error = nullptr;
     const auto destination = (fixture.root / "download.txt").string();
@@ -251,11 +244,7 @@ TEST_CASE(
     const auto imported = fixture.import();
     resource_id = imported.at("resource_id").get<std::string>();
     asset_id = imported.at("asset_id").get<std::string>();
-    const auto resource = call_json([&](char** out, holder_error** err) {
-      return holder_resource_get(fixture.context.get(), resource_id.c_str(), out, err);
-    });
-    placement_id =
-        resource.at("assets").at(0).at("placements").at(0).at("placement_id").get<std::string>();
+    placement_id = fixture.placement_id(resource_id);
     original->on_get = during_callback;
   }
   bool registrations_ok = true;
