@@ -123,7 +123,7 @@ void git_signer_destroy(void* user_data) {
 // signer: subsequent git operations on context will sign via
 // GitIdentity.signForNative instead of the default ssh-agent/~/.ssh lookup.
 // Also points libgit2 at homedir for ~/.ssh/known_hosts (see
-// holder_git_set_homedir). Returns a HOLDER_* status code.
+// holder_configure_git_home). Returns a HOLDER_* status code.
 extern "C" JNIEXPORT jint JNICALL
 Java_team_holder_android_git_GitIdentity_nativeRegisterSigner(
     JNIEnv* env,
@@ -140,10 +140,17 @@ Java_team_holder_android_git_GitIdentity_nativeRegisterSigner(
   auto* context = reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle));
 
   {
+    holder_arena* arena = holder_arena_new();
+    if (arena == nullptr) return HOLDER_ERROR_ALLOCATION;
     const char* homedir_chars = env->GetStringUTFChars(j_homedir, nullptr);
+    if (homedir_chars == nullptr) {
+      holder_arena_free(arena);
+      return HOLDER_ERROR_ALLOCATION;
+    }
     holder_error* error = nullptr;
-    const int rc = holder_git_set_homedir(homedir_chars, &error);
+    const int rc = holder_configure_git_home(homedir_chars, arena, &error);
     env->ReleaseStringUTFChars(j_homedir, homedir_chars);
+    holder_arena_free(arena);
     if (error != nullptr) holder_error_destroy(error);
     if (rc != HOLDER_OK) return rc;
   }

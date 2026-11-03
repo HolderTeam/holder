@@ -438,6 +438,8 @@ AssetFile retrieve_asset_file(holder_context& context, std::string resource_id, 
 // The runtime: the stand-in's contexts hold everything in memory, so there is nothing to rebuild.
 CoreVersion version() { return {"0.0.0-stub", 0, 0, 0}; }
 
+void configure_git_home(std::string) {}
+
 holder_context* context_open(std::string data_dir, std::optional<std::string> schema_sql) {
   (void)data_dir, (void)schema_sql;
   return new holder_context();

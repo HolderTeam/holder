@@ -8,15 +8,6 @@ extern "C" {
 
 // Host callbacks awaiting generated bindings (see issue #364).
 
-// -- Git sync --
-
-// Global, process-wide libgit2 "home" directory override. Needed on
-// Android: libgit2's ssh transport looks for ~/.ssh/known_hosts via $HOME,
-// which Android apps don't have. Call once, before any git_* operation,
-// with a writable app-private directory (e.g. Context.filesDir). Not needed
-// on platforms with a real $HOME (desktop).
-int holder_git_set_homedir(const char* path, holder_error** out_error);
-
 // Raw signing callback for holder_git_set_ssh_signer. Given the challenge
 // bytes libssh2 wants signed, must return 0 and set *out_der_sig (malloc'd)
 // / *out_der_sig_len to a DER-encoded ECDSA-Sig-Value{r,s} produced by an

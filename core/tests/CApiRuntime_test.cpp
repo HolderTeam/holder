@@ -9,6 +9,7 @@
 #include "platform/Migrations.h"
 
 #include <holder/holder_api.h>
+#include <git2.h>
 
 #include <algorithm>
 #include <atomic>
@@ -56,6 +57,31 @@ TEST_CASE("The generated C API exposes the core version", "[capi][runtime]") {
   REQUIRE(version->major == EXPECTED_HOLDER_VERSION_MAJOR);
   REQUIRE(version->minor == EXPECTED_HOLDER_VERSION_MINOR);
   REQUIRE(version->patch == EXPECTED_HOLDER_VERSION_PATCH);
+  holder_arena_free(arena);
+}
+
+TEST_CASE("The generated C API configures libgit2's process-wide home", "[capi][git]") {
+  holder_arena* arena = holder_arena_new();
+  holder_error* error = nullptr;
+  REQUIRE(holder_configure_git_home(nullptr, arena, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(error != nullptr);
+  holder_error_destroy(error);
+
+  error = nullptr;
+  REQUIRE(holder_configure_git_home("", arena, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(error != nullptr);
+  holder_error_destroy(error);
+
+  error = nullptr;
+  const auto dir = holder::test::make_temp_dir();
+  REQUIRE(holder_configure_git_home(dir.string().c_str(), arena, &error) == HOLDER_OK);
+  REQUIRE(error == nullptr);
+
+  git_buf actual = GIT_BUF_INIT;
+  REQUIRE(git_libgit2_opts(GIT_OPT_GET_HOMEDIR, &actual) == 0);
+  const std::filesystem::path actual_path(actual.ptr);
+  git_buf_dispose(&actual);
+  REQUIRE(std::filesystem::equivalent(actual_path, dir));
   holder_arena_free(arena);
 }
 

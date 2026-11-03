@@ -16,11 +16,30 @@
 #include "sync/ProjectSyncOperation.h"
 #include "sync/ProjectSyncPolicy.h"
 
+#include <git2.h>
+
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
 namespace holder::contract {
+
+void configure_git_home(std::string path) {
+  if (path.empty()) throw InvalidArgument("path must not be empty");
+
+  // libgit2 derives its default home on the first 0->1 init transition. Hold one reference
+  // for the process so later GitRepo constructions cannot reset this override.
+  git_libgit2_init();
+  if (git_libgit2_opts(GIT_OPT_SET_HOMEDIR, path.c_str()) != 0) {
+    const git_error* error = git_error_last();
+    throw std::runtime_error(
+        std::string("git_libgit2_opts(GIT_OPT_SET_HOMEDIR) failed: ") +
+        (error && error->message ? error->message : "unknown error")
+    );
+  }
+}
+
 namespace {
 
 holder::model::Project find(holder_context& context, const std::string& project_id) {

@@ -172,18 +172,6 @@ void init_bare_repo(const std::filesystem::path& repo_path) {
 
 } // namespace
 
-TEST_CASE("C API git_set_homedir validates its argument and applies process-wide", "[capi][git]") {
-  holder_error* error = nullptr;
-  REQUIRE(holder_git_set_homedir("", &error) == HOLDER_ERROR_INVALID_ARGUMENT);
-  REQUIRE(error != nullptr);
-  holder_error_destroy(error);
-
-  error = nullptr;
-  const auto dir = holder::test::make_temp_dir();
-  REQUIRE(holder_git_set_homedir(dir.string().c_str(), &error) == HOLDER_OK);
-  REQUIRE(error == nullptr);
-}
-
 namespace {
 
 int fake_sign_ok(

@@ -1693,6 +1693,13 @@ int holder_version(holder_arena* arena, const holder_core_version** out_core_ver
   });
 }
 
+int holder_configure_git_home(const char* path, holder_arena* arena, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    const auto path_value = text(path, "path", 1, SIZE_MAX);
+    contract::configure_git_home(path_value);
+  });
+}
+
 int holder_context_open(const char* data_dir, const char* schema_sql, holder_context** out_context, holder_error** out_error) {
   return run_guarded(out_error, [&] {
     require(out_context != nullptr, "out_context must not be null");

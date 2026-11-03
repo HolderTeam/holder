@@ -1299,6 +1299,12 @@ typedef struct holder_search_message_list {
 /* The version of the core library loaded. */
 int holder_version(holder_arena* arena, const holder_core_version** out_core_version, holder_error** out_error);
 
+/* Set libgit2's process-wide home directory before Git operations.
+ * On Android, pass a writable app-private directory so SSH can find its known_hosts file.
+ * Call once before Git work starts; desktop hosts with a normal home directory need no override.
+ */
+int holder_configure_git_home(const char* path, holder_arena* arena, holder_error** out_error);
+
 /* Open a context on a data directory: the handle every other operation works through.
  * Opening makes the directory's database, or rebuilds it from the project files when it is
  * missing, damaged or from an older schema; that needs schema_sql. A context holds one database
