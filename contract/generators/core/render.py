@@ -89,7 +89,7 @@ def c_out(types: CoreTypes, op: OperationView) -> tuple[str, str] | None:
 def c_signature(types: CoreTypes, op: OperationView) -> str:
     """The operation's C function, without a semicolon. An operation that opens a context returns it through
     out_context; the one that closes a context takes it and reports nothing; one that runs without a context
-    takes none."""
+    takes none. An operation with no result takes no arena, which holds only results."""
     if op.error == "reads":
         return f"const char* holder_{op.name}(const holder_error* error)"
     if op.error == "closes":
@@ -101,9 +101,8 @@ def c_signature(types: CoreTypes, op: OperationView) -> str:
         args = [*[p.c_decl for p in params], "holder_context** out_context", "holder_error** out_error"]
         return f"int holder_{op.name}(" + ", ".join(args) + ")"
     result = c_out(types, op)
-    args = [*([] if op.context == "none" else ["holder_context* context"]), *[p.c_decl for p in params],
-            "holder_arena* arena"]
+    args = [*([] if op.context == "none" else ["holder_context* context"]), *[p.c_decl for p in params]]
     if result:
-        args.append(f"const {result[0]}** {result[1]}")
+        args += ["holder_arena* arena", f"const {result[0]}** {result[1]}"]
     args.append("holder_error** out_error")
     return f"int holder_{op.name}(" + ", ".join(args) + ")"

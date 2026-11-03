@@ -615,9 +615,9 @@ extern "C" JNIEXPORT {{ "jlong" if op.context == "opens" else ("jobject" if op.r
   return static_cast<jlong>(reinterpret_cast<intptr_t>(opened));
 }
 {% else %}
+{% if op.result %}
   Arena arena;
   if (!arena.value) { throw_class(env, "{{ class_path }}/AllocationFailureException", "cannot allocate a result arena"); return {{ nothing }}; }
-{% if op.result %}
   const {{ op.result_c_type }}* out = nullptr;
 {% endif %}
   holder_error* error = nullptr;
@@ -626,7 +626,11 @@ extern "C" JNIEXPORT {{ "jlong" if op.context == "opens" else ("jobject" if op.r
 {% for p in op.parameters %}
       p_{{ p.name }},
 {% endfor %}
-      arena.value, {% if op.result %}&out, {% endif %}&error);
+{% if op.result %}
+      arena.value, &out, &error);
+{% else %}
+      &error);
+{% endif %}
   if (status != HOLDER_OK) { throw_status(env, status, error); return {{ nothing }}; }
 {% if op.result %}
   return {{ to_java(op.result, "(*out)") }};

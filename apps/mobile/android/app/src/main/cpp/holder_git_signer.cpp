@@ -140,17 +140,11 @@ Java_team_holder_android_git_GitIdentity_nativeRegisterSigner(
   auto* context = reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle));
 
   {
-    holder_arena* arena = holder_arena_new();
-    if (arena == nullptr) return HOLDER_ERROR_ALLOCATION;
     const char* homedir_chars = env->GetStringUTFChars(j_homedir, nullptr);
-    if (homedir_chars == nullptr) {
-      holder_arena_free(arena);
-      return HOLDER_ERROR_ALLOCATION;
-    }
+    if (homedir_chars == nullptr) return HOLDER_ERROR_ALLOCATION;
     holder_error* error = nullptr;
-    const int rc = holder_configure_git_home(homedir_chars, arena, &error);
+    const int rc = holder_configure_git_home(homedir_chars, &error);
     env->ReleaseStringUTFChars(j_homedir, homedir_chars);
-    holder_arena_free(arena);
     if (error != nullptr) holder_error_destroy(error);
     if (rc != HOLDER_OK) return rc;
   }

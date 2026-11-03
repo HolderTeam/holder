@@ -223,7 +223,8 @@ def glue_operation(types: CoreTypes, op: OperationView) -> list[str]:
         lines = [c_signature(types, op) + " {", "  return run_guarded(out_error, [&] {",
                  '    require(out_context != nullptr, "out_context must not be null");', "    *out_context = nullptr;"]
     else:
-        lines = [c_signature(types, op) + " {", "  return guarded(arena, out_error, [&] {"]
+        guard = "guarded(arena, out_error, [&] {" if result else "run_guarded(out_error, [&] {"
+        lines = [c_signature(types, op) + " {", f"  return {guard}"]
         if op.context == "required":
             lines.append('    require(context != nullptr, "context must not be null");')
         if result:

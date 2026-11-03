@@ -299,3 +299,19 @@ def test_error_operations_keep_their_c_signatures_and_forward_to_core():
     assert "void error_destroy(holder_error* error) noexcept;" in cpp
     assert "{ return contract::error_message(error); }" in glue
     assert "{ contract::error_destroy(error); }" in glue
+
+
+def test_an_operation_with_no_result_takes_no_arena():
+    raw = holder_ir()
+    files = generate(raw)
+    header, glue = files["holder_api.h"], files["ContractCApi.cpp"]
+    assert "int holder_configure_git_home(const char* path, holder_error** out_error);" in header
+    assert "return run_guarded(out_error, [&] {" in glue.split("int holder_configure_git_home(")[1].split("\n}")[0]
+    # One with a result still takes its arena.
+    assert "int holder_version(holder_arena* arena, const holder_core_version** out_core_version," in header
+    # A context-bound operation with no result also takes none.
+    get_card = next(op for op in raw["operations"] if op["name"] == "get_card")
+    raw["operations"].append({**get_card, "name": "touch_card", "returns": {"kind": "none"}})
+    touched = generate(raw)["holder_api.h"]
+    assert ("int holder_touch_card(holder_context* context, const char* project_id, const char* card_id, "
+            "holder_error** out_error);") in touched
