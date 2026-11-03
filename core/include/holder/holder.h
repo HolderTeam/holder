@@ -1,26 +1,15 @@
 #pragma once
 
-#include <stddef.h>
+#include "holder_api.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Status codes. An error's code is the HTTP status it echoes and one more digit, so it reads as
-// that status: an invalid argument is 400, an unexpected failure 500. holder_api.h declares the
-// codes of the contract's error kinds, in the same scheme.
-#define HOLDER_OK 0
-#define HOLDER_ERROR_INVALID_ARGUMENT 4000
-#define HOLDER_ERROR_RUNTIME 5000
-#define HOLDER_ERROR_ALLOCATION 5001
-
 #define HOLDER_CARD_LIST_COMPLETE_MAX_LIMIT 1000
 #define HOLDER_HAS_PROJECT_IMPORT 1
 #define HOLDER_HAS_CARD_COLLECTION_PAGE 1
 #define HOLDER_HAS_DIRECT_LOOKUP 1
-
-typedef struct holder_context holder_context;
-typedef struct holder_error holder_error;
 
 int holder_project_list(holder_context* context, char** out_json, holder_error** out_error);
 
@@ -1174,6 +1163,3 @@ int holder_recovery_token_import_global(
 #ifdef __cplusplus
 }
 #endif
-
-// The contract's operations, generated from contract/ (see contract/C_API.md).
-#include "holder_api.h"

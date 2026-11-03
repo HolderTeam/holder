@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from compiler.__main__ import collisions
 from compiler.ir import ContractView
 from generators.common import Unsupported
 from generators.core import CORE_PATHS
@@ -33,6 +34,12 @@ def holder_ir():
 def test_cores_generated_files_are_up_to_date():
     for name, text in generate(holder_ir()).items():
         assert text == (CONTRACT.parent / CORE_PATHS[name]).read_text(encoding="utf-8"), CORE_PATHS[name]
+
+
+def test_generated_names_still_check_against_legacy_declarations():
+    assert collisions({"holder_api.h": "int holder_project_list(void);\nvoid holder_string_free(char*);\n"}) == [
+        "holder_project_list", "holder_string_free"]
+    assert collisions({"holder_api.h": "typedef struct holder_context holder_context;\n"}) == []
 
 
 def test_every_generated_file_names_its_source():
@@ -78,9 +85,11 @@ def test_generated_code_compiles_and_runs(tmp_path):
     def run(*command):
         subprocess.run(command, check=True, cwd=tmp_path, capture_output=True, text=True)
 
-    (tmp_path / "include.c").write_text('#include "holder/holder.h"\n')
-    run("gcc", "-std=c17", *STRICT, "-fsyntax-only", "-I.", "include.c")
-    run("g++", "-std=c++20", *STRICT, "-fsyntax-only", "-I.", "-x", "c++", "include.c")
+    for header in ("holder_api.h", "holder.h"):
+        source = tmp_path / "include.c"
+        source.write_text(f'#include "holder/{header}"\n')
+        run("gcc", "-std=c17", *STRICT, "-fsyntax-only", "-I.", "include.c")
+        run("g++", "-std=c++20", *STRICT, "-fsyntax-only", "-I.", "-x", "c++", "include.c")
     run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", "ContractCApi.cpp", "-o", "glue.o")
     run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", str(TESTS / "c" / "stub_core.cpp"), "-o", "stub.o")
     run("gcc", "-std=c17", *STRICT, *SANITIZE, "-I.", "-c", str(TESTS / "c" / "exercise.c"), "-o", "exercise.o")

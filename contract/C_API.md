@@ -2,7 +2,7 @@
 
 `make -C contract update` writes three files from the contract into core, and `make -C contract check` fails when they are out of date:
 
-- **`core/include/holder/holder_api.h`:** the C declarations consumers use: records, operations, error codes, and the arena. `holder.h` includes it, so consumers still include only `holder.h`.
+- **`core/include/holder/holder_api.h`:** the standalone C declarations consumers use: opaque handles, records, operations, error codes, and the arena. `holder.h` also includes it for existing consumers.
 - **`core/src/api/Contract.h`:** the C++ declarations core implements, one function per operation, in `holder::contract`, a namespace of its own so nothing clashes with the daemon's `holder::api`. A missing implementation fails to link.
 - **`core/src/api/ContractCApi.cpp`:** the C entry points. Each checks its arguments against the contract, calls core's function, copies the result into the caller's arena, and turns error kinds into status codes. Core never sees a null pointer, an out-of-range number or an unknown enum value.
 
@@ -21,7 +21,7 @@ Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A recor
     - one that opens a context is `int holder_<operation>(<parameters>, holder_context** out_context, holder_error** out_error)`, as `holder_context_open` is: it takes no arena, and the caller owns the new context;
     - one that closes a context is `void holder_<operation>(holder_context* context)`, as `holder_context_destroy` is;
     - one that reads an error core returned is `const char* holder_<operation>(const holder_error* error)`, as `holder_error_message` is, and one that releases it is `void holder_<operation>(holder_error* error)`, as `holder_error_destroy` is.
-- **Error codes:** a code is the HTTP status it echoes and one more digit, so it reads as that status. `holder.h` declares `HOLDER_ERROR_INVALID_ARGUMENT` (4000) for anything the contract's checks reject, `HOLDER_ERROR_RUNTIME` (5000) for an unexpected failure, and `HOLDER_ERROR_ALLOCATION` (5001). Each error kind in the contract has the code its error table gives it, such as `HOLDER_ERROR_NOT_FOUND` (4040); a code keeps its meaning once released, wherever its declaration moves.
+- **Error codes:** a code is the HTTP status it echoes and one more digit, so it reads as that status. `holder_api.h` declares `HOLDER_ERROR_INVALID_ARGUMENT` (4000) for anything the contract's checks reject, `HOLDER_ERROR_RUNTIME` (5000) for an unexpected failure, and `HOLDER_ERROR_ALLOCATION` (5001). Each error kind in the contract has the code its error table gives it, such as `HOLDER_ERROR_NOT_FOUND` (4040); a code keeps its meaning once released, wherever its declaration moves.
 - **Memory:** results live in the `holder_arena` the caller passes, until `holder_arena_free`. Nothing in a result needs freeing on its own.
 - **Strings** are NUL-terminated UTF-8. The glue rejects text that is not well-formed UTF-8, and length constraints count characters, not bytes.
 - **Numbers:** the glue rejects a `double` that is NaN or infinite.
