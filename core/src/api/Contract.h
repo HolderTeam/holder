@@ -980,6 +980,11 @@ struct SearchMessage {
 /// The version of the core library loaded.
 CoreVersion version();
 
+/// Set libgit2's process-wide home directory before Git operations.
+/// On Android, pass a writable app-private directory so SSH can find its known_hosts file.
+/// Call once before Git work starts; desktop hosts with a normal home directory need no override.
+void configure_git_home(std::string path);
+
 /// Open a context on a data directory: the handle every other operation works through.
 /// Opening makes the directory's database, or rebuilds it from the project files when it is
 /// missing, damaged or from an older schema; that needs schema_sql. A context holds one database

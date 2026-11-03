@@ -2878,6 +2878,20 @@ Java_team_holder_android_contract_Runtime_version(JNIEnv* env, jobject) {
   return to_java_holder_core_version(env, (*out));
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_team_holder_android_contract_Runtime_configureGitHome(JNIEnv* env, jobject, jstring a_path) {
+  Keep keep;
+  const char* p_path = nullptr;
+  if (!c_text(env, a_path, keep, p_path)) return ;
+  Arena arena;
+  if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return ; }
+  holder_error* error = nullptr;
+  const int status = holder_configure_git_home(
+      p_path,
+      arena.value, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return ; }
+}
+
 extern "C" JNIEXPORT jlong JNICALL
 Java_team_holder_android_contract_Runtime_contextOpen(JNIEnv* env, jobject, jstring a_data_dir, jstring a_schema_sql) {
   Keep keep;

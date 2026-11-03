@@ -17,7 +17,6 @@
 #include <cstring>
 #include <exception>
 #include <filesystem>
-#include <git2.h>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -589,39 +588,6 @@ int holder_storage_provider_register(
     return set_unknown_exception(out_error);
   }
   // LCOV_EXCL_STOP
-}
-
-int holder_git_set_homedir(const char* path, holder_error** out_error) {
-  clear_error(out_error);
-  if (path == nullptr || path[0] == '\0') {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "path must not be empty");
-  }
-
-  // libgit2 only runs its real subsystem init (including deriving the default
-  // homedir) on the process's first git_libgit2_init() 0->1 transition; later
-  // calls (e.g. from each GitRepo constructed per git operation) just bump a
-  // refcount. Force that first transition to happen here, before setting our
-  // override, so it isn't silently clobbered the next time a GitRepo is
-  // constructed. Deliberately never shut this reference back down: it must
-  // outlive every GitRepo for the rest of the process, or the override would
-  // be reset back to defaults whenever the refcount happened to hit zero.
-  git_libgit2_init();
-
-  const int rc = git_libgit2_opts(GIT_OPT_SET_HOMEDIR, path);
-  if (rc != 0) {
-    // Only fails on an internal libgit2 allocation failure; not practically triggerable from a
-    // test.
-    // LCOV_EXCL_START
-    const git_error* e = git_error_last();
-    return set_error(
-        out_error,
-        HOLDER_ERROR_RUNTIME,
-        std::string("git_libgit2_opts(GIT_OPT_SET_HOMEDIR) failed: ") +
-            (e && e->message ? e->message : "unknown error")
-    );
-    // LCOV_EXCL_STOP
-  }
-  return HOLDER_OK;
 }
 
 int holder_git_set_ssh_signer(

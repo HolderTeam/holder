@@ -12,6 +12,14 @@ def register(contract: Contract) -> None:
     def version() -> CoreVersion:
         """The version of the core library loaded."""
 
+    @contract.runtime_operation(context="none")
+    def configure_git_home(path: Annotated[str, Field(min_length=1)]) -> None:
+        """Set libgit2's process-wide home directory before Git operations.
+
+        On Android, pass a writable app-private directory so SSH can find its known_hosts file.
+        Call once before Git work starts; desktop hosts with a normal home directory need no override.
+        """
+
     @contract.runtime_operation(context="opens")
     def context_open(data_dir: Annotated[str, Field(min_length=1)], schema_sql: str | None = None) -> None:
         """Open a context on a data directory: the handle every other operation works through.
