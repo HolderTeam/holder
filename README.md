@@ -1,10 +1,10 @@
-# Holder Framework
+# Holder
 
 **Your knowledge belongs to you.**
 
-Holder Framework turns your knowledge into something you can own, inspect, automate and build upon.
+Holder turns your knowledge into something you can own, inspect, automate and build upon.
 
-Holder Framework is a complete, local-first knowledge system: a set of open tools for storing, organising, connecting and working with your information without surrendering control of it to somebody else's platform.
+The Holder Framework is a complete, local-first knowledge system: a set of open tools for storing, organising, connecting and working with your information without surrendering control of it to somebody else's platform.
 
 It provides the services and interfaces that make Holder available to applications, scripts and people across different operating systems. Desktop clients, command-line tools and other software can all work with the same local knowledge through a stable OpenAPI interface, while your data remains in formats and repositories you control.
 
