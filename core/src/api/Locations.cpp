@@ -6,7 +6,6 @@
 #include "capi/Context.h"
 
 #include "identity/Uuid.h"
-#include "model/ConflictError.h"
 #include "project/ProjectRepo.h"
 #include "resource/LocationBindingStore.h"
 #include "resource/LocationRepo.h"
@@ -55,11 +54,10 @@ holder::model::Location require_location(holder_context& context, const std::str
   return std::move(*location);
 }
 
+// A location is a file in its project's repository, like a card, so it syncs and survives a
+// rebuild. LocationStore uses its own Git work when the context has none, as on Android.
 void save(holder_context& context, const holder::model::Location& location) {
-  if (context.git)
-    holder::resource::LocationStore(context.db, nullptr, context.git).put(location);
-  else
-    holder::resource::LocationRepo(context.db).put(location);
+  holder::resource::LocationStore(context.db, nullptr, context.git).put(location);
 }
 
 } // namespace
@@ -117,14 +115,7 @@ ProjectStorageLocation update_storage_location(holder_context& context, std::str
 LocationDeleteResult delete_storage_location(holder_context& context, std::string location_id) {
   return with_contract_errors([&] {
     const auto location = require_location(context, location_id);
-    if (context.git) {
-      holder::resource::LocationStore(context.db, nullptr, context.git).remove(location_id);
-    } else {
-      holder::resource::LocationRepo repo(context.db);
-      if (repo.is_in_use(location_id))
-        throw holder::model::ConflictError("storage location is in use by an asset placement");
-      repo.remove(location_id);
-    }
+    holder::resource::LocationStore(context.db, nullptr, context.git).remove(location_id);
     if (const auto bindings = binding_store(context)) {
       if (bindings->preferred(location.project_id) == location_id)
         bindings->clear_preferred(location.project_id);

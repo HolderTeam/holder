@@ -11,7 +11,6 @@
 #include "platform/Db.h"
 #include "privacy/PlatformKeyring.h"
 #include "project/ProjectRepo.h"
-#include "resource/LocationStore.h"
 #include "resource/ResourceRepo.h"
 
 #include <git2.h>
@@ -1392,14 +1391,8 @@ TEST_CASE(
   REQUIRE(
       holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
   );
-  {
-    // Seeded like the bundle below: this test reads a projection written directly.
-    holder::platform::Db db;
-    db.open(data_dir / "server" / "holder.db");
-    holder::resource::LocationStore(db).put(
-        {"location-1234", "project-1", "Family Assets", "local_directory", {}, 10, 10}
-    );
-  }
+  create_location(context, "project-1", "location-1234", "Family Assets",
+                  HOLDER_NEW_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY);
   const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
       holder_arena_new(),
       holder_arena_free
