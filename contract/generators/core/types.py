@@ -108,10 +108,24 @@ class CoreTypes:
         self.records: dict[str, RecordView] = {record.name: record for record in contract.records}
         self.errors = contract.errors
         self.operations: list[OperationView] = [op for op in contract.operations if not op.daemon_only]
+        self.host_operations = [op for op in self.operations if op.host]
         if contract.enums:
             raise Unsupported("enums")
-        if contract.interfaces:
-            raise Unsupported("host interfaces")
+        registered = {op.host for op in self.host_operations}
+        for interface in contract.interfaces:
+            if interface.name not in registered:
+                raise Unsupported(f"{interface.name}: host interface has no registration")
+            for method in interface.methods:
+                for parameter in method.parameters:
+                    kind = self.resolve(parameter.type).type.kind
+                    if kind not in ("string", "int64"):
+                        raise Unsupported(f"{interface.name}.{method.name}({parameter.name}): {kind} host callback inputs")
+                result = self.resolve(method.returns).type
+                if result.kind == "nullable":
+                    if self.resolve(result.value).type.kind != "int64":
+                        raise Unsupported(f"{interface.name}.{method.name}: only nullable int64 callback results")
+                elif result.kind != "string":
+                    raise Unsupported(f"{interface.name}.{method.name}: {result.kind} host callback results")
         for error in self.errors:
             if error.fields:
                 raise Unsupported(f"error kinds with fields ({error.name})")

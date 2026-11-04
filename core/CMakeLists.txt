@@ -145,6 +145,8 @@ set(HOLDER_CORE_SOURCES
   src/api/Locations.cpp
   src/api/Search.cpp
   src/api/ContractCApi.cpp
+  src/api/HostCApi.cpp
+  src/api/RuntimeHosts.cpp
   src/capi/holder.cpp
   src/capi/version.cpp
   src/ai/AiMessageFrontMatter.cpp

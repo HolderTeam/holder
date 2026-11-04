@@ -266,13 +266,21 @@ class _Builder:
                     self.problem(f"{function.__name__}: {error!r} is not an error kind declared in the contract")
                 else:
                     errors.append(error.__name__)
+            host = operation.host
+            valid_host = host is not None and inspect.isclass(host) and getattr(host, "__holder_interface__", False) \
+                and self.in_contract(host)
+            if host is not None and not valid_host:
+                self.problem(f"{function.__name__}: host is not a declared @host_interface")
             self.draft.operations.append(OperationView(name=signature.name, source=operation_source,
                                                        summary=signature.summary, description=signature.description,
                                                        parameters=signature.parameters, returns=signature.returns,
                                                        errors=errors, daemon_only=not operation.core,
                                                        **({"context": operation.context}
                                                           if operation.context != "required" else {}),
-                                                       **({"error": operation.error} if operation.error else {})))
+                                                       **({"error": operation.error} if operation.error else {}),
+                                                       **({"host": host.__name__} if valid_host else {})))
+            if host is not None and (signature.parameters or signature.returns.kind != "none"):
+                self.problem(f"{function.__name__}: a host registration takes no declared parameters and returns None")
             self.check_context(function.__name__, operation.context, signature)
             self.check_error(function.__name__, operation.error, signature)
             if operation.route:

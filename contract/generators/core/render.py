@@ -8,7 +8,7 @@ from typing import Any
 from compiler.ir import ListType, LiteralType, MapType, NamedType, OperationView, ParameterType, ParameterView, TypeRef
 
 from ..common import Unsupported
-from .abi import SCALARS_CPP, CAbiError
+from .abi import SCALARS_CPP, CAbiError, snake
 from .types import CoreTypes, Slot
 
 
@@ -90,6 +90,10 @@ def c_signature(types: CoreTypes, op: OperationView) -> str:
     """The operation's C function, without a semicolon. An operation that opens a context returns it through
     out_context; the one that closes a context takes it and reports nothing; one that runs without a context
     takes none. An operation with no result takes no arena, which holds only results."""
+    if op.host:
+        callbacks = f"holder_{snake(op.host)}_callbacks"
+        return (f"int holder_{op.name}(const {callbacks}* callbacks, void* user_data, "
+                "holder_destroy_fn destroy_user_data, holder_error** out_error)")
     if op.error == "reads":
         return f"const char* holder_{op.name}(const holder_error* error)"
     if op.error == "closes":

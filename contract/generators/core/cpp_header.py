@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from compiler.ir import LiteralType, NamedType, OperationView, UnionType
+from compiler.ir import LiteralType, NamedType, NullableType, OperationView, UnionType
 
 from ..common import Unsupported, contract_sources, header_lines
 from .abi import SCALARS_CPP
@@ -55,7 +55,7 @@ def generate_cpp_header(types: CoreTypes) -> str:
     out = [*header_lines(contract_sources(types.contract),
                          "The C++ declarations core implements: one function per operation. A missing "
                          "implementation fails to link.", "cpp"),
-           "#pragma once", "", "#include <cstdint>", "#include <map>", "#include <optional>", "#include <stdexcept>",
+           "#pragma once", "", "#include <cstdint>", "#include <map>", "#include <memory>", "#include <optional>", "#include <stdexcept>",
            "#include <string>", "#include <string_view>", "#include <variant>", "#include <vector>", "", "struct holder_context;",
            "struct holder_error;", "", "namespace holder::contract {", "",
            "/// Base of the error kinds operations throw. Anything else thrown is an unexpected failure.",
@@ -111,6 +111,20 @@ def generate_cpp_header(types: CoreTypes) -> str:
             out.append(f"  {cpp_type(types, slot)} {slot.name}{cpp_initializer(types, slot)};"
                        + (f"  ///< {slot.doc}" if slot.doc else ""))
         out += ["};", ""]
+    for op in types.host_operations:
+        interface = types.contract.interface(op.host)
+        out += comment(interface.doc, style="cpp")
+        out += [f"class {interface.name} {{", " public:", f"  virtual ~{interface.name}() = default;"]
+        for method in interface.methods:
+            result = types.resolve(method.returns).type
+            returns = "std::optional<long long>" if isinstance(result, NullableType) else "std::string"
+            params = []
+            for parameter in method.parameters:
+                kind = types.resolve(parameter.type).type.kind
+                params.append(f"{'const std::string&' if kind == 'string' else 'long long'} {parameter.name}")
+            out += comment(method.summary, indent="  ", style="cpp")
+            out.append(f"  virtual {returns} {method.name}({', '.join(params)}) = 0;")
+        out += ["};", ""]
     for op in types.operations:
         params = [c_param(types, op, p) for p in op.parameters]
         declarations = []
@@ -127,7 +141,9 @@ def generate_cpp_header(types: CoreTypes) -> str:
             out.append(f"/// @throws {', '.join(op.errors)}")
         result = types.resolve(op.returns).type
         returns = "void" if result.kind == "none" else cpp_base(types, result, {})
-        if op.error == "reads":
+        if op.host:
+            out.append(f"void {op.name}(std::shared_ptr<{op.host}> provider);")
+        elif op.error == "reads":
             out.append(f"const char* {op.name}(const holder_error* error) noexcept;")
         elif op.error == "closes":
             out.append(f"void {op.name}(holder_error* error) noexcept;")

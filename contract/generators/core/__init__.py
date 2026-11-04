@@ -19,14 +19,19 @@ from compiler.ir import ContractView
 from .c_header import generate_c_header
 from .cpp_header import generate_cpp_header
 from .glue import generate_glue
+from .host_glue import generate_host_glue
 from .types import CoreTypes
 
 CORE_PATHS = {"holder_api.h": "core/include/holder/holder_api.h", "Contract.h": "core/src/api/Contract.h",
-              "ContractCApi.cpp": "core/src/api/ContractCApi.cpp"}
+              "ContractCApi.cpp": "core/src/api/ContractCApi.cpp",
+              "HostCApi.cpp": "core/src/api/HostCApi.cpp"}
 
 
 def generate_core(contract: ContractView) -> dict[str, str]:
     """The generated files, by name."""
     types = CoreTypes(contract)
-    return {"holder_api.h": generate_c_header(types), "Contract.h": generate_cpp_header(types),
-            "ContractCApi.cpp": generate_glue(types)}
+    files = {"holder_api.h": generate_c_header(types), "Contract.h": generate_cpp_header(types),
+             "ContractCApi.cpp": generate_glue(types)}
+    if types.host_operations:
+        files["HostCApi.cpp"] = generate_host_glue(types)
+    return files

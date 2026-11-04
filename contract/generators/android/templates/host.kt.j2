@@ -1,0 +1,18 @@
+// Generated from contract/interface by compiler. Do not edit; run make -C contract update.
+package team.holder.android.contract
+
+import androidx.annotation.Keep
+
+{{ kdoc(interface.doc) | join('\n') }}
+@Keep
+interface {{ interface.name }} {
+{% for method in interface.methods %}{{ kdoc(method.description or method.summary, '    ') | join('\n') }}
+    @Keep
+    fun {{ method.name | replace('_offset', 'Offset') | replace('_zone', 'Zone') }}({% for p in method.parameters %}{{ p.name | replace('_seconds', 'Seconds') }}: {{ 'String' if p.type.kind == 'string' else 'Long' }}{% if not loop.last %}, {% endif %}{% endfor %}): {{ 'Long?' if method.name == 'utc_offset' else 'String' }}
+{% endfor %}}
+
+/** Installs a process-wide host provider. Core releases the previous provider after active calls finish. */
+object HostServices {
+    @JvmStatic
+    external fun {{ kotlin_operation }}(provider: {{ interface.name }})
+}

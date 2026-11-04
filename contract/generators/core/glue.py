@@ -323,6 +323,7 @@ def generate_glue(types: CoreTypes) -> str:
             "holder_arena* holder_arena_new(void) { return new (std::nothrow) holder_arena; }",
             "void holder_arena_free(holder_arena* arena) { delete arena; }", ""]
     for op in types.operations:
-        out += glue_operation(types, op)
+        if not op.host:
+            out += glue_operation(types, op)
     out += ['}  // extern "C"', ""]
     return "\n".join(out)

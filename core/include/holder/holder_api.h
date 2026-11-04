@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/home.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/runtime/models.py, contract/interface/runtime/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by compiler.
+ * Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/home.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/runtime/hosts.py, contract/interface/runtime/models.py, contract/interface/runtime/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by compiler.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The standalone C declarations for the contract's operations. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -63,6 +63,20 @@ typedef struct holder_string_list {
     const char* const* items;
     size_t count;
 } holder_string_list;
+
+/* Called once to release callback user data, including on rejected registration. */
+typedef void (*holder_destroy_fn)(void* user_data);
+
+/* The device's time-zone rules, used where core has no native zone database. */
+typedef struct holder_time_zone_provider_callbacks {
+    /* The zone's seconds east of UTC at an instant, or null when the zone is unknown. */
+    int (*utc_offset)(void* user_data, const char* zone, int64_t utc_seconds, int64_t* out_value, int* out_present, char** out_error);
+    /* The device's current time-zone identifier, such as Europe/London. */
+    int (*current_zone)(void* user_data, char** out_value, char** out_error);
+} holder_time_zone_provider_callbacks;
+
+/* Each callback returns zero on success; nonzero may set malloc-owned *out_error.
+ * String results are malloc-owned by core. A null numeric result sets *out_present=0. */
 
 /* Portable non-secret provider options. */
 typedef struct holder_location_configuration_entry {
@@ -1298,6 +1312,13 @@ typedef struct holder_search_message_list {
 
 /* The version of the core library loaded. */
 int holder_version(holder_arena* arena, const holder_core_version** out_core_version, holder_error** out_error);
+
+/* Install this device's time-zone provider for the process.
+ * Registration takes ownership of the provider even when validation fails. A replacement
+ * releases the previous provider after active callbacks finish. Callbacks may run on any
+ * thread. Null offset means an unknown zone; a callback failure is an unexpected error.
+ */
+int holder_register_time_zone_provider(const holder_time_zone_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error);
 
 /* Set libgit2's process-wide home directory before Git operations.
  * On Android, pass a writable app-private directory so SSH can find its known_hosts file.

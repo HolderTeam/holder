@@ -467,6 +467,8 @@ class AndroidClient:
 
         operations = []
         for op in self.types.operations:
+            if op.host:
+                continue  # Host callbacks use the generated provider adapter.
             if op.error:
                 continue  # Kotlin never holds an error: the JNI layer turns each into an exception.
             plan = self.operation_plan(op)
@@ -509,4 +511,6 @@ def generate_android_client(contract: ContractView) -> dict[str, str]:
         class_path=CLASS_PATH, conversions=conversions, enums=enums, operations=operations,
         errors=sorted([*errors, *BASE_EXCEPTIONS.items()]), has_changes=client.types.changes(),
         output_enums={f.value.c_type for c in conversions if c.to_java for f in c.fields if f.value.kind == "enum"})
+    from .hosts import generate_android_hosts
+    files.update(generate_android_hosts(client.types))
     return files
