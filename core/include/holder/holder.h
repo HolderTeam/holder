@@ -8,59 +8,6 @@ extern "C" {
 
 // Host callbacks awaiting generated bindings (see issue #364).
 
-// Raw signing callback for holder_git_set_ssh_signer. Given the challenge
-// bytes libssh2 wants signed, must return 0 and set *out_der_sig (malloc'd)
-// / *out_der_sig_len to a DER-encoded ECDSA-Sig-Value{r,s} produced by an
-// ecdsa-sha2-nistp256 (P-256/secp256r1) key, or return nonzero to indicate
-// a signing failure for this attempt. holder-core takes ownership of
-// *out_der_sig and frees it with free() after copying it.
-//
-// THREADING: may be invoked from any thread the host app performs a git
-// operation on, and multiple times over the signer's lifetime -- once per
-// git network operation that needs to authenticate, not once total. Do not
-// assume it runs on the thread that called holder_git_set_ssh_signer, and
-// do not cache anything thread-affine (e.g. a JNIEnv*) across calls.
-typedef int (*holder_ssh_sign_fn)(
-    void* user_data,
-    const unsigned char* data,
-    size_t data_len,
-    unsigned char** out_der_sig,
-    size_t* out_der_sig_len
-);
-
-// Called exactly once to release user_data: either when a later call to
-// holder_git_set_ssh_signer replaces this signer, or when context is
-// destroyed. May be NULL if user_data needs no cleanup.
-
-// Installs a custom SSH identity (e.g. an Android Keystore-backed key) for
-// all subsequent git network operations (test-remote/push/pull) on this
-// context, replacing the default ssh-agent/~/.ssh lookup.
-//
-// public_key_blob is the raw SSH wire-format ecdsa-sha2-nistp256 public key
-// blob (RFC 5656 3.1) -- NOT base64-encoded, NOT the
-// "ecdsa-sha2-nistp256 AAAA... comment" line.
-//
-// OWNERSHIP: this call takes ownership of user_data unconditionally, from
-// the moment it's called -- regardless of whether it succeeds. destroy_user_data
-// is guaranteed to run exactly once: immediately, before this call returns,
-// if it fails for any reason (including invalid arguments); or later, when a
-// subsequent call to holder_git_set_ssh_signer replaces this signer or
-// context is destroyed via holder_context_destroy, if it succeeds. Callers
-// never need to release user_data themselves on a failure return, and must
-// not release it eagerly on success (e.g. a JNI global reference must only
-// be freed from destroy_user_data, since sign_fn can be invoked at any point
-// up until then).
-int holder_git_set_ssh_signer(
-    holder_context* context,
-    const char* username,
-    const unsigned char* public_key_blob,
-    size_t public_key_blob_len,
-    holder_ssh_sign_fn sign_fn,
-    void* user_data,
-    holder_destroy_fn destroy_user_data,
-    holder_error** out_error
-);
-
 // -- Asset storage providers --
 //
 // A Location's `provider` field (e.g. "local_directory", "google-drive") selects which

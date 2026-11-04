@@ -240,7 +240,8 @@ class _Builder:
             self.problem(f"{cls.__name__} has no docstring")
         if typing.Protocol not in cls.__bases__:
             self.problem(f"{cls.__name__}: a host interface is a typing.Protocol")
-        signatures = [self.callable(cls.__dict__[name], f"{cls.__name__}.{name}", skip_self=True) for name in members]
+        signatures = [self.callable(cls.__dict__[name], f"{cls.__name__}.{name}", skip_self=True,
+                                    allow_bytes=True) for name in members]
         methods = [InterfaceMethodView(name=s.name, summary=s.summary, description=s.description,
                                        parameters=s.parameters, returns=s.returns) for s in signatures]
         self.draft.interfaces.append(InterfaceView(name=cls.__name__, source=source, doc=_doc(cls), methods=methods))
@@ -259,7 +260,8 @@ class _Builder:
             operation_source = self.declared.get(function.__module__, (self.app_source, None))[0]
             self.where = (operation_source, function.__code__.co_firstlineno)
             self.unique(function.__name__)
-            signature = self.callable(function, function.__name__, allow_stream=True)
+            signature = self.callable(function, function.__name__, allow_stream=True,
+                                      allow_bytes=operation.host is not None)
             errors = []
             for error in operation.errors:
                 if not (inspect.isclass(error) and issubclass(error, HolderError) and self.in_contract(error)):
@@ -279,8 +281,10 @@ class _Builder:
                                                           if operation.context != "required" else {}),
                                                        **({"error": operation.error} if operation.error else {}),
                                                        **({"host": host.__name__} if valid_host else {})))
-            if host is not None and (signature.parameters or signature.returns.kind != "none"):
-                self.problem(f"{function.__name__}: a host registration takes no declared parameters and returns None")
+            if host is not None and signature.returns.kind != "none":
+                self.problem(f"{function.__name__}: a host registration returns None")
+            if host is not None and operation.context == "none" and signature.parameters:
+                self.problem(f"{function.__name__}: a process-wide host registration takes no declared parameters")
             self.check_context(function.__name__, operation.context, signature)
             self.check_error(function.__name__, operation.error, signature)
             if operation.route:
@@ -308,7 +312,8 @@ class _Builder:
         if error == "closes" and signature.returns.kind != "none":
             self.problem(f"{name}: an operation that closes an error returns None")
 
-    def callable(self, function: Any, where: str, skip_self: bool = False, allow_stream: bool = False) -> _Signature:
+    def callable(self, function: Any, where: str, skip_self: bool = False, allow_stream: bool = False,
+                 allow_bytes: bool = False) -> _Signature:
         doc = _doc(function)
         if not doc:
             self.problem(f"{where} has no docstring")
@@ -325,7 +330,8 @@ class _Builder:
             if parameter.name not in hints:
                 self.problem(f"{name} has no type")
                 continue
-            out: dict[str, Any] = {"name": parameter.name, "type": self.ref(hints[parameter.name], name)}
+            out: dict[str, Any] = {"name": parameter.name,
+                                   "type": self.ref(hints[parameter.name], name, allow_bytes=allow_bytes)}
             doc_text = _annotated_description(hints[parameter.name])
             if doc_text:
                 out["doc"] = doc_text
@@ -334,7 +340,8 @@ class _Builder:
             parameters.append(ParameterView(**out))
         if "return" not in hints:
             self.problem(f"{where} has no return type; write -> None for none")
-        returns = self.ref(hints.get("return", type(None)), f"{where} result", allow_stream=allow_stream)
+        returns = self.ref(hints.get("return", type(None)), f"{where} result",
+                           allow_stream=allow_stream, allow_bytes=allow_bytes)
         return _Signature(where.rpartition(".")[2], summary.strip() or None,
                           description.strip() or None, parameters, returns)
 
@@ -445,10 +452,12 @@ class _Builder:
 
     # ---- types -------------------------------------------------------------------------------
 
-    def ref(self, tp: Any, where: str, allow_missing: bool = False, allow_stream: bool = False) -> TypeRef:
-        return TYPE_ADAPTER.validate_python(self._ref(tp, where, allow_missing, allow_stream))
+    def ref(self, tp: Any, where: str, allow_missing: bool = False, allow_stream: bool = False,
+            allow_bytes: bool = False) -> TypeRef:
+        return TYPE_ADAPTER.validate_python(self._ref(tp, where, allow_missing, allow_stream, allow_bytes))
 
-    def _ref(self, tp: Any, where: str, allow_missing: bool = False, allow_stream: bool = False) -> dict[str, Any]:
+    def _ref(self, tp: Any, where: str, allow_missing: bool = False, allow_stream: bool = False,
+             allow_bytes: bool = False) -> dict[str, Any]:
         origin, args = typing.get_origin(tp), typing.get_args(tp)
         if tp is JsonValue:
             return {"kind": "json"}
@@ -457,7 +466,7 @@ class _Builder:
             if native:
                 out = {"kind": native.kind, **({"format": native.format} if native.format else {})}
             else:
-                out = self._ref(args[0], where, allow_missing, allow_stream)
+                out = self._ref(args[0], where, allow_missing, allow_stream, allow_bytes)
             for item in args[1:]:
                 out.update(_constraints(item))
                 if isinstance(item, FieldInfo) and item.discriminator:
@@ -477,7 +486,7 @@ class _Builder:
                 self.problem(f"{where}: only a record's fields may be omittable (MISSING)")
             present = [a for a in args if a is not MISSING]
             nullable = type(None) in present
-            alternatives = [self._ref(a, where) for a in present if a is not type(None)]
+            alternatives = [self._ref(a, where, allow_bytes=allow_bytes) for a in present if a is not type(None)]
             if not alternatives:
                 self.problem(f"{where}: a union needs a type besides None")
                 return {"kind": "none"}
@@ -498,7 +507,7 @@ class _Builder:
                 self.problem(f"{where}: only an operation's result can be a Stream")
             return {"kind": "stream", "items": self._ref(args[0], where)}
         if tp is Bytes:
-            if not allow_stream:
+            if not (allow_stream or allow_bytes):
                 self.problem(f"{where}: only an operation's result can be Bytes")
             return {"kind": "bytes"}
         if tp is str:

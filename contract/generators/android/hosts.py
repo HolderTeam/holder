@@ -34,6 +34,16 @@ def generate_android_hosts(types: CoreTypes) -> dict[str, str]:
             files["apps/mobile/android/app/src/main/cpp/generated/keyring_provider_host.cpp"] = \
                 TEMPLATES.get_template("keyring.cpp.j2").render()
             continue
+        if interface.name == "SshSigner":
+            if {name: method_shape(method) for name, method in methods.items()} != {
+                "sign": (("bytes",), "bytes")
+            } or tuple(shape(parameter.type) for parameter in op.parameters) != ("string", "bytes") or \
+                    op.context != "required":
+                raise Unsupported("Android host adapter does not support SshSigner's callback shapes")
+            files[f"{KOTLIN_DIR}/SshSigner.kt"] = TEMPLATES.get_template("signer.kt.j2").render()
+            files["apps/mobile/android/app/src/main/cpp/generated/ssh_signer_host.cpp"] = \
+                TEMPLATES.get_template("signer.cpp.j2").render()
+            continue
         # The pilot's supported shape is checked here as well as in CoreTypes: JNI needs an
         # explicit lowering for every method shape before another host interface can use it.
         if interface.name != "TimeZoneProvider" or {

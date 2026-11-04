@@ -93,6 +93,8 @@ class Values:
                              allow_infinity=False, exclude_min="gt" in t, exclude_max="lt" in t)
         if kind == "bool":
             return st.booleans()
+        if kind == "bytes":
+            return st.binary(max_size=32)
         if kind == "literal":
             return st.sampled_from(t["values"])
         if kind == "nullable":
@@ -244,6 +246,8 @@ class Values:
             return out
         if kind == "bool":
             return [] if isinstance(value, bool) else [f"{where} is not a boolean"]
+        if kind == "bytes":
+            return [] if isinstance(value, bytes) else [f"{where} is not bytes"]
         if kind == "literal":
             return [] if value in t["values"] and type(value) is type(t["values"][0]) \
                 else [f"{where} is not one of {t['values']}"]

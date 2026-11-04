@@ -5,7 +5,7 @@
 // keyrings (libsecret/Keychain/Windows Credential Manager) holder-core otherwise
 // relies on for encrypted_git project keys and other secrets. See holder/holder_api.h
 // for the C ABI's exact ownership/threading contract this implements against; it
-// is the same contract holder_git_signer.cpp implements for the SSH signer.
+// is the same contract the generated SSH signer adapter implements.
 
 #include "holder/holder_api.h"
 
@@ -30,7 +30,7 @@ struct KeyringBridgeContext {
   jmethodID remove_method = nullptr;
 };
 
-// See holder_git_signer.cpp's identical helper for why this dance is needed:
+// JNIEnv pointers are thread-local, so each callback obtains its own:
 // JNIEnv* is thread-local, these callbacks can run on any thread over the
 // provider's lifetime, and a thread must only be detached by whoever attached
 // it.

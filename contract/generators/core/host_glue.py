@@ -6,6 +6,7 @@ from compiler.ir import NullableType
 
 from ..common import contract_sources, header_lines
 from .abi import snake
+from .render import c_signature
 from .types import CoreTypes
 
 
@@ -14,7 +15,7 @@ def generate_host_glue(types: CoreTypes) -> str:
                          "The C callback adapters for host-implemented contract interfaces.", "cpp"),
            '#include "Contract.h"', '#include "holder/holder_api.h"', "", "#include <cstdint>",
            "#include <cstdlib>", "#include <memory>", "#include <new>", "#include <optional>",
-           "#include <stdexcept>", "#include <string>", "", "namespace {", ""]
+           "#include <stdexcept>", "#include <string>", "#include <vector>", "", "namespace {", ""]
     for op in types.host_operations:
         interface = types.contract.interface(op.host)
         callbacks = f"holder_{snake(interface.name)}_callbacks"
@@ -28,7 +29,8 @@ def generate_host_glue(types: CoreTypes) -> str:
             nullable = isinstance(result, NullableType)
             value_kind = types.resolve(result.value).type.kind if nullable else result.kind
             returns = (f"std::optional<{'long long' if value_kind == 'int64' else 'std::string'}>"
-                       if nullable else "std::string" if value_kind == "string" else "void")
+                       if nullable else "std::vector<unsigned char>" if value_kind == "bytes" else
+                       "std::string" if value_kind == "string" else "void")
             params = []
             call_args = ["user_data_"]
             for parameter in method.parameters:
@@ -36,10 +38,14 @@ def generate_host_glue(types: CoreTypes) -> str:
                 optional = isinstance(ref, NullableType)
                 kind = types.resolve(ref.value).type.kind if optional else ref.kind
                 value_type = "const std::optional<std::string>&" if optional else \
+                    "const std::vector<unsigned char>&" if kind == "bytes" else \
                     "const std::string&" if kind == "string" else "long long" if kind == "int64" else "int"
                 params.append(f"{value_type} {parameter.name}")
-                call_args.append(f"{parameter.name} ? {parameter.name}->c_str() : nullptr" if optional else
-                                 f"{parameter.name}.c_str()" if kind == "string" else parameter.name)
+                if kind == "bytes":
+                    call_args.extend([f"{parameter.name}.data()", f"{parameter.name}.size()"])
+                else:
+                    call_args.append(f"{parameter.name} ? {parameter.name}->c_str() : nullptr" if optional else
+                                     f"{parameter.name}.c_str()" if kind == "string" else parameter.name)
             out += [f"  {returns} {method.name}({', '.join(params)}) override {{"]
             if nullable and value_kind == "int64":
                 out += ["    int64_t value = 0;", "    int present = 0;"]
@@ -47,11 +53,16 @@ def generate_host_glue(types: CoreTypes) -> str:
             elif value_kind == "string":
                 out.append("    char* value = nullptr;")
                 call_args.append("&value")
+            elif value_kind == "bytes":
+                out += ["    unsigned char* value = nullptr;", "    size_t value_len = 0;"]
+                call_args += ["&value", "&value_len"]
             out += ["    char* error = nullptr;",
                     f"    const int status = callbacks_.{method.name}({', '.join([*call_args, '&error'])});",
                     "    std::unique_ptr<char, decltype(&std::free)> error_owner(error, &std::free);"]
             if value_kind == "string":
                 out.append("    std::unique_ptr<char, decltype(&std::free)> value_owner(value, &std::free);")
+            elif value_kind == "bytes":
+                out.append("    std::unique_ptr<unsigned char, decltype(&std::free)> value_owner(value, &std::free);")
             fallback = f"{snake(interface.name.removesuffix('Provider'))} {method.name} failed"
             out += [f'    if (status != 0) throw std::runtime_error(error ? error : "{fallback}");']
             if nullable and value_kind == "int64":
@@ -62,6 +73,9 @@ def generate_host_glue(types: CoreTypes) -> str:
             elif value_kind == "string":
                 out += [f'    if (!value) throw std::runtime_error("{interface.name}.{method.name}: null string result");',
                         "    return std::string(value);"]
+            elif value_kind == "bytes":
+                out += [f'    if (!value && value_len != 0) throw std::runtime_error("{interface.name}.{method.name}: null byte result");',
+                        "    return value_len ? std::vector<unsigned char>(value, value + value_len) : std::vector<unsigned char>{};"]
             out += ["  }", ""]
         out += [" private:", f"  {callbacks} callbacks_;", "  void* user_data_;",
                 "  holder_destroy_fn destroy_;", "};", ""]
@@ -71,8 +85,7 @@ def generate_host_glue(types: CoreTypes) -> str:
         callbacks = f"holder_{snake(interface.name)}_callbacks"
         adapter = f"C{interface.name}Callbacks"
         missing = " || ".join(f"callbacks->{method.name} == nullptr" for method in interface.methods)
-        out += [f"extern \"C\" int holder_{op.name}(const {callbacks}* callbacks, void* user_data,",
-                "                                       holder_destroy_fn destroy_user_data, holder_error** out_error) {",
+        out += [f'extern "C" {c_signature(types, op)} {{',
                 "  if (out_error) *out_error = nullptr;",
                 f"  std::shared_ptr<{adapter}> provider;", "  try {",
                 f"    provider = std::make_shared<{adapter}>(callbacks ? *callbacks : {callbacks}{{}},",
@@ -83,7 +96,20 @@ def generate_host_glue(types: CoreTypes) -> str:
                 "  }",
                 f"  if (!callbacks || {missing})",
                 f'    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "{interface.name} callbacks are required");',
-                "  try {", f"    holder::contract::{op.name}(provider);", "    return HOLDER_OK;",
+                ]
+        if op.context == "required":
+            out += ["  if (!context)",
+                    '    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context is required");']
+        call_args = ["context"] if op.context == "required" else []
+        for parameter in op.parameters:
+            kind = types.resolve(parameter.type).type.kind
+            out += [f"  if (!{parameter.name}" + (f" || {parameter.name}[0] == '\\0'" if kind == "string"
+                                             else f" || {parameter.name}_len == 0") + ")",
+                    f'    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "{parameter.name} is required");']
+            call_args.append(f"std::string({parameter.name})" if kind == "string" else
+                             f"std::vector<unsigned char>({parameter.name}, {parameter.name} + {parameter.name}_len)")
+        call_args.append("provider")
+        out += ["  try {", f"    holder::contract::{op.name}({', '.join(call_args)});", "    return HOLDER_OK;",
                 "  } catch (const std::bad_alloc&) {",
                 '    return holder::contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");',
                 "  } catch (const std::exception& error) {",

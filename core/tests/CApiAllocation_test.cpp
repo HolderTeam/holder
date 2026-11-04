@@ -47,7 +47,7 @@ int main() {
       result = holder_register_keyring_provider(nullptr, &destroyed, destroy, &error);
       break;
     case 2:
-      result = holder_git_set_ssh_signer(
+      result = holder_register_ssh_signer(
           nullptr,
           nullptr,
           nullptr,

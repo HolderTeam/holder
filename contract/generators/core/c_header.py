@@ -54,7 +54,10 @@ def host_callback(types: CoreTypes, method) -> str:
     for param in method.parameters:
         ref = types.resolve(param.type).type
         kind = types.resolve(ref.value).type.kind if isinstance(ref, NullableType) else ref.kind
-        args.append(f"{ {'string': 'const char*', 'int32': 'int32_t', 'int64': 'int64_t'}[kind] } {param.name}")
+        if kind == "bytes":
+            args.extend([f"const unsigned char* {param.name}", f"size_t {param.name}_len"])
+        else:
+            args.append(f"{ {'string': 'const char*', 'int32': 'int32_t', 'int64': 'int64_t'}[kind] } {param.name}")
     result = types.resolve(method.returns).type
     if isinstance(result, NullableType):
         if types.resolve(result.value).type.kind == "int64":
@@ -63,6 +66,8 @@ def host_callback(types: CoreTypes, method) -> str:
             args.append("char** out_value")
     elif result.kind == "string":
         args.append("char** out_value")
+    elif result.kind == "bytes":
+        args.extend(["unsigned char** out_value", "size_t* out_value_len"])
     args.append("char** out_error")
     return f"    int (*{method.name})({', '.join(args)});"
 
@@ -100,7 +105,8 @@ def generate_c_header(types: CoreTypes) -> str:
                 out.append(host_callback(types, method))
             out += [f"}} {name};", "",
                     "/* Each callback returns zero on success; nonzero may set malloc-owned *out_error.",
-                    " * String results are malloc-owned by core. Null strings mean absence only for nullable results.",
+                    " * String and byte results must be malloc-allocated; core frees them after copying.",
+                    " * Null strings mean absence only for nullable results.",
                     " * A null numeric result sets *out_present=0. */", ""]
     for alias, ref in types.maps.items():
         name = map_c_name(alias)
@@ -142,7 +148,7 @@ def generate_c_header(types: CoreTypes) -> str:
             out += [f"typedef struct {instance.c_name}_list {{", f"    const {instance.c_name}* items;",
                     "    size_t count;", f"}} {instance.c_name}_list;", ""]
     for op in types.operations:
-        params = [c_param(types, op, p) for p in op.parameters]
+        params = [] if op.host else [c_param(types, op, p) for p in op.parameters]
         for param in params:
             if param.enum_lines:
                 out += [*param.enum_lines, ""]
