@@ -19,10 +19,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import team.holder.android.contract.NewProject
 import team.holder.android.contract.NewProjectPrivacyMode
+import team.holder.android.contract.HostServices
 import team.holder.android.contract.StorageErrorCode
 import team.holder.android.contract.StorageFailure
 import team.holder.android.contract.StorageHosts
 import team.holder.android.contract.StorageProvider
+import team.holder.android.contract.TimeZoneProvider
+import team.holder.android.time.AndroidTimeZones
 
 /**
  * Representative Kotlin -> JNI -> C API -> libholder tests.
@@ -72,7 +75,9 @@ class HolderNativeIntegrationTest {
 
         val objects = mutableMapOf<String, ByteArray>()
         var callbackThread: Thread? = null
+        var reentryRejected = false
         var failNextPut = true
+        val source = File(dataDir, "storage-host.txt").apply { writeText("storage host bytes") }
         StorageHosts.registerStorageProvider("google-drive", object : StorageProvider {
             override fun put(objectKey: String, stagedFilePath: String, storedSize: Long, storedSha256: String) {
                 callbackThread = Thread.currentThread()
@@ -80,6 +85,10 @@ class HolderNativeIntegrationTest {
                     failNextPut = false
                     throw StorageFailure(StorageErrorCode.CAPACITY.ordinal, "test quota exceeded")
                 }
+                val reentry = assertThrows(IllegalStateException::class.java) {
+                    HolderNative.importAsset(project.projectId, card.cardId, locationId, source.absolutePath)
+                }
+                reentryRejected = reentry.message.orEmpty().contains("already executing a native call")
                 val bytes = File(stagedFilePath).readBytes()
                 assertEquals(storedSize, bytes.size.toLong())
                 objects[objectKey] = bytes
@@ -91,7 +100,6 @@ class HolderNativeIntegrationTest {
             override fun remove(objectKey: String) { objects.remove(objectKey) }
         })
 
-        val source = File(dataDir, "storage-host.txt").apply { writeText("storage host bytes") }
         val failure = assertThrows(RuntimeException::class.java) {
             HolderNative.importAsset(project.projectId, card.cardId, locationId, source.absolutePath)
         }
@@ -100,12 +108,60 @@ class HolderNativeIntegrationTest {
 
         val imported = HolderNative.importAsset(project.projectId, card.cardId, locationId, source.absolutePath)
         assertNotEquals(Thread.currentThread(), callbackThread)
+        assertTrue(reentryRejected)
         val placement = HolderNative.getResource(project.projectId, imported.resourceId)
             .assets.single().placements.single()
         val destination = File(dataDir, "retrieved.txt")
         HolderNative.retrieveAsset(imported.resourceId, imported.assetId, placement.placementId,
                                    destination.absolutePath)
         assertEquals(source.readText(), destination.readText())
+    }
+
+    @Test
+    fun generatedTimeZoneHost_attachesNativeThreadAndReplacesFailedCallback() {
+        initialize()
+        val project = HolderNative.createProject("Native thread callbacks", "plain")
+        var failedCalls = 0
+        var successfulCalls = 0
+        var callbackThread: Thread? = null
+        try {
+            HostServices.registerTimeZoneProvider(object : TimeZoneProvider {
+                override fun currentZone(): String {
+                    failedCalls++
+                    throw IllegalStateException("test time-zone callback failure")
+                }
+                override fun utcOffset(zone: String, utcSeconds: Long): Long? = 0
+            })
+            val failureStatus = HolderNative.onContract { handle ->
+                HostAdapterNativeProbe.calendarFromNativeThread(handle, project.projectId)
+            }
+            assertNotEquals(0, failureStatus)
+            assertTrue(failedCalls > 0)
+            val callsBeforeReplacement = failedCalls
+
+            HostServices.registerTimeZoneProvider(object : TimeZoneProvider {
+                override fun currentZone(): String {
+                    successfulCalls++
+                    callbackThread = Thread.currentThread()
+                    return "UTC"
+                }
+                override fun utcOffset(zone: String, utcSeconds: Long): Long? {
+                    successfulCalls++
+                    return 0
+                }
+            })
+            HolderNative.onContract { handle ->
+                val laneThread = Thread.currentThread()
+                repeat(2) {
+                    assertEquals(0, HostAdapterNativeProbe.calendarFromNativeThread(handle, project.projectId))
+                }
+                assertNotEquals(laneThread, callbackThread)
+            }
+            assertTrue(successfulCalls >= 2)
+            assertEquals(callsBeforeReplacement, failedCalls)
+        } finally {
+            AndroidTimeZones.register()
+        }
     }
 
     @Test
