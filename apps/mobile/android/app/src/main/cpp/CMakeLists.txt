@@ -33,4 +33,7 @@ set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 add_subdirectory("${HOLDER_CORE_DIR}" "${CMAKE_BINARY_DIR}/holder-core")
 
 add_library(holder_jni SHARED generated/contract_client.cpp generated/time_zone_provider_host.cpp generated/keyring_provider_host.cpp generated/ssh_signer_host.cpp generated/storage_provider_host.cpp)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  target_sources(holder_jni PRIVATE host_adapter_probe.cpp)
+endif()
 target_link_libraries(holder_jni PRIVATE Holder::Core)
