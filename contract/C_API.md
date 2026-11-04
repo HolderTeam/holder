@@ -1,12 +1,8 @@
 # The generated C API
 
-`make -C contract update` writes three files from the contract into core, and `make -C contract check` fails when they are out of date:
+The C API is the native expression of [Holder's contract](README.md). It lets applications embed core using the same declared operations and types that underlie shared HTTP operations. The generator supplies C calling conventions, validation, error translation and memory ownership; core implements the domain behavior.
 
-- **`core/include/holder/holder_api.h`:** the standalone C declarations consumers use: opaque handles, records, operations, host callbacks, error codes, and the arena.
-- **`core/src/api/Contract.h`:** the C++ declarations core implements, one function per operation, in `holder::contract`, a namespace of its own so nothing clashes with the daemon's `holder::api`. A missing implementation fails to link.
-- **`core/src/api/ContractCApi.cpp`:** the C entry points. Each checks its arguments against the contract, calls core's function, copies the result into the caller's arena, and turns error kinds into status codes. Core never sees a null pointer, an out-of-range number or an unknown enum value.
-
-Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A record's C++ struct inherits the record it extends, so `CardMetadata` is one type; core's `holder::model::Card` is an alias of it. In C++, 64-bit integers are `long long`, as in the rest of core; the glue converts them to `int64_t` at the C boundary. `tests/c/` compiles the generated files against a stand-in for core and runs them.
+The public header is [`holder_api.h`](../core/include/holder/holder_api.h). Generated C++ declarations and glue connect it to implementations in [`core/src/api/`](../core/src/api/). Change the Python declarations or generators, then run `make -C contract update`; keep the regenerated files with the change. See [core's consumption model](../core/README.md#consumption-model) for building against the library and its compatibility policy.
 
 ## Conventions
 
@@ -28,7 +24,7 @@ Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A recor
 - **Nullable and optional values:**
   - A nullable or absent string is `NULL`.
   - A nullable, absent or defaulted number in a record is a pointer, `NULL` when absent.
-- **Partial updates:** a field of an input record that is both nullable and omittable, such as a card's new parent in an update, is a `holder_string_change`: `{change, value}`, where `change` is `HOLDER_KEEP` (zero, so a zeroed record changes nothing), `HOLDER_SET` (to `value`) or `HOLDER_CLEAR` (to null). In C++ it is a `Change<T>`, `std::optional<std::optional<T>>`: `nullopt` keeps the field, an empty value clears it. Only strings have them so far, and results never do.
+- **Partial updates:** a field of an input record that is both nullable and omittable, such as a card's new parent in an update, is a `holder_string_change`: `{change, value}`, where `change` is `HOLDER_KEEP` (zero, so a zeroed record changes nothing), `HOLDER_SET` (to `value`) or `HOLDER_CLEAR` (to null). In C++ it is a `Change<T>`, `std::optional<std::optional<T>>`: `nullopt` keeps the field, an empty value clears it.
 - **Lists:** a list is a `{items, count}` struct.
 - **Parameter defaults:**
   - A parameter whose default is the zero value (`false`, `0`) is passed by value, so zero means the default.
@@ -37,9 +33,9 @@ Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A recor
 - **Choices:**
   - A choice of literals is an enum. Its zero member is `…_DEFAULT` when the parameter has a default, and the other members start at 1.
   - A choice between literals and a string, such as `"roots"` or a card ID, is a `{kind, value}` struct whose zero kind means null.
-  - A required choice of strings in an input record is an enum named for the record and the field, such as `holder_card_move_intent`, whose members start at 1; the glue rejects zero. In C++ it is an `enum class` (`CardMoveIntent`). Optional choices, and choices in results, are not supported yet.
+  - A required choice of strings in an input record is an enum named for the record and the field, such as `holder_card_move_intent`, whose members start at 1; the glue rejects zero. In C++ it is an `enum class` (`CardMoveIntent`).
   - Every enum ends with `…_MAX_ENUM = 0x7FFFFFFF`, so any `int` is a valid value of the type and the glue can reject a bad one without undefined behaviour.
 - **Input records** are passed by pointer. A zeroed record means every optional field is absent: `holder_new_card card = {0};` then set what you need.
 - **Generic records** are generated for each use: `Page[CardListItem]` becomes `holder_card_list_item_page`.
 
-Daemon-only operations are left out. Parts of the vocabulary the C generator does not support yet stop generation with a message naming them: enums, error kinds with fields, maps, free-form JSON, secrets, streams, bytes in operations, partial updates of anything but a string, and constraints the glue cannot check yet (`pattern`, and bounds on a `float64`). Each is added when the first contract declaration needs it.
+Operations declared only for the daemon are outside the C API. When a native declaration uses a shape the generator cannot represent, generation must fail with a diagnostic. Extend the generator and its tests before exposing that shape; the declaration remains the source of the interface.

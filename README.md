@@ -18,9 +18,9 @@ Download Holder for Windows, macOS or Linux from [holder.team](https://holder.te
 
 ## In this repository
 
+- [`contract/`](contract/) - Holder's public programming interface, declared in Python using Pydantic and FastAPI. It generates the C API, OpenAPI and code that connects implementations and clients.
 - [`core/`](core/) - Holder Core (`libholder`): the engine, its C API and its own CMake build, which does not depend on anything else here.
 - [`daemon/`](daemon/) - the Holder daemon (`holderd`), its HTTP API and its CMake build, which also builds `holderctl`.
-- [`contract/`](contract/) - the Python source of truth for shared operations and types, with generators for core's C API, Android's Kotlin/JNI client, the daemon's HTTP routes and OpenAPI.
 - [`api/`](api/) - the generated HTTP schema (`openapi.yaml`), `API_VERSION` and client documentation.
 - [`cli/`](cli/) - `holderctl`, the command line client, including `holderctl ensure`.
 - [`common/`](common/) - platform code shared by the daemon and `holderctl`.
@@ -32,15 +32,18 @@ Download Holder for Windows, macOS or Linux from [holder.team](https://holder.te
 
 ## Developing Holder
 
-Start with the guide for the component you are changing:
+Holder uses contract-first development. Public operations, data types and their meaning are
+defined in the [Python contract](contract/README.md). The C API and OpenAPI specification are
+generated from it; core and the daemon implement the behavior behind those interfaces. Start
+an interface change in the contract, regenerate, and update implementations and affected clients
+together.
+
+For component-specific work, start with its guide:
 
 - [Core](core/README.md#consumption-model) and [daemon](daemon/docs/development.md), including [core build options](daemon/docs/core-builds.md)
 - [HTTP contract](api/README.md#changing-the-contract) and [GTK desktop](apps/desktop/gtk/README.md#development)
 - [Android](apps/mobile/android/README.md#local-development) and its [development notes](apps/mobile/android/DEVELOPMENT.md)
 - [Holder for Python](python/holder/docs/development.md) and [Holder Kit](python/kit/docs/development.md)
-
-These guides describe the current interfaces and build boundaries. When changing an
-interface, update its owning contract and tests in the same pull request.
 
 ## Version
 

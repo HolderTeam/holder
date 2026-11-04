@@ -1,172 +1,58 @@
-# contract
+# Holder's contract
 
-Holder's interface, written once. Nothing in this directory runs in Holder.
+Holder's public programming interface is defined in Python, using Pydantic models and FastAPI declarations. The contract describes the operations callers can use, the data they exchange, the errors they can encounter, and the meaning of those operations.
 
-These files describe every record, operation, error and event that core, the daemon and the clients share. A generator turns them into code that does run: `holder_api.h`, the C++ declarations core implements, the daemon's routes and OpenAPI, and the client libraries. To change Holder's interface, edit these files; to change what it does, edit the code that implements it.
+The C API and OpenAPI specification are generated expressions of that contract. Embedding Holder and talking to a running daemon are different ways to use the same system. Their interfaces should agree wherever they expose the same operation.
 
-The operations are a FastAPI app, but a declaration, not a server: each is a route with a typed signature and a docstring, and a body nothing ever calls. The daemon serves the routes from code generated from the contract.
+## What the contract owns
 
-The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). Today the contract declares the Card slice ([#289](https://github.com/HolderTeam/holder/issues/289)): getting, listing, creating, changing, moving, trashing and restoring cards. The C generator writes core's C API for it, described in [C_API.md](C_API.md), and core implements it in `core/src/api/`. The daemon's generators write its HTTP routes, their JSON codec and their OpenAPI paths, described in [HTTP.md](HTTP.md).
+The declarations in [`interface/`](interface/) are the source of truth for public operations and types. They bring together signatures, constraints, defaults, errors, and documentation. Operations declare where they are available: some belong to core, some to the daemon, and some are exposed through both.
 
-## Layout
+Pydantic supplies the language for data shapes and constraints. FastAPI supplies the language for HTTP bindings and produces the basis of the OpenAPI document. The contract also describes what native callers need, including sized numbers, context lifetimes and host callbacks.
 
-- `interface/` is the contract, one package per domain. Each keeps its model modules (usually `models.py`) beside its `operations.py`; some have more than one, such as `projects/ids.py` for the Project ID other domains share. Supporting domains such as `pagination/` hold what several domains use. `errors.py` holds the error kinds every domain shares, and a domain's own `errors.py` those particular to it; `app.py` assembles the operations and gives each error kind its HTTP status and C error code, and `DECLARATION_ORDER` in `__init__.py` fixes model ordering independently of file paths.
-- `authoring/` is the Pydantic and FastAPI vocabulary imported by the contract: records, native types, errors, host interfaces and route declarations.
-- `compiler/` holds declaration rules, source loading, the target-independent Pydantic IR, `Compiler.compile(ContractSource)`, and the `python -m compiler` CLI.
-- `generators/` describes the backend boundary in its [README](generators/README.md). It holds every target's generators: core's C API, the daemon's routes, codecs and OpenAPI, and Android's Kotlin/JNI client.
-- `test_support/` holds mutable dictionary IR fixtures and Hypothesis value strategies used only by tests and conformance checks.
-- `tests/` tests the tooling: the extractor against a sample contract in `tests/fixtures/sample/`, which uses every part of the vocabulary; the generators' output by compiling and running it against a stand-in for core (`tests/c/` for the C API, `tests/http/` for the routes); and the strategies against the conformance check and Pydantic. Core's own tests (`core/tests/CApiCards_test.cpp`) run the real implementation.
-- `tests/conformance/` tests Holder against the contract: Hypothesis calls the operations, with arguments from the strategies, through the generated C API of a shared `libholder` and over HTTP against a `holderd`, and checks each result against its declared type and against a model of what it should be. Over HTTP, every response must also be one its route declares: a status it lists, and a body its Pydantic model accepts. Schemathesis (`test_schemathesis.py`) also sends the daemon requests valid and invalid by `api/openapi.json`, for the contract's routes, and checks each answer against the document. Core CI runs them through the C API on Linux, and Daemon CI over HTTP.
+Descriptions are part of the contract. A schema can say that an operation accepts a card ID; its description says what happens if that card is in the trash. Such rules belong beside the declaration, with behavioral tests that check the implementation keeps the promise.
 
-None of this is built, packaged or published. `pyproject.toml` holds only tool settings, and CI checks that code outside this directory does not depend on the contract tooling ([.github/scripts/check-contract-boundary.py](../.github/scripts/check-contract-boundary.py)). The generated Python client has its own models, even where they look like the contract's records.
+## From declaration to implementation
 
-## Working on it
+```text
+Python contract
+    ├── C API → applications embedding core
+    ├── OpenAPI → HTTP clients and client libraries
+    └── generated types, validation and adapters → core and daemon implementations
+```
 
-Python 3.12 or later, with the pinned tools:
+The compiler checks declarations and gives generators a shared representation of them. Generators translate the interface into the conventions of each target: C calling conventions and memory ownership, HTTP requests and responses, or a client language's types.
+
+Core and the daemon implement the behavior behind those interfaces. Core owns reusable domain behavior; the daemon supplies the running service and its HTTP transport. Clients use the public interface appropriate to their environment. The Python contract tooling runs during development and generation; deployed Holder components use its outputs.
+
+The design goal is that each public interface decision is made once. A field, default, error or response shape should flow from its declaration to every affected boundary. Handwritten adapters still exist; as generation expands, their interface mechanics belong in generators, while their application behavior stays in the implementation. This is the direction for new work as well as the standard for reviewing existing code.
+
+## Changing Holder
+
+Start an interface change in the contract. Describe the operation and its meaning, regenerate the affected interfaces, then implement and test the behavior. Include the declarations, generated files and affected consumers in the same change. A change entirely behind an existing interface can stay in the implementation.
+
+Generated files are committed so they can be reviewed and built without the contract tooling. Edit their source declarations or generators, then regenerate. When a target cannot express a declaration, extend its generator or revise the design explicitly; generation must not silently drop part of the contract.
+
+Review both shape and meaning. Generated-file checks detect drift. Compilation checks that implementations and consumers fit the generated interfaces. Conformance tests exercise the real C and HTTP interfaces against declared types and behavioral expectations. Compatibility includes changes in meaning even when signatures stay the same; see the [HTTP compatibility policy](../api/README.md#changing-the-contract) and [core's consumption model](../core/README.md#consumption-model).
+
+## Working on the contract
+
+Use Python 3.12 or later and the pinned dependencies:
 
 ```sh
 python3 -m pip install -r contract/requirements.txt
-make -C contract check    # lint, test, and check the contract
-make -C contract ir       # write the IR to contract/build/ir.json
-make -C contract update   # after changing the contract or a generator: rewrite the generated files in core, Android, daemon/ and api/
+make -C contract update   # regenerate interfaces
+make -C contract check    # lint, tests, declaration checks and generated-file freshness
 ```
 
-`check` fails when a generated file in core, Android, the daemon or `api/` differs from what the contract produces. Commit the contract change and the regenerated files together.
+The Python HTTP client has a separate generation step described in its [development guide](../python/holder/docs/development.md).
 
-`python -m compiler check` reports every problem in the contract at once, each with its file and line.
+To exercise real implementations, set `HOLDER_LIBRARY` to a shared `libholder` and/or `HOLDER_DAEMON` to a `holderd`, built from the same checkout, then run `python3 -m pytest contract/tests/conformance`. Without those settings, the corresponding integration tests are skipped.
 
-The conformance tests run through the C API when `HOLDER_LIBRARY` names a shared `libholder`, and over HTTP when `HOLDER_DAEMON` names a `holderd`, each built from the same commit; without them they are skipped:
+## Further reading
 
-```sh
-cmake -S core -B core/build -DHOLDER_CORE_BUILD_SHARED=ON && cmake --build core/build
-daemon/make.sh build
-HOLDER_LIBRARY=$PWD/core/build/libholder.so HOLDER_DAEMON=$PWD/daemon/build/holderd \
-  python3 -m pytest contract/tests/conformance
-```
+- [Writing the contract](AUTHORING.md): declaration examples and vocabulary.
+- [C API conventions](C_API.md) and [HTTP conventions](HTTP.md): how the contract is expressed to callers.
+- [Compiler representation](IR.md) and [generator responsibilities](generators/README.md): working on the tooling.
 
-`HOLDER_CONFORMANCE_EXAMPLES` sets how many runs Hypothesis makes; the default is 25, and CI uses 100. A new operation needs rules in a conformance test, so that the model says what it should do. Schemathesis covers a route once it is in the contract; a rule the document cannot state, such as which cursors are valid, goes in `stated_in_words` there.
-
-## Writing the contract
-
-A contract package is a set of domain packages. Each has model modules for its records, error kinds and host interfaces, usually `models.py` and `errors.py`, and an `operations.py` for its operations. Errors every domain shares go in the package's own `errors.py`. `app.py` gives every error kind its status and code and assembles the domains in order, and `DECLARATION_ORDER` in `__init__.py` names every model module:
-
-```python
-"""Cards."""  # cards/models.py, a model module
-
-from typing import Annotated
-
-from authoring import Field, Record, Timestamp
-
-type CardId = Annotated[str, Field(min_length=1)]
-"""A card's ID."""
-
-
-class Card(Record):
-    """A card in a project."""
-
-    card_id: CardId
-    """The card's ID."""
-    parent_card_id: CardId | None
-    """Null for a root card."""
-    deleted_at: Timestamp | None
-    """When the card was moved to the trash; null when it is not in the trash."""
-```
-
-```python
-"""Errors every domain shares."""  # errors.py
-
-from authoring import HolderError
-
-
-class NotFound(HolderError):
-    """The thing asked for does not exist, or is in the trash."""
-```
-
-```python
-"""Errors particular to cards."""  # cards/errors.py
-
-from authoring import HolderError
-
-
-class InvalidMove(HolderError):
-    """A card cannot go where it was asked to."""
-```
-
-```python
-"""Card operations."""  # cards/operations.py
-
-from typing import Annotated
-
-from fastapi import Body, Path
-
-from authoring import Contract
-
-from ..errors import NotFound
-from ..projects.ids import ProjectId
-from .errors import InvalidMove
-from .models import Card, CardId, CardMove
-
-def register(contract: Contract) -> None:
-    @contract.route("GET", "/projects/{project_id}/cards/{card_id}", errors=[NotFound])
-    def get_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()]) -> Card:
-        """Fetch a card.
-
-        A card in the trash or in another project is not found.
-        """
-
-    @contract.route("POST", "/projects/{project_id}/cards/{card_id}/move", errors=[NotFound, InvalidMove])
-    def move_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()],
-                  move: Annotated[CardMove, Body()]) -> Card:
-        """Move a card."""
-```
-
-```python
-"""Assemble the public contract."""  # app.py
-
-from authoring import Contract
-from .cards import operations as card_operations
-from .cards.errors import InvalidMove
-from .errors import NotFound
-
-contract = Contract(errors={NotFound: (404, 4040), InvalidMove: (422, 4220)})
-card_operations.register(contract)
-app = contract.app
-```
-
-```python
-"""Holder's contract."""  # __init__.py
-
-DECLARATION_ORDER = ("errors", "projects.ids", "cards.models", "cards.errors")
-```
-
-A model module may contain only:
-
-- imports from `typing`, `enum`, `pydantic`, `authoring` and other contract modules;
-- **records**: subclasses of `Record`, whose fields are documented by the string under each one. A record rejects fields it does not have, in requests and results alike (clients should still read results leniently), and a generic record's use is named for its arguments: `Page[CardListItem]` is `CardListItemPage`;
-- **enums**: subclasses of `StrEnum`;
-- **error kinds**: direct subclasses of `HolderError`, optionally with fields;
-- **host interfaces**: `typing.Protocol` classes marked `@host_interface`, for callbacks core makes into the host, such as a keyring provider;
-- **named types**: `type` statements, never plain assignments, so generators keep the name.
-- **constants**: documented capitalised strings, `NAME: Final = "..."`, for text every platform must take from one place, such as Home's name and welcome card. They reach core's `Contract.h` and the Android client.
-
-Anything else, such as a validator, a `model_config`, a function or any other assignment, is rejected before the file is imported, so a file that breaks the rules never runs.
-
-`app.py` makes one `Contract` (`authoring.routes`) and calls each domain's `register(contract)` in public operation order. An operation module may import FastAPI's declaration helpers and define only route functions inside `register`; their bodies never run. `DECLARATION_ORDER` names every model module in the required IR order, so moving a module does not silently reorder declarations:
-
-- **routes:** `@contract.route(method, path, errors=[...], status=..., core=...)` on a function whose body never runs. Each parameter says where it comes from, with FastAPI's `Path()`, `Query()` or `Body()`, which also carry its documentation (`Query(description=...)`). `errors` lists the error kinds it may fail with, besides an invalid argument; `status` is the success status, 200 unless given; `core=False` keeps an operation the daemon alone serves out of core's C API.
-- **core-only operations:** `@contract.core_operation(errors=[...])`, for an operation only core's C API has; it is not a route.
-- **runtime operations:** `@contract.runtime_operation(context=..., errors=[...])`, for one of core's operations that does not work through an open context: `context="none"` runs without one (its C function takes no context), `"opens"` makes one (it returns `None` in the declaration, and the context in C and Kotlin), and `"closes"` releases the one it is given (it takes nothing else and returns `None`). With `context="none"`, `error="reads"` reads an error core returned (it takes nothing else and returns `str`) and `error="closes"` releases it (returning `None`). They are not routes.
-- **error statuses and codes:** `Contract(errors={NotFound: (404, 4040), ...})` gives each error kind its HTTP status and its C error code. Every error kind needs both. A code is four digits: its status, then one more digit to tell apart kinds that share the status (`KeyMissing` is `(409, 4091)`), so it reads as the HTTP status it echoes. Codes are unique, and are the error kinds' identity in the C API: once released, a code keeps its meaning and is never reused.
-
-The extractor reads the routes FastAPI analysed, and the rest from the `Contract` ([HTTP.md](HTTP.md)). The IR records each operation's domain module as its source.
-
-The rest of the vocabulary:
-
-- **Sizes:** `Int32`, `Int64`, `Float64` and `Timestamp` (seconds since the Unix epoch). A bare `int` or `float` has no size in C and is rejected. A `Float64` is finite, since JSON has no NaN or infinity. Constrain one where it is used, as `Annotated[Int32, Field(ge=1, le=5000)]`; in JSON Schema each is inline, with its format (`int32`, `int64`, `double`).
-- **Text:** a `str` is Unicode text without U+0000, so it is valid UTF-8 and fits in a C string. Lengths count characters.
-- **Null and omitted:** `T | None` may be null. On a record's field, `T | MISSING = MISSING` may be omitted. Together, as in a partial update, they mean "omit to keep, null clears".
-- **Other types:** `str`, `bool`, `list[T]`, `dict[str, T]`, `Literal[...]`, unions (discriminated with `Field(discriminator=...)`), `JsonValue` for free-form JSON, `SecretStr` for secrets, and generic records such as `class Page[T](Record)`.
-- **Results only:** `Stream[T]` for an operation whose result is a sequence of items, and `Bytes` for one that returns a byte stream.
-- **Constraints:** `Field(min_length=, max_length=, pattern=, ge=, le=, gt=, lt=)` in `Annotated`; a route's parameter takes them in its `Path()` or `Query()` too.
-
-Every record, field, enum, error kind, interface method and operation must have documentation. An operation's docstring is its summary, then a blank line, then its description; nothing else is read from it.
+The directory follows those responsibilities: `interface/` holds Holder's declarations, `authoring/` supplies their vocabulary, `compiler/` checks and extracts them, and `generators/` produces target code. `tests/` and `test_support/` verify the tooling and the implementations.

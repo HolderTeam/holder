@@ -1,9 +1,12 @@
 # api
 
-The HTTP contract between the Holder daemon and its clients.
+The HTTP expression of [Holder's Python contract](../contract/README.md).
 
-- [`openapi.yaml`](openapi.yaml) - the OpenAPI description of every endpoint. It is the canonical
-  contract: a change to the daemon's HTTP behaviour changes this file in the same pull request.
+HTTP clients use the OpenAPI specification here to understand and call the daemon.
+Developers change the Python declarations that produce it. The same declarations also
+supply core's C API, keeping shared operations consistent across embedded and HTTP use.
+
+- [`openapi.yaml`](openapi.yaml) - the generated OpenAPI description of the HTTP interface.
   The daemon serves it at `GET /openapi.yaml`, and the Python client in [`python/holder/`](../python/holder/)
   is generated from a tested snapshot of it. The document uses OpenAPI 3.2. It is generated, so
   never edit it by hand: see [Changing the contract](#changing-the-contract).
@@ -24,19 +27,18 @@ daemon, in [`daemon/docs/`](../daemon/docs/).
 
 ## Changing the contract
 
-Every endpoint is declared in Holder's Python [`contract/`](../contract/). Run
-`make -C contract update` after changing a route, model or API metadata; it generates
-`openapi.yaml`, `openapi.json` and the contract's C++ files. This includes the AI dispatcher and
-JSON codec in `daemon/src/api/generated/AiRoutes.h` and `AiJson.h`. The contract test checks that
-the generated dispatcher serves the Python declarations' AI route inventory.
-`Contract / Check` verifies the generated files are current.
+Change public operations, models and their descriptions in [`contract/interface/`](../contract/interface/).
+Shared API metadata and security live in `openapi-base.json`. Run `make -C contract update`
+to regenerate the specification and interface code, then update implementations, affected
+clients and tests in the same pull request. Generated files are reviewed outputs; edit their
+sources. See the [contract development workflow](../contract/README.md#changing-holder).
 
 Holder's own clients (the desktop app, `holderctl`, the Python client) are clients like any
 other: they use only what this contract documents, never undocumented behaviour or the daemon's
 or core's internals. Third-party clients rely on the same document.
 
 - **Until Holder 1.0, `API_VERSION` stays at 0.1.** Holder promises no stable API before 1.0, and
-  the contract changes knowingly as it moves to [`contract/`](../contract/). A pull request that
+  interface changes must update the declarations and affected consumers together. A pull request that
   breaks the contract updates Holder's own clients in the same pull request and is labelled
   `api: unreleased change`, which the `API / Contract` workflow accepts in place of a bump.
 - **From Holder 1.0, breaking changes need a new `API_VERSION`.** Clients accept a range of

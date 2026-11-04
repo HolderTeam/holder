@@ -1,16 +1,10 @@
 # The generated HTTP routes
 
-`interface/app.py` declares the contract's operations as FastAPI routes, and the daemon's generators turn them into the route and codec files and the API document:
+HTTP is one expression of [Holder's contract](README.md). Python declarations define the public operations and their HTTP bindings; FastAPI produces the basis of the OpenAPI specification. The daemon implements those operations and serves the generated specification to clients.
 
-- **`ContractRoutes.h`:** `contract_http::dispatch`, which matches a request to an operation, decodes and checks its arguments, calls core's C++ function for it with the caller's `holder_context`, and encodes the result.
-- **`ContractJson.h`:** the JSON codec for the contract's C++ types (`core/src/api/Contract.h`).
-- **`AiRoutes.h`:** dispatch for daemon owned AI handlers, with paths, arguments and status codes from the Python contract.
-- **`AiJson.h`:** the JSON codec for the daemon's AI records (`interface/ai/models.py`).
-- **`openapi.json`:** the operations' OpenAPI paths and the schemas they use: FastAPI's document of `app.py`, with FastAPI's own 422 validation responses and the operation IDs removed, the daemon's error schemas, and each schema named by its title, so that a generic record's use is `CardListItemPage` rather than Pydantic's `Page_CardListItem_` (`generators/daemon/openapi.py`).
+Generation supplies dispatch, validation and JSON codecs around implementations. The daemon supplies the services and connections those implementations need. The design is for request and response shapes to come from declarations wherever an operation is implemented.
 
-`make -C contract update` writes the four C++ headers into `daemon/src/api/generated/` and merges the OpenAPI paths with `api/openapi-base.json`, which supplies API metadata and security, to write `api/openapi.yaml` and `api/openapi.json`. `make -C contract check` fails when any generated file is out of date. `python -m compiler generate --output <directory>` writes every generated file, including core's C API files, into one directory.
-
-The daemon's AI handlers use `AiRoutes.h` and `AiJson.h`, generated from `interface/app.py` and `interface/ai.py`. A contract test verifies their route inventory. Other routes are dispatched directly or through `contract_http::dispatch` (`daemon/src/api/GeneratedRoutes.cpp`). Core-backed requests run with a `holder_context` on the worker's database, full-text indexer and Git service. The contract's routes and codec generators were ported from [RIG](https://github.com/zeth/rig) at `e32ea68`; they now read the Python contract's IR. `tests/http/` compiles the routes against the stand-in for core in `tests/c/` and sends them requests.
+Run `make -C contract update` after changing declarations or generators. The HTTP outputs live in [`api/`](../api/) and [`daemon/src/api/generated/`](../daemon/src/api/generated/). API metadata and shared security settings come from [`api/openapi-base.json`](../api/openapi-base.json). See [generator responsibilities](generators/README.md) for work on the tooling, and [the HTTP client guide](../api/README.md) for consuming and versioning the interface.
 
 ## Routes
 
@@ -24,13 +18,15 @@ def get_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId
 def create_card(project_id: Annotated[ProjectId, Path()], card: Annotated[NewCard, Body()]) -> Card: ...
 ```
 
-- Each parameter says where it comes from: `Path()`, `Query()`, or `Body()` for at most one, a record, as the JSON request body.
+- Each parameter says where it comes from: `Path()`, `Query()`, `Header()` or `Body()`.
 - `status` is the success status, 200 unless given; it must be a 2xx with a body. `created_when` names a boolean result field that selects 201 when true and 200 when false.
-- `errors` gives each error kind its HTTP status and its C error code, side by side. Every error kind needs both. The error kinds name conditions, such as `NotFound`; only `app.py` says what they are in HTTP and in C.
+- A route's `errors` lists its error kinds; the `Contract` error table gives each kind its HTTP status and C error code, side by side. Every error kind needs both. The error kinds name conditions, such as `NotFound`; only `app.py` says what they are in HTTP and in C.
 
 ## Conventions
 
-- **Success:** `{"ok": true, "data": <result>}`, with the route's status. In OpenAPI, the envelope of a result is a schema of its own, such as `CardResponse`.
+These are the conventions for generated core-backed JSON routes. Declarations can also specify raw responses, binary content and event streams; their response forms appear in OpenAPI.
+
+- **Success for an ordinary JSON operation:** `{"ok": true, "data": <result>}`, with the route's status. In OpenAPI, the envelope of a result is a schema of its own, such as `CardResponse`.
 - **Failure:** `{"ok": false, "error": {"code": <code>, "message": <text>}}`:
   - an argument the contract rejects is 400, with the code `invalid_argument`;
   - an error kind has the status the `Contract` gives it, and its name in snake case as the code, such as `not_found`;

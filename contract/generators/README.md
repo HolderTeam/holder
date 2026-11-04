@@ -1,25 +1,27 @@
 # Generators
 
-Generators turn the compiler's canonical IR into files for a target. The flow is:
+Generators express [Holder's contract](../README.md) in the languages and transports its implementations and clients use. They own the translation; the declarations own the public interface.
 
-```text
-interface/ declarations
-    → Compiler.compile(ContractSource) → ContractView
-    → core, daemon, and Android generators → generated source files
-```
+## Responsibilities
 
-Each generator receives the same `ContractView`. The contract defines the full set of operations, arguments, result fields, and response options. A target selects operations by declared availability and transport: core exposes core operations, the daemon serves declared HTTP bindings and its own operations, and Android's JNI bridge exposes operations available through core. Current app usage does not narrow a generated interface.
+The compiler owns source loading, declaration validation and the shared representation of types and operations. A generator owns target naming, type mapping, calling conventions, file layout and syntax. Target-specific templates belong beside their generator.
 
-The compiler owns source loading, validation, IR construction, and lowering that is independent of the output language. A generator owns target naming and type mapping, calling conventions, file layout, and syntax rendering. Jinja2 templates belong beside the generator that uses them. FastAPI remains the source of the daemon's OpenAPI document.
+Each target exposes the operations available to it in the contract. Current application usage must not narrow a generated interface. A target must preserve the declared arguments, results, defaults and errors, and reject a shape it cannot support instead of silently omitting it.
 
-Target-specific runtime wiring, such as daemon service dependencies, is typed input data for a generator. Operation names do not select handwritten branches in generic compiler or generator code. Unsupported contract shapes should produce a clear error rather than silently omit part of the interface.
+Runtime bindings connect declared operations to implementation functions and services. Keep those bindings as explicit, validated data. Public interface decisions belong in the declarations; application behavior belongs behind the generated boundary. Adding an operation should not require a special case in the compiler.
 
-`common.py` holds what every generator shares: the `Unsupported` error and the generated-file header.
+Shared target conventions should be derived once and reused. For example, native clients and C glue must agree on the same C signatures and ownership rules. HTTP dispatch, codecs and OpenAPI must agree on the same request and response shapes.
 
-`core/types.py` lowers the contract's types for core: it resolves aliases, instantiates generic records, and names a record's choices of literals as enums. `core/abi.py` derives typed C signatures; the C header (`core/c_header.py`), the C++ declarations (`core/cpp_header.py`), the C glue (`core/glue.py`) and Android's client use those same signatures.
+## Working on a generator
 
-`daemon/http.py` matches typed HTTP bindings to typed operations, locates each argument, and lowers its C++ declaration and body shape; `daemon/contract_routes.py` renders the contract's routes (ContractRoutes.h) from that plan, and `daemon/paths.py` turns route paths into regexes and rejects routes that would take the same request. `daemon/bindings.py` is the daemon's runtime wiring as typed data: the services each AI operation's handler receives, the AI exception classes and their statuses, and the records declared in `holder::api::routes`. `daemon/contract_json.py` generates the JSON codec for core's C++ types from the same lowering. `daemon/ai_routes.py` and `daemon/ai_json.py` generate the AI dispatch and its JSON codec from typed IR; the codec's records are those reachable from the operations with runtime bindings. Stream events are not in the IR yet, so it reads them from the authoring `Contract`.
+Use a small declaration that exercises the feature, generate its output, and check that a consumer can use it. Compile and run generated native code where appropriate. Test failures as well as successful calls: rejecting unsupported declarations and invalid input is part of the interface.
 
-`daemon/openapi.py` adjusts FastAPI's OpenAPI document to the daemon's API; it works on that JSON document, not on the IR. `generators.daemon.generate_daemon` and `generators.core.generate_core` assemble each target's files.
+Regenerate the repository outputs with `make -C contract update` and review them with the generator change. `make -C contract check` checks their freshness and runs the tooling tests. Generated artifacts live in their consuming projects and do not depend on the Python tooling at runtime.
 
-`android/client.py` generates Android's Kotlin client for every core operation (`team.holder.android.contract`) and its JNI (`contract_client.cpp`), from the same lowering and C signatures as core's C glue. Records become data classes, a record's choice of literals an enum class, a literal-or-text parameter a sealed interface, a partial update `Change<T>`, and each error kind an exception with its code; each contract domain gets one Kotlin file with an object holding its operations. Move each into `core/`, `daemon/` or `android/` when it consumes typed IR and has a clear target responsibility. Generated artifacts continue to live in their target projects.
+## Implementation entry points
+
+- [`core/`](core/): the native interface, C++ implementation declarations and C glue. [`abi.py`](core/abi.py) derives the C signatures used by native consumers.
+- [`daemon/`](daemon/): HTTP dispatch, JSON codecs and OpenAPI. [`bindings.py`](daemon/bindings.py) connects daemon operations to runtime services; [`openapi.py`](daemon/openapi.py) adapts FastAPI's document to Holder's HTTP conventions.
+- [`android/`](android/): the Kotlin client and JNI bridge to core's C API.
+
+The typed compiler representation is described in [IR.md](../IR.md). OpenAPI generation also consumes FastAPI's document, and some HTTP generation reads authoring metadata directly. The architectural aim is a complete compiler result for generators to consume, so interpretation of declarations stays in one place.

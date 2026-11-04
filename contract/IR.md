@@ -1,6 +1,8 @@
 # The contract's IR, version 1
 
-`python -m compiler ir` reads the contract and writes one JSON object, the input of every generator. The same contract always gives the same bytes. `tests/fixtures/sample.ir.json` is a complete example.
+The compiler's intermediate representation (IR) describes types and operations independently of an output language. Generators use it to derive target interfaces. See [generator responsibilities](generators/README.md) for that boundary and [the contract overview](README.md) for the architecture.
+
+`python -m compiler ir` writes the representation as JSON for inspection. [`compiler/ir.py`](compiler/ir.py) defines its schema; `tests/fixtures/sample.ir.json` provides an example.
 
 ```json
 {
@@ -19,7 +21,7 @@
 
 `constants` is left out when the contract declares none.
 
-Declarations appear in the order of their modules' paths, then in source order. Every declared name is unique across the contract. Each declaration has a `name`, a `source` (its file, relative to `contract/`, for the "generated from" line of generated files) and a `doc`.
+Model declarations follow `DECLARATION_ORDER` in the declaration package, then source order within each module. Every declared name is unique across the contract. Each declaration has a `name`, a `source` (its file, relative to `contract/`, for the "generated from" line of generated files) and a `doc`.
 
 ## Declarations
 
