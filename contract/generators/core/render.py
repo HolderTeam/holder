@@ -92,8 +92,18 @@ def c_signature(types: CoreTypes, op: OperationView) -> str:
     takes none. An operation with no result takes no arena, which holds only results."""
     if op.host:
         callbacks = f"holder_{snake(op.host)}_callbacks"
-        return (f"int holder_{op.name}(const {callbacks}* callbacks, void* user_data, "
-                "holder_destroy_fn destroy_user_data, holder_error** out_error)")
+        args = [] if op.context == "none" else ["holder_context* context"]
+        for parameter in op.parameters:
+            kind = types.resolve(parameter.type).type.kind
+            if kind == "string":
+                args.append(f"const char* {parameter.name}")
+            elif kind == "bytes":
+                args.extend([f"const unsigned char* {parameter.name}", f"size_t {parameter.name}_len"])
+            else:
+                raise Unsupported(f"{op.name}({parameter.name}): {kind} host registration parameter")
+        args.extend([f"const {callbacks}* callbacks", "void* user_data",
+                     "holder_destroy_fn destroy_user_data", "holder_error** out_error"])
+        return f"int holder_{op.name}(" + ", ".join(args) + ")"
     if op.error == "reads":
         return f"const char* holder_{op.name}(const holder_error* error)"
     if op.error == "closes":

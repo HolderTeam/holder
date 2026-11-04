@@ -258,47 +258,6 @@ std::shared_ptr<holder::resource::StorageProvider> resolve_storage_provider(
   return it->second;
 }
 
-class CApiSshSignerHandle {
- public:
-  CApiSshSignerHandle(void* user_data, holder_destroy_fn destroy_user_data)
-      : user_data_(user_data),
-        destroy_user_data_(destroy_user_data) {}
-
-  ~CApiSshSignerHandle() {
-    if (destroy_user_data_ != nullptr) {
-      destroy_user_data_(user_data_);
-    }
-  }
-
-  CApiSshSignerHandle(const CApiSshSignerHandle&) = delete;
-  CApiSshSignerHandle& operator=(const CApiSshSignerHandle&) = delete;
-
-  // Only invoked from EcdsaDerSigningCredentialProvider's captured sign callback during a real
-  // SSH auth handshake with a remote -- every test in this suite pushes/pulls over local
-  // file:// or bare-repo remotes, which libgit2 never authenticates, so this never runs. Not
-  // worth standing up a live SSH server just to exercise a thin buffer-ownership adapter.
-  // LCOV_EXCL_START
-  std::vector<unsigned char> sign(
-      holder_ssh_sign_fn sign_fn,
-      const unsigned char* data,
-      size_t data_len
-  ) const {
-    unsigned char* out_ptr = nullptr;
-    size_t out_len = 0;
-    const int rc = sign_fn(user_data_, data, data_len, &out_ptr, &out_len);
-    if (rc != 0 || out_ptr == nullptr) return {};
-
-    std::vector<unsigned char> result(out_ptr, out_ptr + out_len);
-    std::free(out_ptr);
-    return result;
-  }
-  // LCOV_EXCL_STOP
-
- private:
-  void* user_data_;
-  holder_destroy_fn destroy_user_data_;
-};
-
 } // namespace
 
 namespace holder::capi {
@@ -473,74 +432,6 @@ int holder_storage_provider_register(
     // Retire the previous provider outside the lock: its cleanup callback may reenter
     // registration. Active operations keep their own shared ownership until completion.
     return HOLDER_OK;
-    // LCOV_EXCL_START
-  } catch (const std::bad_alloc&) {
-    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
-  } catch (const std::exception& e) {
-    return set_exception(out_error, e);
-  } catch (...) {
-    return set_unknown_exception(out_error);
-  }
-  // LCOV_EXCL_STOP
-}
-
-int holder_git_set_ssh_signer(
-    holder_context* context,
-    const char* username,
-    const unsigned char* public_key_blob,
-    size_t public_key_blob_len,
-    holder_ssh_sign_fn sign_fn,
-    void* user_data,
-    holder_destroy_fn destroy_user_data,
-    holder_error** out_error
-) {
-  clear_error(out_error);
-
-  // Takes ownership of user_data unconditionally from this point on -- via
-  // this shared_ptr, which either gets captured into the installed provider
-  // below (success) or simply falls out of scope at any early return
-  // (failure) -- so destroy_user_data runs exactly once either way: right
-  // away if this call fails for any reason, or later (on replacement or
-  // context destruction) if it succeeds. Callers never need to guess which
-  // case applies or risk a double-release.
-  std::shared_ptr<CApiSshSignerHandle> handle;
-  try {
-    handle = std::make_shared<CApiSshSignerHandle>(user_data, destroy_user_data);
-  } catch (const std::bad_alloc&) {
-    // Allocation failed before the handle could take the unconditionally transferred data.
-    if (destroy_user_data != nullptr) destroy_user_data(user_data);
-    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
-  }
-
-  if (context == nullptr) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
-  }
-  if (username == nullptr || username[0] == '\0') {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "username must not be empty");
-  }
-  if (public_key_blob == nullptr || public_key_blob_len == 0) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "public_key_blob must not be empty");
-  }
-  if (sign_fn == nullptr) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "sign_fn must not be null");
-  }
-
-  try {
-    std::vector<unsigned char> pubkey(public_key_blob, public_key_blob + public_key_blob_len);
-
-    context->credential_provider = std::make_shared<holder::git::EcdsaDerSigningCredentialProvider>(
-        std::string(username),
-        std::move(pubkey),
-        [handle, sign_fn](const unsigned char* data, size_t data_len) { // LCOV_EXCL_START
-          // Invoked only by a real SSH server's authentication challenge; local-remotes tests
-          // verify provider wiring without requiring network credentials or an SSH daemon.
-          return handle->sign(sign_fn, data, data_len);
-        } // LCOV_EXCL_STOP
-    );
-    return HOLDER_OK;
-    // EcdsaDerSigningCredentialProvider's constructor never throws anything but bad_alloc, so
-    // beyond that this whole catch chain is unreachable given the current implementation --
-    // kept only as the same defense-in-depth boilerplate every other C ABI function uses.
     // LCOV_EXCL_START
   } catch (const std::bad_alloc&) {
     return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");

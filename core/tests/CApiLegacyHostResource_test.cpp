@@ -179,7 +179,8 @@ int fake_sign_ok(
     const unsigned char*,
     size_t,
     unsigned char** out_der_sig,
-    size_t* out_der_sig_len
+    size_t* out_der_sig_len,
+    char**
 ) {
   auto* buf = static_cast<unsigned char*>(std::malloc(1));
   buf[0] = 0x00;
@@ -188,10 +189,20 @@ int fake_sign_ok(
   return 0;
 }
 
+int register_ssh_signer(
+    holder_context* context, const char* username, const unsigned char* public_key_blob,
+    size_t public_key_blob_len, decltype(holder_ssh_signer_callbacks::sign) sign,
+    void* user_data, holder_destroy_fn destroy, holder_error** error
+) {
+  holder_ssh_signer_callbacks callbacks{sign};
+  return holder_register_ssh_signer(context, username, public_key_blob, public_key_blob_len,
+                                    &callbacks, user_data, destroy, error);
+}
+
 } // namespace
 
 TEST_CASE(
-    "C API git_set_ssh_signer validates arguments and destroys user_data exactly once on replace/destroy",
+    "Generated C API SSH signer validates arguments and destroys user_data exactly once on replace/destroy",
     "[capi][git]"
 ) {
   const auto data_dir = holder::test::make_temp_dir();
@@ -212,7 +223,7 @@ TEST_CASE(
       *static_cast<int*>(user_data) += 1;
     };
     REQUIRE(
-        holder_git_set_ssh_signer(
+        register_ssh_signer(
             context,
             "git",
             pubkey,
@@ -232,7 +243,7 @@ TEST_CASE(
       *static_cast<int*>(user_data) += 1;
     };
     REQUIRE(
-        holder_git_set_ssh_signer(
+        register_ssh_signer(
             context,
             "",
             pubkey,
@@ -243,6 +254,22 @@ TEST_CASE(
             &error
         ) == HOLDER_ERROR_INVALID_ARGUMENT
     );
+    REQUIRE(destroy_count == 1);
+  }
+
+  SECTION("rejects a null context, still destroying user_data exactly once") {
+    int destroy_count = 0;
+    auto destroy = [](void* user_data) { ++*static_cast<int*>(user_data); };
+    REQUIRE(register_ssh_signer(nullptr, "git", pubkey, sizeof(pubkey), fake_sign_ok,
+                                &destroy_count, destroy, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+    REQUIRE(destroy_count == 1);
+  }
+
+  SECTION("rejects an empty public key, still destroying user_data exactly once") {
+    int destroy_count = 0;
+    auto destroy = [](void* user_data) { ++*static_cast<int*>(user_data); };
+    REQUIRE(register_ssh_signer(context, "git", pubkey, 0, fake_sign_ok,
+                                &destroy_count, destroy, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
     REQUIRE(destroy_count == 1);
   }
 
@@ -260,7 +287,7 @@ TEST_CASE(
     };
 
     REQUIRE(
-        holder_git_set_ssh_signer(
+        register_ssh_signer(
             context,
             "git",
             pubkey,
@@ -276,7 +303,7 @@ TEST_CASE(
     // Installing a second signer drops the last reference to the first,
     // running its destroy_user_data exactly once.
     REQUIRE(
-        holder_git_set_ssh_signer(
+        register_ssh_signer(
             context,
             "git",
             pubkey,
@@ -303,7 +330,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "C API git_set_ssh_signer's provider is actually wired into git operations",
+    "Generated C API SSH signer is wired into git operations",
     "[capi][git]"
 ) {
   const auto data_dir = holder::test::make_temp_dir();
@@ -321,7 +348,7 @@ TEST_CASE(
 
   const unsigned char pubkey[] = {0x01, 0x02, 0x03};
   REQUIRE(
-      holder_git_set_ssh_signer(
+      register_ssh_signer(
           context,
           "git",
           pubkey,

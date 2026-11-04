@@ -120,12 +120,14 @@ def generate_cpp_header(types: CoreTypes) -> str:
             if isinstance(result, NullableType):
                 returns = f"std::optional<{'long long' if types.resolve(result.value).type.kind == 'int64' else 'std::string'}>"
             else:
-                returns = "std::string" if result.kind == "string" else "void"
+                returns = "std::vector<unsigned char>" if result.kind == "bytes" else \
+                    "std::string" if result.kind == "string" else "void"
             params = []
             for parameter in method.parameters:
                 ref = types.resolve(parameter.type).type
                 kind = types.resolve(ref.value).type.kind if isinstance(ref, NullableType) else ref.kind
-                value_type = "const std::string&" if kind == "string" else "long long" if kind == "int64" else "int"
+                value_type = "const std::vector<unsigned char>&" if kind == "bytes" else \
+                    "const std::string&" if kind == "string" else "long long" if kind == "int64" else "int"
                 if isinstance(ref, NullableType):
                     value_type = "const std::optional<std::string>&"
                 params.append(f"{value_type} {parameter.name}")
@@ -133,7 +135,7 @@ def generate_cpp_header(types: CoreTypes) -> str:
             out.append(f"  virtual {returns} {method.name}({', '.join(params)}) = 0;")
         out += ["};", ""]
     for op in types.operations:
-        params = [c_param(types, op, p) for p in op.parameters]
+        params = [] if op.host else [c_param(types, op, p) for p in op.parameters]
         declarations = []
         for param in params:
             decl, extra = cpp_param(types, op, param)
@@ -149,7 +151,12 @@ def generate_cpp_header(types: CoreTypes) -> str:
         result = types.resolve(op.returns).type
         returns = "void" if result.kind == "none" else cpp_base(types, result, {})
         if op.host:
-            out.append(f"void {op.name}(std::shared_ptr<{op.host}> provider);")
+            host_params = ["holder_context* context"] if op.context == "required" else []
+            for parameter in op.parameters:
+                kind = types.resolve(parameter.type).type.kind
+                host_params.append(f"{'std::string' if kind == 'string' else 'std::vector<unsigned char>'} {parameter.name}")
+            host_params.append(f"std::shared_ptr<{op.host}> provider")
+            out.append(f"void {op.name}({', '.join(host_params)});")
         elif op.error == "reads":
             out.append(f"const char* {op.name}(const holder_error* error) noexcept;")
         elif op.error == "closes":

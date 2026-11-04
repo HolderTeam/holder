@@ -12,6 +12,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -85,10 +86,33 @@ class CKeyringProviderCallbacks final : public holder::contract::KeyringProvider
   holder_destroy_fn destroy_;
 };
 
+class CSshSignerCallbacks final : public holder::contract::SshSigner {
+ public:
+  CSshSignerCallbacks(holder_ssh_signer_callbacks callbacks, void* user_data, holder_destroy_fn destroy)
+      : callbacks_(callbacks), user_data_(user_data), destroy_(destroy) {}
+  ~CSshSignerCallbacks() override { if (destroy_) destroy_(user_data_); }
+
+  std::vector<unsigned char> sign(const std::vector<unsigned char>& data) override {
+    unsigned char* value = nullptr;
+    size_t value_len = 0;
+    char* error = nullptr;
+    const int status = callbacks_.sign(user_data_, data.data(), data.size(), &value, &value_len, &error);
+    std::unique_ptr<char, decltype(&std::free)> error_owner(error, &std::free);
+    std::unique_ptr<unsigned char, decltype(&std::free)> value_owner(value, &std::free);
+    if (status != 0) throw std::runtime_error(error ? error : "ssh_signer sign failed");
+    if (!value && value_len != 0) throw std::runtime_error("SshSigner.sign: null byte result");
+    return value_len ? std::vector<unsigned char>(value, value + value_len) : std::vector<unsigned char>{};
+  }
+
+ private:
+  holder_ssh_signer_callbacks callbacks_;
+  void* user_data_;
+  holder_destroy_fn destroy_;
+};
+
 } // namespace
 
-extern "C" int holder_register_time_zone_provider(const holder_time_zone_provider_callbacks* callbacks, void* user_data,
-                                       holder_destroy_fn destroy_user_data, holder_error** out_error) {
+extern "C" int holder_register_time_zone_provider(const holder_time_zone_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error) {
   if (out_error) *out_error = nullptr;
   std::shared_ptr<CTimeZoneProviderCallbacks> provider;
   try {
@@ -112,8 +136,7 @@ extern "C" int holder_register_time_zone_provider(const holder_time_zone_provide
   }
 }
 
-extern "C" int holder_register_keyring_provider(const holder_keyring_provider_callbacks* callbacks, void* user_data,
-                                       holder_destroy_fn destroy_user_data, holder_error** out_error) {
+extern "C" int holder_register_keyring_provider(const holder_keyring_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error) {
   if (out_error) *out_error = nullptr;
   std::shared_ptr<CKeyringProviderCallbacks> provider;
   try {
@@ -127,6 +150,36 @@ extern "C" int holder_register_keyring_provider(const holder_keyring_provider_ca
     return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "KeyringProvider callbacks are required");
   try {
     holder::contract::register_keyring_provider(provider);
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  } catch (const std::exception& error) {
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, error.what());
+  } catch (...) {
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown holder error");
+  }
+}
+
+extern "C" int holder_register_ssh_signer(holder_context* context, const char* username, const unsigned char* public_key_blob, size_t public_key_blob_len, const holder_ssh_signer_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error) {
+  if (out_error) *out_error = nullptr;
+  std::shared_ptr<CSshSignerCallbacks> provider;
+  try {
+    provider = std::make_shared<CSshSignerCallbacks>(callbacks ? *callbacks : holder_ssh_signer_callbacks{},
+                                           user_data, destroy_user_data);
+  } catch (const std::bad_alloc&) {
+    if (destroy_user_data) destroy_user_data(user_data);
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  }
+  if (!callbacks || callbacks->sign == nullptr)
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "SshSigner callbacks are required");
+  if (!context)
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context is required");
+  if (!username || username[0] == '\0')
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "username is required");
+  if (!public_key_blob || public_key_blob_len == 0)
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "public_key_blob is required");
+  try {
+    holder::contract::register_ssh_signer(context, std::string(username), std::vector<unsigned char>(public_key_blob, public_key_blob + public_key_blob_len), provider);
     return HOLDER_OK;
   } catch (const std::bad_alloc&) {
     return holder::contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");

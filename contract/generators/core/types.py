@@ -119,13 +119,13 @@ class CoreTypes:
                 for parameter in method.parameters:
                     ref = self.resolve(parameter.type).type
                     kind = self.resolve(ref.value).type.kind if isinstance(ref, NullableType) else ref.kind
-                    if kind not in ("string", "int32", "int64") or (isinstance(ref, NullableType) and kind != "string"):
+                    if kind not in ("string", "int32", "int64", "bytes") or (isinstance(ref, NullableType) and kind != "string"):
                         raise Unsupported(f"{interface.name}.{method.name}({parameter.name}): {kind} host callback inputs")
                 result = self.resolve(method.returns).type
                 if result.kind == "nullable":
                     if self.resolve(result.value).type.kind not in ("int64", "string"):
                         raise Unsupported(f"{interface.name}.{method.name}: only nullable int64 or string callback results")
-                elif result.kind not in ("string", "none"):
+                elif result.kind not in ("string", "none", "bytes"):
                     raise Unsupported(f"{interface.name}.{method.name}: {result.kind} host callback results")
         for error in self.errors:
             if error.fields:

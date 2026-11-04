@@ -183,14 +183,14 @@ class Contract:
         """Declare one of core's runtime operations, which the daemon does not serve: context="none" runs
         without a context, "opens" makes one (its result) and "closes" releases the one it is given. With
         context="none", error="reads" reads an error core returned (its result) and error="closes" releases it."""
-        if context not in ("none", "opens", "closes"):
+        if context not in ("none", "opens", "closes") and not (context == "required" and host is not None):
             raise ValueError(f"runtime_operation context must be none, opens or closes, not {context!r}")
         if error not in (None, "reads", "closes"):
             raise ValueError(f"runtime_operation error must be reads or closes, not {error!r}")
         if error is not None and context != "none":
             raise ValueError("an operation on an error takes no context: use context=\"none\"")
-        if host is not None and (context != "none" or error is not None):
-            raise ValueError("a process-wide host registration uses context=\"none\" and no error handle")
+        if host is not None and (context not in ("none", "required") or error is not None):
+            raise ValueError("a host registration uses context=\"none\" or \"required\" and no error handle")
 
         def register(function: Callable[..., Any]) -> Callable[..., Any]:
             self.operations.append(Operation(function, list(errors), route=False, context=context, error=error,

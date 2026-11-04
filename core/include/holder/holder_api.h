@@ -76,7 +76,8 @@ typedef struct holder_time_zone_provider_callbacks {
 } holder_time_zone_provider_callbacks;
 
 /* Each callback returns zero on success; nonzero may set malloc-owned *out_error.
- * String results are malloc-owned by core. Null strings mean absence only for nullable results.
+ * String and byte results must be malloc-allocated; core frees them after copying.
+ * Null strings mean absence only for nullable results.
  * A null numeric result sets *out_present=0. */
 
 /* A process-wide secure store for device secrets and project encryption keys. */
@@ -90,7 +91,19 @@ typedef struct holder_keyring_provider_callbacks {
 } holder_keyring_provider_callbacks;
 
 /* Each callback returns zero on success; nonzero may set malloc-owned *out_error.
- * String results are malloc-owned by core. Null strings mean absence only for nullable results.
+ * String and byte results must be malloc-allocated; core frees them after copying.
+ * Null strings mean absence only for nullable results.
+ * A null numeric result sets *out_present=0. */
+
+/* Signs SSH authentication challenges with a host-owned private key. */
+typedef struct holder_ssh_signer_callbacks {
+    /* Return a DER-encoded P-256 ECDSA signature for the challenge bytes. */
+    int (*sign)(void* user_data, const unsigned char* data, size_t data_len, unsigned char** out_value, size_t* out_value_len, char** out_error);
+} holder_ssh_signer_callbacks;
+
+/* Each callback returns zero on success; nonzero may set malloc-owned *out_error.
+ * String and byte results must be malloc-allocated; core frees them after copying.
+ * Null strings mean absence only for nullable results.
  * A null numeric result sets *out_present=0. */
 
 /* Portable non-secret provider options. */
@@ -1341,6 +1354,13 @@ int holder_register_time_zone_provider(const holder_time_zone_provider_callbacks
  * no secret; callback failure remains distinct from a miss.
  */
 int holder_register_keyring_provider(const holder_keyring_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error);
+
+/* Install a context's SSH identity, replacing its previous signer.
+ * public_key_blob is the raw SSH wire-format ecdsa-sha2-nistp256 key. Registration
+ * takes ownership of the signer even when validation fails; replacement or context
+ * destruction releases it after active signing calls finish. Callbacks may run on any thread.
+ */
+int holder_register_ssh_signer(holder_context* context, const char* username, const unsigned char* public_key_blob, size_t public_key_blob_len, const holder_ssh_signer_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error);
 
 /* Set libgit2's process-wide home directory before Git operations.
  * On Android, pass a writable app-private directory so SSH can find its known_hosts file.

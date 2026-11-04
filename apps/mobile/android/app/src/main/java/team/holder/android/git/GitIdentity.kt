@@ -9,6 +9,9 @@ import java.math.BigInteger
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PrivateKey
+import team.holder.android.contract.Runtime
+import team.holder.android.contract.SignerHosts
+import team.holder.android.contract.SshSigner
 import java.security.Signature
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
@@ -43,7 +46,7 @@ internal val BUNDLED_KNOWN_HOSTS = listOf(
  * The app's git SSH identity: a non-exportable AndroidKeyStore EC P-256 key. Holder's git sync
  * (see HolderNative) authenticates with this instead of a filesystem-based key, since Android
  * apps have no ~/.ssh. registerWithNative bridges libssh2's raw-bytes-to-sign challenge across
- * JNI to Keystore's Signature API -- see holder_git_signer.cpp for the native half.
+ * JNI to Keystore's Signature API through the generated signer adapter.
  */
 object GitIdentity {
     /** Each Holder project gets its own Keystore keypair/deploy key -- GitHub (and every other
@@ -94,14 +97,18 @@ object GitIdentity {
 
     /**
      * Registers this identity as contextHandle's git SSH signer (see
-     * holder_git_set_ssh_signer in holder.h) and points libgit2 at filesDir for
+     * holder_register_ssh_signer in holder_api.h) and points libgit2 at filesDir for
      * ~/.ssh/known_hosts (Android apps have no $HOME). Safe to call once during
      * HolderNative.initialize(); subsequent git operations on this context sign
      * with the Keystore key instead of the default ssh-agent/~/.ssh lookup.
      */
     fun registerWithNative(contextHandle: Long, filesDir: File, alias: String = DEFAULT_KEY_ALIAS): Int {
         ensureKnownHosts(filesDir)
-        return nativeRegisterSigner(contextHandle, alias, sshPublicKeyBlob(alias), filesDir.absolutePath)
+        Runtime.configureGitHome(filesDir.absolutePath)
+        SignerHosts.registerSshSigner(contextHandle, "git", sshPublicKeyBlob(alias), object : SshSigner {
+            override fun sign(data: ByteArray): ByteArray = signForNative(alias, data)
+        })
+        return 0
     }
 
     /** Makes sure BUNDLED_KNOWN_HOSTS' entries are present in filesDir/.ssh/known_hosts,
@@ -119,9 +126,8 @@ object GitIdentity {
         knownHosts.appendText(missing.joinToString("") { "$it\n" })
     }
 
-    /** Called from native code (see holder_git_signer.cpp) to sign an SSH auth challenge.
+    /** Called through the generated signer adapter to sign an SSH auth challenge.
      * Returns a raw DER ECDSA-Sig-Value{r,s} -- native code reshapes it into SSH wire format. */
-    @Suppress("unused") // invoked via JNI
     private fun signForNative(alias: String, data: ByteArray): ByteArray {
         val ks = keyStore()
         val privateKey = ks.getKey(alias, null) as PrivateKey
@@ -151,10 +157,4 @@ object GitIdentity {
         return out
     }
 
-    private external fun nativeRegisterSigner(
-        contextHandle: Long,
-        keyAlias: String,
-        publicKeyBlob: ByteArray,
-        homedir: String,
-    ): Int
 }

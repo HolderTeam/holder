@@ -47,6 +47,10 @@ def test_host_provider_has_generated_callbacks_and_thread_attachment():
     assert "AttachCurrentThread" in keyring and "DetachCurrentThread" in keyring
     assert "fun lookup(kind: Int, service: String, account: String, projectId: String?): String?" in \
         files[f"{KOTLIN_DIR}/KeyringProvider.kt"]
+    signer = files["apps/mobile/android/app/src/main/cpp/generated/ssh_signer_host.cpp"]
+    assert "holder_register_ssh_signer(" in signer
+    assert "AttachCurrentThread" in signer and "DetachCurrentThread" in signer
+    assert "fun sign(data: ByteArray): ByteArray" in files[f"{KOTLIN_DIR}/SshSigner.kt"]
 
 
 def test_android_rejects_host_shape_it_cannot_lower():

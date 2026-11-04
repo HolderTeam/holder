@@ -2,9 +2,9 @@
 
 from typing import Annotated
 
-from authoring import Contract, Field
+from authoring import Bytes, Contract, Field
 
-from .hosts import KeyringProvider, TimeZoneProvider
+from .hosts import KeyringProvider, SshSigner, TimeZoneProvider
 from .models import CoreVersion, DatabaseRebuildReport
 
 
@@ -29,6 +29,15 @@ def register(contract: Contract) -> None:
         Registration takes ownership even on failure. Replacement releases the previous provider
         after active callbacks finish. Callbacks may run on any thread. A null lookup result means
         no secret; callback failure remains distinct from a miss.
+        """
+
+    @contract.runtime_operation(context="required", host=SshSigner)
+    def register_ssh_signer(username: Annotated[str, Field(min_length=1)], public_key_blob: Bytes) -> None:
+        """Install a context's SSH identity, replacing its previous signer.
+
+        public_key_blob is the raw SSH wire-format ecdsa-sha2-nistp256 key. Registration
+        takes ownership of the signer even when validation fails; replacement or context
+        destruction releases it after active signing calls finish. Callbacks may run on any thread.
         """
 
     @contract.runtime_operation(context="none")

@@ -1,4 +1,6 @@
 #include "api/Contract.h"
+#include "capi/Context.h"
+#include "git/EcdsaDerSigningCredentialProvider.h"
 #include "platform/time_zone/TimeZones.h"
 #include "privacy/PlatformKeyring.h"
 
@@ -7,6 +9,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace holder::contract {
 namespace {
@@ -67,6 +70,20 @@ void register_keyring_provider(std::shared_ptr<KeyringProvider> provider) {
         }
       }
   );
+}
+
+void register_ssh_signer(holder_context* context, std::string username,
+                         std::vector<unsigned char> public_key_blob,
+                         std::shared_ptr<SshSigner> signer) {
+  context->credential_provider = std::make_shared<holder::git::EcdsaDerSigningCredentialProvider>(
+      std::move(username), std::move(public_key_blob),
+      [signer = std::move(signer)](const unsigned char* data, size_t length) {
+        try {
+          return signer->sign(std::vector<unsigned char>(data, data + length));
+        } catch (const std::exception&) {
+          return std::vector<unsigned char>{};
+        }
+      });
 }
 
 } // namespace holder::contract

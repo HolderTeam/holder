@@ -1000,6 +1000,14 @@ class KeyringProvider {
   virtual void remove(int kind, const std::string& service, const std::string& account, const std::optional<std::string>& project_id) = 0;
 };
 
+/// Signs SSH authentication challenges with a host-owned private key.
+class SshSigner {
+ public:
+  virtual ~SshSigner() = default;
+  /// Return a DER-encoded P-256 ECDSA signature for the challenge bytes.
+  virtual std::vector<unsigned char> sign(const std::vector<unsigned char>& data) = 0;
+};
+
 /// The version of the core library loaded.
 CoreVersion version();
 
@@ -1014,6 +1022,12 @@ void register_time_zone_provider(std::shared_ptr<TimeZoneProvider> provider);
 /// after active callbacks finish. Callbacks may run on any thread. A null lookup result means
 /// no secret; callback failure remains distinct from a miss.
 void register_keyring_provider(std::shared_ptr<KeyringProvider> provider);
+
+/// Install a context's SSH identity, replacing its previous signer.
+/// public_key_blob is the raw SSH wire-format ecdsa-sha2-nistp256 key. Registration
+/// takes ownership of the signer even when validation fails; replacement or context
+/// destruction releases it after active signing calls finish. Callbacks may run on any thread.
+void register_ssh_signer(holder_context* context, std::string username, std::vector<unsigned char> public_key_blob, std::shared_ptr<SshSigner> provider);
 
 /// Set libgit2's process-wide home directory before Git operations.
 /// On Android, pass a writable app-private directory so SSH can find its known_hosts file.

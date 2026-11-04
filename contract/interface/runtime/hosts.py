@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from authoring import Int32, Int64, host_interface
+from authoring import Bytes, Int32, Int64, host_interface
 
 
 @host_interface
@@ -29,3 +29,11 @@ class KeyringProvider(Protocol):
 
     def remove(self, kind: Int32, service: str, account: str, project_id: str | None) -> None:
         """Remove a secret; an absent secret is not a failure."""
+
+
+@host_interface
+class SshSigner(Protocol):
+    """Signs SSH authentication challenges with a host-owned private key."""
+
+    def sign(self, data: Bytes) -> Bytes:
+        """Return a DER-encoded P-256 ECDSA signature for the challenge bytes."""
