@@ -111,3 +111,32 @@ TEST_CASE("Generated C API storage locations validate project and provider", "[c
   REQUIRE(f.failed(holder_create_storage_location(f.context, &request, f.arena, &location, &f.error)) ==
           HOLDER_ERROR_INVALID_ARGUMENT);
 }
+
+TEST_CASE("Generated C API storage locations live in the project repository and survive a rebuild",
+          "[capi][locations]") {
+  Fixture f;
+  holder_new_storage_location request{};
+  request.location_id = "location-5678";
+  request.project_id = f.project_id.c_str();
+  request.name = "Family Drive";
+  request.provider = HOLDER_NEW_STORAGE_LOCATION_PROVIDER_GOOGLE_DRIVE;
+  const holder_project_storage_location* created = nullptr;
+  REQUIRE(holder_create_storage_location(f.context, &request, f.arena, &created, &f.error) == HOLDER_OK);
+  const auto file = f.project_root / "locations" / "lo" / "ca" / "location-5678.json";
+  REQUIRE(std::filesystem::exists(file));
+
+  // A rebuild reads the repository, so a location written only to the database would be lost.
+  holder_rebuild_request rebuild{f.project_id.c_str()};
+  const holder_rebuild_result* rebuilt = nullptr;
+  REQUIRE(holder_rebuild_project(f.context, &rebuild, f.arena, &rebuilt, &f.error) == HOLDER_OK);
+  const holder_project_storage_location* location = nullptr;
+  REQUIRE(holder_get_storage_location(f.context, "location-5678", f.arena, &location, &f.error) == HOLDER_OK);
+  REQUIRE(std::string(location->name) == "Family Drive");
+
+  const holder_location_delete_result* deleted = nullptr;
+  REQUIRE(holder_delete_storage_location(f.context, "location-5678", f.arena, &deleted, &f.error) == HOLDER_OK);
+  REQUIRE_FALSE(std::filesystem::exists(file));
+  REQUIRE(holder_rebuild_project(f.context, &rebuild, f.arena, &rebuilt, &f.error) == HOLDER_OK);
+  REQUIRE(holder_get_storage_location(f.context, "location-5678", f.arena, &location, &f.error) ==
+          HOLDER_ERROR_NOT_FOUND);
+}
