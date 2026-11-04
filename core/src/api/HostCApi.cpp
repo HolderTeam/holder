@@ -251,7 +251,7 @@ extern "C" int holder_register_ssh_signer(holder_context* context, const char* u
   }
 }
 
-extern "C" int holder_register_storage_provider(const char* provider_name, const holder_storage_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error) {
+extern "C" int holder_register_storage_provider(holder_register_storage_provider_kind kind, const holder_storage_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error) {
   if (out_error) *out_error = nullptr;
   std::shared_ptr<CStorageProviderCallbacks> provider;
   try {
@@ -263,10 +263,15 @@ extern "C" int holder_register_storage_provider(const char* provider_name, const
   }
   if (!callbacks || callbacks->put == nullptr || callbacks->get == nullptr || callbacks->exists == nullptr || callbacks->remove == nullptr)
     return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "StorageProvider callbacks are required");
-  if (!provider_name || provider_name[0] == '\0')
-    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "provider_name is required");
+  holder::contract::RegisterStorageProviderKind kind_value;
+  switch (kind) {
+  case HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE: kind_value = holder::contract::RegisterStorageProviderKind::S3Compatible; break;
+  case HOLDER_REGISTER_STORAGE_PROVIDER_KIND_GOOGLE_DRIVE: kind_value = holder::contract::RegisterStorageProviderKind::GoogleDrive; break;
+  default:
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "kind is not a holder_register_storage_provider_kind value");
+  }
   try {
-    holder::contract::register_storage_provider(std::string(provider_name), provider);
+    holder::contract::register_storage_provider(kind_value, provider);
     return HOLDER_OK;
   } catch (const std::bad_alloc&) {
     return holder::contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");

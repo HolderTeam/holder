@@ -1050,12 +1050,14 @@ void register_keyring_provider(std::shared_ptr<KeyringProvider> provider);
 /// destruction releases it after active signing calls finish. Callbacks may run on any thread.
 void register_ssh_signer(holder_context* context, std::string username, std::vector<unsigned char> public_key_blob, std::shared_ptr<SshSigner> provider);
 
-/// Install or replace one named process-wide storage provider.
-/// local_directory is reserved for the built-in filesystem backend. Registration takes
+enum class RegisterStorageProviderKind { S3Compatible, GoogleDrive };
+
+/// Install or replace the process-wide storage provider for one location provider kind.
+/// local_directory is built into core and cannot be registered. Registration takes
 /// ownership even on failure; replacement releases the old provider after active asset
 /// operations finish. Callbacks may run on any thread. Storage callback failures carry
 /// one of StorageProvider's declared error codes and a message.
-void register_storage_provider(std::string provider_name, std::shared_ptr<StorageProvider> provider);
+void register_storage_provider(RegisterStorageProviderKind kind, std::shared_ptr<StorageProvider> provider);
 
 /// Set libgit2's process-wide home directory before Git operations.
 /// On Android, pass a writable app-private directory so SSH can find its known_hosts file.

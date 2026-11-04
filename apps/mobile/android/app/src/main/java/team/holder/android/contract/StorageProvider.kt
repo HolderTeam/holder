@@ -14,6 +14,12 @@ enum class StorageErrorCode {
     TRANSIENT,
 }
 
+/** The location provider kinds a host implements; local_directory is built into core. */
+enum class RegisterStorageProviderKind(val value: String) {
+    S3_COMPATIBLE("s3_compatible"),
+    GOOGLE_DRIVE("google-drive"),
+}
+
 /** A typed storage failure passed through the generated JNI adapter. */
 @Keep
 class StorageFailure(val code: Int, override val message: String) : RuntimeException(message)
@@ -33,5 +39,5 @@ interface StorageProvider {
 
 object StorageHosts {
     @JvmStatic
-    external fun registerStorageProvider(providerName: String, provider: StorageProvider)
+    external fun registerStorageProvider(kind: RegisterStorageProviderKind, provider: StorageProvider)
 }

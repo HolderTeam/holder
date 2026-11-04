@@ -9,6 +9,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import team.holder.android.HolderLocation
 import team.holder.android.HolderSettings
+import team.holder.android.contract.RegisterStorageProviderKind
 import team.holder.android.keyring.AndroidKeyringStore
 import team.holder.android.network.LocalNetworkAccess
 import team.holder.android.resource.AndroidStorageProviderBridge
@@ -56,7 +57,7 @@ object S3Connection {
     fun registerProvider(context: Context) {
         val appContext = context.applicationContext
         AndroidStorageProviderBridge.register(
-            PROVIDER_ID,
+            RegisterStorageProviderKind.S3_COMPATIBLE,
             AndroidS3Provider(
                 config = { requireStoredConfig(appContext) },
                 localNetworkBlocked = { LocalNetworkAccess.isBlocked(appContext, it) },

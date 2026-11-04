@@ -148,11 +148,23 @@ void destroy(void* user_data) {
 
 extern "C" JNIEXPORT void JNICALL
 Java_team_holder_android_contract_StorageHosts_registerStorageProvider(
-    JNIEnv* env, jclass, jstring provider_name, jobject provider) {
-  if (!provider_name || !provider) {
-    env->ThrowNew(env->FindClass("java/lang/IllegalArgumentException"), "provider name and provider are required");
+    JNIEnv* env, jclass, jobject {{ kind.name }}, jobject provider) {
+  if (!{{ kind.name }} || !provider) {
+    env->ThrowNew(env->FindClass("java/lang/IllegalArgumentException"), "{{ kind.name }} and provider are required");
     return;
   }
+  // The Kotlin enum lists the C enum's members in order, and the C enum starts at one.
+  jint ordinal = -1;
+  if (jclass kind_class = env->GetObjectClass({{ kind.name }})) {
+    if (jmethodID method = env->GetMethodID(kind_class, "ordinal", "()I")) ordinal = env->CallIntMethod({{ kind.name }}, method);
+    env->DeleteLocalRef(kind_class);
+  }
+  if (env->ExceptionCheck() || ordinal < 0) {
+    env->ExceptionClear();
+    env->ThrowNew(env->FindClass("java/lang/IllegalArgumentException"), "invalid {{ kind.name }}");
+    return;
+  }
+  const auto c_{{ kind.name }} = static_cast<{{ kind.c_type }}>(ordinal + 1);
   auto* ctx = new (std::nothrow) StorageContext();
   if (!ctx) { env->ThrowNew(env->FindClass("java/lang/OutOfMemoryError"), "storage context allocation failed"); return; }
   env->GetJavaVM(&ctx->vm);
@@ -181,13 +193,10 @@ Java_team_holder_android_contract_StorageHosts_registerStorageProvider(
     env->ThrowNew(env->FindClass("java/lang/IllegalArgumentException"), "invalid storage provider");
     return;
   }
-  const char* name = env->GetStringUTFChars(provider_name, nullptr);
-  if (!name) { destroy(ctx); return; }
   const holder_storage_provider_callbacks callbacks{put, get, exists, remove};
   holder_error* error = nullptr;
   // Core owns ctx from this call onward, including on failure.
-  const int status = holder_register_storage_provider(name, &callbacks, ctx, destroy, &error);
-  env->ReleaseStringUTFChars(provider_name, name);
+  const int status = holder_register_storage_provider(c_{{ kind.name }}, &callbacks, ctx, destroy, &error);
   if (status != HOLDER_OK) {
     env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),
                   error ? holder_error_message(error) : "storage provider registration failed");

@@ -7,7 +7,7 @@ from compiler.ir import ListType, LiteralType, MapType, NamedType, NullableType
 
 from ..common import Unsupported, contract_sources, header_lines
 from .abi import SCALARS_C, format_default, literal_member, snake
-from .render import c_param, c_signature, comment
+from .render import c_param, c_signature, comment, host_c_params
 from .types import CoreTypes, Slot, c_enum_name, list_c_name, map_c_name, unique
 
 
@@ -158,7 +158,7 @@ def generate_c_header(types: CoreTypes) -> str:
             out += [f"typedef struct {instance.c_name}_list {{", f"    const {instance.c_name}* items;",
                     "    size_t count;", f"}} {instance.c_name}_list;", ""]
     for op in types.operations:
-        params = [] if op.host else [c_param(types, op, p) for p in op.parameters]
+        params = host_c_params(types, op) if op.host else [c_param(types, op, p) for p in op.parameters]
         for param in params:
             if param.enum_lines:
                 out += [*param.enum_lines, ""]

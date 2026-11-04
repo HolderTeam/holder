@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from compiler.ir import NullableType
+from compiler.ir import LiteralType, NullableType
 
 from ..common import contract_sources, header_lines
-from .abi import snake
+from .abi import literal_member, snake
 from .render import c_signature
-from .types import CoreTypes
+from .types import CoreTypes, camel
 
 
 def generate_host_glue(types: CoreTypes) -> str:
@@ -116,7 +116,19 @@ def generate_host_glue(types: CoreTypes) -> str:
                     '    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context is required");']
         call_args = ["context"] if op.context == "required" else []
         for parameter in op.parameters:
-            kind = types.resolve(parameter.type).type.kind
+            resolved = types.resolve(parameter.type).type
+            if isinstance(resolved, LiteralType):
+                # A choice of literals is a C enum; zero and unlisted values are rejected.
+                prefix, type_name = f"holder_{op.name}_{parameter.name}".upper(), camel(op.name) + camel(parameter.name)
+                out += [f"  holder::contract::{type_name} {parameter.name}_value;", f"  switch ({parameter.name}) {{"]
+                out += [f"  case {prefix}_{literal_member(value)}: {parameter.name}_value = "
+                        f"holder::contract::{type_name}::{camel(str(value))}; break;" for value in resolved.values]
+                out += ["  default:",
+                        f'    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "{parameter.name} is not a {prefix.lower()} value");',
+                        "  }"]
+                call_args.append(f"{parameter.name}_value")
+                continue
+            kind = resolved.kind
             out += [f"  if (!{parameter.name}" + (f" || {parameter.name}[0] == '\\0'" if kind == "string"
                                              else f" || {parameter.name}_len == 0") + ")",
                     f'    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "{parameter.name} is required");']

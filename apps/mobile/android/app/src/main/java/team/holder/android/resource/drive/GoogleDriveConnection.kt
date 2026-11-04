@@ -12,6 +12,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import team.holder.android.HolderLocation
 import team.holder.android.HolderSettings
+import team.holder.android.contract.RegisterStorageProviderKind
 import team.holder.android.resource.AndroidStorageProviderBridge
 import team.holder.android.resource.StorageLocations
 
@@ -41,7 +42,7 @@ object GoogleDriveConnection {
     fun registerProvider(context: Context) {
         val appContext = context.applicationContext
         AndroidStorageProviderBridge.register(
-            PROVIDER_ID,
+            RegisterStorageProviderKind.GOOGLE_DRIVE,
             GoogleDriveStorageProvider(appContext, folderId = { requireStoredFolderId(appContext) }),
         )
     }

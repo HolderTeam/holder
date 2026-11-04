@@ -7,6 +7,11 @@ enum class StorageErrorCode {
 {% for code in error_codes %}    {{ code.upper() }},
 {% endfor %}}
 
+/** The location provider kinds a host implements; local_directory is built into core. */
+enum class {{ kind.kotlin }}(val value: String) {
+{% for member, value in kind.members %}    {{ member }}("{{ value }}"),
+{% endfor %}}
+
 /** A typed storage failure passed through the generated JNI adapter. */
 @Keep
 class StorageFailure(val code: Int, override val message: String) : RuntimeException(message)
@@ -26,5 +31,5 @@ interface StorageProvider {
 
 object StorageHosts {
     @JvmStatic
-    external fun registerStorageProvider(providerName: String, provider: StorageProvider)
+    external fun registerStorageProvider({{ kind.name }}: {{ kind.kotlin }}, provider: StorageProvider)
 }
