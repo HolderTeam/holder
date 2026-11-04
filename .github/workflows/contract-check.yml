@@ -15,9 +15,11 @@ on:
       - 'contract/**'
       - 'core/include/holder/holder_api.h'
       - 'core/src/api/Contract.h'
-      - 'core/src/api/ContractGlue.cpp'
-      - 'daemon/src/api/generated/ContractJson.h'
-      - 'daemon/src/api/generated/ContractRoutes.h'
+      - 'core/src/api/ContractCApi.cpp'
+      - 'core/src/api/HostCApi.cpp'
+      - 'daemon/src/api/generated/**'
+      - 'apps/mobile/android/app/src/main/java/team/holder/android/contract/**'
+      - 'apps/mobile/android/app/src/main/cpp/generated/**'
       - 'api/openapi.yaml'
       - 'api/openapi.json'
       - 'api/openapi-base.json'
@@ -50,9 +52,9 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          # The generated files are checked too: editing one by hand, holder.h, which the check reads
-          # for name collisions, or the API metadata it merges, must run the contract check.
-          if grep -qE '^(contract/|core/include/holder/holder(_api)?\.h$|core/src/api/Contract(\.h|Glue\.cpp)$|daemon/src/api/generated/Contract(Json|Routes)\.h$|api/openapi\.(yaml|json)$|api/openapi-base\.json$|\.github/workflows/contract-check\.yml$)' <<< "$changed"; then
+          # Select every generated output as well as its sources: a handwritten change to an
+          # output must run the freshness check. tests/test_ci_paths.py verifies this inventory.
+          if grep -qE '^(contract/|core/include/holder/holder_api\.h$|core/src/api/(Contract\.h|ContractCApi\.cpp|HostCApi\.cpp)$|daemon/src/api/generated/|apps/mobile/android/app/src/main/(java/team/holder/android/contract/|cpp/generated/)|api/openapi\.(yaml|json)$|api/openapi-base\.json$|\.github/workflows/contract-check\.yml$)' <<< "$changed"; then
             echo "contract=true" >> "$GITHUB_OUTPUT"
           else
             echo "contract=false" >> "$GITHUB_OUTPUT"
