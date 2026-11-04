@@ -164,6 +164,7 @@ class InterfaceView(View):
     source: str | None = None
     doc: str | None = None
     methods: list[InterfaceMethodView]
+    error_codes: list[str] = Field(default_factory=list)
 
 
 class OperationView(View):

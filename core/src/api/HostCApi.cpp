@@ -110,6 +110,61 @@ class CSshSignerCallbacks final : public holder::contract::SshSigner {
   holder_destroy_fn destroy_;
 };
 
+class CStorageProviderCallbacks final : public holder::contract::StorageProvider {
+ public:
+  CStorageProviderCallbacks(holder_storage_provider_callbacks callbacks, void* user_data, holder_destroy_fn destroy)
+      : callbacks_(callbacks), user_data_(user_data), destroy_(destroy) {}
+  ~CStorageProviderCallbacks() override { if (destroy_) destroy_(user_data_); }
+
+  void put(const std::string& object_key, const std::string& staged_file_path, long long stored_size, const std::string& stored_sha256) override {
+    int error_code = 0;
+    char* error = nullptr;
+    const int status = callbacks_.put(user_data_, object_key.c_str(), staged_file_path.c_str(), stored_size, stored_sha256.c_str(), &error_code, &error);
+    std::unique_ptr<char, decltype(&std::free)> error_owner(error, &std::free);
+    if (status != 0) throw holder::contract::StorageProviderFailure(
+        error_code >= 0 && error_code < 8 ? error_code : 0,
+        error ? error : "storage put failed");
+  }
+
+  void get(const std::string& object_key, const std::string& destination_file_path) override {
+    int error_code = 0;
+    char* error = nullptr;
+    const int status = callbacks_.get(user_data_, object_key.c_str(), destination_file_path.c_str(), &error_code, &error);
+    std::unique_ptr<char, decltype(&std::free)> error_owner(error, &std::free);
+    if (status != 0) throw holder::contract::StorageProviderFailure(
+        error_code >= 0 && error_code < 8 ? error_code : 0,
+        error ? error : "storage get failed");
+  }
+
+  bool exists(const std::string& object_key) override {
+    int value = 0;
+    int error_code = 0;
+    char* error = nullptr;
+    const int status = callbacks_.exists(user_data_, object_key.c_str(), &value, &error_code, &error);
+    std::unique_ptr<char, decltype(&std::free)> error_owner(error, &std::free);
+    if (status != 0) throw holder::contract::StorageProviderFailure(
+        error_code >= 0 && error_code < 8 ? error_code : 0,
+        error ? error : "storage exists failed");
+    if (value != 0 && value != 1) throw std::runtime_error("StorageProvider.exists: invalid boolean result");
+    return value == 1;
+  }
+
+  void remove(const std::string& object_key) override {
+    int error_code = 0;
+    char* error = nullptr;
+    const int status = callbacks_.remove(user_data_, object_key.c_str(), &error_code, &error);
+    std::unique_ptr<char, decltype(&std::free)> error_owner(error, &std::free);
+    if (status != 0) throw holder::contract::StorageProviderFailure(
+        error_code >= 0 && error_code < 8 ? error_code : 0,
+        error ? error : "storage remove failed");
+  }
+
+ private:
+  holder_storage_provider_callbacks callbacks_;
+  void* user_data_;
+  holder_destroy_fn destroy_;
+};
+
 } // namespace
 
 extern "C" int holder_register_time_zone_provider(const holder_time_zone_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error) {
@@ -129,6 +184,8 @@ extern "C" int holder_register_time_zone_provider(const holder_time_zone_provide
     return HOLDER_OK;
   } catch (const std::bad_alloc&) {
     return holder::contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  } catch (const std::invalid_argument& error) {
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, error.what());
   } catch (const std::exception& error) {
     return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, error.what());
   } catch (...) {
@@ -153,6 +210,8 @@ extern "C" int holder_register_keyring_provider(const holder_keyring_provider_ca
     return HOLDER_OK;
   } catch (const std::bad_alloc&) {
     return holder::contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  } catch (const std::invalid_argument& error) {
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, error.what());
   } catch (const std::exception& error) {
     return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, error.what());
   } catch (...) {
@@ -183,6 +242,36 @@ extern "C" int holder_register_ssh_signer(holder_context* context, const char* u
     return HOLDER_OK;
   } catch (const std::bad_alloc&) {
     return holder::contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  } catch (const std::invalid_argument& error) {
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, error.what());
+  } catch (const std::exception& error) {
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, error.what());
+  } catch (...) {
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown holder error");
+  }
+}
+
+extern "C" int holder_register_storage_provider(const char* provider_name, const holder_storage_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error) {
+  if (out_error) *out_error = nullptr;
+  std::shared_ptr<CStorageProviderCallbacks> provider;
+  try {
+    provider = std::make_shared<CStorageProviderCallbacks>(callbacks ? *callbacks : holder_storage_provider_callbacks{},
+                                           user_data, destroy_user_data);
+  } catch (const std::bad_alloc&) {
+    if (destroy_user_data) destroy_user_data(user_data);
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  }
+  if (!callbacks || callbacks->put == nullptr || callbacks->get == nullptr || callbacks->exists == nullptr || callbacks->remove == nullptr)
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "StorageProvider callbacks are required");
+  if (!provider_name || provider_name[0] == '\0')
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "provider_name is required");
+  try {
+    holder::contract::register_storage_provider(std::string(provider_name), provider);
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  } catch (const std::invalid_argument& error) {
+    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, error.what());
   } catch (const std::exception& error) {
     return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, error.what());
   } catch (...) {

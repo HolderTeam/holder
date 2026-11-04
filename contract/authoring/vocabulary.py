@@ -80,7 +80,10 @@ class Bytes(_ResultOnly):
     """An operation's result delivered as a stream of bytes, such as an asset's content."""
 
 
-def host_interface(cls: type) -> type:
-    """Declare an interface the host implements and core calls, such as a keyring provider."""
-    cls.__holder_interface__ = True
-    return cls
+def host_interface(cls: type | None = None, *, error_codes: tuple[str, ...] = ()):
+    """Declare an interface the host implements, with optional typed callback failure codes."""
+    def decorate(target: type) -> type:
+        target.__holder_interface__ = True
+        target.__holder_error_codes__ = error_codes
+        return target
+    return decorate(cls) if cls is not None else decorate

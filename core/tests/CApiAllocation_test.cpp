@@ -1,4 +1,4 @@
-#include <holder/holder.h>
+#include <holder/holder_api.h>
 
 #include <cstddef>
 #include <cstdio>
@@ -32,11 +32,8 @@ int main() {
     int result = HOLDER_OK;
     switch (api) {
     case 0:
-      result = holder_storage_provider_register(
+      result = holder_register_storage_provider(
           "allocation-test",
-          nullptr,
-          nullptr,
-          nullptr,
           nullptr,
           &destroyed,
           destroy,

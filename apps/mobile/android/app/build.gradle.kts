@@ -8,7 +8,7 @@ plugins {
 }
 
 // Core is built from source from core/ in this repository, the same commit as the app. The app
-// uses only its C API (holder/holder_api.h plus host registrations in holder.h); its schema is packaged as an asset.
+// uses only its generated C API (holder/holder_api.h); its schema is packaged as an asset.
 val holderCoreDir = rootProject.projectDir.resolve("../../../core").canonicalFile
 val holderNdkVersion = "28.2.13676358"
 val localProperties = Properties().apply {

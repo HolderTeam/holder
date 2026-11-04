@@ -37,3 +37,22 @@ class SshSigner(Protocol):
 
     def sign(self, data: Bytes) -> Bytes:
         """Return a DER-encoded P-256 ECDSA signature for the challenge bytes."""
+
+
+@host_interface(error_codes=("unavailable", "authentication", "permission", "capacity",
+                             "integrity", "conflict", "invalid_configuration", "transient"))
+class StorageProvider(Protocol):
+    """Stores opaque asset objects under a host-managed provider name."""
+
+    def put(self, object_key: str, staged_file_path: str, stored_size: Int64,
+            stored_sha256: str) -> None:
+        """Upload a staged file. A typed failure leaves the source intact."""
+
+    def get(self, object_key: str, destination_file_path: str) -> None:
+        """Download an object to the destination file."""
+
+    def exists(self, object_key: str) -> bool:
+        """Return false when absent; an inability to check is a failure."""
+
+    def remove(self, object_key: str) -> None:
+        """Remove an object; absence is not a failure."""

@@ -244,7 +244,12 @@ class _Builder:
                                     allow_bytes=True) for name in members]
         methods = [InterfaceMethodView(name=s.name, summary=s.summary, description=s.description,
                                        parameters=s.parameters, returns=s.returns) for s in signatures]
-        self.draft.interfaces.append(InterfaceView(name=cls.__name__, source=source, doc=_doc(cls), methods=methods))
+        codes = list(getattr(cls, "__holder_error_codes__", ()))
+        if len(codes) != len(set(codes)) or any(not isinstance(code, str) or not code.isidentifier()
+                                                 for code in codes):
+            self.problem(f"{cls.__name__}: host error codes must be distinct identifiers")
+        self.draft.interfaces.append(InterfaceView(name=cls.__name__, source=source, doc=_doc(cls),
+                                                   methods=methods, error_codes=codes))
 
     def operations(self) -> None:
         """The operations registered through app.py's Contract, in registration order."""
@@ -283,8 +288,6 @@ class _Builder:
                                                        **({"host": host.__name__} if valid_host else {})))
             if host is not None and signature.returns.kind != "none":
                 self.problem(f"{function.__name__}: a host registration returns None")
-            if host is not None and operation.context == "none" and signature.parameters:
-                self.problem(f"{function.__name__}: a process-wide host registration takes no declared parameters")
             self.check_context(function.__name__, operation.context, signature)
             self.check_error(function.__name__, operation.error, signature)
             if operation.route:

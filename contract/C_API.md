@@ -2,7 +2,7 @@
 
 `make -C contract update` writes three files from the contract into core, and `make -C contract check` fails when they are out of date:
 
-- **`core/include/holder/holder_api.h`:** the standalone C declarations consumers use: opaque handles, records, operations, error codes, and the arena. `holder.h` includes it alongside the remaining host callback registrations.
+- **`core/include/holder/holder_api.h`:** the standalone C declarations consumers use: opaque handles, records, operations, host callbacks, error codes, and the arena.
 - **`core/src/api/Contract.h`:** the C++ declarations core implements, one function per operation, in `holder::contract`, a namespace of its own so nothing clashes with the daemon's `holder::api`. A missing implementation fails to link.
 - **`core/src/api/ContractCApi.cpp`:** the C entry points. Each checks its arguments against the contract, calls core's function, copies the result into the caller's arena, and turns error kinds into status codes. Core never sees a null pointer, an out-of-range number or an unknown enum value.
 
@@ -42,4 +42,4 @@ Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A recor
 - **Input records** are passed by pointer. A zeroed record means every optional field is absent: `holder_new_card card = {0};` then set what you need.
 - **Generic records** are generated for each use: `Page[CardListItem]` becomes `holder_card_list_item_page`.
 
-Daemon-only operations are left out. Parts of the vocabulary the C generator does not support yet stop generation with a message naming them: enums, host interfaces, error kinds with fields, maps, free-form JSON, secrets, streams, bytes, partial updates of anything but a string, and constraints the glue cannot check yet (`pattern`, and bounds on a `float64`). Each is added when the first contract declaration needs it.
+Daemon-only operations are left out. Parts of the vocabulary the C generator does not support yet stop generation with a message naming them: enums, error kinds with fields, maps, free-form JSON, secrets, streams, bytes in operations, partial updates of anything but a string, and constraints the glue cannot check yet (`pattern`, and bounds on a `float64`). Each is added when the first contract declaration needs it.

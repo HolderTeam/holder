@@ -21,7 +21,6 @@ on:
       - 'common/**'
       - 'api/**'
       - 'core/**'
-      - '!core/include/holder/holder.h'
       - '!core/src/capi/holder.cpp'
       - '!core/src/capi/version.cpp'
       - '!core/tests/**'

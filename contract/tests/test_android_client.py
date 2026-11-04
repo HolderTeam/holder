@@ -51,6 +51,11 @@ def test_host_provider_has_generated_callbacks_and_thread_attachment():
     assert "holder_register_ssh_signer(" in signer
     assert "AttachCurrentThread" in signer and "DetachCurrentThread" in signer
     assert "fun sign(data: ByteArray): ByteArray" in files[f"{KOTLIN_DIR}/SshSigner.kt"]
+    storage = files["apps/mobile/android/app/src/main/cpp/generated/storage_provider_host.cpp"]
+    assert "holder_register_storage_provider(name, &callbacks, ctx, destroy, &error)" in storage
+    assert "AttachCurrentThread" in storage and "DetachCurrentThread" in storage
+    assert "HOLDER_STORAGE_ERROR_UNAVAILABLE" in storage
+    assert "fun exists(objectKey: String): Boolean" in files[f"{KOTLIN_DIR}/StorageProvider.kt"]
 
 
 def test_android_rejects_host_shape_it_cannot_lower():
@@ -59,6 +64,15 @@ def test_android_rejects_host_shape_it_cannot_lower():
     lookup = next(method for method in keyring["methods"] if method["name"] == "lookup")
     lookup["returns"] = {"kind": "int64"}
     with pytest.raises(Unsupported, match="KeyringProvider.lookup: int64 host callback results"):
+        client(ir)
+
+
+def test_android_rejects_unsupported_storage_callback_shape():
+    ir = holder_ir()
+    storage = next(interface for interface in ir["interfaces"] if interface["name"] == "StorageProvider")
+    exists = next(method for method in storage["methods"] if method["name"] == "exists")
+    exists["returns"] = {"kind": "int32"}
+    with pytest.raises(Unsupported, match="StorageProvider.exists: int32 host callback results"):
         client(ir)
 
 

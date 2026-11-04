@@ -49,7 +49,7 @@ def c_field_note(slot: Slot) -> str:
     return " ".join(notes)
 
 
-def host_callback(types: CoreTypes, method) -> str:
+def host_callback(types: CoreTypes, interface, method) -> str:
     args = ["void* user_data"]
     for param in method.parameters:
         ref = types.resolve(param.type).type
@@ -68,6 +68,10 @@ def host_callback(types: CoreTypes, method) -> str:
         args.append("char** out_value")
     elif result.kind == "bytes":
         args.extend(["unsigned char** out_value", "size_t* out_value_len"])
+    elif result.kind == "bool":
+        args.append("int* out_value")
+    if interface.error_codes:
+        args.append("int* out_error_code")
     args.append("char** out_error")
     return f"    int (*{method.name})({', '.join(args)});"
 
@@ -98,11 +102,17 @@ def generate_c_header(types: CoreTypes) -> str:
         for op in types.host_operations:
             interface = types.contract.interface(op.host)
             name = f"holder_{snake(interface.name)}_callbacks"
+            if interface.error_codes:
+                enum = f"holder_{snake(interface.name.removesuffix('Provider'))}_error_code"
+                out += [f"typedef enum {enum} {{",
+                        *[f"    {enum.upper().removesuffix('_CODE')}_{code.upper()} = {index},"
+                          for index, code in enumerate(interface.error_codes)],
+                        f"}} {enum};", ""]
             out += comment(interface.doc)
             out += [f"typedef struct {name} {{"]
             for method in interface.methods:
                 out += comment(method.summary, indent="    ")
-                out.append(host_callback(types, method))
+                out.append(host_callback(types, interface, method))
             out += [f"}} {name};", "",
                     "/* Each callback returns zero on success; nonzero may set malloc-owned *out_error.",
                     " * String and byte results must be malloc-allocated; core frees them after copying.",

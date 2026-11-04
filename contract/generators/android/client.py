@@ -52,7 +52,7 @@ CLASS_PATH = PACKAGE.replace(".", "/")
 KOTLIN_DIR = "apps/mobile/android/app/src/main/java/team/holder/android/contract"
 JNI_PATH = "apps/mobile/android/app/src/main/cpp/generated/contract_client.cpp"
 
-# The C API's base status codes (holder.h), as Kotlin exceptions.
+# The C API's base status codes (holder_api.h), as Kotlin exceptions.
 BASE_EXCEPTIONS = {4000: "InvalidArgumentException", 5000: "UnexpectedFailureException",
                    5001: "AllocationFailureException"}
 if BASE_EXCEPTIONS.keys() != BASE_ERROR_CODES.keys():
