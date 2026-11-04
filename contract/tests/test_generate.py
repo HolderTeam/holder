@@ -37,8 +37,8 @@ def test_cores_generated_files_are_up_to_date():
 
 
 def test_generated_names_still_check_against_host_declarations():
-    assert collisions({"holder_api.h": "int holder_git_set_ssh_signer(void);\nint holder_keyring_set_provider(void);\n"}) == [
-        "holder_git_set_ssh_signer", "holder_keyring_set_provider"]
+    assert collisions({"holder_api.h": "int holder_git_set_ssh_signer(void);\nint holder_storage_provider_register(void);\n"}) == [
+        "holder_git_set_ssh_signer", "holder_storage_provider_register"]
     assert collisions({"holder_api.h": "typedef struct holder_context holder_context;\n"}) == []
 
 

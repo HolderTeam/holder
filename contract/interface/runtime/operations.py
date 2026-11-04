@@ -4,7 +4,7 @@ from typing import Annotated
 
 from authoring import Contract, Field
 
-from .hosts import TimeZoneProvider
+from .hosts import KeyringProvider, TimeZoneProvider
 from .models import CoreVersion, DatabaseRebuildReport
 
 
@@ -20,6 +20,15 @@ def register(contract: Contract) -> None:
         Registration takes ownership of the provider even when validation fails. A replacement
         releases the previous provider after active callbacks finish. Callbacks may run on any
         thread. Null offset means an unknown zone; a callback failure is an unexpected error.
+        """
+
+    @contract.runtime_operation(context="none", host=KeyringProvider)
+    def register_keyring_provider() -> None:
+        """Install a process-wide secure store for secrets.
+
+        Registration takes ownership even on failure. Replacement releases the previous provider
+        after active callbacks finish. Callbacks may run on any thread. A null lookup result means
+        no secret; callback failure remains distinct from a miss.
         """
 
     @contract.runtime_operation(context="none")

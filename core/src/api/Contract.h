@@ -988,6 +988,18 @@ class TimeZoneProvider {
   virtual std::string current_zone() = 0;
 };
 
+/// A process-wide secure store for device secrets and project encryption keys.
+class KeyringProvider {
+ public:
+  virtual ~KeyringProvider() = default;
+  /// Return a secret, or null when absent. Failure is distinct from absence.
+  virtual std::optional<std::string> lookup(int kind, const std::string& service, const std::string& account, const std::optional<std::string>& project_id) = 0;
+  /// Store a secret; failure leaves the caller informed.
+  virtual void store(int kind, const std::string& service, const std::string& account, const std::optional<std::string>& project_id, const std::string& label, const std::string& secret) = 0;
+  /// Remove a secret; an absent secret is not a failure.
+  virtual void remove(int kind, const std::string& service, const std::string& account, const std::optional<std::string>& project_id) = 0;
+};
+
 /// The version of the core library loaded.
 CoreVersion version();
 
@@ -996,6 +1008,12 @@ CoreVersion version();
 /// releases the previous provider after active callbacks finish. Callbacks may run on any
 /// thread. Null offset means an unknown zone; a callback failure is an unexpected error.
 void register_time_zone_provider(std::shared_ptr<TimeZoneProvider> provider);
+
+/// Install a process-wide secure store for secrets.
+/// Registration takes ownership even on failure. Replacement releases the previous provider
+/// after active callbacks finish. Callbacks may run on any thread. A null lookup result means
+/// no secret; callback failure remains distinct from a miss.
+void register_keyring_provider(std::shared_ptr<KeyringProvider> provider);
 
 /// Set libgit2's process-wide home directory before Git operations.
 /// On Android, pass a writable app-private directory so SSH can find its known_hosts file.

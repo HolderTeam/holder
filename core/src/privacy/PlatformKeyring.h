@@ -40,8 +40,8 @@ void platform_keyring_remove_secret(const PlatformKeyringSecretRef& ref);
 
 // Runtime-pluggable keyring backend for platforms with no compiled-in branch of
 // their own (currently: Android, bridged to Keystore-backed EncryptedSharedPreferences
-// via JNI in holder-android's native layer -- see holder_keyring_set_provider in
-// holder.h, the C ABI entry point that ultimately calls this). Checked after the
+// via JNI in holder-android's generated host adapter -- see holder_register_keyring_provider
+// in holder_api.h, the C ABI entry point that ultimately calls this). Checked after the
 // _for_tests hooks (which exist specifically to let a test fully override behavior)
 // but before any compiled #if HOLDER_HAVE_* branch, and makes
 // platform_keyring_supported() report true while installed.

@@ -52,12 +52,16 @@ def c_field_note(slot: Slot) -> str:
 def host_callback(types: CoreTypes, method) -> str:
     args = ["void* user_data"]
     for param in method.parameters:
-        kind = types.resolve(param.type).type.kind
-        args.append(f"{'const char*' if kind == 'string' else 'int64_t'} {param.name}")
+        ref = types.resolve(param.type).type
+        kind = types.resolve(ref.value).type.kind if isinstance(ref, NullableType) else ref.kind
+        args.append(f"{ {'string': 'const char*', 'int32': 'int32_t', 'int64': 'int64_t'}[kind] } {param.name}")
     result = types.resolve(method.returns).type
     if isinstance(result, NullableType):
-        args += ["int64_t* out_value", "int* out_present"]
-    else:
+        if types.resolve(result.value).type.kind == "int64":
+            args += ["int64_t* out_value", "int* out_present"]
+        else:
+            args.append("char** out_value")
+    elif result.kind == "string":
         args.append("char** out_value")
     args.append("char** out_error")
     return f"    int (*{method.name})({', '.join(args)});"
@@ -96,7 +100,8 @@ def generate_c_header(types: CoreTypes) -> str:
                 out.append(host_callback(types, method))
             out += [f"}} {name};", "",
                     "/* Each callback returns zero on success; nonzero may set malloc-owned *out_error.",
-                    " * String results are malloc-owned by core. A null numeric result sets *out_present=0. */", ""]
+                    " * String results are malloc-owned by core. Null strings mean absence only for nullable results.",
+                    " * A null numeric result sets *out_present=0. */", ""]
     for alias, ref in types.maps.items():
         name = map_c_name(alias)
         value_type = "const char*" if types.kind(ref.values) == "string" else "holder_string_list"
