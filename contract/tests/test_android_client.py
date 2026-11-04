@@ -52,7 +52,7 @@ def test_host_provider_has_generated_callbacks_and_thread_attachment():
     assert "AttachCurrentThread" in signer and "DetachCurrentThread" in signer
     assert "fun sign(data: ByteArray): ByteArray" in files[f"{KOTLIN_DIR}/SshSigner.kt"]
     storage = files["apps/mobile/android/app/src/main/cpp/generated/storage_provider_host.cpp"]
-    assert "holder_register_storage_provider(name, &callbacks, ctx, destroy, &error)" in storage
+    assert "holder_register_storage_provider(c_kind, &callbacks, ctx, destroy, &error)" in storage
     assert "AttachCurrentThread" in storage and "DetachCurrentThread" in storage
     assert "HOLDER_STORAGE_ERROR_UNAVAILABLE" in storage
     assert "fun exists(objectKey: String): Boolean" in files[f"{KOTLIN_DIR}/StorageProvider.kt"]

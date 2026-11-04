@@ -7,7 +7,6 @@
 
 #include "capi_asset_helpers.h"
 #include "core_test_helpers.h"
-#include "model/Location.h"
 #include "model/Project.h"
 #include "platform/Db.h"
 #include "privacy/PlatformKeyring.h"
@@ -70,25 +69,30 @@ void seed_git_project(
   repo.create(project);
 }
 
-void seed_location(
-    const std::filesystem::path& data_dir,
+void create_location(
+    holder_context* context,
     const std::string& project_id,
     const std::string& location_id,
     const std::string& name,
-    const std::string& provider,
-    std::map<std::string, std::string> configuration = {}
+    holder_new_storage_location_provider provider,
+    const std::map<std::string, std::string>& configuration = {}
 ) {
-  holder::platform::Db db;
-  db.open(data_dir / "server" / "holder.db");
-  holder::model::Location location;
-  location.location_id = location_id;
-  location.project_id = project_id;
-  location.name = name;
-  location.provider = provider;
-  location.configuration = std::move(configuration);
-  location.created_at = 10;
-  location.updated_at = 10;
-  holder::resource::LocationStore(db).put(location);
+  std::vector<holder_location_configuration_entry> entries;
+  for (const auto& [key, value] : configuration) entries.push_back({key.c_str(), value.c_str()});
+  const holder_location_configuration config{entries.data(), entries.size()};
+  holder_new_storage_location request{};
+  request.location_id = location_id.c_str();
+  request.project_id = project_id.c_str();
+  request.name = name.c_str();
+  request.provider = provider;
+  request.configuration = &config;
+  const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(holder_arena_new(), holder_arena_free);
+  const holder_project_storage_location* location = nullptr;
+  holder_error* error = nullptr;
+  const int rc = holder_create_storage_location(context, &request, arena.get(), &location, &error);
+  INFO((error ? holder_error_message(error) : "no C API error"));
+  holder_error_destroy(error);
+  REQUIRE(rc == HOLDER_OK);
 }
 
 struct CreatedPhotoCard {
@@ -920,14 +924,14 @@ int fake_storage_exists_but_block_git_write(
 void noop_storage_destroy(void*) {}
 
 int register_storage_provider(
-    const char* name, decltype(holder_storage_provider_callbacks::put) put,
+    holder_register_storage_provider_kind kind, decltype(holder_storage_provider_callbacks::put) put,
     decltype(holder_storage_provider_callbacks::get) get,
     decltype(holder_storage_provider_callbacks::exists) exists,
     decltype(holder_storage_provider_callbacks::remove) remove,
     void* user_data, holder_destroy_fn destroy, holder_error** error
 ) {
   holder_storage_provider_callbacks callbacks{put, get, exists, remove};
-  return holder_register_storage_provider(name, &callbacks, user_data, destroy, error);
+  return holder_register_storage_provider(kind, &callbacks, user_data, destroy, error);
 }
 
 std::string write_source_file(const std::filesystem::path& path, const std::string& content) {
@@ -950,10 +954,10 @@ TEST_CASE(
   };
   holder_error* error = nullptr;
 
-  SECTION("empty provider_name") {
+  SECTION("zero, which is no kind") {
     REQUIRE(
         register_storage_provider(
-            "",
+            static_cast<holder_register_storage_provider_kind>(0),
             fake_storage_put,
             fake_storage_get,
             fake_storage_exists,
@@ -965,10 +969,10 @@ TEST_CASE(
     );
   }
 
-  SECTION("'local_directory' cannot be overridden") {
+  SECTION("a value outside the enum") {
     REQUIRE(
         register_storage_provider(
-            "local_directory",
+            static_cast<holder_register_storage_provider_kind>(99),
             fake_storage_put,
             fake_storage_get,
             fake_storage_exists,
@@ -983,7 +987,7 @@ TEST_CASE(
   SECTION("null callback") {
     REQUIRE(
         register_storage_provider(
-            "google-drive",
+            HOLDER_REGISTER_STORAGE_PROVIDER_KIND_GOOGLE_DRIVE,
             nullptr,
             fake_storage_get,
             fake_storage_exists,
@@ -1017,7 +1021,7 @@ TEST_CASE(
 
   REQUIRE(
       register_storage_provider(
-          "storage-replace-test",
+          HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE,
           fake_storage_put,
           fake_storage_get,
           fake_storage_exists,
@@ -1031,7 +1035,7 @@ TEST_CASE(
 
   REQUIRE(
       register_storage_provider(
-          "storage-replace-test",
+          HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE,
           fake_storage_put,
           fake_storage_get,
           fake_storage_exists,
@@ -1061,7 +1065,7 @@ TEST_CASE(
   const auto& project_id = created.project_id;
   const auto& card_id = created.card_id;
 
-  seed_location(data_dir, project_id, "loc-local-1", "Local", "local_directory");
+  create_location(context, project_id, "loc-local-1", "Local", HOLDER_NEW_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY);
 
   const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "fake jpeg bytes");
 
@@ -1120,7 +1124,7 @@ TEST_CASE(
   FakeStorageBackend backend{.root = data_dir / "fake-drive"};
   REQUIRE(
       register_storage_provider(
-          "google-drive",
+          HOLDER_REGISTER_STORAGE_PROVIDER_KIND_GOOGLE_DRIVE,
           fake_storage_put,
           fake_storage_get,
           fake_storage_exists,
@@ -1135,12 +1139,12 @@ TEST_CASE(
   const auto& project_id = created.project_id;
   const auto& card_id = created.card_id;
 
-  seed_location(
-      data_dir,
+  create_location(
+      context,
       project_id,
       "loc-drive-1",
       "My Drive",
-      "google-drive",
+      HOLDER_NEW_STORAGE_LOCATION_PROVIDER_GOOGLE_DRIVE,
       {{"folder_id", "drive-folder-abc"}}
   );
 
@@ -1203,7 +1207,7 @@ TEST_CASE(
   int failure_code = HOLDER_STORAGE_ERROR_CAPACITY;
   REQUIRE(
       register_storage_provider(
-          "quota-limited",
+          HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE,
           failing_storage_put_with_message,
           fake_storage_get,
           fake_storage_exists,
@@ -1218,7 +1222,7 @@ TEST_CASE(
   const auto& project_id = created.project_id;
   const auto& card_id = created.card_id;
 
-  seed_location(data_dir, project_id, "loc-quota-1", "Full Drive", "quota-limited");
+  create_location(context, project_id, "loc-quota-1", "Full Drive", HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE);
 
   const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "won't fit");
 
@@ -1294,7 +1298,7 @@ TEST_CASE(
   FakeStorageBackend backend{.root = data_dir / "rollback-provider"};
   REQUIRE(
       register_storage_provider(
-          "rollback-provider",
+          HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE,
           fake_storage_put,
           fake_storage_get,
           fake_storage_exists_but_block_git_write,
@@ -1310,7 +1314,8 @@ TEST_CASE(
   const auto& card_id = created.card_id;
   const auto& project_root = created.project_root;
 
-  seed_location(data_dir, project_id, "loc-rollback-1", "Rollback provider", "rollback-provider");
+  create_location(context, project_id, "loc-rollback-1", "Rollback provider",
+                  HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE);
 
   // A regular file where the resource directory must be makes the Git-backed manifest write
   // fail after the provider has accepted the bytes.
@@ -1337,7 +1342,7 @@ TEST_CASE(
   holder_context_destroy(context);
 }
 
-TEST_CASE("C API asset_import_file reports an unregistered provider by name", "[capi][resource]") {
+TEST_CASE("C API asset_import_file reports an unregistered provider kind by name", "[capi][resource]") {
   const auto data_dir = holder::test::make_temp_dir();
   const auto schema = read_schema_sql();
   holder_context* context = nullptr;
@@ -1350,13 +1355,9 @@ TEST_CASE("C API asset_import_file reports an unregistered provider by name", "[
   const auto& project_id = created.project_id;
   const auto& card_id = created.card_id;
 
-  seed_location(
-      data_dir,
-      project_id,
-      "loc-unregistered-1",
-      "Dropbox (not wired up yet)",
-      "dropbox"
-  );
+  // Nothing registers s3_compatible in this process.
+  create_location(context, project_id, "loc-unregistered-1", "Bucket (not wired up)",
+                  HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE);
 
   const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "bytes");
 
@@ -1371,7 +1372,7 @@ TEST_CASE("C API asset_import_file reports an unregistered provider by name", "[
   );
   REQUIRE(rc == HOLDER_ERROR_RUNTIME);
   REQUIRE(error != nullptr);
-  REQUIRE(std::string(holder_error_message(error)).find("dropbox") != std::string::npos);
+  REQUIRE(std::string(holder_error_message(error)).find("s3_compatible") != std::string::npos);
   holder_error_destroy(error);
 
   holder_context_destroy(context);
@@ -1391,7 +1392,14 @@ TEST_CASE(
   REQUIRE(
       holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
   );
-  seed_location(data_dir, "project-1", "location-1234", "Family Assets", "local_directory");
+  {
+    // Seeded like the bundle below: this test reads a projection written directly.
+    holder::platform::Db db;
+    db.open(data_dir / "server" / "holder.db");
+    holder::resource::LocationStore(db).put(
+        {"location-1234", "project-1", "Family Assets", "local_directory", {}, 10, 10}
+    );
+  }
   const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
       holder_arena_new(),
       holder_arena_free

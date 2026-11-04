@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from compiler.ir import NullableType
+from compiler.ir import LiteralType, NullableType
 
 from ..common import Unsupported
-from ..core.abi import snake
+from ..core.abi import literal_member, snake
 from ..core.types import CoreTypes
-from .client import CLASS_PATH, KOTLIN_DIR, TEMPLATES, camel, kdoc
+from .client import CLASS_PATH, KOTLIN_DIR, TEMPLATES, camel, kdoc, pascal
 
 
 def generate_android_hosts(types: CoreTypes) -> dict[str, str]:
@@ -52,13 +52,19 @@ def generate_android_hosts(types: CoreTypes) -> dict[str, str]:
                 "remove": (("string",), "none"),
             }
             if {name: method_shape(method) for name, method in methods.items()} != expected or \
-                    tuple(shape(parameter.type) for parameter in op.parameters) != ("string",) or \
+                    tuple(shape(parameter.type) for parameter in op.parameters) != ("literal",) or \
                     op.context != "none" or not interface.error_codes:
                 raise Unsupported("Android host adapter does not support StorageProvider's callback shapes")
+            parameter = op.parameters[0]
+            literal = types.resolve(parameter.type).type
+            assert isinstance(literal, LiteralType)
+            kind = {"name": parameter.name, "kotlin": pascal(op.name) + pascal(parameter.name),
+                    "c_type": f"holder_{op.name}_{parameter.name}",
+                    "members": [(literal_member(value), str(value)) for value in literal.values]}
             files[f"{KOTLIN_DIR}/StorageProvider.kt"] = TEMPLATES.get_template("storage.kt.j2").render(
-                error_codes=interface.error_codes)
+                error_codes=interface.error_codes, kind=kind)
             files["apps/mobile/android/app/src/main/cpp/generated/storage_provider_host.cpp"] = \
-                TEMPLATES.get_template("storage.cpp.j2").render()
+                TEMPLATES.get_template("storage.cpp.j2").render(kind=kind)
             continue
         # The pilot's supported shape is checked here as well as in CoreTypes: JNI needs an
         # explicit lowering for every method shape before another host interface can use it.

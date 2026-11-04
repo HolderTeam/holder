@@ -1390,13 +1390,19 @@ int holder_register_keyring_provider(const holder_keyring_provider_callbacks* ca
  */
 int holder_register_ssh_signer(holder_context* context, const char* username, const unsigned char* public_key_blob, size_t public_key_blob_len, const holder_ssh_signer_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error);
 
-/* Install or replace one named process-wide storage provider.
- * local_directory is reserved for the built-in filesystem backend. Registration takes
+typedef enum holder_register_storage_provider_kind {
+    HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE = 1,
+    HOLDER_REGISTER_STORAGE_PROVIDER_KIND_GOOGLE_DRIVE = 2,
+    HOLDER_REGISTER_STORAGE_PROVIDER_KIND_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_register_storage_provider_kind;
+
+/* Install or replace the process-wide storage provider for one location provider kind.
+ * local_directory is built into core and cannot be registered. Registration takes
  * ownership even on failure; replacement releases the old provider after active asset
  * operations finish. Callbacks may run on any thread. Storage callback failures carry
  * one of StorageProvider's declared error codes and a message.
  */
-int holder_register_storage_provider(const char* provider_name, const holder_storage_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error);
+int holder_register_storage_provider(holder_register_storage_provider_kind kind, const holder_storage_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error);
 
 /* Set libgit2's process-wide home directory before Git operations.
  * On Android, pass a writable app-private directory so SSH can find its known_hosts file.

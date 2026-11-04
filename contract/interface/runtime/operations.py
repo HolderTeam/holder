@@ -4,6 +4,7 @@ from typing import Annotated
 
 from authoring import Bytes, Contract, Field
 
+from ..locations.models import HostedStorageProvider
 from .hosts import KeyringProvider, SshSigner, StorageProvider, TimeZoneProvider
 from .models import CoreVersion, DatabaseRebuildReport
 
@@ -41,10 +42,10 @@ def register(contract: Contract) -> None:
         """
 
     @contract.runtime_operation(context="none", host=StorageProvider)
-    def register_storage_provider(provider_name: Annotated[str, Field(min_length=1)]) -> None:
-        """Install or replace one named process-wide storage provider.
+    def register_storage_provider(kind: HostedStorageProvider) -> None:
+        """Install or replace the process-wide storage provider for one location provider kind.
 
-        local_directory is reserved for the built-in filesystem backend. Registration takes
+        local_directory is built into core and cannot be registered. Registration takes
         ownership even on failure; replacement releases the old provider after active asset
         operations finish. Callbacks may run on any thread. Storage callback failures carry
         one of StorageProvider's declared error codes and a message.

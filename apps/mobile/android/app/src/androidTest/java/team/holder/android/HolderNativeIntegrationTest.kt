@@ -19,6 +19,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import team.holder.android.contract.NewProject
 import team.holder.android.contract.NewProjectPrivacyMode
+import team.holder.android.contract.RegisterStorageProviderKind
 import team.holder.android.contract.HostServices
 import team.holder.android.contract.StorageErrorCode
 import team.holder.android.contract.StorageFailure
@@ -78,7 +79,7 @@ class HolderNativeIntegrationTest {
         var reentryRejected = false
         var failNextPut = true
         val source = File(dataDir, "storage-host.txt").apply { writeText("storage host bytes") }
-        StorageHosts.registerStorageProvider("google-drive", object : StorageProvider {
+        StorageHosts.registerStorageProvider(RegisterStorageProviderKind.GOOGLE_DRIVE, object : StorageProvider {
             override fun put(objectKey: String, stagedFilePath: String, storedSize: Long, storedSha256: String) {
                 callbackThread = Thread.currentThread()
                 if (failNextPut) {

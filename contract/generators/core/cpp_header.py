@@ -6,7 +6,7 @@ from compiler.ir import LiteralType, NamedType, NullableType, OperationView, Uni
 
 from ..common import Unsupported, contract_sources, header_lines
 from .abi import SCALARS_CPP
-from .render import Param, c_param, comment, cpp_base, cpp_literal, cpp_type
+from .render import Param, c_param, comment, cpp_base, cpp_literal, cpp_type, host_c_params
 from .types import CoreTypes, Slot, camel, unique
 
 
@@ -140,7 +140,7 @@ def generate_cpp_header(types: CoreTypes) -> str:
             out.append(f"  virtual {returns} {method.name}({', '.join(params)}) = 0;")
         out += ["};", ""]
     for op in types.operations:
-        params = [] if op.host else [c_param(types, op, p) for p in op.parameters]
+        params = host_c_params(types, op) if op.host else [c_param(types, op, p) for p in op.parameters]
         declarations = []
         for param in params:
             decl, extra = cpp_param(types, op, param)
@@ -157,9 +157,11 @@ def generate_cpp_header(types: CoreTypes) -> str:
         returns = "void" if result.kind == "none" else cpp_base(types, result, {})
         if op.host:
             host_params = ["holder_context* context"] if op.context == "required" else []
+            by_name = {p.slot.name: p for p in params}
             for parameter in op.parameters:
                 kind = types.resolve(parameter.type).type.kind
-                host_params.append(f"{'std::string' if kind == 'string' else 'std::vector<unsigned char>'} {parameter.name}")
+                host_params.append(cpp_param(types, op, by_name[parameter.name])[0] if parameter.name in by_name else
+                                   f"{'std::string' if kind == 'string' else 'std::vector<unsigned char>'} {parameter.name}")
             host_params.append(f"std::shared_ptr<{op.host}> provider")
             out.append(f"void {op.name}({', '.join(host_params)});")
         elif op.error == "reads":

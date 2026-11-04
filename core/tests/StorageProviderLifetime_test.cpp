@@ -1,9 +1,6 @@
 #include "capi_asset_helpers.h"
 #include "core_test_helpers.h"
-#include "model/Location.h"
-#include "platform/Db.h"
 #include "resource/LocalDirectoryProvider.h"
-#include "resource/LocationStore.h"
 
 #include <holder/holder_api.h>
 #include <nlohmann/json.hpp>
@@ -33,7 +30,7 @@ struct ProviderProbe {
 
 using ProbeOwner = std::shared_ptr<ProviderProbe>;
 
-int register_probe(const char* name, const ProbeOwner& probe) {
+int register_probe(holder_register_storage_provider_kind kind, const ProbeOwner& probe) {
   holder_error* error = nullptr;
   const holder_storage_provider_callbacks callbacks{
       [](void* data,
@@ -68,7 +65,7 @@ int register_probe(const char* name, const ProbeOwner& probe) {
       }
   };
   const int result = holder_register_storage_provider(
-      name,
+      kind,
       &callbacks,
       new ProbeOwner(probe),
       [](void* data) {
@@ -91,7 +88,8 @@ struct AssetFixture {
   std::string project_id;
   std::string card_id;
 
-  explicit AssetFixture(const char* provider) {
+  // The fixture's location uses the S3-compatible kind, which each test registers its probes as.
+  AssetFixture() {
     std::ifstream schema_file(SCHEMA_SQL_PATH);
     const std::string schema((std::istreambuf_iterator<char>(schema_file)), {});
     holder_context* raw_context = nullptr;
@@ -114,16 +112,14 @@ struct AssetFixture {
     REQUIRE(holder_create_card(context.get(), project_id.c_str(), &card_request, arena.get(), &card, &error) ==
             HOLDER_OK);
     card_id = card->card_id;
-    holder::platform::Db db;
-    db.open(root / "server" / "holder.db");
-    holder::model::Location location;
-    location.location_id = "lifetime-location";
-    location.project_id = project_id;
-    location.name = "Lifetime";
-    location.provider = provider;
-    location.created_at = 1;
-    location.updated_at = 1;
-    holder::resource::LocationStore(db).put(location);
+    holder_new_storage_location location_request{};
+    location_request.location_id = "lifetime-location";
+    location_request.project_id = project_id.c_str();
+    location_request.name = "Lifetime";
+    location_request.provider = HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE;
+    const holder_project_storage_location* location = nullptr;
+    REQUIRE(holder_create_storage_location(context.get(), &location_request, arena.get(), &location, &error) ==
+            HOLDER_OK);
     holder_error_destroy(error);
   }
 
@@ -160,8 +156,8 @@ struct AssetFixture {
 } // namespace
 
 TEST_CASE("C API asset operations retain providers replaced inside callbacks", "[capi][resource]") {
-  const char* name = "lifetime-operation";
-  AssetFixture fixture(name);
+  const auto name = HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE;
+  AssetFixture fixture;
   auto original = std::make_shared<ProviderProbe>(fixture.root / "objects");
   auto replacement = std::make_shared<ProviderProbe>(fixture.root / "objects");
   REQUIRE(register_probe(name, original) == HOLDER_OK);
@@ -209,10 +205,10 @@ TEST_CASE("C API storage provider cleanup can register another provider", "[capi
   auto nested = std::make_shared<ProviderProbe>(root);
   original->on_destroy = [weak = std::weak_ptr<ProviderProbe>(original), nested] {
     if (auto state = weak.lock())
-      state->replacement_result = register_probe("lifetime-nested", nested);
+      state->replacement_result = register_probe(HOLDER_REGISTER_STORAGE_PROVIDER_KIND_GOOGLE_DRIVE, nested);
   };
-  REQUIRE(register_probe("lifetime-cleanup", original) == HOLDER_OK);
-  REQUIRE(register_probe("lifetime-cleanup", replacement) == HOLDER_OK);
+  REQUIRE(register_probe(HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE, original) == HOLDER_OK);
+  REQUIRE(register_probe(HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE, replacement) == HOLDER_OK);
   REQUIRE(original->destroyed.load() == 1);
   REQUIRE(original->replacement_result == HOLDER_OK);
 }
@@ -222,8 +218,8 @@ TEST_CASE(
     "[capi][resource][concurrency][stress]"
 ) {
   using namespace std::chrono_literals;
-  const char* name = "lifetime-concurrent";
-  AssetFixture fixture(name);
+  const auto name = HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE;
+  AssetFixture fixture;
   auto original = std::make_shared<ProviderProbe>(fixture.root / "objects");
   REQUIRE(register_probe(name, original) == HOLDER_OK);
   std::vector<ProbeOwner> replacements;

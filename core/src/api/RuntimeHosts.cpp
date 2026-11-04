@@ -143,9 +143,15 @@ void register_ssh_signer(holder_context* context, std::string username,
       });
 }
 
-void register_storage_provider(std::string provider_name, std::shared_ptr<StorageProvider> provider) {
-  if (provider_name == "local_directory")
-    throw std::invalid_argument("'local_directory' is a built-in provider name and cannot be overridden");
+void register_storage_provider(RegisterStorageProviderKind kind, std::shared_ptr<StorageProvider> provider) {
+  // Keyed by the provider name a location declares; local_directory is built in and not a kind.
+  const std::string provider_name = [kind] {
+    switch (kind) {
+    case RegisterStorageProviderKind::S3Compatible: return "s3_compatible";
+    case RegisterStorageProviderKind::GoogleDrive: return "google-drive";
+    }
+    throw std::invalid_argument("unknown storage provider kind");
+  }();
   std::shared_ptr<holder::resource::StorageProvider> next =
       std::make_shared<RegisteredStorageProvider>(std::move(provider));
   {

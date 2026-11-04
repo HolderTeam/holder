@@ -33,7 +33,7 @@ int main() {
     switch (api) {
     case 0:
       result = holder_register_storage_provider(
-          "allocation-test",
+          HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE,
           nullptr,
           &destroyed,
           destroy,

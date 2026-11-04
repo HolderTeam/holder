@@ -77,6 +77,12 @@ def c_param(types: CoreTypes, op: OperationView, parameter: ParameterView) -> Pa
     return Param(slot, planned.c_decl, planned.note, list(planned.enum_lines))
 
 
+def host_c_params(types: CoreTypes, op: OperationView) -> list[Param]:
+    """A host registration's choice-of-literals parameters, which are C enums as in an ordinary operation.
+    Strings and bytes are lowered directly: the operation planner does not take bytes parameters."""
+    return [c_param(types, op, p) for p in op.parameters if isinstance(types.resolve(p.type).type, LiteralType)]
+
+
 def c_out(types: CoreTypes, op: OperationView) -> tuple[str, str] | None:
     """The result's C type and its out parameter's name; a list is a {items, count} struct."""
     try:
@@ -94,13 +100,15 @@ def c_signature(types: CoreTypes, op: OperationView) -> str:
         callbacks = f"holder_{snake(op.host)}_callbacks"
         args = [] if op.context == "none" else ["holder_context* context"]
         for parameter in op.parameters:
-            kind = types.resolve(parameter.type).type.kind
-            if kind == "string":
-                args.append(f"const char* {parameter.name}")
-            elif kind == "bytes":
+            resolved = types.resolve(parameter.type).type
+            if resolved.kind == "bytes":
                 args.extend([f"const unsigned char* {parameter.name}", f"size_t {parameter.name}_len"])
+            elif resolved.kind == "string":
+                args.append(f"const char* {parameter.name}")
+            elif isinstance(resolved, LiteralType):
+                args.append(c_param(types, op, parameter).c_decl)
             else:
-                raise Unsupported(f"{op.name}({parameter.name}): {kind} host registration parameter")
+                raise Unsupported(f"{op.name}({parameter.name}): {resolved.kind} host registration parameter")
         args.extend([f"const {callbacks}* callbacks", "void* user_data",
                      "holder_destroy_fn destroy_user_data", "holder_error** out_error"])
         return f"int holder_{op.name}(" + ", ".join(args) + ")"

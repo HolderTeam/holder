@@ -8,6 +8,8 @@ from ..projects.ids import ProjectId
 
 type LocationId = Annotated[str, Field(min_length=1)]
 type LocationProvider = Literal["local_directory", "s3_compatible", "google-drive"]
+type HostedStorageProvider = Literal["s3_compatible", "google-drive"]
+"""A location provider that a host implements and registers; local_directory is built into core."""
 type LocationConfiguration = dict[str, str]
 """Portable non-secret provider options."""
 
