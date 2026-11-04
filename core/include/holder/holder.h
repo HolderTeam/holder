@@ -31,7 +31,6 @@ typedef int (*holder_ssh_sign_fn)(
 // Called exactly once to release user_data: either when a later call to
 // holder_git_set_ssh_signer replaces this signer, or when context is
 // destroyed. May be NULL if user_data needs no cleanup.
-typedef void (*holder_destroy_fn)(void* user_data);
 
 // Installs a custom SSH identity (e.g. an Android Keystore-backed key) for
 // all subsequent git network operations (test-remote/push/pull) on this
@@ -198,38 +197,6 @@ int holder_storage_provider_register(
     holder_storage_get_fn get_fn,
     holder_storage_exists_fn exists_fn,
     holder_storage_remove_fn remove_fn,
-    void* user_data,
-    holder_destroy_fn destroy_user_data,
-    holder_error** out_error
-);
-
-// -- Time zones --
-//
-// The calendar (get_calendar) turns days in a time zone into instants. It asks a time-zone
-// provider for a zone's UTC offset at an instant and for the device's current zone, using the
-// operating system's own zone data. Linux, Windows and macOS have a built-in provider; Android
-// has none, so its app registers one. Registering replaces the built-in provider for the process.
-//
-// offset_fn sets *out_offset_seconds to the zone's offset from UTC, in seconds east, at
-// utc_seconds (seconds since the epoch), and returns 0, or nonzero for an unknown zone.
-// current_fn writes the device's current zone (such as "Europe/London") into out_zone as a
-// NUL-terminated string of at most capacity bytes, and returns 0, or nonzero on failure. Both may
-// be called from any thread.
-typedef int (*holder_time_zone_offset_fn)(
-    void* user_data,
-    const char* zone,
-    long long utc_seconds,
-    long long* out_offset_seconds
-);
-
-typedef int (*holder_time_zone_current_fn)(void* user_data, char* out_zone, size_t capacity);
-
-// OWNERSHIP: unconditional from the moment this is called, exactly like
-// holder_keyring_set_provider -- destroy_user_data runs exactly once, either immediately if this
-// call fails, or when a later call replaces this provider and nothing is using it any more.
-int holder_time_zone_set_provider(
-    holder_time_zone_offset_fn offset_fn,
-    holder_time_zone_current_fn current_fn,
     void* user_data,
     holder_destroy_fn destroy_user_data,
     holder_error** out_error

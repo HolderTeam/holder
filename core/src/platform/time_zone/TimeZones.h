@@ -10,7 +10,7 @@
 //
 // The built-in provider depends on the platform, chosen by the build: std::chrono where the
 // C++ library has its time-zone database (Linux, Windows), Core Foundation on macOS, and none
-// on Android, where the app registers one through holder_time_zone_set_provider.
+// on Android, where the app registers one through holder_register_time_zone_provider.
 
 #include <memory>
 #include <optional>

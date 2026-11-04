@@ -26,8 +26,13 @@ long long offset(TimeZoneProvider& provider, const std::string& zone, long long 
 } // namespace
 
 void set_time_zone_provider(std::shared_ptr<TimeZoneProvider> provider) {
-  std::lock_guard lock(provider_mutex());
-  registered_provider() = std::move(provider);
+  std::shared_ptr<TimeZoneProvider> previous;
+  {
+    std::lock_guard lock(provider_mutex());
+    previous.swap(registered_provider());
+    registered_provider() = std::move(provider);
+  }
+  // Release after unlocking: a host's destructor may register another provider.
 }
 
 std::shared_ptr<TimeZoneProvider> time_zone_provider() {

@@ -98,6 +98,9 @@ class Operation:
     # For an operation on an error core returned rather than on a context: "reads" its message,
     # "closes" releases it. None for every other operation.
     error: str | None = None
+    # A runtime registration for a host-implemented interface. Its signature is declared by
+    # the interface, while this operation defines lifetime and placement in the C ABI.
+    host: type | None = None
 
 
 @dataclass
@@ -175,7 +178,7 @@ class Contract:
 
         return register
 
-    def runtime_operation(self, *, context: str, error: str | None = None,
+    def runtime_operation(self, *, context: str, error: str | None = None, host: type | None = None,
                           errors: list[type[HolderError]] = ()) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Declare one of core's runtime operations, which the daemon does not serve: context="none" runs
         without a context, "opens" makes one (its result) and "closes" releases the one it is given. With
@@ -186,9 +189,12 @@ class Contract:
             raise ValueError(f"runtime_operation error must be reads or closes, not {error!r}")
         if error is not None and context != "none":
             raise ValueError("an operation on an error takes no context: use context=\"none\"")
+        if host is not None and (context != "none" or error is not None):
+            raise ValueError("a process-wide host registration uses context=\"none\" and no error handle")
 
         def register(function: Callable[..., Any]) -> Callable[..., Any]:
-            self.operations.append(Operation(function, list(errors), route=False, context=context, error=error))
+            self.operations.append(Operation(function, list(errors), route=False, context=context, error=error,
+                                             host=host))
             return function
 
         return register

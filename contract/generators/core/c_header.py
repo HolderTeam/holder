@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from compiler.builder import BASE_ERROR_CODES
-from compiler.ir import ListType, LiteralType, MapType, NamedType
+from compiler.ir import ListType, LiteralType, MapType, NamedType, NullableType
 
 from ..common import Unsupported, contract_sources, header_lines
 from .abi import SCALARS_C, format_default, literal_member, snake
@@ -49,6 +49,20 @@ def c_field_note(slot: Slot) -> str:
     return " ".join(notes)
 
 
+def host_callback(types: CoreTypes, method) -> str:
+    args = ["void* user_data"]
+    for param in method.parameters:
+        kind = types.resolve(param.type).type.kind
+        args.append(f"{'const char*' if kind == 'string' else 'int64_t'} {param.name}")
+    result = types.resolve(method.returns).type
+    if isinstance(result, NullableType):
+        args += ["int64_t* out_value", "int* out_present"]
+    else:
+        args.append("char** out_value")
+    args.append("char** out_error")
+    return f"    int (*{method.name})({', '.join(args)});"
+
+
 def generate_c_header(types: CoreTypes) -> str:
     out = ["/*", *header_lines(contract_sources(types.contract),
                                "The standalone C declarations for the contract's operations. "
@@ -69,6 +83,20 @@ def generate_c_header(types: CoreTypes) -> str:
     out += ["", "holder_arena* holder_arena_new(void);", "void holder_arena_free(holder_arena* arena);", "",
             "typedef struct holder_string_list {", "    const char* const* items;", "    size_t count;",
             "} holder_string_list;", ""]
+    if types.host_operations:
+        out += ["/* Called once to release callback user data, including on rejected registration. */",
+                "typedef void (*holder_destroy_fn)(void* user_data);", ""]
+        for op in types.host_operations:
+            interface = types.contract.interface(op.host)
+            name = f"holder_{snake(interface.name)}_callbacks"
+            out += comment(interface.doc)
+            out += [f"typedef struct {name} {{"]
+            for method in interface.methods:
+                out += comment(method.summary, indent="    ")
+                out.append(host_callback(types, method))
+            out += [f"}} {name};", "",
+                    "/* Each callback returns zero on success; nonzero may set malloc-owned *out_error.",
+                    " * String results are malloc-owned by core. A null numeric result sets *out_present=0. */", ""]
     for alias, ref in types.maps.items():
         name = map_c_name(alias)
         value_type = "const char*" if types.kind(ref.values) == "string" else "holder_string_list"

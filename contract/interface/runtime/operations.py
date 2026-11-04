@@ -4,6 +4,7 @@ from typing import Annotated
 
 from authoring import Contract, Field
 
+from .hosts import TimeZoneProvider
 from .models import CoreVersion, DatabaseRebuildReport
 
 
@@ -11,6 +12,15 @@ def register(contract: Contract) -> None:
     @contract.runtime_operation(context="none")
     def version() -> CoreVersion:
         """The version of the core library loaded."""
+
+    @contract.runtime_operation(context="none", host=TimeZoneProvider)
+    def register_time_zone_provider() -> None:
+        """Install this device's time-zone provider for the process.
+
+        Registration takes ownership of the provider even when validation fails. A replacement
+        releases the previous provider after active callbacks finish. Callbacks may run on any
+        thread. Null offset means an unknown zone; a callback failure is an unexpected error.
+        """
 
     @contract.runtime_operation(context="none")
     def configure_git_home(path: Annotated[str, Field(min_length=1)]) -> None:

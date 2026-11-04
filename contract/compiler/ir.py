@@ -176,6 +176,7 @@ class OperationView(View):
     errors: list[str]
     daemon_only: bool
     context: Literal["required", "none", "opens", "closes"] = "required"
+    host: str | None = None
     error: Literal["reads", "closes"] | None = None
 
     def parameter(self, name: str) -> ParameterView:

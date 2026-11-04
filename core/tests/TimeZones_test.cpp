@@ -11,6 +11,7 @@
 #include <holder/holder.h>
 
 #include <cstring>
+#include <cstdlib>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -87,28 +88,35 @@ struct HostZones {
   int offset_calls = 0;
 };
 
-int host_offset(void* user_data, const char* zone, long long utc_seconds, long long* out_offset) {
+int host_offset(void* user_data, const char* zone, int64_t utc_seconds, int64_t* out_offset,
+                int* out_present, char**) {
   auto* host = static_cast<HostZones*>(user_data);
   ++host->offset_calls;
-  if (std::strcmp(zone, "Test/Plus2") != 0) return 1;
+  if (std::strcmp(zone, "Test/Plus2") != 0) { *out_present = 0; return 0; }
   (void)utc_seconds;
   *out_offset = 2 * 3600;
+  *out_present = 1;
   return 0;
 }
 
-int host_current(void*, char* out_zone, size_t capacity) {
-  std::strncpy(out_zone, "Test/Plus2", capacity);
+int host_current(void*, char** out_zone, char**) {
+  *out_zone = static_cast<char*>(std::malloc(std::strlen("Test/Plus2") + 1));
+  if (!*out_zone) return 1;
+  std::strcpy(*out_zone, "Test/Plus2");
   return 0;
 }
 
 void host_destroy(void* user_data) { ++static_cast<HostZones*>(user_data)->destroyed; }
+
+int failing_current(void*, char**, char**) { return 1; }
 
 } // namespace
 
 TEST_CASE("a host's provider replaces the built-in one and is released once", "[time_zone][capi]") {
   HostZones host;
   holder_error* error = nullptr;
-  REQUIRE(holder_time_zone_set_provider(host_offset, host_current, &host, host_destroy, &error) == HOLDER_OK);
+  holder_time_zone_provider_callbacks callbacks{host_offset, host_current};
+  REQUIRE(holder_register_time_zone_provider(&callbacks, &host, host_destroy, &error) == HOLDER_OK);
   {
     const auto zones = holder::platform::time_zone_provider();
     REQUIRE(zones->current_zone() == "Test/Plus2");
@@ -118,14 +126,33 @@ TEST_CASE("a host's provider replaces the built-in one and is released once", "[
   REQUIRE(host.offset_calls > 0);
   REQUIRE(host.destroyed == 0);
 
-  // Returning to the built-in provider releases the host's.
+  // An active reader keeps the replaced provider alive until its last reference is released.
+  auto active = holder::platform::time_zone_provider();
   holder::platform::set_time_zone_provider(nullptr);
+  REQUIRE(host.destroyed == 0);
+  active.reset();
   REQUIRE(host.destroyed == 1);
 
   // A provider missing a function is refused, and its user data still released.
   HostZones refused;
-  REQUIRE(holder_time_zone_set_provider(host_offset, nullptr, &refused, host_destroy, &error) ==
+  holder_time_zone_provider_callbacks incomplete{host_offset, nullptr};
+  REQUIRE(holder_register_time_zone_provider(&incomplete, &refused, host_destroy, &error) ==
           HOLDER_ERROR_INVALID_ARGUMENT);
   REQUIRE(refused.destroyed == 1);
   holder_error_destroy(error);
+}
+
+TEST_CASE("a failed host callback is distinct from an unknown zone", "[time_zone][capi]") {
+  HostZones host;
+  holder_time_zone_provider_callbacks callbacks{host_offset, failing_current};
+  holder_error* error = nullptr;
+  REQUIRE(holder_register_time_zone_provider(&callbacks, &host, host_destroy, &error) == HOLDER_OK);
+  {
+    const auto provider = holder::platform::time_zone_provider();
+    REQUIRE_THROWS_AS(provider->current_zone(), std::runtime_error);
+    REQUIRE_FALSE(provider->utc_offset("Unknown/Zone", 0));
+    holder::platform::set_time_zone_provider(nullptr);
+    REQUIRE(host.destroyed == 0);
+  }
+  REQUIRE(host.destroyed == 1);
 }

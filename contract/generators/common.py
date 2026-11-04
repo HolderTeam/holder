@@ -13,7 +13,8 @@ class Unsupported(Exception):
 
 def contract_sources(contract: ContractView) -> list[str]:
     """The declaring modules of the contract's records, operations, errors and aliases."""
-    views = [*contract.records, *contract.operations, *contract.errors, *contract.aliases]
+    views = [*contract.records, *contract.operations, *contract.errors, *contract.aliases,
+             *contract.interfaces]
     return sorted({view.source for view in views if view.source is not None})
 
 

@@ -30,6 +30,7 @@ DECLARATION_ORDER = (
     "recovery.errors",
     "recovery.snapshot",
     "resources.models",
+    "runtime.hosts",
     "runtime.models",
     "search.models",
     "trash.models",

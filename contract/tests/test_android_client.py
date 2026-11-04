@@ -27,7 +27,18 @@ def test_every_core_operation_has_a_kotlin_function_and_a_jni_entry_point():
             continue
         name = op["name"].split("_")[0] + "".join(part.title() for part in op["name"].split("_")[1:])
         assert f"external fun {name}(" in kotlin, op["name"]
-        assert f"_{name}(JNIEnv*" in files[JNI_PATH], op["name"]
+        jni = "\n".join(text for path, text in files.items() if path.endswith(".cpp"))
+        assert f"_{name}(JNIEnv*" in jni, op["name"]
+
+
+def test_host_provider_has_generated_callbacks_and_thread_attachment():
+    files = client(holder_ir())
+    kotlin = files[f"{KOTLIN_DIR}/TimeZoneProvider.kt"]
+    jni = files["apps/mobile/android/app/src/main/cpp/generated/time_zone_provider_host.cpp"]
+    assert "fun utcOffset(zone: String, utcSeconds: Long): Long?" in kotlin
+    assert "fun currentZone(): String" in kotlin
+    assert "AttachCurrentThread" in jni and "DetachCurrentThread" in jni
+    assert "holder_register_time_zone_provider(&callbacks, ctx, destroy, &error)" in jni
 
 
 def test_a_new_operation_needs_no_generator_change():
