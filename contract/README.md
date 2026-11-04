@@ -18,10 +18,13 @@ Descriptions are part of the contract. A schema can say that an operation accept
 Python contract
     ├── C API → applications embedding core
     ├── OpenAPI → HTTP clients and client libraries
+    ├── Kotlin client and JNI bridge → Android using core's C API
     └── generated types, validation and adapters → core and daemon implementations
 ```
 
 The compiler checks declarations and gives generators a shared representation of them. Generators translate the interface into the conventions of each target: C calling conventions and memory ownership, HTTP requests and responses, or a client language's types.
+
+Android's Kotlin client and JNI bridge are generated from the same contract and C signatures as core's C glue, so its native interface follows the declarations through to the application.
 
 Core and the daemon implement the behavior behind those interfaces. Core owns reusable domain behavior; the daemon supplies the running service and its HTTP transport. Clients use the public interface appropriate to their environment. The Python contract tooling runs during development and generation; deployed Holder components use its outputs.
 
