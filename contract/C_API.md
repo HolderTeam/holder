@@ -13,6 +13,10 @@ The core generator writes these files:
 - [`ContractCApi.cpp`](../core/src/api/ContractCApi.cpp): C entry points that validate arguments, call core's implementations, copy results into the caller's arena and translate exceptions into C errors.
 - [`HostCApi.cpp`](../core/src/api/HostCApi.cpp): adapters for host-implemented interfaces, connecting C callbacks and their ownership conventions to core's C++ interfaces.
 
+The glue rejects null pointers where a value is required, numbers outside declared bounds and unknown enum values before calling core. Core can rely on those argument checks; it remains responsible for domain rules that depend on the system's state.
+
+A generated C++ record inherits the record it extends: `holder::contract::Card` derives from `CardMetadata`. Core reuses the generated metadata type through the alias `holder::model::Card = holder::contract::CardMetadata`, keeping one definition of those fields.
+
 The generated C++ interface uses `long long` for 64-bit integers; the public C interface uses `int64_t`. The glue converts between them at the boundary.
 
 The generator tests compile and run generated code against a stand-in for core in [`tests/c/`](tests/c/). This checks the calling conventions, validation, conversions and memory handling independently of core's domain behavior. Core's own tests and the [conformance tests](tests/conformance/) exercise the real implementation.
