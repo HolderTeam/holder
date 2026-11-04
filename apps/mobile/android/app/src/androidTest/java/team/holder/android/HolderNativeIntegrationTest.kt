@@ -19,6 +19,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import team.holder.android.contract.NewProject
 import team.holder.android.contract.NewProjectPrivacyMode
+import team.holder.android.contract.StorageErrorCode
+import team.holder.android.contract.StorageFailure
+import team.holder.android.contract.StorageHosts
+import team.holder.android.contract.StorageProvider
 
 /**
  * Representative Kotlin -> JNI -> C API -> libholder tests.
@@ -55,6 +59,53 @@ class HolderNativeIntegrationTest {
         assertFalse(version.startsWith("native load failed:"))
         assertFalse(version.startsWith("native call failed:"))
         assertTrue(version.isNotBlank())
+    }
+
+    @Test
+    fun generatedStorageHost_roundTripsAndReportsTypedFailureFromWorkerThread() {
+        initialize()
+        val project = HolderNative.createProject("Storage host", "plain")
+        val card = HolderNative.createCard(project.projectId, "Attachment", "Body")
+        val locationId = UUID.randomUUID().toString()
+        HolderNative.createLocation(locationId, project.projectId, "Drive", "google-drive",
+                                    emptyMap(), System.currentTimeMillis() / 1000)
+
+        val objects = mutableMapOf<String, ByteArray>()
+        var callbackThread: Thread? = null
+        var failNextPut = true
+        StorageHosts.registerStorageProvider("google-drive", object : StorageProvider {
+            override fun put(objectKey: String, stagedFilePath: String, storedSize: Long, storedSha256: String) {
+                callbackThread = Thread.currentThread()
+                if (failNextPut) {
+                    failNextPut = false
+                    throw StorageFailure(StorageErrorCode.CAPACITY.ordinal, "test quota exceeded")
+                }
+                val bytes = File(stagedFilePath).readBytes()
+                assertEquals(storedSize, bytes.size.toLong())
+                objects[objectKey] = bytes
+            }
+            override fun get(objectKey: String, destinationFilePath: String) {
+                File(destinationFilePath).writeBytes(objects.getValue(objectKey))
+            }
+            override fun exists(objectKey: String): Boolean = objects.containsKey(objectKey)
+            override fun remove(objectKey: String) { objects.remove(objectKey) }
+        })
+
+        val source = File(dataDir, "storage-host.txt").apply { writeText("storage host bytes") }
+        val failure = assertThrows(RuntimeException::class.java) {
+            HolderNative.importAsset(project.projectId, card.cardId, locationId, source.absolutePath)
+        }
+        assertTrue(failure.message.orEmpty().contains("test quota exceeded"))
+        assertTrue(source.isFile)
+
+        val imported = HolderNative.importAsset(project.projectId, card.cardId, locationId, source.absolutePath)
+        assertNotEquals(Thread.currentThread(), callbackThread)
+        val placement = HolderNative.getResource(project.projectId, imported.resourceId)
+            .assets.single().placements.single()
+        val destination = File(dataDir, "retrieved.txt")
+        HolderNative.retrieveAsset(imported.resourceId, imported.assetId, placement.placementId,
+                                   destination.absolutePath)
+        assertEquals(source.readText(), destination.readText())
     }
 
     @Test

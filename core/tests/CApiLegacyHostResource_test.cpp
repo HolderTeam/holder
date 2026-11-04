@@ -5,7 +5,6 @@
 #include <catch2/catch.hpp>
 #endif
 
-// Host registrations remain until #364.
 #include "capi_asset_helpers.h"
 #include "core_test_helpers.h"
 #include "model/Location.h"
@@ -17,7 +16,7 @@
 #include "resource/ResourceRepo.h"
 
 #include <git2.h>
-#include <holder/holder.h>
+#include <holder/holder_api.h>
 #include <nlohmann/json.hpp>
 
 #include <cstdlib>
@@ -826,7 +825,7 @@ int fake_storage_put(
     void* user_data,
     const char* object_key,
     const char* staged_file_path,
-    long long /*stored_size*/,
+    int64_t /*stored_size*/,
     const char* /*stored_sha256*/,
     int* /*out_error_code*/,
     char** /*out_error*/
@@ -894,7 +893,7 @@ int failing_storage_put_with_message(
     void* user_data,
     const char*,
     const char*,
-    long long,
+    int64_t,
     const char*,
     int* out_error_code,
     char** out_error
@@ -920,6 +919,17 @@ int fake_storage_exists_but_block_git_write(
 
 void noop_storage_destroy(void*) {}
 
+int register_storage_provider(
+    const char* name, decltype(holder_storage_provider_callbacks::put) put,
+    decltype(holder_storage_provider_callbacks::get) get,
+    decltype(holder_storage_provider_callbacks::exists) exists,
+    decltype(holder_storage_provider_callbacks::remove) remove,
+    void* user_data, holder_destroy_fn destroy, holder_error** error
+) {
+  holder_storage_provider_callbacks callbacks{put, get, exists, remove};
+  return holder_register_storage_provider(name, &callbacks, user_data, destroy, error);
+}
+
 std::string write_source_file(const std::filesystem::path& path, const std::string& content) {
   std::filesystem::create_directories(path.parent_path());
   std::ofstream out(path, std::ios::binary);
@@ -942,7 +952,7 @@ TEST_CASE(
 
   SECTION("empty provider_name") {
     REQUIRE(
-        holder_storage_provider_register(
+        register_storage_provider(
             "",
             fake_storage_put,
             fake_storage_get,
@@ -957,7 +967,7 @@ TEST_CASE(
 
   SECTION("'local_directory' cannot be overridden") {
     REQUIRE(
-        holder_storage_provider_register(
+        register_storage_provider(
             "local_directory",
             fake_storage_put,
             fake_storage_get,
@@ -972,7 +982,7 @@ TEST_CASE(
 
   SECTION("null callback") {
     REQUIRE(
-        holder_storage_provider_register(
+        register_storage_provider(
             "google-drive",
             nullptr,
             fake_storage_get,
@@ -1006,7 +1016,7 @@ TEST_CASE(
   holder_error* error = nullptr;
 
   REQUIRE(
-      holder_storage_provider_register(
+      register_storage_provider(
           "storage-replace-test",
           fake_storage_put,
           fake_storage_get,
@@ -1020,7 +1030,7 @@ TEST_CASE(
   REQUIRE(*first_destroy_count == 0);
 
   REQUIRE(
-      holder_storage_provider_register(
+      register_storage_provider(
           "storage-replace-test",
           fake_storage_put,
           fake_storage_get,
@@ -1109,7 +1119,7 @@ TEST_CASE(
 
   FakeStorageBackend backend{.root = data_dir / "fake-drive"};
   REQUIRE(
-      holder_storage_provider_register(
+      register_storage_provider(
           "google-drive",
           fake_storage_put,
           fake_storage_get,
@@ -1192,7 +1202,7 @@ TEST_CASE(
 
   int failure_code = HOLDER_STORAGE_ERROR_CAPACITY;
   REQUIRE(
-      holder_storage_provider_register(
+      register_storage_provider(
           "quota-limited",
           failing_storage_put_with_message,
           fake_storage_get,
@@ -1283,7 +1293,7 @@ TEST_CASE(
 
   FakeStorageBackend backend{.root = data_dir / "rollback-provider"};
   REQUIRE(
-      holder_storage_provider_register(
+      register_storage_provider(
           "rollback-provider",
           fake_storage_put,
           fake_storage_get,

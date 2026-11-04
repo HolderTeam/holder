@@ -44,6 +44,22 @@ def generate_android_hosts(types: CoreTypes) -> dict[str, str]:
             files["apps/mobile/android/app/src/main/cpp/generated/ssh_signer_host.cpp"] = \
                 TEMPLATES.get_template("signer.cpp.j2").render()
             continue
+        if interface.name == "StorageProvider":
+            expected = {
+                "put": (("string", "string", "int64", "string"), "none"),
+                "get": (("string", "string"), "none"),
+                "exists": (("string",), "bool"),
+                "remove": (("string",), "none"),
+            }
+            if {name: method_shape(method) for name, method in methods.items()} != expected or \
+                    tuple(shape(parameter.type) for parameter in op.parameters) != ("string",) or \
+                    op.context != "none" or not interface.error_codes:
+                raise Unsupported("Android host adapter does not support StorageProvider's callback shapes")
+            files[f"{KOTLIN_DIR}/StorageProvider.kt"] = TEMPLATES.get_template("storage.kt.j2").render(
+                error_codes=interface.error_codes)
+            files["apps/mobile/android/app/src/main/cpp/generated/storage_provider_host.cpp"] = \
+                TEMPLATES.get_template("storage.cpp.j2").render()
+            continue
         # The pilot's supported shape is checked here as well as in CoreTypes: JNI needs an
         # explicit lowering for every method shape before another host interface can use it.
         if interface.name != "TimeZoneProvider" or {

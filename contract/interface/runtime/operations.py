@@ -4,7 +4,7 @@ from typing import Annotated
 
 from authoring import Bytes, Contract, Field
 
-from .hosts import KeyringProvider, SshSigner, TimeZoneProvider
+from .hosts import KeyringProvider, SshSigner, StorageProvider, TimeZoneProvider
 from .models import CoreVersion, DatabaseRebuildReport
 
 
@@ -38,6 +38,16 @@ def register(contract: Contract) -> None:
         public_key_blob is the raw SSH wire-format ecdsa-sha2-nistp256 key. Registration
         takes ownership of the signer even when validation fails; replacement or context
         destruction releases it after active signing calls finish. Callbacks may run on any thread.
+        """
+
+    @contract.runtime_operation(context="none", host=StorageProvider)
+    def register_storage_provider(provider_name: Annotated[str, Field(min_length=1)]) -> None:
+        """Install or replace one named process-wide storage provider.
+
+        local_directory is reserved for the built-in filesystem backend. Registration takes
+        ownership even on failure; replacement releases the old provider after active asset
+        operations finish. Callbacks may run on any thread. Storage callback failures carry
+        one of StorageProvider's declared error codes and a message.
         """
 
     @contract.runtime_operation(context="none")

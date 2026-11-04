@@ -1,11 +1,16 @@
 #include "api/Contract.h"
 #include "capi/Context.h"
+#include "capi/StorageProviders.h"
 #include "git/EcdsaDerSigningCredentialProvider.h"
 #include "platform/time_zone/TimeZones.h"
 #include "privacy/PlatformKeyring.h"
+#include "resource/LocalDirectoryProvider.h"
+#include "resource/StorageProvider.h"
 
+#include <map>
 #include <memory>
 #include <exception>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <utility>
@@ -28,6 +33,58 @@ class RegisteredTimeZoneProvider final : public holder::platform::TimeZoneProvid
  private:
   std::shared_ptr<holder::contract::TimeZoneProvider> provider_;
 };
+
+holder::resource::StorageErrorCode storage_code(int code) {
+  using holder::resource::StorageErrorCode;
+  switch (code) {
+  case 1: return StorageErrorCode::Authentication;
+  case 2: return StorageErrorCode::Permission;
+  case 3: return StorageErrorCode::Capacity;
+  case 4: return StorageErrorCode::Integrity;
+  case 5: return StorageErrorCode::Conflict;
+  case 6: return StorageErrorCode::InvalidConfiguration;
+  case 7: return StorageErrorCode::Transient;
+  default: return StorageErrorCode::Unavailable;
+  }
+}
+
+class RegisteredStorageProvider final : public holder::resource::StorageProvider {
+ public:
+  explicit RegisteredStorageProvider(std::shared_ptr<holder::contract::StorageProvider> provider)
+      : provider_(std::move(provider)) {}
+  void put(const std::string& key, const std::filesystem::path& staged, long long size,
+           const std::string& sha256) override {
+    try { provider_->put(key, staged.string(), size, sha256); }
+    catch (const StorageProviderFailure& error) { throw_storage(error); }
+  }
+  void get(const std::string& key, const std::filesystem::path& destination) override {
+    try { provider_->get(key, destination.string()); }
+    catch (const StorageProviderFailure& error) { throw_storage(error); }
+  }
+  bool exists(const std::string& key) override {
+    try { return provider_->exists(key); }
+    catch (const StorageProviderFailure& error) { throw_storage(error); }
+  }
+  void remove(const std::string& key) override {
+    try { provider_->remove(key); }
+    catch (const StorageProviderFailure& error) { throw_storage(error); }
+  }
+ private:
+  [[noreturn]] static void throw_storage(const StorageProviderFailure& error) {
+    throw holder::resource::StorageError(storage_code(error.code), error.what());
+  }
+  std::shared_ptr<holder::contract::StorageProvider> provider_;
+};
+
+std::mutex& storage_mutex() {
+  static std::mutex mutex;
+  return mutex;
+}
+
+std::map<std::string, std::shared_ptr<holder::resource::StorageProvider>>& storage_registry() {
+  static std::map<std::string, std::shared_ptr<holder::resource::StorageProvider>> registry;
+  return registry;
+}
 
 } // namespace
 
@@ -86,4 +143,27 @@ void register_ssh_signer(holder_context* context, std::string username,
       });
 }
 
+void register_storage_provider(std::string provider_name, std::shared_ptr<StorageProvider> provider) {
+  if (provider_name == "local_directory")
+    throw std::invalid_argument("'local_directory' is a built-in provider name and cannot be overridden");
+  std::shared_ptr<holder::resource::StorageProvider> next =
+      std::make_shared<RegisteredStorageProvider>(std::move(provider));
+  {
+    std::lock_guard lock(storage_mutex());
+    storage_registry()[provider_name].swap(next);
+  }
+  // Cleanup may reenter registration, so release after unlocking.
+}
+
 } // namespace holder::contract
+
+std::shared_ptr<holder::resource::StorageProvider> holder::capi::storage_provider(
+    holder_context& context, const std::string& name) {
+  if (name == "local_directory")
+    return std::make_shared<holder::resource::LocalDirectoryProvider>(context.data_dir / "resource-store");
+  std::lock_guard lock(holder::contract::storage_mutex());
+  const auto it = holder::contract::storage_registry().find(name);
+  if (it == holder::contract::storage_registry().end())
+    throw std::runtime_error("no storage provider registered for: " + name);
+  return it->second;
+}

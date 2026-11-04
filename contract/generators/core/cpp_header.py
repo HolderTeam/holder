@@ -113,6 +113,10 @@ def generate_cpp_header(types: CoreTypes) -> str:
         out += ["};", ""]
     for op in types.host_operations:
         interface = types.contract.interface(op.host)
+        if interface.error_codes:
+            out += [f"class {interface.name}Failure : public std::runtime_error {{", " public:",
+                    f"  {interface.name}Failure(int error_code, const std::string& message)",
+                    "      : std::runtime_error(message), code(error_code) {}", "  int code;", "};", ""]
         out += comment(interface.doc, style="cpp")
         out += [f"class {interface.name} {{", " public:", f"  virtual ~{interface.name}() = default;"]
         for method in interface.methods:
@@ -120,7 +124,8 @@ def generate_cpp_header(types: CoreTypes) -> str:
             if isinstance(result, NullableType):
                 returns = f"std::optional<{'long long' if types.resolve(result.value).type.kind == 'int64' else 'std::string'}>"
             else:
-                returns = "std::vector<unsigned char>" if result.kind == "bytes" else \
+                returns = "bool" if result.kind == "bool" else \
+                    "std::vector<unsigned char>" if result.kind == "bytes" else \
                     "std::string" if result.kind == "string" else "void"
             params = []
             for parameter in method.parameters:

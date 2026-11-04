@@ -2,7 +2,7 @@
 
 // The storage provider this device uses for a storage location's provider name: the built-in
 // local directory under the context's data directory, or one a host registered with
-// holder_storage_provider_register. Throws when none is registered for the name.
+// holder_register_storage_provider. Throws when none is registered for the name.
 
 #include "capi/Context.h"
 #include "resource/StorageProvider.h"

@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 
-from compiler.__main__ import collisions
 from compiler.ir import ContractView
 from generators.common import Unsupported
 from generators.core import CORE_PATHS
@@ -34,12 +33,6 @@ def holder_ir():
 def test_cores_generated_files_are_up_to_date():
     for name, text in generate(holder_ir()).items():
         assert text == (CONTRACT.parent / CORE_PATHS[name]).read_text(encoding="utf-8"), CORE_PATHS[name]
-
-
-def test_generated_names_still_check_against_host_declarations():
-    assert collisions({"holder_api.h": "int holder_storage_provider_register(void);\n"}) == [
-        "holder_storage_provider_register"]
-    assert collisions({"holder_api.h": "typedef struct holder_context holder_context;\n"}) == []
 
 
 def test_every_generated_file_names_its_source():
@@ -76,16 +69,14 @@ def test_camel_case():
 
 @pytest.mark.skipif(not (shutil.which("gcc") and shutil.which("g++")), reason="needs gcc and g++")
 def test_generated_code_compiles_and_runs(tmp_path):
-    # Laid out as in core: holder.h (the real one) includes the generated holder_api.h.
     (tmp_path / "holder").mkdir()
-    shutil.copy(CONTRACT.parent / "core/include/holder/holder.h", tmp_path / "holder" / "holder.h")
     for name, text in generate(holder_ir()).items():
         (tmp_path / ("holder" if name == "holder_api.h" else ".") / name).write_text(text, encoding="utf-8")
 
     def run(*command):
         subprocess.run(command, check=True, cwd=tmp_path, capture_output=True, text=True)
 
-    for header in ("holder_api.h", "holder.h"):
+    for header in ("holder_api.h",):
         source = tmp_path / "include.c"
         source.write_text(f'#include "holder/{header}"\n')
         run("gcc", "-std=c17", *STRICT, "-fsyntax-only", "-I.", "include.c")

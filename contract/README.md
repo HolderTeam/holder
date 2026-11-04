@@ -2,7 +2,7 @@
 
 Holder's interface, written once. Nothing in this directory runs in Holder.
 
-These files describe every record, operation, error and event that core, the daemon and the clients share. A generator turns them into code that does run: `holder.h`, the C++ declarations core implements, the daemon's routes and OpenAPI, and the client libraries. To change Holder's interface, edit these files; to change what it does, edit the code that implements it.
+These files describe every record, operation, error and event that core, the daemon and the clients share. A generator turns them into code that does run: `holder_api.h`, the C++ declarations core implements, the daemon's routes and OpenAPI, and the client libraries. To change Holder's interface, edit these files; to change what it does, edit the code that implements it.
 
 The operations are a FastAPI app, but a declaration, not a server: each is a route with a typed signature and a docstring, and a body nothing ever calls. The daemon serves the routes from code generated from the contract.
 
@@ -31,7 +31,7 @@ make -C contract ir       # write the IR to contract/build/ir.json
 make -C contract update   # after changing the contract or a generator: rewrite the generated files in core, Android, daemon/ and api/
 ```
 
-`check` fails when a generated file in core, Android, the daemon or `api/` differs from what the contract produces, or when a generated name is already used in the hand-written part of `holder.h`. Commit the contract change and the regenerated files together.
+`check` fails when a generated file in core, Android, the daemon or `api/` differs from what the contract produces. Commit the contract change and the regenerated files together.
 
 `python -m compiler check` reports every problem in the contract at once, each with its file and line.
 

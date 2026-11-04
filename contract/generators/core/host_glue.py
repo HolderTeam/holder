@@ -30,7 +30,7 @@ def generate_host_glue(types: CoreTypes) -> str:
             value_kind = types.resolve(result.value).type.kind if nullable else result.kind
             returns = (f"std::optional<{'long long' if value_kind == 'int64' else 'std::string'}>"
                        if nullable else "std::vector<unsigned char>" if value_kind == "bytes" else
-                       "std::string" if value_kind == "string" else "void")
+                       "std::string" if value_kind == "string" else "bool" if value_kind == "bool" else "void")
             params = []
             call_args = ["user_data_"]
             for parameter in method.parameters:
@@ -56,6 +56,12 @@ def generate_host_glue(types: CoreTypes) -> str:
             elif value_kind == "bytes":
                 out += ["    unsigned char* value = nullptr;", "    size_t value_len = 0;"]
                 call_args += ["&value", "&value_len"]
+            elif value_kind == "bool":
+                out.append("    int value = 0;")
+                call_args.append("&value")
+            if interface.error_codes:
+                out.append("    int error_code = 0;")
+                call_args.append("&error_code")
             out += ["    char* error = nullptr;",
                     f"    const int status = callbacks_.{method.name}({', '.join([*call_args, '&error'])});",
                     "    std::unique_ptr<char, decltype(&std::free)> error_owner(error, &std::free);"]
@@ -64,7 +70,12 @@ def generate_host_glue(types: CoreTypes) -> str:
             elif value_kind == "bytes":
                 out.append("    std::unique_ptr<unsigned char, decltype(&std::free)> value_owner(value, &std::free);")
             fallback = f"{snake(interface.name.removesuffix('Provider'))} {method.name} failed"
-            out += [f'    if (status != 0) throw std::runtime_error(error ? error : "{fallback}");']
+            if interface.error_codes:
+                out += [f'    if (status != 0) throw holder::contract::{interface.name}Failure(',
+                        f'        error_code >= 0 && error_code < {len(interface.error_codes)} ? error_code : 0,',
+                        f'        error ? error : "{fallback}");']
+            else:
+                out += [f'    if (status != 0) throw std::runtime_error(error ? error : "{fallback}");']
             if nullable and value_kind == "int64":
                 out += [f'    if (present != 0 && present != 1) throw std::runtime_error("{interface.name}.{method.name}: invalid presence flag");',
                         "    return present ? std::optional<long long>(value) : std::nullopt;"]
@@ -76,6 +87,9 @@ def generate_host_glue(types: CoreTypes) -> str:
             elif value_kind == "bytes":
                 out += [f'    if (!value && value_len != 0) throw std::runtime_error("{interface.name}.{method.name}: null byte result");',
                         "    return value_len ? std::vector<unsigned char>(value, value + value_len) : std::vector<unsigned char>{};"]
+            elif value_kind == "bool":
+                out += [f'    if (value != 0 && value != 1) throw std::runtime_error("{interface.name}.{method.name}: invalid boolean result");',
+                        "    return value == 1;"]
             out += ["  }", ""]
         out += [" private:", f"  {callbacks} callbacks_;", "  void* user_data_;",
                 "  holder_destroy_fn destroy_;", "};", ""]
@@ -112,6 +126,8 @@ def generate_host_glue(types: CoreTypes) -> str:
         out += ["  try {", f"    holder::contract::{op.name}({', '.join(call_args)});", "    return HOLDER_OK;",
                 "  } catch (const std::bad_alloc&) {",
                 '    return holder::contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");',
+                "  } catch (const std::invalid_argument& error) {",
+                "    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, error.what());",
                 "  } catch (const std::exception& error) {",
                 "    return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, error.what());",
                 "  } catch (...) {",

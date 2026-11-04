@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -30,15 +29,6 @@ COMMANDS = {
                 "the daemon's routes, their JSON codec and their OpenAPI paths",
     "update": "write the generated files into core, Android, the daemon and api/",
 }
-
-
-def collisions(files: dict[str, str]) -> list[str]:
-    """Generated C names that the remaining host callback header already uses."""
-    header = (REPOSITORY / "core/include/holder/holder.h").read_text(encoding="utf-8")
-    declarations = r"(?:typedef (?:struct|enum) |(?:int|void|const char\*)\s+)(holder_\w+)\b"
-    existing = set(re.findall(rf"(?m)^{declarations}", header))
-    generated = set(re.findall(rf"(?m)^{declarations}", files["holder_api.h"]))
-    return sorted(generated & existing)
 
 
 def repository_files(ir: ContractView, contract, files: dict[str, str]) -> dict[str, str]:
@@ -91,11 +81,6 @@ def main(argv: list[str] | None = None) -> int:
         files = generate_core(ir)
     except Unsupported as error:
         print(f"The C generator does not support this yet: {error}", file=sys.stderr)
-        return 1
-    clashes = collisions(files)
-    if clashes:
-        print(f"Generated names already used in core/include/holder/holder.h: {', '.join(clashes)}. "
-              "Rename the contract's declaration.", file=sys.stderr)
         return 1
     if args.command in ("check", "update"):
         try:

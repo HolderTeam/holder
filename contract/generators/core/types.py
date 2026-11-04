@@ -125,7 +125,7 @@ class CoreTypes:
                 if result.kind == "nullable":
                     if self.resolve(result.value).type.kind not in ("int64", "string"):
                         raise Unsupported(f"{interface.name}.{method.name}: only nullable int64 or string callback results")
-                elif result.kind not in ("string", "none", "bytes"):
+                elif result.kind not in ("string", "none", "bytes", "bool"):
                     raise Unsupported(f"{interface.name}.{method.name}: {result.kind} host callback results")
         for error in self.errors:
             if error.fields:

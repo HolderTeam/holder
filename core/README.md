@@ -236,8 +236,7 @@ above; move aside any copied versions before running them on the new system.
 Core has two interfaces, with different promises:
 
 - **The generated C API in `include/holder/holder_api.h` is the public interface** for embedders
-  such as Holder Kit (Python) and the Android app. The handwritten `holder.h` remains for host
-  callbacks while their generated adapters are built. Within an ABI generation (the SONAME,
+  such as Holder Kit (Python) and the Android app, including host callback registration. Within an ABI generation (the SONAME,
   currently `libholder.so.0`) released C symbols stay compatible.
 - **The C++ headers, installed from `src/` under `include/holder/`, are first-party only.**
   The daemon and `holderctl` use them, built from the same commit. They carry no compatibility

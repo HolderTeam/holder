@@ -5,7 +5,7 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 
 /** One thread that owns one native holder context and runs every call on it in order.
- * holder-core's contexts are not safe to use from two threads at once (see holder.h): a read
+ * holder-core's contexts are not safe to use from two threads at once (see holder_api.h): a read
  * on another thread would share the connection and see a write's uncommitted rows. So
  * [HolderNative] opens one context per lane, the same way holder-daemon gives each worker its
  * own connection, and each lane's calls run one at a time on that lane's thread.

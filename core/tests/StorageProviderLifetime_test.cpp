@@ -5,7 +5,7 @@
 #include "resource/LocalDirectoryProvider.h"
 #include "resource/LocationStore.h"
 
-#include <holder/holder.h>
+#include <holder/holder_api.h>
 #include <nlohmann/json.hpp>
 
 #include <atomic>
@@ -35,12 +35,11 @@ using ProbeOwner = std::shared_ptr<ProviderProbe>;
 
 int register_probe(const char* name, const ProbeOwner& probe) {
   holder_error* error = nullptr;
-  const int result = holder_storage_provider_register(
-      name,
+  const holder_storage_provider_callbacks callbacks{
       [](void* data,
          const char* key,
          const char* file,
-         long long size,
+         int64_t size,
          const char* hash,
          int*,
          char**) {
@@ -66,7 +65,11 @@ int register_probe(const char* name, const ProbeOwner& probe) {
         const auto state = *static_cast<ProbeOwner*>(data);
         state->files.remove(key);
         return 0;
-      },
+      }
+  };
+  const int result = holder_register_storage_provider(
+      name,
+      &callbacks,
       new ProbeOwner(probe),
       [](void* data) {
         const std::unique_ptr<ProbeOwner> owner(static_cast<ProbeOwner*>(data));

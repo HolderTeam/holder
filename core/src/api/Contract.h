@@ -1008,6 +1008,27 @@ class SshSigner {
   virtual std::vector<unsigned char> sign(const std::vector<unsigned char>& data) = 0;
 };
 
+class StorageProviderFailure : public std::runtime_error {
+ public:
+  StorageProviderFailure(int error_code, const std::string& message)
+      : std::runtime_error(message), code(error_code) {}
+  int code;
+};
+
+/// Stores opaque asset objects under a host-managed provider name.
+class StorageProvider {
+ public:
+  virtual ~StorageProvider() = default;
+  /// Upload a staged file. A typed failure leaves the source intact.
+  virtual void put(const std::string& object_key, const std::string& staged_file_path, long long stored_size, const std::string& stored_sha256) = 0;
+  /// Download an object to the destination file.
+  virtual void get(const std::string& object_key, const std::string& destination_file_path) = 0;
+  /// Return false when absent; an inability to check is a failure.
+  virtual bool exists(const std::string& object_key) = 0;
+  /// Remove an object; absence is not a failure.
+  virtual void remove(const std::string& object_key) = 0;
+};
+
 /// The version of the core library loaded.
 CoreVersion version();
 
@@ -1028,6 +1049,13 @@ void register_keyring_provider(std::shared_ptr<KeyringProvider> provider);
 /// takes ownership of the signer even when validation fails; replacement or context
 /// destruction releases it after active signing calls finish. Callbacks may run on any thread.
 void register_ssh_signer(holder_context* context, std::string username, std::vector<unsigned char> public_key_blob, std::shared_ptr<SshSigner> provider);
+
+/// Install or replace one named process-wide storage provider.
+/// local_directory is reserved for the built-in filesystem backend. Registration takes
+/// ownership even on failure; replacement releases the old provider after active asset
+/// operations finish. Callbacks may run on any thread. Storage callback failures carry
+/// one of StorageProvider's declared error codes and a message.
+void register_storage_provider(std::string provider_name, std::shared_ptr<StorageProvider> provider);
 
 /// Set libgit2's process-wide home directory before Git operations.
 /// On Android, pass a writable app-private directory so SSH can find its known_hosts file.

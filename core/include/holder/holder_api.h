@@ -106,6 +106,34 @@ typedef struct holder_ssh_signer_callbacks {
  * Null strings mean absence only for nullable results.
  * A null numeric result sets *out_present=0. */
 
+typedef enum holder_storage_error_code {
+    HOLDER_STORAGE_ERROR_UNAVAILABLE = 0,
+    HOLDER_STORAGE_ERROR_AUTHENTICATION = 1,
+    HOLDER_STORAGE_ERROR_PERMISSION = 2,
+    HOLDER_STORAGE_ERROR_CAPACITY = 3,
+    HOLDER_STORAGE_ERROR_INTEGRITY = 4,
+    HOLDER_STORAGE_ERROR_CONFLICT = 5,
+    HOLDER_STORAGE_ERROR_INVALID_CONFIGURATION = 6,
+    HOLDER_STORAGE_ERROR_TRANSIENT = 7,
+} holder_storage_error_code;
+
+/* Stores opaque asset objects under a host-managed provider name. */
+typedef struct holder_storage_provider_callbacks {
+    /* Upload a staged file. A typed failure leaves the source intact. */
+    int (*put)(void* user_data, const char* object_key, const char* staged_file_path, int64_t stored_size, const char* stored_sha256, int* out_error_code, char** out_error);
+    /* Download an object to the destination file. */
+    int (*get)(void* user_data, const char* object_key, const char* destination_file_path, int* out_error_code, char** out_error);
+    /* Return false when absent; an inability to check is a failure. */
+    int (*exists)(void* user_data, const char* object_key, int* out_value, int* out_error_code, char** out_error);
+    /* Remove an object; absence is not a failure. */
+    int (*remove)(void* user_data, const char* object_key, int* out_error_code, char** out_error);
+} holder_storage_provider_callbacks;
+
+/* Each callback returns zero on success; nonzero may set malloc-owned *out_error.
+ * String and byte results must be malloc-allocated; core frees them after copying.
+ * Null strings mean absence only for nullable results.
+ * A null numeric result sets *out_present=0. */
+
 /* Portable non-secret provider options. */
 typedef struct holder_location_configuration_entry {
     const char* key;
@@ -1361,6 +1389,14 @@ int holder_register_keyring_provider(const holder_keyring_provider_callbacks* ca
  * destruction releases it after active signing calls finish. Callbacks may run on any thread.
  */
 int holder_register_ssh_signer(holder_context* context, const char* username, const unsigned char* public_key_blob, size_t public_key_blob_len, const holder_ssh_signer_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error);
+
+/* Install or replace one named process-wide storage provider.
+ * local_directory is reserved for the built-in filesystem backend. Registration takes
+ * ownership even on failure; replacement releases the old provider after active asset
+ * operations finish. Callbacks may run on any thread. Storage callback failures carry
+ * one of StorageProvider's declared error codes and a message.
+ */
+int holder_register_storage_provider(const char* provider_name, const holder_storage_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error);
 
 /* Set libgit2's process-wide home directory before Git operations.
  * On Android, pass a writable app-private directory so SSH can find its known_hosts file.

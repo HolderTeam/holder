@@ -20,7 +20,7 @@ from test_support.contract import generate
 
 CONTRACT = Path(__file__).resolve().parents[2]
 SCHEMA = CONTRACT.parent / "core" / "schema" / "schema.sql"
-# The status codes from holder.h that are not error kinds.
+# The status codes from holder_api.h that are not error kinds.
 STATUS = {4000: "InvalidArgument", 5000: "Runtime", 5001: "Allocation"}
 # An enum value outside every enum, which the glue must reject.
 BAD_ENUM = 1000
