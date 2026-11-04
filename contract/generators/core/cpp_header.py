@@ -117,11 +117,18 @@ def generate_cpp_header(types: CoreTypes) -> str:
         out += [f"class {interface.name} {{", " public:", f"  virtual ~{interface.name}() = default;"]
         for method in interface.methods:
             result = types.resolve(method.returns).type
-            returns = "std::optional<long long>" if isinstance(result, NullableType) else "std::string"
+            if isinstance(result, NullableType):
+                returns = f"std::optional<{'long long' if types.resolve(result.value).type.kind == 'int64' else 'std::string'}>"
+            else:
+                returns = "std::string" if result.kind == "string" else "void"
             params = []
             for parameter in method.parameters:
-                kind = types.resolve(parameter.type).type.kind
-                params.append(f"{'const std::string&' if kind == 'string' else 'long long'} {parameter.name}")
+                ref = types.resolve(parameter.type).type
+                kind = types.resolve(ref.value).type.kind if isinstance(ref, NullableType) else ref.kind
+                value_type = "const std::string&" if kind == "string" else "long long" if kind == "int64" else "int"
+                if isinstance(ref, NullableType):
+                    value_type = "const std::optional<std::string>&"
+                params.append(f"{value_type} {parameter.name}")
             out += comment(method.summary, indent="  ", style="cpp")
             out.append(f"  virtual {returns} {method.name}({', '.join(params)}) = 0;")
         out += ["};", ""]

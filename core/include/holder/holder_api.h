@@ -76,7 +76,22 @@ typedef struct holder_time_zone_provider_callbacks {
 } holder_time_zone_provider_callbacks;
 
 /* Each callback returns zero on success; nonzero may set malloc-owned *out_error.
- * String results are malloc-owned by core. A null numeric result sets *out_present=0. */
+ * String results are malloc-owned by core. Null strings mean absence only for nullable results.
+ * A null numeric result sets *out_present=0. */
+
+/* A process-wide secure store for device secrets and project encryption keys. */
+typedef struct holder_keyring_provider_callbacks {
+    /* Return a secret, or null when absent. Failure is distinct from absence. */
+    int (*lookup)(void* user_data, int32_t kind, const char* service, const char* account, const char* project_id, char** out_value, char** out_error);
+    /* Store a secret; failure leaves the caller informed. */
+    int (*store)(void* user_data, int32_t kind, const char* service, const char* account, const char* project_id, const char* label, const char* secret, char** out_error);
+    /* Remove a secret; an absent secret is not a failure. */
+    int (*remove)(void* user_data, int32_t kind, const char* service, const char* account, const char* project_id, char** out_error);
+} holder_keyring_provider_callbacks;
+
+/* Each callback returns zero on success; nonzero may set malloc-owned *out_error.
+ * String results are malloc-owned by core. Null strings mean absence only for nullable results.
+ * A null numeric result sets *out_present=0. */
 
 /* Portable non-secret provider options. */
 typedef struct holder_location_configuration_entry {
@@ -1319,6 +1334,13 @@ int holder_version(holder_arena* arena, const holder_core_version** out_core_ver
  * thread. Null offset means an unknown zone; a callback failure is an unexpected error.
  */
 int holder_register_time_zone_provider(const holder_time_zone_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error);
+
+/* Install a process-wide secure store for secrets.
+ * Registration takes ownership even on failure. Replacement releases the previous provider
+ * after active callbacks finish. Callbacks may run on any thread. A null lookup result means
+ * no secret; callback failure remains distinct from a miss.
+ */
+int holder_register_keyring_provider(const holder_keyring_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error);
 
 /* Set libgit2's process-wide home directory before Git operations.
  * On Android, pass a writable app-private directory so SSH can find its known_hosts file.

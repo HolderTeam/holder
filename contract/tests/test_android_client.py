@@ -3,8 +3,11 @@
 from copy import deepcopy
 from pathlib import Path
 
+import pytest
+
 from compiler.ir import ContractView
 from generators.android.client import JNI_PATH, KOTLIN_DIR, generate_android_client
+from generators.common import Unsupported
 from test_support.contract import extract
 
 CONTRACT = Path(__file__).resolve().parents[1]
@@ -28,7 +31,7 @@ def test_every_core_operation_has_a_kotlin_function_and_a_jni_entry_point():
         name = op["name"].split("_")[0] + "".join(part.title() for part in op["name"].split("_")[1:])
         assert f"external fun {name}(" in kotlin, op["name"]
         jni = "\n".join(text for path, text in files.items() if path.endswith(".cpp"))
-        assert f"_{name}(JNIEnv*" in jni, op["name"]
+        assert f"_{name}(" in jni, op["name"]
 
 
 def test_host_provider_has_generated_callbacks_and_thread_attachment():
@@ -39,6 +42,20 @@ def test_host_provider_has_generated_callbacks_and_thread_attachment():
     assert "fun currentZone(): String" in kotlin
     assert "AttachCurrentThread" in jni and "DetachCurrentThread" in jni
     assert "holder_register_time_zone_provider(&callbacks, ctx, destroy, &error)" in jni
+    keyring = files["apps/mobile/android/app/src/main/cpp/generated/keyring_provider_host.cpp"]
+    assert "holder_register_keyring_provider(&callbacks, ctx, &keyring_destroy, &error)" in keyring
+    assert "AttachCurrentThread" in keyring and "DetachCurrentThread" in keyring
+    assert "fun lookup(kind: Int, service: String, account: String, projectId: String?): String?" in \
+        files[f"{KOTLIN_DIR}/KeyringProvider.kt"]
+
+
+def test_android_rejects_host_shape_it_cannot_lower():
+    ir = holder_ir()
+    keyring = next(interface for interface in ir["interfaces"] if interface["name"] == "KeyringProvider")
+    lookup = next(method for method in keyring["methods"] if method["name"] == "lookup")
+    lookup["returns"] = {"kind": "int64"}
+    with pytest.raises(Unsupported, match="KeyringProvider.lookup: int64 host callback results"):
+        client(ir)
 
 
 def test_a_new_operation_needs_no_generator_change():

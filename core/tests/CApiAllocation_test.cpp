@@ -44,7 +44,7 @@ int main() {
       );
       break;
     case 1:
-      result = holder_keyring_set_provider(nullptr, nullptr, nullptr, &destroyed, destroy, &error);
+      result = holder_register_keyring_provider(nullptr, &destroyed, destroy, &error);
       break;
     case 2:
       result = holder_git_set_ssh_signer(

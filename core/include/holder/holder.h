@@ -61,68 +61,6 @@ int holder_git_set_ssh_signer(
     holder_error** out_error
 );
 
-// -- Platform keyring --
-//
-// Encrypted projects, and other secrets (e.g. AI provider credentials), are
-// stored via the host OS's own keyring on desktop (libsecret/Keychain/Windows
-// Credential Manager). Android has none of those; holder_keyring_set_provider
-// installs a substitute for the whole process, backed by whatever the caller
-// wants (Android: an AndroidKeyStore-encrypted store, via JNI).
-//
-// kind is 0 for a generic secret (identified by service+account) or 1 for a
-// project encryption key (identified by project_id+account; service is empty).
-
-// Must return 0 and set *out_found: 1 with *out_secret (malloc'd) set to the
-// secret's value if it exists, or 0 (leaving *out_secret untouched) if it does
-// not -- that is not a failure. Return nonzero, optionally setting *out_error
-// (malloc'd), to indicate a real failure.
-typedef int (*holder_keyring_lookup_fn)(
-    void* user_data,
-    int kind,
-    const char* service,
-    const char* account,
-    const char* project_id,
-    int* out_found,
-    char** out_secret,
-    char** out_error
-);
-
-typedef int (*holder_keyring_store_fn)(
-    void* user_data,
-    int kind,
-    const char* service,
-    const char* account,
-    const char* project_id,
-    const char* label,
-    const char* secret,
-    char** out_error
-);
-
-typedef int (*holder_keyring_remove_fn)(
-    void* user_data,
-    int kind,
-    const char* service,
-    const char* account,
-    const char* project_id,
-    char** out_error
-);
-
-// Installs a process-wide platform keyring provider -- not scoped to a
-// holder_context, since the platform keyring itself isn't either.
-//
-// OWNERSHIP: unconditional from the moment this is called, exactly like
-// holder_git_set_ssh_signer -- destroy_user_data runs exactly once, either
-// immediately if this call fails for any reason, or later when a subsequent
-// call to holder_keyring_set_provider replaces this provider.
-int holder_keyring_set_provider(
-    holder_keyring_lookup_fn lookup_fn,
-    holder_keyring_store_fn store_fn,
-    holder_keyring_remove_fn remove_fn,
-    void* user_data,
-    holder_destroy_fn destroy_user_data,
-    holder_error** out_error
-);
-
 // -- Asset storage providers --
 //
 // A Location's `provider` field (e.g. "local_directory", "google-drive") selects which
@@ -133,7 +71,7 @@ int holder_keyring_set_provider(
 // provider string, since Locations are portable/git-synced. Any other provider
 // name must be registered first via holder_storage_provider_register -- there is
 // deliberately no bundled network client in this library; the host supplies one, exactly
-// like holder_keyring_set_provider does for platform keyrings.
+// like holder_register_keyring_provider does for platform keyrings.
 
 typedef enum {
   HOLDER_STORAGE_ERROR_UNAVAILABLE = 0,
@@ -183,10 +121,10 @@ typedef int (*holder_storage_remove_fn)(
 );
 
 // Installs (or replaces) the process-wide storage provider for provider_name -- not scoped
-// to a holder_context, matching holder_keyring_set_provider.
+// to a holder_context, matching holder_register_keyring_provider.
 //
 // OWNERSHIP: unconditional from the moment this is called, exactly like
-// holder_keyring_set_provider -- destroy_user_data runs exactly once, either immediately if
+// holder_register_keyring_provider -- destroy_user_data runs exactly once, either immediately if
 // this call fails for any reason, or after a subsequent registration replaces this
 // provider and all in-flight asset operations using it finish (or at process exit).
 // Replacement does not interrupt active operations. Cleanup runs without the registry

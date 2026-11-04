@@ -26,30 +26,40 @@ def generate_host_glue(types: CoreTypes) -> str:
         for method in interface.methods:
             result = types.resolve(method.returns).type
             nullable = isinstance(result, NullableType)
-            returns = "std::optional<long long>" if nullable else "std::string"
+            value_kind = types.resolve(result.value).type.kind if nullable else result.kind
+            returns = (f"std::optional<{'long long' if value_kind == 'int64' else 'std::string'}>"
+                       if nullable else "std::string" if value_kind == "string" else "void")
             params = []
             call_args = ["user_data_"]
             for parameter in method.parameters:
-                kind = types.resolve(parameter.type).type.kind
-                params.append(f"{'const std::string&' if kind == 'string' else 'long long'} {parameter.name}")
-                call_args.append(f"{parameter.name}.c_str()" if kind == "string" else parameter.name)
+                ref = types.resolve(parameter.type).type
+                optional = isinstance(ref, NullableType)
+                kind = types.resolve(ref.value).type.kind if optional else ref.kind
+                value_type = "const std::optional<std::string>&" if optional else \
+                    "const std::string&" if kind == "string" else "long long" if kind == "int64" else "int"
+                params.append(f"{value_type} {parameter.name}")
+                call_args.append(f"{parameter.name} ? {parameter.name}->c_str() : nullptr" if optional else
+                                 f"{parameter.name}.c_str()" if kind == "string" else parameter.name)
             out += [f"  {returns} {method.name}({', '.join(params)}) override {{"]
-            if nullable:
+            if nullable and value_kind == "int64":
                 out += ["    int64_t value = 0;", "    int present = 0;"]
                 call_args += ["&value", "&present"]
-            else:
+            elif value_kind == "string":
                 out.append("    char* value = nullptr;")
                 call_args.append("&value")
             out += ["    char* error = nullptr;",
                     f"    const int status = callbacks_.{method.name}({', '.join([*call_args, '&error'])});",
                     "    std::unique_ptr<char, decltype(&std::free)> error_owner(error, &std::free);"]
-            if not nullable:
+            if value_kind == "string":
                 out.append("    std::unique_ptr<char, decltype(&std::free)> value_owner(value, &std::free);")
-            out += [f'    if (status != 0) throw std::runtime_error(error ? error : "{interface.name}.{method.name} callback failed");']
-            if nullable:
+            fallback = f"{snake(interface.name.removesuffix('Provider'))} {method.name} failed"
+            out += [f'    if (status != 0) throw std::runtime_error(error ? error : "{fallback}");']
+            if nullable and value_kind == "int64":
                 out += [f'    if (present != 0 && present != 1) throw std::runtime_error("{interface.name}.{method.name}: invalid presence flag");',
                         "    return present ? std::optional<long long>(value) : std::nullopt;"]
-            else:
+            elif nullable:
+                out.append("    return value ? std::optional<std::string>(value) : std::nullopt;")
+            elif value_kind == "string":
                 out += [f'    if (!value) throw std::runtime_error("{interface.name}.{method.name}: null string result");',
                         "    return std::string(value);"]
             out += ["  }", ""]

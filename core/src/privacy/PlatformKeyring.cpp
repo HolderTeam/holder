@@ -27,6 +27,8 @@
 
 #include <cstdint>
 #include <limits>
+#include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -55,19 +57,25 @@ PlatformKeyringRemoveHook& remove_hook_storage() {
   return hook;
 }
 
-PlatformKeyringExternalLookupFn& external_lookup_storage() {
-  static PlatformKeyringExternalLookupFn fn;
-  return fn;
+struct ExternalProvider {
+  PlatformKeyringExternalLookupFn lookup;
+  PlatformKeyringExternalStoreFn store;
+  PlatformKeyringExternalRemoveFn remove;
+};
+
+std::mutex& external_provider_mutex() {
+  static std::mutex mutex;
+  return mutex;
 }
 
-PlatformKeyringExternalStoreFn& external_store_storage() {
-  static PlatformKeyringExternalStoreFn fn;
-  return fn;
+std::shared_ptr<ExternalProvider>& external_provider_storage() {
+  static std::shared_ptr<ExternalProvider> provider;
+  return provider;
 }
 
-PlatformKeyringExternalRemoveFn& external_remove_storage() {
-  static PlatformKeyringExternalRemoveFn fn;
-  return fn;
+std::shared_ptr<ExternalProvider> external_provider() {
+  std::lock_guard lock(external_provider_mutex());
+  return external_provider_storage();
 }
 
 std::string missing_project_id_message() {
@@ -780,7 +788,8 @@ bool compiled_platform_keyring_supported() {
 } // namespace
 
 bool platform_keyring_supported() {
-  return compiled_platform_keyring_supported() || static_cast<bool>(external_lookup_storage());
+  const auto provider = external_provider();
+  return compiled_platform_keyring_supported() || (provider && static_cast<bool>(provider->lookup));
 }
 
 PlatformKeyringLookupResult platform_keyring_lookup_secret(const PlatformKeyringSecretRef& ref) {
@@ -794,8 +803,8 @@ PlatformKeyringLookupResult platform_keyring_lookup_secret(const PlatformKeyring
     }; // LCOV_EXCL_LINE - gcov artefact: designated-initializer return is executed but never
        // counted.
   }
-  if (const auto& external = external_lookup_storage()) {
-    return external(ref);
+  if (const auto provider = external_provider(); provider && provider->lookup) {
+    return provider->lookup(ref);
   }
 #if HOLDER_HAVE_LIBSECRET
   return libsecret_lookup_secret(ref);
@@ -822,8 +831,8 @@ void platform_keyring_store_secret(
     }
     return;
   }
-  if (const auto& external = external_store_storage()) {
-    if (const auto error = external(ref, label, secret); error.has_value()) {
+  if (const auto provider = external_provider(); provider && provider->store) {
+    if (const auto error = provider->store(ref, label, secret); error.has_value()) {
       throw PrivacyError(PrivacyErrorCode::KeyringUnavailable, *error);
     }
     return;
@@ -852,8 +861,8 @@ void platform_keyring_remove_secret(const PlatformKeyringSecretRef& ref) {
     }
     return;
   }
-  if (const auto& external = external_remove_storage()) {
-    if (const auto error = external(ref); error.has_value()) {
+  if (const auto provider = external_provider(); provider && provider->remove) {
+    if (const auto error = provider->remove(ref); error.has_value()) {
       throw PrivacyError(PrivacyErrorCode::KeyringUnavailable, *error);
     }
     return;
@@ -878,15 +887,23 @@ void platform_keyring_set_external_provider(
     PlatformKeyringExternalStoreFn store,
     PlatformKeyringExternalRemoveFn remove
 ) {
-  external_lookup_storage() = std::move(lookup);
-  external_store_storage() = std::move(store);
-  external_remove_storage() = std::move(remove);
+  auto next = std::make_shared<ExternalProvider>(ExternalProvider{
+      std::move(lookup), std::move(store), std::move(remove)});
+  std::shared_ptr<ExternalProvider> previous;
+  {
+    std::lock_guard lock(external_provider_mutex());
+    previous.swap(external_provider_storage());
+    external_provider_storage() = std::move(next);
+  }
+  // Release after unlocking: host cleanup may register another provider.
 }
 
 void platform_keyring_clear_external_provider() {
-  external_lookup_storage() = nullptr;
-  external_store_storage() = nullptr;
-  external_remove_storage() = nullptr;
+  std::shared_ptr<ExternalProvider> previous;
+  {
+    std::lock_guard lock(external_provider_mutex());
+    previous.swap(external_provider_storage());
+  }
 }
 
 void platform_keyring_set_lookup_hook_for_tests(PlatformKeyringLookupHook hook) {

@@ -369,7 +369,6 @@ int fake_keyring_lookup(
     const char* /*service*/,
     const char* account,
     const char* project_id,
-    int* out_found,
     char** out_secret,
     char** /*out_error*/
 ) {
@@ -377,10 +376,9 @@ int fake_keyring_lookup(
   record_project_id(*state, project_id);
   const auto it = state->secrets.find(account);
   if (it == state->secrets.end()) {
-    *out_found = 0;
+    *out_secret = nullptr;
     return 0;
   }
-  *out_found = 1;
   auto* buf = static_cast<char*>(std::malloc(it->second.size() + 1));
   std::memcpy(buf, it->second.c_str(), it->second.size() + 1);
   *out_secret = buf;
@@ -419,6 +417,16 @@ int fake_keyring_remove(
 
 void noop_keyring_destroy(void*) {}
 
+int register_keyring_provider(
+    decltype(holder_keyring_provider_callbacks::lookup) lookup,
+    decltype(holder_keyring_provider_callbacks::store) store,
+    decltype(holder_keyring_provider_callbacks::remove) remove,
+    void* user_data, holder_destroy_fn destroy, holder_error** error
+) {
+  holder_keyring_provider_callbacks callbacks{lookup, store, remove};
+  return holder_register_keyring_provider(&callbacks, user_data, destroy, error);
+}
+
 char* malloc_copy(const char* text) {
   const size_t len = std::strlen(text);
   auto* buf = static_cast<char*>(std::malloc(len + 1));
@@ -434,7 +442,6 @@ int failing_keyring_lookup_with_message(
     const char*,
     const char*,
     const char*,
-    int*,
     char**,
     char** out_error
 ) {
@@ -447,7 +454,6 @@ int failing_keyring_lookup_silent(
     const char*,
     const char*,
     const char*,
-    int*,
     char**,
     char**
 ) {
@@ -493,6 +499,34 @@ int failing_keyring_remove_silent(void*, int, const char*, const char*, const ch
   return 1;
 }
 
+struct ReplacingKeyringState {
+  int destroyed = 0;
+  int observed_during_callback = -1;
+  int replacement_status = -1;
+};
+
+int absent_keyring_lookup(void*, int32_t, const char*, const char*, const char*, char** out_value,
+                          char**) {
+  *out_value = nullptr;
+  return 0;
+}
+
+void replacing_keyring_destroy(void* user_data) {
+  ++static_cast<ReplacingKeyringState*>(user_data)->destroyed;
+}
+
+int replacing_keyring_lookup(void* user_data, int32_t, const char*, const char*, const char*,
+                             char** out_value, char**) {
+  auto* state = static_cast<ReplacingKeyringState*>(user_data);
+  holder_keyring_provider_callbacks next{absent_keyring_lookup, fake_keyring_store, fake_keyring_remove};
+  holder_error* error = nullptr;
+  state->replacement_status = holder_register_keyring_provider(&next, nullptr, nullptr, &error);
+  state->observed_during_callback = state->destroyed;
+  if (error) holder_error_destroy(error);
+  *out_value = nullptr;
+  return 0;
+}
+
 } // namespace
 
 TEST_CASE(
@@ -506,7 +540,7 @@ TEST_CASE(
   holder_error* error = nullptr;
 
   REQUIRE(
-      holder_keyring_set_provider(
+      register_keyring_provider(
           nullptr,
           fake_keyring_store,
           fake_keyring_remove,
@@ -537,10 +571,10 @@ TEST_CASE(
 
   // lookup_fn/store_fn/remove_fn are never actually invoked in this test (nothing here
   // calls platform_keyring_lookup/store/remove_secret), so passing fake_keyring_lookup/
-  // store/remove here is only about satisfying holder_keyring_set_provider's non-null
+  // store/remove here is only about satisfying holder_register_keyring_provider's non-null
   // validation -- user_data is exercised solely by the destroy_* callbacks below.
   REQUIRE(
-      holder_keyring_set_provider(
+      register_keyring_provider(
           fake_keyring_lookup,
           fake_keyring_store,
           fake_keyring_remove,
@@ -552,7 +586,7 @@ TEST_CASE(
   REQUIRE(first_destroy_count == 0);
 
   REQUIRE(
-      holder_keyring_set_provider(
+      register_keyring_provider(
           fake_keyring_lookup,
           fake_keyring_store,
           fake_keyring_remove,
@@ -576,7 +610,7 @@ TEST_CASE(
   FakeKeyringState state;
   holder_error* error = nullptr;
   REQUIRE(
-      holder_keyring_set_provider(
+      register_keyring_provider(
           fake_keyring_lookup,
           fake_keyring_store,
           fake_keyring_remove,
@@ -620,7 +654,7 @@ TEST_CASE(
 
   SECTION("lookup failure with a message") {
     REQUIRE(
-        holder_keyring_set_provider(
+        register_keyring_provider(
             failing_keyring_lookup_with_message,
             fake_keyring_store,
             fake_keyring_remove,
@@ -635,7 +669,7 @@ TEST_CASE(
 
   SECTION("lookup failure without a message falls back to a default") {
     REQUIRE(
-        holder_keyring_set_provider(
+        register_keyring_provider(
             failing_keyring_lookup_silent,
             fake_keyring_store,
             fake_keyring_remove,
@@ -650,7 +684,7 @@ TEST_CASE(
 
   SECTION("store failure with a message throws with that message") {
     REQUIRE(
-        holder_keyring_set_provider(
+        register_keyring_provider(
             fake_keyring_lookup,
             failing_keyring_store_with_message,
             fake_keyring_remove,
@@ -667,7 +701,7 @@ TEST_CASE(
 
   SECTION("store failure without a message falls back to a default") {
     REQUIRE(
-        holder_keyring_set_provider(
+        register_keyring_provider(
             fake_keyring_lookup,
             failing_keyring_store_silent,
             fake_keyring_remove,
@@ -684,7 +718,7 @@ TEST_CASE(
 
   SECTION("remove failure with a message throws with that message") {
     REQUIRE(
-        holder_keyring_set_provider(
+        register_keyring_provider(
             fake_keyring_lookup,
             fake_keyring_store,
             failing_keyring_remove_with_message,
@@ -701,7 +735,7 @@ TEST_CASE(
 
   SECTION("remove failure without a message falls back to a default") {
     REQUIRE(
-        holder_keyring_set_provider(
+        register_keyring_provider(
             fake_keyring_lookup,
             fake_keyring_store,
             failing_keyring_remove_silent,
@@ -716,6 +750,25 @@ TEST_CASE(
     );
   }
 
+  holder::privacy::platform_keyring_clear_external_provider();
+}
+
+TEST_CASE("generated keyring callbacks can replace their own provider safely", "[capi][privacy]") {
+  ReplacingKeyringState state;
+  holder_keyring_provider_callbacks callbacks{replacing_keyring_lookup, fake_keyring_store,
+                                               fake_keyring_remove};
+  holder_error* error = nullptr;
+  REQUIRE(holder_register_keyring_provider(&callbacks, &state, replacing_keyring_destroy, &error) == HOLDER_OK);
+  const holder::privacy::PlatformKeyringSecretRef ref{
+      .kind = holder::privacy::PlatformKeyringSecretKind::GenericSecret,
+      .service = "holder.test",
+      .account = "acct",
+      .project_id = std::nullopt,
+  };
+  REQUIRE_FALSE(holder::privacy::platform_keyring_lookup_secret(ref).secret);
+  REQUIRE(state.replacement_status == HOLDER_OK);
+  REQUIRE(state.observed_during_callback == 0);
+  REQUIRE(state.destroyed == 1);
   holder::privacy::platform_keyring_clear_external_provider();
 }
 
