@@ -4,6 +4,19 @@ The C API is the native expression of [Holder's contract](README.md). It lets ap
 
 The public header is [`holder_api.h`](../core/include/holder/holder_api.h). Generated C++ declarations and glue connect it to implementations in [`core/src/api/`](../core/src/api/). Change the Python declarations or generators, then run `make -C contract update`; keep the regenerated files with the change. See [core's consumption model](../core/README.md#consumption-model) for building against the library and its compatibility policy.
 
+## Implementation boundary
+
+The core generator writes these files:
+
+- [`holder_api.h`](../core/include/holder/holder_api.h): the public C declarations for handles, records, operations, host callbacks, error codes and result arenas.
+- [`Contract.h`](../core/src/api/Contract.h): the C++ types and operation declarations core implements. They live in `holder::contract` so they do not clash with the daemon's `holder::api` types. A missing operation implementation fails to link when the generated glue is linked into a consumer.
+- [`ContractCApi.cpp`](../core/src/api/ContractCApi.cpp): C entry points that validate arguments, call core's implementations, copy results into the caller's arena and translate exceptions into C errors.
+- [`HostCApi.cpp`](../core/src/api/HostCApi.cpp): adapters for host-implemented interfaces, connecting C callbacks and their ownership conventions to core's C++ interfaces.
+
+The generated C++ interface uses `long long` for 64-bit integers; the public C interface uses `int64_t`. The glue converts between them at the boundary.
+
+The generator tests compile and run generated code against a stand-in for core in [`tests/c/`](tests/c/). This checks the calling conventions, validation, conversions and memory handling independently of core's domain behavior. Core's own tests and the [conformance tests](tests/conformance/) exercise the real implementation.
+
 ## Conventions
 
 - **Operations:**
