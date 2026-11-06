@@ -207,10 +207,10 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public string last_provider_api_key = "";
     public bool last_provider_enabled = false;
     public string last_move_card_id = "";
+    public string last_card_project_id = "";
     public string? last_move_parent_card_id = null;
     public double last_move_sort_key = 0.0;
     public int64 last_move_updated_at = 0;
-    public string last_move_project_id = "";
     public string last_move_intent = "";
     public string? last_move_target_card_id = null;
     public bool fail_health = false;
@@ -240,7 +240,6 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public bool fail_delete_resource = false;
     public uint list_card_links_delay_ms = 0;
     public bool include_card2 = false;
-    public string next_move_into_title = "";
     public bool search_returns_card2 = false;
     public bool list_projects_empty = false;
     public bool include_home_project = false;
@@ -302,12 +301,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public string last_git_project_id = "";
     public string? last_git_remote_url = null;
     public string? project_git_remote_url = "https://example.com/p1.git";
-    public int64 last_git_remote_updated_at = 0;
     public string last_git_branch = "";
     public bool last_git_set_upstream = false;
     public string last_trash_project_id = "";
     public string last_trash_type = "";
     public string last_restore_item_type = "";
+    public string last_restore_project_id = "";
     public string last_restore_item_id = "";
     public string last_hard_delete_item_type = "";
     public string last_hard_delete_item_id = "";
@@ -539,7 +538,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         );
     }
 
-    public async HolderLinux.CardDetail get_card(string card_id) throws Error {
+    public async HolderLinux.CardDetail get_card(string project_id, string card_id) throws Error {
         if (slow_get_card) {
             var end = GLib.get_monotonic_time() + 50 * 1000;
             while (GLib.get_monotonic_time() < end) {
@@ -581,7 +580,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return tagged_cards;
     }
 
-    public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string card_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string project_id, string card_id) throws Error {
         if (fail_list_card_links) {
             throw new IOError.FAILED("list card links failed");
         }
@@ -611,7 +610,18 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return card_links;
     }
 
-    public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string card_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.LinkKindLabels> list_link_kinds() throws Error {
+        var kinds = new Gee.ArrayList<HolderLinux.LinkKindLabels>();
+        // Five of core's catalog entries, with its labels.
+        kinds.add(new HolderLinux.LinkKindLabels("ref", "References", "Referenced by"));
+        kinds.add(new HolderLinux.LinkKindLabels("depends_on", "Depends on", "Required by"));
+        kinds.add(new HolderLinux.LinkKindLabels("example_of", "Example of", "Has example"));
+        kinds.add(new HolderLinux.LinkKindLabels("blocks", "Blocks", "Blocked by"));
+        kinds.add(new HolderLinux.LinkKindLabels("related_to", "Related to", "Related to"));
+        return kinds;
+    }
+
+    public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string project_id, string card_id) throws Error {
         if (fail_list_card_backlinks) {
             throw new IOError.FAILED("list card backlinks failed");
         }
@@ -666,11 +676,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_trash_type = type;
     }
 
-    public async void restore_trash_item(string item_type, string item_id) throws Error {
+    public async void restore_trash_item(string project_id, string item_type, string item_id) throws Error {
         if (fail_restore_trash) {
             throw new IOError.FAILED("restore trash failed");
         }
         restore_trash_calls++;
+        last_restore_project_id = project_id;
         last_restore_item_type = item_type;
         last_restore_item_id = item_id;
     }
@@ -703,7 +714,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return "r1";
     }
 
-    public async void update_resource(string resource_id,
+    public async void update_resource(string project_id,
+                                      string resource_id,
                                       string? kind,
                                       string? uri,
                                       string? label,
@@ -723,7 +735,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_resource_updated_at = updated_at;
     }
 
-    public async void delete_resource(string resource_id) throws Error {
+    public async void delete_resource(string project_id, string resource_id) throws Error {
         if (fail_delete_resource) {
             throw new IOError.FAILED("delete resource failed");
         }
@@ -731,7 +743,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_resource_id = resource_id;
     }
 
-    public async HolderLinux.CardLink create_card_link(string from_card_id,
+    public async HolderLinux.CardLink create_card_link(string project_id,
+                                                       string from_card_id,
                                                        string to_card_id,
                                                        string kind = "ref",
                                                        string? label = null,
@@ -748,10 +761,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return new HolderLinux.CardLink(from_card_id, to_card_id, to_type, kind, label, 0);
     }
 
-    public async void delete_card_link(string from_card_id,
+    public async void delete_card_link(string project_id,
+                                       string from_card_id,
                                        string to_card_id,
                                        string kind,
-                                       string to_type = "card") throws Error {
+                                       string to_type = "card",
+                                       string? target_project_id = null) throws Error {
         if (fail_delete_card_link) {
             throw new IOError.FAILED("delete card link failed");
         }
@@ -776,7 +791,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return results;
     }
 
-    public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error {
+    public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? runner_id = null) throws Error {
         if (fail_ai_capabilities) {
             throw new IOError.FAILED("ai capabilities failed");
         }
@@ -1031,34 +1046,28 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     }
 
     public virtual async void set_project_git_remote(string project_id,
-                                             string? git_remote_url,
-                                             int64 updated_at) throws Error {
+                                             string? git_remote_url) throws Error {
         if (fail_set_project_git_remote) {
             throw new IOError.FAILED("set project git remote failed");
         }
         set_project_git_remote_calls++;
         last_git_project_id = project_id;
         last_git_remote_url = git_remote_url;
-        last_git_remote_updated_at = updated_at;
         project_git_remote_url = git_remote_url;
     }
 
     public async HolderLinux.GitTestRemoteResult test_project_git_remote(string project_id,
-                                                                         string? remote_url = null,
-                                                                         string branch = "") throws Error {
+                                                                         string? remote_url = null) throws Error {
         if (fail_test_project_git_remote) {
             throw new IOError.FAILED("test project git remote failed");
         }
         test_project_git_remote_calls++;
         last_git_project_id = project_id;
         last_git_remote_url = remote_url;
-        last_git_branch = branch;
         return new HolderLinux.GitTestRemoteResult(project_id,
                                                    remote_url ?? "",
-                                                   branch,
                                                    test_project_git_remote_status,
                                                    test_project_git_remote_status == "reachable",
-                                                   "",
                                                    "");
     }
 
@@ -1078,7 +1087,6 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
                                              "pushed",
                                              0,
                                              0,
-                                             "",
                                              "",
                                              "",
                                              "");
@@ -1117,7 +1125,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return "c-created";
     }
 
-    public async void update_card(string card_id,
+    public async void update_card(string project_id,
+                                  string card_id,
                                   string title,
                                   string content,
                                   int64 updated_at) throws Error {
@@ -1142,7 +1151,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         }
     }
 
-    public async void update_card_position(string card_id,
+    public async void update_card_position(string project_id,
+                                           string card_id,
                                            string? parent_card_id,
                                            double sort_key,
                                            int64 updated_at) throws Error {
@@ -1156,17 +1166,18 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_move_updated_at = updated_at;
     }
 
-    public async void delete_card(string card_id, bool trash_subtree = false) throws Error {
+    public async void delete_card(string project_id, string card_id, bool trash_subtree = false) throws Error {
         if (fail_delete_card) {
             throw new IOError.FAILED("delete card failed");
         }
         delete_card_calls++;
+        last_card_project_id = project_id;
         last_updated_card_id = card_id;
         last_delete_trash_subtree = trash_subtree;
     }
 
-    public async HolderLinux.CardMoveResult move_card(string card_id,
-                                                       string project_id,
+    public async HolderLinux.CardMoveResult move_card(string project_id,
+                                                       string card_id,
                                                        string intent,
                                                        string? target_card_id = null,
                                                        string? parent_card_id = null) throws Error {
@@ -1174,12 +1185,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
             throw new IOError.FAILED("move by intent failed");
         }
         update_card_position_calls++;
-        last_move_project_id = project_id;
+        last_card_project_id = project_id;
         last_move_intent = intent;
         last_move_target_card_id = target_card_id;
         last_move_card_id = card_id;
         last_move_parent_card_id = parent_card_id;
-        return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0, 1, next_move_into_title);
+        return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0);
     }
 
     public async HolderLinux.ProjectCalendar get_project_calendar(string project_id,
@@ -1207,11 +1218,13 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         );
     }
 
-    public async Gee.ArrayList<HolderLinux.Milestone> list_card_milestones(string card_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.Milestone> list_card_milestones(string project_id,
+                                                                           string card_id) throws Error {
         return new Gee.ArrayList<HolderLinux.Milestone>.wrap(milestones.to_array());
     }
 
-    public async HolderLinux.Milestone add_card_milestone(string card_id,
+    public async HolderLinux.Milestone add_card_milestone(string project_id,
+                                                          string card_id,
                                                           int64 start_at,
                                                           int64? end_at,
                                                           bool all_day,
@@ -1225,13 +1238,14 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return milestone;
     }
 
-    public async HolderLinux.Milestone update_card_milestone(string card_id,
-                                                             string milestone_id,
+    public async HolderLinux.Milestone update_card_milestone(HolderLinux.Milestone milestone,
                                                              int64 start_at,
                                                              int64? end_at,
                                                              bool all_day,
                                                              string? kind,
                                                              string? description) throws Error {
+        var card_id = milestone.card_id;
+        var milestone_id = milestone.milestone_id;
         update_card_milestone_calls++;
         last_milestone_card_id = card_id;
         last_milestone_id = milestone_id;
@@ -1261,7 +1275,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         throw new IOError.NOT_FOUND("milestone not found");
     }
 
-    public async bool remove_card_milestone(string card_id, string milestone_id) throws Error {
+    public async void remove_card_milestone(string project_id,
+                                            string card_id,
+                                            string milestone_id) throws Error {
         remove_card_milestone_calls++;
         if (fail_remove_card_milestone) {
             throw new IOError.FAILED("remove down");
@@ -1269,10 +1285,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         for (var i = 0; i < milestones.size; i++) {
             if (milestones[i].card_id == card_id && milestones[i].milestone_id == milestone_id) {
                 milestones.remove_at(i);
-                return true;
+                return;
             }
         }
-        return false;
     }
 }
 

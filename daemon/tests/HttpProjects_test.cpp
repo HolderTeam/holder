@@ -1,4 +1,5 @@
 #include "http_test_helpers.h"
+#include "card/TagRepo.h"
 
 #include <fstream>
 #include <git2.h>
@@ -39,6 +40,64 @@ std::optional<std::string> get_remote_url(
 }
 
 } // namespace
+
+TEST_CASE("HTTP project tags use the generated route", "[http][tags]") {
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "proj-1", (dir / "repo").string());
+  db.exec(
+      "INSERT INTO cards(card_id, project_id, title, rel_path, sort_key, created_at, updated_at) "
+      "VALUES('card-1','proj-1','One','cards/one.md',1,1,1);"
+  );
+  holder::card::TagRepo(db).set_tags_for_card("proj-1", "card-1", {"sync"}, 1);
+
+  const std::string token = "testtoken";
+  holder::api::HttpServer server("127.0.0.1", 0, db, token, nullptr, nullptr);
+  holder::api::HttpServer::BoundInfo bound;
+  try {
+    bound = server.start();
+  } catch (const std::exception& error) {
+    SKIP(std::string("Socket bind not available in test environment: ") + error.what());
+  }
+  holder::core::SignalHandler signals;
+  holder::test::HttpServerThreadGuard running(server, signals);
+  REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, token));
+
+  const auto bye = holder::test::http_request_raw(
+      bound.bind, bound.port, token, boost::beast::http::verb::post, "/bye");
+  REQUIRE(bye.status == boost::beast::http::status::ok);
+  REQUIRE(nlohmann::json::parse(bye.body) == nlohmann::json{{"ok", true}});
+
+  const auto reply = holder::test::http_request_raw(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/projects/proj-1/tags");
+  REQUIRE(reply.status == boost::beast::http::status::ok);
+  REQUIRE(reply.content_type == "application/json");
+  REQUIRE(nlohmann::json::parse(reply.body) == nlohmann::json{
+      {"ok", true}, {"data", nlohmann::json::array({{{"tag", "sync"}, {"card_count", 1}}})}});
+
+  const auto missing = holder::test::http_request_raw(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/projects/missing/tags");
+  REQUIRE(missing.status == boost::beast::http::status::not_found);
+  REQUIRE(nlohmann::json::parse(missing.body)["error"]["code"] == "not_found");
+
+  const auto malformed = holder::test::http_request_raw(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/projects/bad%XX/tags");
+  REQUIRE(malformed.status == boost::beast::http::status::bad_request);
+  REQUIRE(nlohmann::json::parse(malformed.body)["error"]["code"] == "invalid_argument");
+
+  const auto legacy = holder::test::http_request_raw(
+      bound.bind, bound.port, token, boost::beast::http::verb::get, "/projects");
+  REQUIRE(legacy.status == boost::beast::http::status::ok);
+  REQUIRE(nlohmann::json::parse(legacy.body)["ok"] == true);
+
+  const auto denied = holder::test::http_request_raw(
+      bound.bind, bound.port, "wrong-token", boost::beast::http::verb::get,
+      "/projects/proj-1/tags");
+  REQUIRE(denied.status == boost::beast::http::status::unauthorized);
+}
 
 TEST_CASE("HTTP project create/list/get/patch", "[http]") {
   const auto dir = make_temp_dir();
@@ -118,6 +177,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
+  REQUIRE(created_auto["data"] == fetched_auto["data"]);
   REQUIRE(fetched_auto["data"]["created_at"].get<long long>() > 0);
   REQUIRE(fetched_auto["data"]["updated_at"].get<long long>() > 0);
   REQUIRE(fetched_auto["data"]["root_path"].is_string());
@@ -148,6 +208,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       boost::beast::http::status::ok
   );
   REQUIRE(fetched["ok"] == true);
+  REQUIRE(created["data"] == fetched["data"]);
   REQUIRE(fetched["data"]["name"] == "Project One");
   REQUIRE(fetched["data"]["privacy_mode"] == "encrypted_git");
   REQUIRE(fetched["data"]["project_key_id"].is_string());
@@ -156,8 +217,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
   nlohmann::json update_body = {
       {"name", "Project Uno"},
       {"git_remote_url", "git@github.com:me/demo.git"},
-      {"git_provider", "github"},
-      {"updated_at", 20}
+      {"git_provider", "github"}
   };
 
   const auto updated = http_json_request(
@@ -203,8 +263,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
 
   nlohmann::json clear_git = {
       {"git_remote_url", nullptr},
-      {"git_provider", nullptr},
-      {"updated_at", 21}
+      {"git_provider", nullptr}
   };
 
   http_json_request(
@@ -231,11 +290,8 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
   const auto remote_cleared = get_remote_url(project_root, "origin");
   REQUIRE_FALSE(remote_cleared.has_value());
 
-  nlohmann::json privacy_patch = {
-      {"privacy_mode", "plain"},
-      {"project_key_id", "key-123"},
-      {"updated_at", 22}
-  };
+  // The privacy mode and key are set when a project is made.
+  nlohmann::json privacy_patch = {{"privacy_mode", "plain"}, {"project_key_id", "key-123"}};
   http_json_request(
       bound.bind,
       bound.port,
@@ -243,9 +299,8 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       boost::beast::http::verb::patch,
       "/projects/proj-1",
       privacy_patch,
-      boost::beast::http::status::ok
+      boost::beast::http::status::bad_request
   );
-
   const auto fetched_privacy = http_json_request(
       bound.bind,
       bound.port,
@@ -255,8 +310,8 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
-  REQUIRE(fetched_privacy["data"]["privacy_mode"] == "plain");
-  REQUIRE(fetched_privacy["data"]["project_key_id"] == "key-123");
+  REQUIRE(fetched_privacy["data"]["privacy_mode"] == "encrypted_git");
+  REQUIRE(fetched_privacy["data"]["project_key_id"] == fetched_after["data"]["project_key_id"]);
 
   git_repo.open_or_init(manual_project_root.string());
   git_repo.remove_remote("origin");
@@ -310,7 +365,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/projects?count=true",
+      "/projects?include_card_counts=true",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -331,6 +386,15 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
   }
   REQUIRE(proj1_seen);
   REQUIRE(proj2_seen);
+
+  const auto numeric_count = http_json_request(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/projects?include_card_counts=true", nlohmann::json::object(), boost::beast::http::status::ok);
+  REQUIRE(numeric_count["data"][0].contains("card_count"));
+  const auto numeric_no_count = http_json_request(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/projects?include_card_counts=false", nlohmann::json::object(), boost::beast::http::status::ok);
+  REQUIRE_FALSE(numeric_no_count["data"][0].contains("card_count"));
 
   const auto filtered_by_name = http_json_request(
       bound.bind,
@@ -365,8 +429,9 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
+  // Changing proj-1 above made it the latest changed.
   REQUIRE(filtered_ordered["data"].size() == 1);
-  REQUIRE(filtered_ordered["data"][0]["project_id"] == "proj-1");
+  REQUIRE(filtered_ordered["data"][0]["project_id"] == "proj-2");
 
   const auto name_ordered = http_json_request(
       bound.bind,
@@ -433,7 +498,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/projects?order=updated_at_desc&limit=5001&offset=0",
+      "/projects?order=updated_at_desc&limit=1000&offset=0",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -449,6 +514,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       boost::beast::http::status::ok
   );
   REQUIRE(deleted["ok"] == true);
+  REQUIRE(deleted["data"]["project_id"] == "proj-1");
 
   const auto missing = http_json_request(
       bound.bind,
@@ -514,7 +580,7 @@ TEST_CASE("HTTP project list rejects invalid order and negative paging", "[http]
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/projects?count=maybe",
+      "/projects?include_card_counts=maybe",
       nlohmann::json::object(),
       boost::beast::http::status::bad_request
   );
@@ -554,7 +620,7 @@ TEST_CASE("HTTP project list defaults to Home first", "[http]") {
       "/projects",
       {{"project_id", "proj-a"},
        {"name", "Alpha"},
-       {"root_path", "/tmp/proj-a"},
+       {"root_path", (dir / "proj-a").string()},
        {"created_at", 20},
        {"updated_at", 20}},
       boost::beast::http::status::created
@@ -567,7 +633,7 @@ TEST_CASE("HTTP project list defaults to Home first", "[http]") {
       "/projects",
       {{"project_id", "proj-home"},
        {"name", "Home"},
-       {"root_path", "/tmp/proj-home"},
+       {"root_path", (dir / "proj-home").string()},
        {"created_at", 10},
        {"updated_at", 10}},
       boost::beast::http::status::created
@@ -709,7 +775,6 @@ TEST_CASE("HTTP project routes cover validation and not-found branches", "[http]
        {"name", "Project One"},
        {"root_path", (dir / "repo").string()},
        {"git_provider", "github"},
-       {"project_key_id", nullptr},
        {"privacy_mode", "plain"},
        {"created_at", 1},
        {"updated_at", 1}},
@@ -822,29 +887,27 @@ TEST_CASE("HTTP project routes cover validation and not-found branches", "[http]
       )["ok"] == false
   );
 
-  // patch validation / not-found / root_path update / invalid privacy mode
-  REQUIRE(
-      http_json_request(
-          bound.bind,
-          bound.port,
-          token,
-          boost::beast::http::verb::patch,
-          "/projects/proj-1",
-          {{"name", "No Updated At"}},
-          boost::beast::http::status::bad_request
-      )["ok"] == false
-  );
-  REQUIRE(
-      http_json_request(
-          bound.bind,
-          bound.port,
-          token,
-          boost::beast::http::verb::patch,
-          "/projects/proj-1",
-          {{"updated_at", 2}},
-          boost::beast::http::status::bad_request
-      )["ok"] == false
-  );
+  // Patch validation and not found. Only the name and the Git remote change; the root path and the
+  // privacy mode are set when a project is made, and a time of change is not given.
+  for (const auto& body : std::vector<nlohmann::json>{
+           {{"name", ""}},
+           {{"updated_at", 2}},
+           {{"root_path", (dir / "repo2").string()}},
+           {{"privacy_mode", "plain"}},
+       }) {
+    INFO(body.dump());
+    REQUIRE(
+        http_json_request(
+            bound.bind,
+            bound.port,
+            token,
+            boost::beast::http::verb::patch,
+            "/projects/proj-1",
+            body,
+            boost::beast::http::status::bad_request
+        )["ok"] == false
+    );
+  }
   REQUIRE(
       http_json_request(
           bound.bind,
@@ -852,29 +915,8 @@ TEST_CASE("HTTP project routes cover validation and not-found branches", "[http]
           token,
           boost::beast::http::verb::patch,
           "/projects/nope",
-          {{"updated_at", 2}, {"name", "x"}},
+          {{"name", "x"}},
           boost::beast::http::status::not_found
-      )["ok"] == false
-  );
-  const auto patched_root = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::patch,
-      "/projects/proj-1",
-      {{"updated_at", 3}, {"root_path", (dir / "repo2").string()}},
-      boost::beast::http::status::ok
-  );
-  REQUIRE(patched_root["ok"] == true);
-  REQUIRE(
-      http_json_request(
-          bound.bind,
-          bound.port,
-          token,
-          boost::beast::http::verb::patch,
-          "/projects/proj-1",
-          {{"updated_at", 4}, {"privacy_mode", "nope"}},
-          boost::beast::http::status::bad_request
       )["ok"] == false
   );
 

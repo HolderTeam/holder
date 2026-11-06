@@ -12,8 +12,8 @@ private class FakeGitSyncService : HolderLinux.GitSyncService {
         new HolderLinux.GitCommandResult(0, "generated");
     public HolderLinux.GitRemoteApplyResult apply_result =
         new HolderLinux.GitRemoteApplyResult(
-            new HolderLinux.GitTestRemoteResult("p1", "r", "cards", "reachable", true, "", ""),
-            new HolderLinux.GitPushResult("p1", "r", "cards", "pushed", 0, 0, "", "", "", "")
+            new HolderLinux.GitTestRemoteResult("p1", "r", "reachable", true, ""),
+            new HolderLinux.GitPushResult("p1", "r", "cards", "pushed", 0, 0, "", "", "")
         );
 
     public int detect_calls = 0;
@@ -286,10 +286,8 @@ private void test_apply_project_git_remote_and_sync_builds_summary_and_toast() {
         new HolderLinux.GitTestRemoteResult(
             "p1",
             "git@github.com:zeth/holder.git",
-            "cards",
             "reachable",
             true,
-            "",
             "ok"
         ),
         new HolderLinux.GitPushResult(
@@ -299,7 +297,6 @@ private void test_apply_project_git_remote_and_sync_builds_summary_and_toast() {
             "pushed",
             2,
             0,
-            "",
             "",
             "",
             "none"
@@ -373,10 +370,8 @@ private void test_apply_project_git_remote_and_sync_appends_push_error_and_commi
         new HolderLinux.GitTestRemoteResult(
             "p1",
             "git@github.com:zeth/holder.git",
-            "cards",
             "reachable",
             true,
-            "",
             ""
         ),
         new HolderLinux.GitPushResult(
@@ -387,7 +382,6 @@ private void test_apply_project_git_remote_and_sync_appends_push_error_and_commi
             1,
             2,
             "abc123",
-            "non_fast_forward",
             "need pull",
             ""
         )
@@ -431,10 +425,8 @@ private void test_run_github_cli_auto_sync_flow_created_repo_with_toast() {
         new HolderLinux.GitTestRemoteResult(
             "p1",
             "git@github.com:zeth/demo.git",
-            "",
             "reachable",
             true,
-            "",
             ""
         ),
         new HolderLinux.GitPushResult(
@@ -444,7 +436,6 @@ private void test_run_github_cli_auto_sync_flow_created_repo_with_toast() {
             "up_to_date",
             0,
             0,
-            "",
             "",
             "",
             ""
@@ -480,10 +471,8 @@ private void test_run_github_cli_auto_sync_flow_uses_existing_repo_without_toast
         new HolderLinux.GitTestRemoteResult(
             "p1",
             "git@github.com:zeth/demo.git",
-            "",
             "reachable",
             true,
-            "",
             ""
         ),
         new HolderLinux.GitPushResult(
@@ -494,7 +483,6 @@ private void test_run_github_cli_auto_sync_flow_uses_existing_repo_without_toast
             1,
             1,
             "",
-            "non_fast_forward",
             "need pull",
             "pull first"
         )
@@ -592,10 +580,8 @@ private void test_run_github_guided_sync_flow_builds_status_and_toast() {
         new HolderLinux.GitTestRemoteResult(
             "p1",
             "git@github.com:zeth/demo.git",
-            "",
             "reachable",
             true,
-            "",
             "ok"
         ),
         new HolderLinux.GitPushResult(
@@ -605,7 +591,6 @@ private void test_run_github_guided_sync_flow_builds_status_and_toast() {
             "pushed",
             0,
             0,
-            "",
             "",
             "",
             ""
@@ -666,10 +651,8 @@ private void test_run_github_cli_auto_sync_flow_appends_remote_error_and_handles
         new HolderLinux.GitTestRemoteResult(
             "p1",
             "git@github.com:zeth/demo.git",
-            "",
             "unreachable",
             false,
-            "auth",
             "permission denied"
         ),
         null
@@ -724,10 +707,8 @@ private void test_run_github_guided_sync_flow_appends_push_error_and_next_action
         new HolderLinux.GitTestRemoteResult(
             "p1",
             "git@github.com:zeth/demo.git",
-            "",
             "reachable",
             true,
-            "",
             ""
         ),
         new HolderLinux.GitPushResult(
@@ -738,7 +719,6 @@ private void test_run_github_guided_sync_flow_appends_push_error_and_next_action
             1,
             1,
             "abc999",
-            "non_fast_forward",
             "need pull",
             "pull first"
         )

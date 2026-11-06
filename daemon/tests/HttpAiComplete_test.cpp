@@ -5,7 +5,6 @@
 #include "ai/AiRunRepo.h"
 #include "ai/AiRunnerRepo.h"
 #include "ai/AiThreadRepo.h"
-#include "api/routes/ai/runs/AiRunPostRoute.h"
 #include "api/support/CloudClient.h"
 #include "api/support/CloudQuota.h"
 #include "api/support/ThreadCompaction.h"
@@ -18,6 +17,36 @@
 using holder::test::make_temp_dir;
 
 namespace {
+
+// POST /ai/runs through the generated route, as the daemon's session serves it.
+holder::test::ServedRequest run_post(
+    const boost::beast::http::request<boost::beast::http::string_body>& req,
+    boost::beast::http::response<boost::beast::http::string_body>& res,
+    boost::asio::ip::tcp::socket& socket,
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    holder::privacy::SecretStore* secret_store,
+    holder::llm::RunnerRegistry* registry,
+    std::function<std::string()> uuid_v4
+) {
+  holder::api::support::StreamServer stream;
+  const bool handled = holder::api::dispatch_generated_routes(
+      req,
+      res,
+      db,
+      registry,
+      fts,
+      secret_store,
+      nullptr,
+      std::move(uuid_v4),
+      {},
+      nullptr,
+      nullptr,
+      &stream,
+      &socket
+  );
+  return {handled, handled && stream && stream(socket, res)};
+}
 
 class CloudRunOverrideGuard {
  public:
@@ -161,18 +190,10 @@ TEST_CASE(
 
   http::response<http::string_body> res;
   int id_seq = 1;
-  auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      server_socket,
-      db,
-      nullptr,
-      secret_store.get(),
-      nullptr,
-      [&id_seq]() {
+  auto out =
+      run_post(req, res, server_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed);
@@ -267,18 +288,10 @@ TEST_CASE(
   tcp::socket unopened_socket(ioc);
   http::response<http::string_body> res;
   int id_seq = 1;
-  auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      unopened_socket,
-      db,
-      nullptr,
-      secret_store.get(),
-      nullptr,
-      [&id_seq]() {
+  auto out =
+      run_post(req, res, unopened_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed);
@@ -332,18 +345,10 @@ TEST_CASE("AiRunPostRoute direct returns runner_unavailable when cloud catalog m
   tcp::socket unopened_socket(ioc);
   http::response<http::string_body> res;
   int id_seq = 1;
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      unopened_socket,
-      db,
-      nullptr,
-      secret_store.get(),
-      nullptr,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, unopened_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed == false);
@@ -372,21 +377,14 @@ TEST_CASE("AiRunPostRoute direct catches DB failures from thread creation path",
   tcp::socket unopened_socket(ioc);
   http::response<http::string_body> res;
   int id_seq = 1;
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      unopened_socket,
-      unopened_db,
-      nullptr,
-      nullptr,
-      nullptr,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, unopened_socket, unopened_db, nullptr, nullptr, nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
-  REQUIRE(res.result() == http::status::bad_request);
+  // A database failure is the service's 500, not the client's fault.
+  REQUIRE(res.result() == http::status::internal_server_error);
 }
 
 TEST_CASE("AiRunPostRoute cloud path selects provider via ordered fallback", "[http]") {
@@ -453,18 +451,10 @@ TEST_CASE("AiRunPostRoute cloud path selects provider via ordered fallback", "[h
   tcp::socket unopened_socket(ioc);
   http::response<http::string_body> res;
   int id_seq = 1;
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      unopened_socket,
-      db,
-      nullptr,
-      secret_store.get(),
-      nullptr,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, unopened_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed);
@@ -571,18 +561,10 @@ TEST_CASE(
   int id_seq = 1;
   holder::llm::LocalRunnerClient local_runner_client(&runner);
   holder::llm::RunnerRegistry runner_registry(&db, &local_runner_client);
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      server_socket,
-      db,
-      nullptr,
-      nullptr,
-      &runner_registry,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, server_socket, db, nullptr, nullptr, &runner_registry, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed);
@@ -695,18 +677,10 @@ TEST_CASE(
   int id_seq = 1;
   holder::llm::LocalRunnerClient local_runner_client(&runner);
   holder::llm::RunnerRegistry runner_registry(&db, &local_runner_client);
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      server_socket,
-      db,
-      nullptr,
-      nullptr,
-      &runner_registry,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, server_socket, db, nullptr, nullptr, &runner_registry, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed);
@@ -770,18 +744,10 @@ TEST_CASE("AiRunPostRoute local path rejects unknown forced model", "[http]") {
   int id_seq = 1;
   holder::llm::LocalRunnerClient local_runner_client(&runner);
   holder::llm::RunnerRegistry runner_registry(&db, &local_runner_client);
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      unopened_socket,
-      db,
-      nullptr,
-      nullptr,
-      &runner_registry,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, unopened_socket, db, nullptr, nullptr, &runner_registry, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed == false);
@@ -847,18 +813,10 @@ TEST_CASE("AiRunPostRoute direct validates cloud secrets and runner-model select
 
     http::response<http::string_body> res;
     int id_seq = 1;
-    const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-        req,
-        res,
-        unopened_socket,
-        db,
-        nullptr,
-        nullptr,
-        nullptr,
-        [&id_seq]() {
+    const auto out =
+        run_post(req, res, unopened_socket, db, nullptr, nullptr, nullptr, [&id_seq]() {
           return std::string("uuid-") + std::to_string(id_seq++);
-        }
-    );
+        });
 
     REQUIRE(out.handled);
     REQUIRE_FALSE(out.streamed);
@@ -925,18 +883,10 @@ TEST_CASE("AiRunPostRoute direct validates cloud secrets and runner-model select
 
     http::response<http::string_body> res;
     int id_seq = 1;
-    const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-        req,
-        res,
-        unopened_socket,
-        db,
-        nullptr,
-        secret_store.get(),
-        nullptr,
-        [&id_seq]() {
+    const auto out =
+        run_post(req, res, unopened_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
           return std::string("uuid-") + std::to_string(id_seq++);
-        }
-    );
+        });
 
     REQUIRE(out.handled);
     REQUIRE_FALSE(out.streamed);
@@ -993,18 +943,10 @@ TEST_CASE("AiRunPostRoute direct validates cloud secrets and runner-model select
 
     http::response<http::string_body> res;
     int id_seq = 1;
-    const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-        req,
-        res,
-        unopened_socket,
-        db,
-        nullptr,
-        nullptr,
-        &runner_registry,
-        [&id_seq]() {
+    const auto out =
+        run_post(req, res, unopened_socket, db, nullptr, nullptr, &runner_registry, [&id_seq]() {
           return std::string("uuid-") + std::to_string(id_seq++);
-        }
-    );
+        });
 
     REQUIRE(out.handled);
     REQUIRE_FALSE(out.streamed);
@@ -1060,18 +1002,10 @@ TEST_CASE("AiRunPostRoute direct validates cloud secrets and runner-model select
 
     http::response<http::string_body> res;
     int id_seq = 1;
-    const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-        req,
-        res,
-        unopened_socket,
-        db,
-        nullptr,
-        nullptr,
-        &runner_registry,
-        [&id_seq]() {
+    const auto out =
+        run_post(req, res, unopened_socket, db, nullptr, nullptr, &runner_registry, [&id_seq]() {
           return std::string("uuid-") + std::to_string(id_seq++);
-        }
-    );
+        });
 
     REQUIRE(out.handled);
     REQUIRE_FALSE(out.streamed);
@@ -1127,18 +1061,10 @@ TEST_CASE("AiRunPostRoute direct validates cloud secrets and runner-model select
 
     http::response<http::string_body> res;
     int id_seq = 1;
-    const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-        req,
-        res,
-        unopened_socket,
-        db,
-        nullptr,
-        nullptr,
-        &runner_registry,
-        [&id_seq]() {
+    const auto out =
+        run_post(req, res, unopened_socket, db, nullptr, nullptr, &runner_registry, [&id_seq]() {
           return std::string("uuid-") + std::to_string(id_seq++);
-        }
-    );
+        });
 
     REQUIRE(out.handled);
     REQUIRE_FALSE(out.streamed);
@@ -1238,18 +1164,10 @@ TEST_CASE(
     REQUIRE(manual_client != nullptr);
     (void)manual_client->retry();
 
-    const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-        req,
-        res,
-        server_socket,
-        db,
-        nullptr,
-        nullptr,
-        &runner_registry,
-        [&id_seq]() {
+    const auto out =
+        run_post(req, res, server_socket, db, nullptr, nullptr, &runner_registry, [&id_seq]() {
           return std::string("uuid-") + std::to_string(id_seq++);
-        }
-    );
+        });
 
     REQUIRE(out.handled);
     REQUIRE(out.streamed);
@@ -1343,18 +1261,10 @@ TEST_CASE(
     int id_seq = 1;
     holder::llm::LocalRunnerClient local_runner_client(&runner);
     holder::llm::RunnerRegistry runner_registry(&db, &local_runner_client);
-    const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-        req,
-        res,
-        server_socket,
-        db,
-        nullptr,
-        nullptr,
-        &runner_registry,
-        [&id_seq]() {
+    const auto out =
+        run_post(req, res, server_socket, db, nullptr, nullptr, &runner_registry, [&id_seq]() {
           return std::string("uuid-") + std::to_string(id_seq++);
-        }
-    );
+        });
 
     REQUIRE(out.handled);
     REQUIRE(out.streamed);
@@ -1463,18 +1373,10 @@ TEST_CASE(
       http::response<http::string_body> res;
       holder::llm::LocalRunnerClient local_runner_client(&runner);
       holder::llm::RunnerRegistry runner_registry(&db, &local_runner_client);
-      const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-          req,
-          res,
-          server_socket,
-          db,
-          nullptr,
-          nullptr,
-          &runner_registry,
-          [&id_seq]() {
+      const auto out =
+          run_post(req, res, server_socket, db, nullptr, nullptr, &runner_registry, [&id_seq]() {
             return std::string("uuid-") + std::to_string(id_seq++);
-          }
-      );
+          });
       REQUIRE(out.handled);
       REQUIRE(out.streamed);
 
@@ -1607,18 +1509,10 @@ TEST_CASE("AiRunPostRoute cloud compaction records below_threshold reason", "[ht
 
   http::response<http::string_body> res;
   int id_seq = 1;
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      server_socket,
-      db,
-      nullptr,
-      secret_store.get(),
-      nullptr,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, server_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed);
@@ -1727,18 +1621,10 @@ TEST_CASE("AiRunPostRoute cloud failure records cooldown for selected model", "[
 
   http::response<http::string_body> res;
   int id_seq = 1;
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      server_socket,
-      db,
-      nullptr,
-      secret_store.get(),
-      nullptr,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, server_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed);
@@ -1899,18 +1785,10 @@ TEST_CASE("AiRunPostRoute cloud path records attempt rejection reasons on failed
 
   http::response<http::string_body> res;
   int id_seq = 1;
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      server_socket,
-      db,
-      nullptr,
-      secret_store.get(),
-      nullptr,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, server_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed);
@@ -2063,18 +1941,10 @@ TEST_CASE("AiRunPostRoute cloud compaction records min_interval_not_elapsed reas
 
   http::response<http::string_body> res;
   int id_seq = 1;
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      server_socket,
-      db,
-      nullptr,
-      secret_store.get(),
-      nullptr,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, server_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed);
@@ -2201,18 +2071,10 @@ TEST_CASE("AiRunPostRoute cloud compaction records min_delta_not_met reason", "[
 
   http::response<http::string_body> res;
   int id_seq = 1;
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      server_socket,
-      db,
-      nullptr,
-      secret_store.get(),
-      nullptr,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, server_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed);
@@ -2336,18 +2198,10 @@ TEST_CASE("AiRunPostRoute cloud compaction records cooldown_active reason", "[ht
 
   http::response<http::string_body> res;
   int id_seq = 1;
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      server_socket,
-      db,
-      nullptr,
-      secret_store.get(),
-      nullptr,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, server_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed);
@@ -2484,18 +2338,10 @@ TEST_CASE(
 
   http::response<http::string_body> res;
   int id_seq = 1;
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      server_socket,
-      db,
-      nullptr,
-      secret_store.get(),
-      nullptr,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, server_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed);
@@ -2632,18 +2478,10 @@ TEST_CASE("AiRunPostRoute cloud compaction summary refresh rejects rpm limit", "
 
   http::response<http::string_body> res;
   int id_seq = 1;
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      server_socket,
-      db,
-      nullptr,
-      secret_store.get(),
-      nullptr,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, server_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
   REQUIRE(out.handled);
   REQUIRE(out.streamed);
   holder::ai::AiRunRepo run_repo(db);
@@ -2697,7 +2535,7 @@ TEST_CASE("AiRunPostRoute local write-header failure returns early", "[http]") {
   int id_seq = 1;
   holder::llm::LocalRunnerClient local_runner_client(&runner);
   holder::llm::RunnerRegistry runner_registry(&db, &local_runner_client);
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
+  const auto out = run_post(
       req,
       res,
       unopened_socket,
@@ -2781,7 +2619,7 @@ TEST_CASE("AiRunPostRoute local path marks run failed when all models fail", "[h
   int id_seq = 1;
   holder::llm::LocalRunnerClient local_runner_client(&runner);
   holder::llm::RunnerRegistry runner_registry(&db, &local_runner_client);
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
+  const auto out = run_post(
       req,
       res,
       server_socket,
@@ -2907,7 +2745,7 @@ TEST_CASE(
   int id_seq = 1;
   holder::llm::LocalRunnerClient local_runner_client(&runner);
   holder::llm::RunnerRegistry runner_registry(&db, &local_runner_client);
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
+  const auto out = run_post(
       req,
       res,
       server_socket,
@@ -3009,7 +2847,7 @@ TEST_CASE(
   int id_seq = 1;
   holder::llm::LocalRunnerClient local_runner_client(&runner);
   holder::llm::RunnerRegistry runner_registry(&db, &local_runner_client);
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
+  const auto out = run_post(
       req,
       res,
       server_socket,
@@ -3118,7 +2956,7 @@ TEST_CASE("AiRunPostRoute local replies use configured strong model", "[http]") 
   int id_seq = 1;
   holder::llm::LocalRunnerClient local_runner_client(&runner);
   holder::llm::RunnerRegistry runner_registry(&db, &local_runner_client);
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
+  const auto out = run_post(
       req,
       res,
       server_socket,
@@ -3249,7 +3087,7 @@ TEST_CASE("AiRunPostRoute title generation honors configured fast model runner",
   REQUIRE(manual_client != nullptr);
   (void)manual_client->retry();
 
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
+  const auto out = run_post(
       req,
       res,
       server_socket,
@@ -3382,18 +3220,10 @@ TEST_CASE("AiRunPostRoute cloud compaction records quality_guard_failed reason",
 
   http::response<http::string_body> res;
   int id_seq = 1;
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      server_socket,
-      db,
-      nullptr,
-      secret_store.get(),
-      nullptr,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, server_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed);
@@ -3521,18 +3351,10 @@ TEST_CASE("AiRunPostRoute cloud compaction records failed summary refresh cooldo
 
   http::response<http::string_body> res;
   int id_seq = 1;
-  const auto out = holder::api::routes::ai::runs::handle_ai_runs_post_route(
-      req,
-      res,
-      server_socket,
-      db,
-      nullptr,
-      secret_store.get(),
-      nullptr,
-      [&id_seq]() {
+  const auto out =
+      run_post(req, res, server_socket, db, nullptr, secret_store.get(), nullptr, [&id_seq]() {
         return std::string("uuid-") + std::to_string(id_seq++);
-      }
-  );
+      });
 
   REQUIRE(out.handled);
   REQUIRE(out.streamed);

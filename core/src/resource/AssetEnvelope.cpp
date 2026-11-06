@@ -1,6 +1,7 @@
 #include "resource/AssetEnvelope.h"
 
 #include "privacy/ProjectPrivacy.h"
+#include "resource/StorageProvider.h"
 
 #include <nlohmann/json.hpp>
 #include <openssl/evp.h>
@@ -135,7 +136,7 @@ nlohmann::json authenticated_header(
 
 void verify_digest(const FileDigest& actual, const FileDigest& expected, const char* label) {
   if (actual.byte_size != expected.byte_size || actual.sha256 != expected.sha256) {
-    throw std::runtime_error(std::string(label) + " integrity check failed");
+    throw StorageError(StorageErrorCode::Integrity, std::string(label) + " integrity check failed");
   }
 }
 

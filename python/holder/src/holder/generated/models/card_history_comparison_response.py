@@ -8,7 +8,7 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.card_history_comparison_data import CardHistoryComparisonData
+    from ..models.card_history_comparison import CardHistoryComparison
 
 
 T = TypeVar("T", bound="CardHistoryComparisonResponse")
@@ -19,11 +19,11 @@ class CardHistoryComparisonResponse:
     """
     Attributes:
         ok (bool):
-        data (CardHistoryComparisonData):
+        data (CardHistoryComparison): A bounded line comparison of two saved card states.
     """
 
     ok: bool
-    data: CardHistoryComparisonData
+    data: CardHistoryComparison
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,14 +44,14 @@ class CardHistoryComparisonResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.card_history_comparison_data import (
-            CardHistoryComparisonData,
+        from ..models.card_history_comparison import (
+            CardHistoryComparison,
         )
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = CardHistoryComparisonData.from_dict(d.pop("data"))
+        data = CardHistoryComparison.from_dict(d.pop("data"))
 
         card_history_comparison_response = cls(
             ok=ok,

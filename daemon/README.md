@@ -48,6 +48,8 @@ the daemon build.
 
 See [core build options](docs/core-builds.md) for managing the two steps yourself,
 using a core SDK or system package, and for how CI and releases build against core.
+See [daemon development](docs/development.md) for code ownership, concurrency and
+HTTP route changes.
 
 Model catalog config lives at `config/models.yaml` and is served by the API at `/models.yaml`.
 
@@ -77,6 +79,9 @@ sudo apt install -y \
   libgit2-dev libmd4c-dev catch2 libsodium-dev \
   libsecret-1-dev \
   lcov
+
+# Ubuntu 26.04 also needs the compiled Boost.Process library:
+sudo apt install -y libboost-process-dev
 
 ./make.sh
 ```
@@ -262,6 +267,15 @@ HOLDER_SAN_DETECT_LEAKS=1 ./make.sh san  # ASan + LSan build + tests
 
 The opt-in local MinIO and hosted S3-compatible storage test is documented in
 [`docs/s3-compatible-smoke-test.md`](docs/s3-compatible-smoke-test.md).
+
+The Catch test executable owns a unique `holder_daemon_test_*` scratch tree in
+the system temporary directory. Its HTTP helper directories, direct temporary
+paths, default test keystore, and default XDG homes live below that tree and
+are removed after the session, including when an assertion fails. Explicitly
+configured keystore and XDG directories remain caller-owned. Set
+`HOLDER_TEST_KEEP_TMP=1` to retain the scratch tree; the executable prints its
+path on exit. A crash or forced termination can leave the tree behind for
+manual inspection or removal.
 
 With GCC 16, an ASan build can emit `-Wmaybe-uninitialized` warnings for
 `_M_invoker` and `_M_manager` in libstdc++'s regex headers when compiling core's

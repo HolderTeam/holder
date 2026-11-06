@@ -15,6 +15,17 @@ namespace {
 
 YAML::Node load_openapi() { return YAML::LoadFile(OPENAPI_YAML_PATH); }
 
+bool schema_has_type(const YAML::Node& schema, const std::string& expected) {
+  const auto type = schema["type"];
+  if (type.IsScalar()) return type.as<std::string>() == expected;
+  if (type.IsSequence()) {
+    for (const auto& item : type) {
+      if (item.as<std::string>() == expected) return true;
+    }
+  }
+  return false;
+}
+
 YAML::Node parameter_named(const YAML::Node& operation, const std::string& name) {
   for (const auto& parameter : operation["parameters"]) {
     if (parameter["name"].as<std::string>() == name) return parameter;
@@ -44,167 +55,44 @@ void require_json_response_ref(
   );
 }
 
+// The data of one named event in an operation's text/event-stream itemSchema.
+YAML::Node sse_event_data(const YAML::Node& operation, const std::string& name) {
+  const auto events =
+      operation["responses"]["200"]["content"]["text/event-stream"]["itemSchema"]["oneOf"];
+  for (const auto& event : events) {
+    if (event["properties"]["event"]["const"].as<std::string>() == name)
+      return event["properties"]["data"];
+  }
+  return YAML::Node();
+}
+
 } // namespace
 
 TEST_CASE("OpenAPI contracts card item mutations on the card path", "[openapi][cards]") {
   const auto document = load_openapi();
-  const auto card = document["paths"]["/cards/{card_id}"];
+  const auto card = document["paths"]["/projects/{project_id}/cards/{card_id}"];
   for (const auto* method : {"patch", "delete"}) {
     const auto operation = card[method];
     REQUIRE(operation.IsDefined());
-    const auto parameter = parameter_named(operation, "card_id");
-    REQUIRE(parameter.IsDefined());
-    CHECK(parameter["in"].as<std::string>() == "path");
-    CHECK(parameter["required"].as<bool>());
-    require_json_response_ref(operation, "200", "CardPatchResponse");
+    for (const auto* name : {"project_id", "card_id"}) {
+      const auto parameter = parameter_named(operation, name);
+      REQUIRE(parameter.IsDefined());
+      CHECK(parameter["in"].as<std::string>() == "path");
+      CHECK(parameter["required"].as<bool>());
+    }
+    // The contract's update_card and trash_card answer with the card.
+    require_json_response_ref(operation, "200", "CardResponse");
     for (const auto* status : {"401", "404"}) {
       require_json_response_ref(operation, status, "ErrorResponse");
     }
   }
   CHECK(
       card["patch"]["requestBody"]["content"]["application/json"]["schema"]["$ref"].as<std::string>(
-      ) == "#/components/schemas/CardUpdateRequest"
+      ) == "#/components/schemas/CardUpdate"
   );
   const auto backlinks = document["paths"]["/ai/messages/{message_id}/backlinks"];
   CHECK_FALSE(backlinks["patch"].IsDefined());
   CHECK_FALSE(backlinks["delete"].IsDefined());
-}
-
-TEST_CASE("OpenAPI contracts project remote mutation results", "[openapi][sync][remote]") {
-  const auto document = load_openapi();
-  const auto operation = document["paths"]["/projects/{project_id}"]["patch"];
-  CHECK(parameter_named(operation, "project_id")["required"].as<bool>());
-  CHECK(
-      operation["requestBody"]["content"]["application/json"]["schema"]["$ref"].as<std::string>() ==
-      "#/components/schemas/ProjectUpdateRequest"
-  );
-  require_json_response_ref(operation, "200", "ProjectUpdateResponse");
-  for (const auto* status : {"400", "401", "404"}) {
-    require_json_response_ref(operation, status, "ErrorResponse");
-  }
-  const auto schemas = document["components"]["schemas"];
-  CHECK(schemas["ProjectUpdateRequest"]["properties"]["git_remote_url"]["nullable"].as<bool>());
-  const auto data = schemas["ProjectUpdateResponse"]["properties"]["data"];
-  CHECK(required_properties(data) == std::vector<std::string>{"project_id"});
-  CHECK(data["properties"]["git_remote_changed"]["type"].as<std::string>() == "boolean");
-  const auto description = data["properties"]["git_remote_changed"]["description"].as<std::string>(
-  );
-  CHECK(description.find("Present when git_remote_url is supplied") != std::string::npos);
-  CHECK(description.find("same value returns false") != std::string::npos);
-}
-
-TEST_CASE(
-    "OpenAPI contracts read-only remote tests and push results",
-    "[openapi][sync][probe][push]"
-) {
-  const auto document = load_openapi();
-  const auto schemas = document["components"]["schemas"];
-  for (const auto& entry : std::vector<std::pair<std::string, std::string>>{
-           {"test-remote", "ProjectGitTestRemote"},
-           {"push", "ProjectGitPush"}
-       }) {
-    const auto operation = document["paths"]["/projects/{project_id}/git/" + entry.first]["post"];
-    CHECK(parameter_named(operation, "project_id")["required"].as<bool>());
-    CHECK(
-        operation["requestBody"]["content"]["application/json"]["schema"]["$ref"].as<std::string>(
-        ) == "#/components/schemas/" + entry.second + "Request"
-    );
-    require_json_response_ref(operation, "200", entry.second + "Response");
-    for (const auto* status : {"400", "401", "404"})
-      require_json_response_ref(operation, status, "ErrorResponse");
-    const auto data = schemas[entry.second + "Response"]["properties"]["data"]["properties"];
-    CHECK(data["project_id"]["type"].as<std::string>() == "string");
-    CHECK(data["remote_url"]["nullable"].as<bool>());
-    CHECK(data["error_code"]["nullable"].as<bool>());
-    CHECK(data["error_message"]["nullable"].as<bool>());
-  }
-  const auto override_url = schemas["ProjectGitTestRemoteRequest"]["properties"]["remote_url"];
-  CHECK(override_url["nullable"].as<bool>());
-  const auto description = override_url["description"].as<std::string>();
-  CHECK(description.find("read-only") != std::string::npos);
-  CHECK(description.find("unchanged") != std::string::npos);
-  const auto probe = schemas["ProjectGitTestRemoteResponse"]["properties"]["data"]["properties"];
-  CHECK(
-      probe["status"]["enum"].as<std::vector<std::string>>() ==
-      std::vector<std::string>{
-          "reachable",
-          "auth_failed",
-          "not_found",
-          "network_error",
-          "invalid_remote_url",
-          "remote_unset",
-          "unknown_error"
-      }
-  );
-  CHECK(probe["remote_has_head"]["type"].as<std::string>() == "boolean");
-  const auto push = schemas["ProjectGitPushResponse"]["properties"]["data"]["properties"];
-  CHECK(
-      push["status"]["enum"].as<std::vector<std::string>>() ==
-      std::vector<std::string>{
-          "pushed",
-          "up_to_date",
-          "auth_failed",
-          "not_found",
-          "network_error",
-          "non_fast_forward",
-          "remote_unset",
-          "unknown_error"
-      }
-  );
-  CHECK(push["ahead_count"]["type"].as<std::string>() == "integer");
-  CHECK(push["behind_count"]["type"].as<std::string>() == "integer");
-  CHECK(push["local_head_commit"]["type"].as<std::string>() == "string");
-  CHECK(push["local_head_commit"]["nullable"].as<bool>());
-  CHECK(push["next_action"]["nullable"].as<bool>());
-}
-
-TEST_CASE("OpenAPI contracts forced project sync operations", "[openapi][sync][forced]") {
-  const auto document = load_openapi();
-  const auto schemas = document["components"]["schemas"];
-  for (const auto* action : {"pull", "sync"}) {
-    const auto operation =
-        document["paths"]["/projects/{project_id}/git/" + std::string(action)]["post"];
-    REQUIRE(operation.IsDefined());
-    CHECK(parameter_named(operation, "project_id")["required"].as<bool>());
-    CHECK(
-        operation["requestBody"]["content"]["application/json"]["schema"]["$ref"].as<std::string>(
-        ) == "#/components/schemas/ProjectGitSyncRequest"
-    );
-    require_json_response_ref(operation, "200", "ProjectGitSyncOperationResponse");
-    for (const auto* status : {"400", "401", "404"})
-      require_json_response_ref(operation, status, "ErrorResponse");
-  }
-
-  const auto data = schemas["ProjectGitSyncOperationResponse"]["properties"]["data"];
-  CHECK(
-      required_properties(data) ==
-      std::vector<std::string>{
-          "branch",
-          "error_code",
-          "error_message",
-          "project_id",
-          "pull",
-          "push",
-          "status"
-      }
-  );
-  const auto pull = data["properties"]["pull"];
-  CHECK(
-      required_properties(pull) ==
-      std::vector<std::string>{"attempted", "conflicts_resolved", "error_message", "status"}
-  );
-  const auto push = data["properties"]["push"];
-  CHECK(
-      required_properties(push) ==
-      std::vector<std::string>{
-          "ahead_count",
-          "attempted",
-          "behind_count",
-          "error_message",
-          "local_head_commit",
-          "status"
-      }
-  );
 }
 
 TEST_CASE(
@@ -223,45 +111,11 @@ TEST_CASE(
       op["responses"]["200"]["headers"]["Content-Disposition"]["schema"]["type"].as<std::string>(
       ) == "string"
   );
-  CHECK(
-      op["responses"]["200"]["content"]["application/octet-stream"]["schema"]["format"]
-          .as<std::string>() == "binary"
-  );
+  // OpenAPI 3.2 describes raw bytes by their media type alone.
+  CHECK(op["responses"]["200"]["content"]["application/octet-stream"].IsMap());
+  CHECK_FALSE(op["responses"]["200"]["content"]["application/octet-stream"]["schema"].IsDefined());
   for (const auto& code : {"400", "401", "404", "409", "422", "502", "503", "507"}) {
     require_json_response_ref(op, code, "ErrorResponse");
-  }
-}
-
-TEST_CASE(
-    "OpenAPI contracts card resource attachments and paginated listing",
-    "[openapi][resources][attachments]"
-) {
-  const auto document = load_openapi();
-  const auto list = document["paths"]["/resources"]["get"];
-  CHECK(parameter_named(list, "project_id")["required"].as<bool>());
-  CHECK_FALSE(parameter_named(list, "card_id")["required"].as<bool>());
-  CHECK(parameter_named(list, "limit")["schema"]["maximum"].as<int>() == 1000);
-  CHECK(parameter_named(list, "limit")["schema"]["default"].as<int>() == 100);
-  CHECK(parameter_named(list, "offset")["schema"]["minimum"].as<int>() == 0);
-  require_json_response_ref(list, "200", "ResourceListResponse");
-  for (const auto& status : {"400", "401", "404", "422"})
-    require_json_response_ref(list, status, "ErrorResponse");
-  const auto schemas = document["components"]["schemas"];
-  CHECK(schemas["ResourceListResponse"]["properties"]["next_offset"]["nullable"].as<bool>());
-  CHECK(
-      required_properties(schemas["ResourceAttachmentResponse"]["properties"]["data"]) ==
-      std::vector<std::string>{"card_id", "changed", "outcome", "resource_id"}
-  );
-  for (const auto& method : {"post", "delete"}) {
-    const auto op = document["paths"]["/cards/{card_id}/resources"][method];
-    CHECK(parameter_named(op, "card_id")["required"].as<bool>());
-    CHECK(
-        required_properties(op["requestBody"]["content"]["application/json"]["schema"]) ==
-        std::vector<std::string>{"project_id", "resource_id"}
-    );
-    require_json_response_ref(op, "200", "ResourceAttachmentResponse");
-    for (const auto& status : {"400", "401", "404", "422"})
-      require_json_response_ref(op, status, "ErrorResponse");
   }
 }
 
@@ -278,309 +132,97 @@ TEST_CASE(
   REQUIRE(project_id.IsDefined());
   CHECK(project_id["in"].as<std::string>() == "path");
   CHECK(project_id["required"].as<bool>());
-  require_json_response_ref(list_tags, "200", "ProjectTagListResponse");
+  require_json_response_ref(list_tags, "200", "TagCountListResponse");
   require_json_response_ref(list_tags, "404", "ErrorResponse");
 
+  CHECK(required_properties(schemas["TagCount"]) == std::vector<std::string>{"card_count", "tag"});
   CHECK(
-      required_properties(schemas["ProjectTag"]) == std::vector<std::string>{"card_count", "tag"}
-  );
-  CHECK(
-      schemas["ProjectTagListResponse"]["properties"]["data"]["items"]["$ref"].as<std::string>() ==
-      "#/components/schemas/ProjectTag"
+      schemas["TagCountListResponse"]["properties"]["data"]["items"]["$ref"].as<std::string>() ==
+      "#/components/schemas/TagCount"
   );
 
-  const auto list_cards = document["paths"]["/cards"]["get"];
+  const auto list_cards = document["paths"]["/projects/{project_id}/cards"]["get"];
   const auto tag = parameter_named(list_cards, "tag");
   REQUIRE(tag.IsDefined());
   CHECK(tag["in"].as<std::string>() == "query");
   CHECK_FALSE(tag["required"].as<bool>());
-  CHECK(tag["schema"]["type"].as<std::string>() == "string");
-  CHECK(tag["description"].as<std::string>().find("Exact normalized tag") != std::string::npos);
-  require_json_response_ref(list_cards, "200", "CardListResponse");
+  CHECK(tag["schema"]["anyOf"][0]["$ref"].as<std::string>() == "#/components/schemas/Tag");
+  require_json_response_ref(list_cards, "200", "CardListItemPageResponse");
 }
 
-TEST_CASE(
-    "OpenAPI contracts card-history revision references, snapshots, and restore",
-    "[openapi][holderctl-history][history]"
-) {
+TEST_CASE("OpenAPI exposes card history through the shared contract", "[openapi][history]") {
   const auto document = load_openapi();
   const auto schemas = document["components"]["schemas"];
-  const auto revision = schemas["RevisionReference"];
-  REQUIRE(revision.IsDefined());
-  CHECK(revision["minLength"].as<int>() == 8);
-  CHECK(revision["maxLength"].as<int>() == 40);
-  CHECK(revision["pattern"].as<std::string>() == "^[0-9A-Fa-f]{8,40}$");
+  const auto path = document["paths"]["/projects/{project_id}/history/cards/{card_id}"];
+  require_json_response_ref(path["get"], "200", "CardHistoryPageResponse");
 
   const auto compare =
       document["paths"]["/projects/{project_id}/history/cards/{card_id}/compare"]["get"];
-  REQUIRE(compare.IsDefined());
-  CHECK(compare["description"].as<std::string>().find("first parent") != std::string::npos);
-  for (const auto& name : {"from", "to"}) {
-    const auto parameter = parameter_named(compare, name);
-    REQUIRE(parameter.IsDefined());
-    CHECK(
-        parameter["schema"]["$ref"].as<std::string>() == "#/components/schemas/RevisionReference"
-    );
-  }
-  CHECK(
-      parameter_named(compare, "from")["description"].as<std::string>().find("since mode") !=
-      std::string::npos
-  );
-  CHECK(
-      parameter_named(compare, "mode")["description"].as<std::string>().find("first parent") !=
-      std::string::npos
-  );
-  for (const auto& status : {"400", "404", "409", "413", "503"}) {
-    require_json_response_ref(compare, status, "ErrorResponse");
-  }
+  REQUIRE(parameter_named(compare, "from_oid").IsDefined());
+  REQUIRE(parameter_named(compare, "to_oid").IsDefined());
+  require_json_response_ref(compare, "200", "CardHistoryComparisonResponse");
+  CHECK(schemas["CardHistoryComparison"]["properties"]["before"].IsDefined());
+  CHECK(schemas["CardHistoryComparison"]["properties"]["after"].IsDefined());
 
   const auto snapshot =
       document["paths"]["/projects/{project_id}/history/cards/{card_id}/snapshot"]["get"];
-  REQUIRE(snapshot.IsDefined());
-  for (const auto& name : {"project_id", "card_id", "oid"}) {
-    const auto parameter = parameter_named(snapshot, name);
-    REQUIRE(parameter.IsDefined());
-    CHECK(parameter["required"].as<bool>());
-  }
-  CHECK(
-      parameter_named(snapshot, "oid")["schema"]["$ref"].as<std::string>() ==
-      "#/components/schemas/RevisionReference"
-  );
   require_json_response_ref(snapshot, "200", "CardHistorySnapshotResponse");
-  for (const auto& status : {"400", "401", "404", "409", "413", "503"}) {
-    require_json_response_ref(snapshot, status, "ErrorResponse");
-  }
-
   const auto restore =
       document["paths"]["/projects/{project_id}/history/cards/{card_id}/restore"]["post"];
-  REQUIRE(restore.IsDefined());
+  require_json_response_ref(restore, "200", "CardHistoryRestoreResultResponse");
+}
 
-  for (const auto& name : {"project_id", "card_id", "oid"}) {
-    const auto parameter = parameter_named(restore, name);
-    REQUIRE(parameter.IsDefined());
-    CHECK(parameter["required"].as<bool>());
+TEST_CASE("OpenAPI exposes Trash through the shared contract", "[openapi][trash]") {
+  const auto document = load_openapi();
+  const auto trash = document["paths"]["/trash"];
+  REQUIRE(trash.IsDefined());
+  require_json_response_ref(trash["get"], "200", "TrashItemListResponse");
+  require_json_response_ref(trash["delete"], "200", "TrashEmptyResultResponse");
+  REQUIRE(parameter_named(trash["get"], "project_id").IsDefined());
+
+  const auto legacy = document["paths"]["/trash/{type}/{id}"]["delete"];
+  const auto scoped = document["paths"]["/projects/{project_id}/trash/{type}/{id}"]["delete"];
+  require_json_response_ref(legacy, "200", "TrashDeleteResultResponse");
+  require_json_response_ref(scoped, "200", "TrashDeleteResultResponse");
+  require_json_response_ref(scoped, "409", "ErrorResponse");
+}
+
+TEST_CASE("OpenAPI exposes Search through the shared contract", "[openapi][search]") {
+  const auto document = load_openapi();
+  const auto cards = document["paths"]["/search/cards"]["get"];
+  const auto messages = document["paths"]["/search/ai"]["get"];
+  require_json_response_ref(cards, "200", "SearchCardListResponse");
+  require_json_response_ref(messages, "200", "SearchMessageListResponse");
+  for (const auto& operation : {cards, messages}) {
+    REQUIRE(parameter_named(operation, "project_id").IsDefined());
+    REQUIRE(parameter_named(operation, "q").IsDefined());
+    REQUIRE(parameter_named(operation, "limit").IsDefined());
+    REQUIRE(parameter_named(operation, "offset").IsDefined());
   }
-  const auto oid = parameter_named(restore, "oid");
-  CHECK(oid["in"].as<std::string>() == "query");
-  CHECK(oid["schema"]["$ref"].as<std::string>() == "#/components/schemas/RevisionReference");
-
-  require_json_response_ref(restore, "200", "CardHistoryRestoreResponse");
-  for (const auto& status : {"400", "401", "404", "409", "503"}) {
-    require_json_response_ref(restore, status, "ErrorResponse");
-  }
-
-  const auto response = schemas["CardHistoryRestoreResponse"];
-  CHECK(required_properties(response) == std::vector<std::string>{"data", "ok"});
-  CHECK(
-      required_properties(response["properties"]["data"]) ==
-      std::vector<std::string>{
-          "card_id",
-          "deleted_at",
-          "restored_from_oid",
-          "result_oid",
-          "title",
-          "updated_at"
-      }
-  );
-
-  const auto snapshot_response = schemas["CardHistorySnapshotResponse"];
-  CHECK(required_properties(snapshot_response) == std::vector<std::string>{"data", "ok"});
-  CHECK(
-      required_properties(snapshot_response["properties"]["data"]) ==
-      std::vector<std::string>{"card_id", "snapshot"}
-  );
 }
 
 TEST_CASE("OpenAPI contracts live-card tag mutations", "[openapi][holderctl-tags][tags]") {
   const auto document = load_openapi();
-  const auto schemas = document["components"]["schemas"];
-  const auto path = document["paths"]["/cards/{card_id}/tags"];
+  const auto path = document["paths"]["/projects/{project_id}/cards/{card_id}/tags/{tag}"];
 
-  for (const auto& method : {"post", "delete"}) {
+  for (const auto& method : {"put", "delete"}) {
     const auto operation = path[method];
     REQUIRE(operation.IsDefined());
-    const auto card_id = parameter_named(operation, "card_id");
-    REQUIRE(card_id.IsDefined());
-    CHECK(card_id["in"].as<std::string>() == "path");
-    CHECK(card_id["required"].as<bool>());
-    CHECK(
-        operation["requestBody"]["content"]["application/json"]["schema"]["$ref"].as<std::string>(
-        ) == "#/components/schemas/CardTagMutationRequest"
-    );
-    require_json_response_ref(operation, "200", "CardTagMutationResponse");
-    for (const auto& status : {"400", "401", "404", "422"}) {
+    for (const auto* name : {"project_id", "card_id", "tag"}) {
+      const auto parameter = parameter_named(operation, name);
+      REQUIRE(parameter.IsDefined());
+      CHECK(parameter["in"].as<std::string>() == "path");
+      CHECK(parameter["required"].as<bool>());
+    }
+    CHECK_FALSE(operation["requestBody"].IsDefined());
+    // The contract's add_card_tag and remove_card_tag answer with the card.
+    require_json_response_ref(operation, "200", "CardResponse");
+    for (const auto& status : {"400", "401", "404"}) {
       require_json_response_ref(operation, status, "ErrorResponse");
     }
   }
-
-  CHECK(
-      required_properties(schemas["CardTagMutationRequest"]) ==
-      std::vector<std::string>{"project_id", "tag"}
-  );
-  CHECK(
-      required_properties(schemas["CardTagMutationResult"]) ==
-      std::vector<std::string>{"card_id", "changed", "outcome", "tag"}
-  );
-  const auto outcomes = schemas["CardTagMutationResult"]["properties"]["outcome"]["enum"];
-  std::vector<std::string> documented_outcomes;
-  for (const auto& outcome : outcomes)
-    documented_outcomes.push_back(outcome.as<std::string>());
-  std::sort(documented_outcomes.begin(), documented_outcomes.end());
-  std::vector<std::string> expected{
-      "added",
-      "already_present",
-      "not_present",
-      "present_outside_editable_tag_line",
-      "removed",
-  };
-  std::sort(expected.begin(), expected.end());
-  CHECK(documented_outcomes == expected);
-}
-
-TEST_CASE(
-    "OpenAPI contracts milestones and inclusive project calendar ranges",
-    "[openapi][holderctl-milestones][milestones][calendar]"
-) {
-  const auto document = load_openapi();
-  const auto schemas = document["components"]["schemas"];
-  const auto milestone = schemas["Milestone"];
-  const auto create = schemas["MilestoneCreateRequest"];
-
-  REQUIRE(milestone.IsDefined());
-  CHECK(milestone["properties"]["milestone_id"]["format"].as<std::string>() == "uuid");
-  CHECK(
-      milestone["properties"]["milestone_id"]["description"].as<std::string>().find(
-          "never abbreviated"
-      ) != std::string::npos
-  );
-  CHECK(
-      milestone["properties"]["all_day"]["description"].as<std::string>().find("local calendar-date"
-      ) != std::string::npos
-  );
-  CHECK(required_properties(create) == std::vector<std::string>{"start_at"});
-  CHECK(create["properties"]["kind"].IsDefined());
-  CHECK(create["properties"]["description"].IsDefined());
-  CHECK_FALSE(create["properties"]["title"].IsDefined());
-  CHECK(
-      create["properties"]["end_at"]["description"].as<std::string>().find("Inclusive") !=
-      std::string::npos
-  );
-
-  const auto card_milestones = document["paths"]["/cards/{card_id}/milestones"];
-  REQUIRE(card_milestones["get"].IsDefined());
-  REQUIRE(card_milestones["post"].IsDefined());
-  require_json_response_ref(card_milestones["get"], "200", "MilestoneListResponse");
-  require_json_response_ref(card_milestones["post"], "201", "MilestoneResponse");
-  CHECK(
-      card_milestones["post"]["description"].as<std::string>().find("no independent title") !=
-      std::string::npos
-  );
-
-  const auto remove = document["paths"]["/cards/{card_id}/milestones/{milestone_id}"]["delete"];
-  REQUIRE(remove.IsDefined());
-  require_json_response_ref(remove, "200", "MilestoneRemoveResponse");
-  CHECK(
-      required_properties(schemas["MilestoneRemoveResult"]) ==
-      std::vector<std::string>{"card_id", "milestone_id", "removed"}
-  );
-
-  const auto update = document["paths"]["/cards/{card_id}/milestones/{milestone_id}"]["patch"];
-  REQUIRE(update.IsDefined());
-  CHECK(
-      update["requestBody"]["content"]["application/json"]["schema"]["$ref"].as<std::string>() ==
-      "#/components/schemas/MilestoneUpdateRequest"
-  );
-  require_json_response_ref(update, "200", "MilestoneResponse");
-  require_json_response_ref(update, "400", "ErrorResponse");
-  require_json_response_ref(update, "404", "ErrorResponse");
-  const auto milestone_id = parameter_named(update, "milestone_id");
-  REQUIRE(milestone_id.IsDefined());
-  CHECK(milestone_id["schema"]["format"].as<std::string>() == "uuid");
-  CHECK(
-      milestone_id["description"].as<std::string>().find("never abbreviated") != std::string::npos
-  );
-
-  const auto milestone_update = schemas["MilestoneUpdateRequest"];
-  REQUIRE(milestone_update.IsDefined());
-  CHECK(milestone_update["minProperties"].as<int>() == 1);
-  CHECK_FALSE(milestone_update["additionalProperties"].as<bool>());
-  CHECK_FALSE(milestone_update["required"].IsDefined());
-  CHECK_FALSE(milestone_update["properties"]["title"].IsDefined());
-  for (const auto& name : {"start_at", "end_at", "all_day", "kind", "description"}) {
-    CHECK(milestone_update["properties"][name].IsDefined());
-  }
-  CHECK(milestone_update["properties"]["end_at"]["nullable"].as<bool>());
-  CHECK(milestone_update["properties"]["kind"]["nullable"].as<bool>());
-  CHECK(milestone_update["properties"]["description"]["nullable"].as<bool>());
-
-  const auto calendar = document["paths"]["/calendar"]["get"];
-  REQUIRE(calendar.IsDefined());
-  CHECK(
-      calendar["description"].as<std::string>().find("both from and to are inclusive") !=
-      std::string::npos
-  );
-  for (const auto& name : {"from", "to"}) {
-    const auto parameter = parameter_named(calendar, name);
-    REQUIRE(parameter.IsDefined());
-    CHECK(parameter["required"].as<bool>());
-    CHECK(parameter["schema"]["type"].as<std::string>() == "integer");
-    CHECK(parameter["description"].as<std::string>().find("Inclusive") != std::string::npos);
-  }
-  require_json_response_ref(calendar, "200", "ProjectCalendarResponse");
-  const auto calendar_data = schemas["ProjectCalendarResponse"]["properties"]["data"];
-  CHECK(
-      required_properties(calendar_data) ==
-      std::vector<
-          std::string>{"created_cards", "from", "milestones", "project_id", "to", "updated_cards"}
-  );
-}
-
-TEST_CASE("OpenAPI contracts project Git sync status", "[openapi][holderctl-foundation][sync]") {
-  const auto document = load_openapi();
-  const auto schemas = document["components"]["schemas"];
-  const auto sync_status = document["paths"]["/projects/{project_id}/git/sync-status"]["get"];
-  REQUIRE(sync_status.IsDefined());
-
-  const auto project_id = parameter_named(sync_status, "project_id");
-  REQUIRE(project_id.IsDefined());
-  CHECK(project_id["in"].as<std::string>() == "path");
-  CHECK(project_id["required"].as<bool>());
-  require_json_response_ref(sync_status, "200", "ProjectGitSyncStatusResponse");
-  for (const auto& status : {"400", "401", "404"}) {
-    require_json_response_ref(sync_status, status, "ErrorResponse");
-  }
-
-  const auto response_data = schemas["ProjectGitSyncStatusResponse"]["properties"]["data"];
-  CHECK(required_properties(response_data) == std::vector<std::string>{"project_id", "sync"});
-  CHECK(
-      response_data["properties"]["sync"]["$ref"].as<std::string>() ==
-      "#/components/schemas/ProjectSync"
-  );
-
-  auto sync_required = required_properties(schemas["ProjectSync"]);
-  std::vector<std::string> expected{
-      "last_commit_at",
-      "last_pull_at",
-      "last_pull_status",
-      "last_push_at",
-      "last_push_status",
-      "last_sync_error",
-      "last_sync_error_at",
-      "next_pull_retry_at",
-      "next_retry_at",
-      "pull_retry_count",
-      "retry_count",
-      "uncommitted_changes_count",
-      "unpushed_commits_count",
-      "updated_at",
-  };
-  std::sort(expected.begin(), expected.end());
-  CHECK(sync_required == expected);
-  CHECK(
-      schemas["ProjectSync"]["properties"]["pull_retry_count"]["type"].as<std::string>() ==
-      "integer"
-  );
-  CHECK(schemas["ProjectSync"]["properties"]["next_pull_retry_at"]["nullable"].as<bool>());
+  // Removing a tag a card carries only in its prose is a conflict.
+  require_json_response_ref(path["delete"], "409", "ErrorResponse");
 }
 
 TEST_CASE("OpenAPI describes change feed recovery and SSE cursors", "[openapi][events]") {
@@ -593,12 +235,26 @@ TEST_CASE("OpenAPI describes change feed recovery and SSE cursors", "[openapi][e
       "^[0-9a-f]{40}$"
   );
   CHECK(
-      events["x-sse-events"]["resync_required"]["$ref"].as<std::string>() ==
+      sse_event_data(events, "resync_required")["contentSchema"]["$ref"].as<std::string>() ==
       "#/components/schemas/EventResyncData"
   );
+  // A reconnect to a finished run or pull is told to stop with 204, which has no body.
+  for (const auto* path : {"/ai/runs/{run_id}/events", "/ai/runner/pull/{job_id}/events"}) {
+    const auto finished = paths[path]["get"]["responses"]["204"];
+    CHECK(finished.IsDefined());
+    CHECK_FALSE(finished["content"].IsDefined());
+  }
+  CHECK(sse_event_data(paths["/ai/runs"]["post"], "fallback").IsDefined());
+  CHECK(
+      sse_event_data(paths["/ai/runner/pull/{job_id}/events"]["get"], "completed")["contentSchema"]
+                    ["$ref"]
+                        .as<std::string>() == "#/components/schemas/RunnerPullJob"
+  );
   require_json_response_ref(paths["/events/cursor"]["get"], "200", "EventCheckpointResponse");
-  for (const auto* status : {"400", "401", "404", "405", "503"})
+  for (const auto* status : {"400", "401", "404", "503"})
     require_json_response_ref(events, status, "ErrorResponse");
+  // A request with an operation's own method never gets a 405, so no operation lists one.
+  CHECK_FALSE(events["responses"]["405"].IsDefined());
   for (const auto* path : {"/ai/runs/{run_id}/events", "/ai/runner/pull/{job_id}/events"})
     CHECK(parameter_named(paths[path]["get"], "Last-Event-ID").IsDefined());
   CHECK(
@@ -617,27 +273,35 @@ TEST_CASE("OpenAPI contracts the goodbye hint", "[openapi][idle]") {
 }
 
 TEST_CASE(
-    "OpenAPI separates project card pages from the existing display route",
+    "OpenAPI exposes project card pages without legacy display routes",
     "[openapi][card-pages]"
 ) {
   const auto document = load_openapi();
-  const auto display = document["paths"]["/cards"]["get"];
-  CHECK(
-      parameter_named(display, "view")["schema"]["enum"].as<std::vector<std::string>>() ==
-      std::vector<std::string>{"tree", "recent"}
-  );
-  for (const auto& param : display["parameters"])
-    CHECK(param["name"].as<std::string>() != "after_card_id");
+  CHECK_FALSE(document["paths"]["/cards"].IsDefined());
+  CHECK_FALSE(document["paths"]["/cards/context"].IsDefined());
   const auto operation = document["paths"]["/projects/{project_id}/cards"]["get"];
   CHECK(parameter_named(operation, "project_id")["in"].as<std::string>() == "path");
   CHECK(parameter_named(operation, "project_id")["required"].as<bool>());
   CHECK(parameter_named(operation, "limit")["schema"]["maximum"].as<int>() == 5000);
-  CHECK(parameter_named(operation, "parent")["schema"]["oneOf"].size() == 2);
+  CHECK(
+      parameter_named(operation, "include_child_count")["schema"]["type"].as<std::string>() ==
+      "boolean"
+  );
+  // roots, a card ID, or null, as FastAPI writes the contract's choice.
+  CHECK(parameter_named(operation, "parent")["schema"]["anyOf"].size() == 3);
+  CHECK(
+      parameter_named(operation, "order")["schema"]["enum"].as<std::vector<std::string>>() ==
+      std::vector<std::string>{"card_id_asc", "updated_desc", "sort_key_asc"}
+  );
   for (const auto& param : operation["parameters"])
     CHECK(param["name"].as<std::string>() != "include_deleted");
-  require_json_response_ref(operation, "200", "CardPageResponse");
+  require_json_response_ref(operation, "200", "CardListItemPageResponse");
+  const auto breadcrumbs =
+      document["paths"]["/projects/{project_id}/cards/{card_id}/breadcrumbs"]["get"];
+  require_json_response_ref(breadcrumbs, "200", "CardBreadcrumbListResponse");
+  CHECK(breadcrumbs["responses"]["409"].IsDefined());
   CHECK(
-      required_properties(document["components"]["schemas"]["CardPage"]) ==
+      required_properties(document["components"]["schemas"]["CardListItemPage"]) ==
       std::vector<std::string>{"items", "next_cursor"}
   );
 }

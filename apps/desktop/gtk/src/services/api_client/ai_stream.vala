@@ -50,6 +50,11 @@ public class ApiClientAiStream : Object { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LIN
         return ApiClientTransport.json_string_from_builder(body);
     }
 
+    private static string field_value(string line, int offset) {
+        var value = line.substring(offset);
+        return value.has_prefix(" ") ? value.substring(1) : value;
+    }
+
     public static async void run(IApiHttpTransport transport, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: async signature branch artifact
                                  string base_url,
                                  string auth_token,
@@ -121,14 +126,14 @@ public class ApiClientAiStream : Object { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LIN
             }
 
             if (line.has_prefix("event:")) { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: string helper branch artifact
-                current_event = line.substring("event:".length).strip();
+                current_event = field_value(line, "event:".length);
                 continue;
             }
             if (line.has_prefix("data:")) { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: string helper branch artifact
                 if (data_builder.len > 0) { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: branch edge artifact
                     data_builder.append("\n"); // LCOV_EXCL_LINE GCOVR_EXCL_LINE LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: builder append edge artifact
                 }
-                data_builder.append(line.substring("data:".length).strip()); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: string helper branch artifact
+                data_builder.append(field_value(line, "data:".length)); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: string helper branch artifact
             }
         }
     }

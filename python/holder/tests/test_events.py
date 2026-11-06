@@ -1,6 +1,7 @@
 """SSE framing tests and delayed delivery over real loopback HTTP connections."""
 
 import asyncio
+import json
 from contextlib import asynccontextmanager
 
 import httpx
@@ -8,6 +9,18 @@ import pytest
 
 from holder.events import ChangeStream, Event
 from holder.generated import AuthenticatedClient
+from holder.generated.models import ChangeEventData, EventCheckpoint
+from holder.generated.streams import StreamError
+
+READY = '{"cursor":"new:9","git_revisions":{},"history_urls":{}}'
+CHANGE = (
+    '{"entity":"card","entity_id":"c-1","project_id":null,"deleted":false,'
+    '"git_revision":null}'
+)
+RESYNC = (
+    '{"cursor":"new:9","git_revisions":{},"history_urls":{},'
+    '"reason":"history_unavailable","last_revision":null}'
+)
 
 
 class ByteStream(httpx.AsyncByteStream):
@@ -33,12 +46,11 @@ def client_for(handler):
     )
 
 
-def test_framing_utf8_comments_multiline_and_incomplete_eof():
+def test_events_are_decoded_and_acknowledged_when_the_next_is_requested():
     async def run():
         payload = (
-            "\ufeff: heartbeat\r\nid: opaque:1\r\nevent: card.changed\r\n"
-            'data: {"title":\r\ndata: "café\u2028line"}\r\n\r\n'
-            "id: ignored\n\ndata: plain\nid: bad\x00id\n\n"
+            f"\ufeff: heartbeat\r\nid: opaque:1\r\nevent: ready\r\ndata: {READY}\r\n\r\n"
+            'id: opaque:2\nevent: note\ndata: {"title":"café\u2028line"}\n\n'
             "id: incomplete\ndata: not-delivered"
         ).encode()
         body = ByteStream([bytes([b]) for b in payload])
@@ -52,18 +64,20 @@ def test_framing_utf8_comments_multiline_and_incomplete_eof():
             async with ChangeStream(client, reconnect_delay=100) as events:
                 event = await anext(events)
                 assert event == Event(
-                    "card.changed", '{"title":\n"café\u2028line"}', "opaque:1"
+                    "ready", EventCheckpoint.from_dict(json.loads(READY)), "opaque:1"
                 )
-                assert event.json() == {"title": "café\u2028line"}
                 assert events.cursor is None
-                assert await anext(events) == Event("message", "plain")
+                # An event the contract doesn't name keeps its data as text.
+                assert await anext(events) == Event(
+                    "note", '{"title":"café\u2028line"}', "opaque:2"
+                )
                 assert events.cursor == "opaque:1"
                 pending = asyncio.create_task(anext(events))
                 await asyncio.sleep(0)
                 await events.aclose()
                 with pytest.raises(asyncio.CancelledError):
                     await pending
-                assert events.cursor == "opaque:1"
+                assert events.cursor == "opaque:2"
             assert body.closed
             assert not client.get_async_httpx_client().is_closed
         assert client.get_async_httpx_client().is_closed
@@ -76,17 +90,17 @@ def test_interrupted_replay_keeps_ready_id_and_discards_partial_frame():
         bodies = [
             ByteStream(
                 [
-                    b'id: old:1\nevent: ready\ndata: {"cursor":"new:9"}\n\n',
-                    b"id: old:2\nevent: card.changed\ndata: {}\n\n",
+                    f"id: old:1\nevent: ready\ndata: {READY}\n\n".encode(),
+                    f"id: old:2\nevent: card.changed\ndata: {CHANGE}\n\n".encode(),
                     b"id: old:3\ndata: partial",
                     httpx.ReadError("disconnected"),
                 ]
             ),
             ByteStream(
                 [
-                    b'id: old:2\nevent: ready\ndata: {"cursor":"new:9"}\n\n',
-                    b"id: old:3\nevent: card.changed\ndata: {}\n\n",
-                    b'id: new:9\nevent: resync_required\ndata: {"reason":"history_unavailable"}\n\n',
+                    f"id: old:2\nevent: ready\ndata: {READY}\n\n".encode(),
+                    f"id: old:3\nevent: card.changed\ndata: {CHANGE}\n\n".encode(),
+                    f"id: new:9\nevent: resync_required\ndata: {RESYNC}\n\n".encode(),
                 ]
             ),
         ]
@@ -94,7 +108,6 @@ def test_interrupted_replay_keeps_ready_id_and_discards_partial_frame():
 
         def respond(request):
             assert request.headers["Authorization"] == "Bearer test-token"
-            assert request.headers["Accept"] == "text/event-stream"
             assert dict(request.url.params) == {
                 "project_id": "project & one",
                 "last_revision": "a" * 40,
@@ -179,10 +192,10 @@ def test_delayed_delivery_and_socket_cleanup(stop):
 
         async def handler(request, reader, writer):
             assert b"Authorization: Bearer test-token" in request
-            writer.write(b"id: p:1\nevent: ready\ndata: {}\n\n")
+            writer.write(f"id: p:1\nevent: ready\ndata: {READY}\n\n".encode())
             await writer.drain()
             await release.wait()
-            writer.write(b"id: p:2\nevent: card.changed\ndata: {}\n\n")
+            writer.write(f"id: p:2\nevent: card.changed\ndata: {CHANGE}\n\n".encode())
             await writer.drain()
             assert await reader.read() == b""
             disconnected.set()
@@ -223,12 +236,16 @@ def test_eof_reconnect_on_real_socket():
             requests.append(request)
             if len(requests) == 1:
                 writer.write(
-                    b"id: p:1\nevent: card.changed\ndata: {}\n\nid: p:2\ndata: partial"
+                    f"id: p:1\nevent: card.changed\ndata: {CHANGE}\n\nid: p:2\ndata: partial".encode()
                 )
                 await writer.drain()
                 return
             assert b"Last-Event-ID: p:1" in request
-            writer.write(b'id: p:2\nevent: card.changed\ndata: {"replay":true}\n\n')
+            writer.write(
+                b"id: p:2\nevent: card.changed\ndata: "
+                + CHANGE.replace("c-1", "c-2").encode()
+                + b"\n\n"
+            )
             await writer.drain()
             assert await reader.read() == b""
             disconnected.set()
@@ -240,7 +257,9 @@ def test_eof_reconnect_on_real_socket():
             async with ChangeStream(client, reconnect_delay=0) as events:
                 assert (await asyncio.wait_for(anext(events), 2)).id == "p:1"
                 event = await asyncio.wait_for(anext(events), 2)
-                assert event.id == "p:2" and event.json() == {"replay": True}
+                assert event.id == "p:2"
+                assert isinstance(event.data, ChangeEventData)
+                assert event.data.entity_id == "c-2"
             await asyncio.wait_for(disconnected.wait(), 2)
         assert len(requests) == 2
 
@@ -250,10 +269,10 @@ def test_eof_reconnect_on_real_socket():
 @pytest.mark.parametrize(
     "status,content_type,error",
     [
-        (400, "application/json", httpx.HTTPStatusError),
-        (401, "application/json", httpx.HTTPStatusError),
-        (503, "application/json", httpx.HTTPStatusError),
-        (200, "application/json", ValueError),
+        (400, "application/json", StreamError),
+        (401, "application/json", StreamError),
+        (503, "application/json", StreamError),
+        (200, "application/json", StreamError),
     ],
 )
 def test_http_and_protocol_errors_close_without_retry(status, content_type, error):

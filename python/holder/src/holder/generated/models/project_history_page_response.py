@@ -8,7 +8,7 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.project_history_page_data import ProjectHistoryPageData
+    from ..models.project_history_page import ProjectHistoryPage
 
 
 T = TypeVar("T", bound="ProjectHistoryPageResponse")
@@ -19,11 +19,11 @@ class ProjectHistoryPageResponse:
     """
     Attributes:
         ok (bool):
-        data (ProjectHistoryPageData):
+        data (ProjectHistoryPage): One bounded page of project activity, newest first.
     """
 
     ok: bool
-    data: ProjectHistoryPageData
+    data: ProjectHistoryPage
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,14 +44,12 @@ class ProjectHistoryPageResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.project_history_page_data import (
-            ProjectHistoryPageData,
-        )
+        from ..models.project_history_page import ProjectHistoryPage
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = ProjectHistoryPageData.from_dict(d.pop("data"))
+        data = ProjectHistoryPage.from_dict(d.pop("data"))
 
         project_history_page_response = cls(
             ok=ok,

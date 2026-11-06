@@ -5,7 +5,8 @@ import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import androidx.annotation.Keep
+import team.holder.android.contract.KeyringHosts
+import team.holder.android.contract.KeyringProvider
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -28,10 +29,9 @@ private const val TRANSFORMATION = "AES/GCM/NoPadding"
  * EncryptedSharedPreferences/MasterKey Google deprecated in favor of exactly this
  * (release notes: "Deprecated all APIs in favour of existing platform APIs and direct use
  * of Android Keystore"). Registered once as holder-core's process-wide external keyring
- * provider (see holder_keyring_set_provider in holder.h) via the JNI bridge in
- * holder_keyring_bridge.cpp.
+ * provider through the generated contract host adapter.
  */
-object AndroidKeyringStore {
+object AndroidKeyringStore : KeyringProvider {
     private lateinit var appContext: Context
     private var registered = false
 
@@ -112,34 +112,26 @@ object AndroidKeyringStore {
     fun registerWithNative(context: Context): Int {
         if (registered) return 0
         appContext = context.applicationContext
-        val rc = nativeRegisterProvider()
-        registered = rc == 0
-        return rc
+        KeyringHosts.registerKeyringProvider(this)
+        registered = true
+        return 0
     }
 
     private fun storageKey(kind: Int, service: String, account: String, projectId: String?): String =
         if (kind == 1) "project:$projectId:$account" else "generic:$service:$account"
 
-    /** Called from native code (see holder_keyring_bridge.cpp). kind is 0 for a generic
+    /** Called from native code through the generated adapter. kind is 0 for a generic
      * secret (service+account) or 1 for a project key (projectId+account). */
-    @Keep
-    @Suppress("unused") // invoked via JNI
-    private fun lookup(kind: Int, service: String, account: String, projectId: String?): String? {
+    override fun lookup(kind: Int, service: String, account: String, projectId: String?): String? {
         val stored = prefs.getString(storageKey(kind, service, account, projectId), null) ?: return null
         return decrypt(stored)
     }
 
-    @Keep
-    @Suppress("unused") // invoked via JNI
-    private fun store(kind: Int, service: String, account: String, projectId: String?, secret: String) {
+    override fun store(kind: Int, service: String, account: String, projectId: String?, label: String, secret: String) {
         prefs.edit().putString(storageKey(kind, service, account, projectId), encrypt(secret)).apply()
     }
 
-    @Keep
-    @Suppress("unused") // invoked via JNI
-    private fun remove(kind: Int, service: String, account: String, projectId: String?) {
+    override fun remove(kind: Int, service: String, account: String, projectId: String?) {
         prefs.edit().remove(storageKey(kind, service, account, projectId)).apply()
     }
-
-    private external fun nativeRegisterProvider(): Int
 }

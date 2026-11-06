@@ -4,14 +4,11 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
-from ..models.card_history_entry_kind import CardHistoryEntryKind
-
 if TYPE_CHECKING:
-    from ..models.card_history_author import CardHistoryAuthor
-    from ..models.card_history_entry_saves_item import CardHistoryEntrySavesItem
+    from ..models.card_history_save import CardHistorySave
+    from ..models.history_author import HistoryAuthor
 
 
 T = TypeVar("T", bound="CardHistoryEntry")
@@ -19,37 +16,36 @@ T = TypeVar("T", bound="CardHistoryEntry")
 
 @_attrs_define
 class CardHistoryEntry:
-    """
+    """One displayed card change, possibly grouping adjacent autosaves.
+
     Attributes:
-        first_oid (str):
-        last_oid (str):
-        parent_oids (list[str]):
-        visible_parent_oids (list[str]): Direct parent entries visible on this history page; omitted connections must
-            not be inferred across filtered commits or page boundaries.
-        author (CardHistoryAuthor):
-        started_at (int):
-        ended_at (int):
-        kind (CardHistoryEntryKind):
-        summary (str):
-        commit_count (int):
-        is_merge (bool):
-        saves (list[CardHistoryEntrySavesItem]): Exact saved commits in chronological order; one item for an ungrouped
-            entry.
+        first_oid (str): The first commit in the entry.
+        last_oid (str): The last commit in the entry.
+        parent_oids (list[str]): Parents of the first commit.
+        visible_parent_oids (list[str]): Direct parents represented on this page; omitted connections must not be
+            inferred.
+        author (HistoryAuthor): The author recorded on a Git commit.
+        started_at (int): When the first commit was authored.
+        ended_at (int): When the last commit was committed.
+        kind (str): The kind of change shown.
+        summary (str): A short description of the change.
+        commit_count (int): The number of commits grouped in this entry.
+        is_merge (bool): Whether this entry includes a merge commit.
+        saves (list[CardHistorySave]): Exact saved commits in chronological order.
     """
 
     first_oid: str
     last_oid: str
     parent_oids: list[str]
     visible_parent_oids: list[str]
-    author: CardHistoryAuthor
+    author: HistoryAuthor
     started_at: int
     ended_at: int
-    kind: CardHistoryEntryKind
+    kind: str
     summary: str
     commit_count: int
     is_merge: bool
-    saves: list[CardHistoryEntrySavesItem]
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
+    saves: list[CardHistorySave]
 
     def to_dict(self) -> dict[str, Any]:
         first_oid = self.first_oid
@@ -66,7 +62,7 @@ class CardHistoryEntry:
 
         ended_at = self.ended_at
 
-        kind = self.kind.value
+        kind = self.kind
 
         summary = self.summary
 
@@ -80,7 +76,7 @@ class CardHistoryEntry:
             saves.append(saves_item)
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "first_oid": first_oid,
@@ -102,10 +98,8 @@ class CardHistoryEntry:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.card_history_author import CardHistoryAuthor
-        from ..models.card_history_entry_saves_item import (
-            CardHistoryEntrySavesItem,
-        )
+        from ..models.card_history_save import CardHistorySave
+        from ..models.history_author import HistoryAuthor
 
         d = dict(src_dict)
         first_oid = d.pop("first_oid")
@@ -116,13 +110,13 @@ class CardHistoryEntry:
 
         visible_parent_oids = cast(list[str], d.pop("visible_parent_oids"))
 
-        author = CardHistoryAuthor.from_dict(d.pop("author"))
+        author = HistoryAuthor.from_dict(d.pop("author"))
 
         started_at = d.pop("started_at")
 
         ended_at = d.pop("ended_at")
 
-        kind = CardHistoryEntryKind(d.pop("kind"))
+        kind = d.pop("kind")
 
         summary = d.pop("summary")
 
@@ -133,7 +127,7 @@ class CardHistoryEntry:
         saves = []
         _saves = d.pop("saves")
         for saves_item_data in _saves:
-            saves_item = CardHistoryEntrySavesItem.from_dict(saves_item_data)
+            saves_item = CardHistorySave.from_dict(saves_item_data)
 
             saves.append(saves_item)
 
@@ -152,21 +146,4 @@ class CardHistoryEntry:
             saves=saves,
         )
 
-        card_history_entry.additional_properties = d
         return card_history_entry
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties

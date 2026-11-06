@@ -9,23 +9,6 @@
 
 namespace holder::api::support {
 
-std::optional<std::filesystem::path> find_openapi_path() {
-  namespace fs = std::filesystem;
-  if (const char* env = std::getenv("HOLDER_OPENAPI_PATH")) {
-    fs::path p(env);
-    if (fs::exists(p)) return p;
-  }
-  fs::path p1 = fs::current_path() / "openapi.yaml";
-  if (fs::exists(p1)) return p1;
-  fs::path p2 = fs::current_path().parent_path() / "openapi.yaml";
-  if (fs::exists(p2)) return p2;
-  // Run from daemon/ in a source tree: the contract lives beside it, in api/.
-  fs::path p3 = fs::current_path().parent_path() / "api" / "openapi.yaml";
-  if (fs::exists(p3)) return p3;
-  if (auto installed = holder::core::installed_data_path("openapi.yaml")) return installed;
-  return std::nullopt;
-}
-
 std::optional<std::filesystem::path> find_ai_catalog_path() {
   namespace fs = std::filesystem;
   if (const char* env = std::getenv("HOLDER_AI_CATALOG_PATH")) {

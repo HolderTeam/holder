@@ -148,7 +148,7 @@ int restore_trashed_card(
   const auto payload = card_api_request(
       paths,
       boost::beast::http::verb::post,
-      "/cards/" + url_encode_component(card_id) + "/restore"
+      card_api_path(current_project_id, card_id) + "/restore"
   );
   if (options.json_output) {
     std::cout << payload.dump(2) << "\n";
@@ -224,7 +224,7 @@ int command_trash(const holder::core::Paths& paths, int argc, char* argv[]) {
     const auto payload = card_api_request(
         paths,
         boost::beast::http::verb::delete_,
-        "/cards/" + url_encode_component(card_id) +
+        card_api_path(current_project_id, card_id) +
             (options.subtree ? "?children=trash_subtree" : "")
     );
     if (options.json_output) {

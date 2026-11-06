@@ -8,7 +8,7 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.card_history_page_data import CardHistoryPageData
+    from ..models.card_history_page import CardHistoryPage
 
 
 T = TypeVar("T", bound="CardHistoryPageResponse")
@@ -19,11 +19,11 @@ class CardHistoryPageResponse:
     """
     Attributes:
         ok (bool):
-        data (CardHistoryPageData):
+        data (CardHistoryPage): One bounded page of saved card changes, newest first.
     """
 
     ok: bool
-    data: CardHistoryPageData
+    data: CardHistoryPage
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,12 +44,12 @@ class CardHistoryPageResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.card_history_page_data import CardHistoryPageData
+        from ..models.card_history_page import CardHistoryPage
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = CardHistoryPageData.from_dict(d.pop("data"))
+        data = CardHistoryPage.from_dict(d.pop("data"))
 
         card_history_page_response = cls(
             ok=ok,

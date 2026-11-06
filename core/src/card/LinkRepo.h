@@ -33,17 +33,35 @@ class LinkRepo {
       const std::string& to_card_id,
       const std::string& to_type
   ) const;
+  // Cross-project links to an exact target. Only the named source projects are searched;
+  // callers decide which projects are available and authorized.
+  std::vector<holder::model::CardLink> list_external_backlinks_typed(
+      const std::string& target_project_id,
+      const std::string& to_card_id,
+      const std::string& to_type,
+      const std::vector<std::string>& source_project_ids
+  ) const;
   std::vector<holder::model::CardLink> list_incoming_typed(
       const std::string& project_id,
       const std::string& to_type
   ) const;
 
+  // Broad low-level selector; may remove several qualified card links.
   void delete_link(
       const std::string& project_id,
       const std::string& from_card_id,
       const std::string& to_card_id,
       const std::optional<std::string>& to_type,
       const std::optional<std::string>& kind
+  );
+  // Deletes one link by its effective target project (source project for local links).
+  void delete_link_exact(
+      const std::string& project_id,
+      const std::string& from_card_id,
+      const std::string& to_card_id,
+      const std::string& to_type,
+      const std::string& kind,
+      const std::string& target_project_id
   );
   void delete_links_to_typed(
       const std::string& project_id,

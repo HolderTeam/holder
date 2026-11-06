@@ -3,10 +3,17 @@
 #include "platform/Db.h"
 
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace holder::index {
+
+// The search text is not a valid FTS5 query (for example an unbalanced quote or an unknown
+// column filter). Other search failures are std::runtime_error.
+struct FtsQueryError : std::invalid_argument {
+  using std::invalid_argument::invalid_argument;
+};
 
 class FtsIndexer {
  public:

@@ -38,7 +38,26 @@ add_executable(holder_core_tests
   AiThreadRepo_test.cpp
   AiThreadManifest_test.cpp
   AssetStorage_test.cpp
-  CApi_test.cpp
+  CApiLegacyHostResource_test.cpp
+  CApiCards_test.cpp
+  CApiImport_test.cpp
+  CApiLocations_test.cpp
+  CApiProjects_test.cpp
+  CApiRecovery_test.cpp
+  CApiRuntime_test.cpp
+  ContractContext_test.cpp
+  ContractGit_test.cpp
+  ContractHistory_test.cpp
+  ContractTrash_test.cpp
+  ContractSearch_test.cpp
+  ContractBreadcrumbs_test.cpp
+  ContractCardReference_test.cpp
+  ContractProjectMaintenance_test.cpp
+  ContractLinks_test.cpp
+  ContractProjects_test.cpp
+  ContractRecoverySnapshots_test.cpp
+  ContractAssets_test.cpp
+  TimeZones_test.cpp
   CardFrontMatter_test.cpp
   CardPaths_test.cpp
   CardPlacementResolver_test.cpp
@@ -69,6 +88,7 @@ add_executable(holder_core_tests
   PrivacyError_test.cpp
   ProjectPaths_test.cpp
   ProjectPrivacy_test.cpp
+  ProjectRegistry_test.cpp
   ProjectRepo_test.cpp
   ProjectStore_test.cpp
   ProjectManifest_test.cpp

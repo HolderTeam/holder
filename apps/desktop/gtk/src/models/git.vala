@@ -31,31 +31,26 @@ public class GitProviderCatalogEntry : Object {
 public class GitTestRemoteResult : Object {
     public string project_id { get; construct; }
     public string remote_url { get; construct; }
-    public string branch { get; construct; }
     public string status { get; construct; }
     public bool remote_has_head { get; construct; }
-    public string error_code { get; construct; }
     public string error_message { get; construct; }
 
     public GitTestRemoteResult(string project_id,
                                string remote_url,
-                               string branch,
                                string status,
                                bool remote_has_head,
-                               string error_code,
                                string error_message) {
         Object(
             project_id: project_id,
             remote_url: remote_url,
-            branch: branch,
             status: status,
             remote_has_head: remote_has_head,
-            error_code: error_code,
             error_message: error_message
         );
     }
 }
 
+// A push's outcome: its push phase, with the branch it was asked for.
 public class GitPushResult : Object {
     public string project_id { get; construct; }
     public string remote_url { get; construct; }
@@ -64,7 +59,6 @@ public class GitPushResult : Object {
     public int ahead_count { get; construct; }
     public int behind_count { get; construct; }
     public string local_head_commit { get; construct; }
-    public string error_code { get; construct; }
     public string error_message { get; construct; }
     public string next_action { get; construct; }
 
@@ -75,7 +69,6 @@ public class GitPushResult : Object {
                          int ahead_count,
                          int behind_count,
                          string local_head_commit,
-                         string error_code,
                          string error_message,
                          string next_action) {
         Object(
@@ -86,7 +79,6 @@ public class GitPushResult : Object {
             ahead_count: ahead_count,
             behind_count: behind_count,
             local_head_commit: local_head_commit,
-            error_code: error_code,
             error_message: error_message,
             next_action: next_action
         );

@@ -6,7 +6,7 @@
 
 #include "ai/AiNudgeRepo.h"
 #include "ai/NudgeService.h"
-#include "api/routes/ai/AiNudgeRoutes.h"
+#include "api/GeneratedRoutes.h"
 #include "http_test_helpers.h"
 
 #include <boost/beast/http.hpp>
@@ -50,6 +50,14 @@ void write_text(const std::filesystem::path& path, const std::string& content) {
   out << content;
 }
 
+bool dispatch(
+    const http::request<http::string_body>& req,
+    http::response<http::string_body>& res,
+    holder::platform::Db& db
+) {
+  return holder::api::dispatch_generated_routes(req, res, db);
+}
+
 } // namespace
 
 TEST_CASE("AiNudgeRepo creates and finds nudges directly", "[ai][nudges]") {
@@ -89,12 +97,11 @@ TEST_CASE("AiNudgeRepo creates and finds nudges directly", "[ai][nudges]") {
   REQUIRE_FALSE(stored->dismissed);
 }
 
-TEST_CASE("AiNudgeRoutes evaluates known nudge candidates", "[ai][nudges]") {
+TEST_CASE("AI nudge routes evaluates known nudge candidates", "[ai][nudges]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::test::create_project(db, "proj-1");
   create_card_fixture(db, "proj-1", "card-1");
-  holder::ai::NudgeService service(db);
 
   SECTION("card title only candidate can be accepted for nudging") {
     auto req = make_request(
@@ -116,7 +123,7 @@ TEST_CASE("AiNudgeRoutes evaluates known nudge candidates", "[ai][nudges]") {
     );
     http::response<http::string_body> res;
 
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges/evaluate", req, res, &service));
+    REQUIRE(dispatch(req, res, db));
     REQUIRE(res.result() == http::status::ok);
 
     const auto payload = nlohmann::json::parse(res.body());
@@ -150,7 +157,7 @@ TEST_CASE("AiNudgeRoutes evaluates known nudge candidates", "[ai][nudges]") {
     );
     http::response<http::string_body> res;
 
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges/evaluate", req, res, &service));
+    REQUIRE(dispatch(req, res, db));
     REQUIRE(res.result() == http::status::ok);
 
     const auto payload = nlohmann::json::parse(res.body());
@@ -178,7 +185,7 @@ TEST_CASE("AiNudgeRoutes evaluates known nudge candidates", "[ai][nudges]") {
     );
     http::response<http::string_body> res;
 
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges/evaluate", req, res, &service));
+    REQUIRE(dispatch(req, res, db));
     REQUIRE(res.result() == http::status::ok);
 
     const auto payload = nlohmann::json::parse(res.body());
@@ -219,7 +226,7 @@ TEST_CASE("AiNudgeRoutes evaluates known nudge candidates", "[ai][nudges]") {
     );
     http::response<http::string_body> res;
 
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges/evaluate", req, res, &service));
+    REQUIRE(dispatch(req, res, db));
     REQUIRE(res.result() == http::status::ok);
 
     const auto payload = nlohmann::json::parse(res.body());
@@ -232,40 +239,37 @@ TEST_CASE("AiNudgeRoutes evaluates known nudge candidates", "[ai][nudges]") {
   }
 }
 
-TEST_CASE("AiNudgeRoutes rejects malformed or non-actionable candidates", "[ai][nudges]") {
+TEST_CASE("AI nudge routes rejects malformed or non-actionable candidates", "[ai][nudges]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::test::create_project(db, "proj-1");
   create_card_fixture(db, "proj-1", "card-1");
-  holder::ai::NudgeService service(db);
 
   SECTION("unrelated path returns false") {
     auto req = make_request(http::verb::post, "/ai/nudges/nope", "{}");
     http::response<http::string_body> res;
 
-    REQUIRE_FALSE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges/nope", req, res, &service)
-    );
+    REQUIRE_FALSE(dispatch(req, res, db));
   }
 
-  SECTION("wrong method returns false") {
+  SECTION("wrong method is not allowed") {
     auto req = make_request(http::verb::get, "/ai/nudges/evaluate", "");
     http::response<http::string_body> res;
 
-    REQUIRE_FALSE(
-        holder::api::routes::handle_ai_nudge_routes("/ai/nudges/evaluate", req, res, &service)
-    );
+    REQUIRE(dispatch(req, res, db));
+    REQUIRE(res.result() == http::status::method_not_allowed);
   }
 
   SECTION("invalid json returns bad request") {
     auto req = make_request(http::verb::post, "/ai/nudges/evaluate", "{");
     http::response<http::string_body> res;
 
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges/evaluate", req, res, &service));
+    REQUIRE(dispatch(req, res, db));
     REQUIRE(res.result() == http::status::bad_request);
 
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["ok"] == false);
-    REQUIRE(payload["error"]["code"] == "invalid_json");
+    REQUIRE(payload["error"]["code"] == "bad_request");
   }
 
   SECTION("invalid body returns bad request") {
@@ -273,12 +277,12 @@ TEST_CASE("AiNudgeRoutes rejects malformed or non-actionable candidates", "[ai][
         make_request(http::verb::post, "/ai/nudges/evaluate", R"({"kind":"card.title_only"})");
     http::response<http::string_body> res;
 
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges/evaluate", req, res, &service));
+    REQUIRE(dispatch(req, res, db));
     REQUIRE(res.result() == http::status::bad_request);
 
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["ok"] == false);
-    REQUIRE(payload["error"]["code"] == "invalid_body");
+    REQUIRE(payload["error"]["code"] == "bad_request");
   }
 
   SECTION("empty kind or project_id returns bad request") {
@@ -294,13 +298,12 @@ TEST_CASE("AiNudgeRoutes rejects malformed or non-actionable candidates", "[ai][
     );
     http::response<http::string_body> res;
 
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges/evaluate", req, res, &service));
+    REQUIRE(dispatch(req, res, db));
     REQUIRE(res.result() == http::status::bad_request);
 
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["ok"] == false);
-    REQUIRE(payload["error"]["code"] == "invalid_body");
-    REQUIRE(payload["error"]["message"] == "kind and project_id are required.");
+    REQUIRE(payload["error"]["code"] == "bad_request");
   }
 
   SECTION("placeholder title only candidate is accepted but not actionable") {
@@ -322,7 +325,7 @@ TEST_CASE("AiNudgeRoutes rejects malformed or non-actionable candidates", "[ai][
     );
     http::response<http::string_body> res;
 
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges/evaluate", req, res, &service));
+    REQUIRE(dispatch(req, res, db));
     REQUIRE(res.result() == http::status::ok);
 
     const auto payload = nlohmann::json::parse(res.body());
@@ -351,7 +354,7 @@ TEST_CASE("AiNudgeRoutes rejects malformed or non-actionable candidates", "[ai][
     );
     http::response<http::string_body> res;
 
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges/evaluate", req, res, &service));
+    REQUIRE(dispatch(req, res, db));
     REQUIRE(res.result() == http::status::ok);
 
     const auto payload = nlohmann::json::parse(res.body());
@@ -373,7 +376,7 @@ TEST_CASE("AiNudgeRoutes rejects malformed or non-actionable candidates", "[ai][
     );
     http::response<http::string_body> res;
 
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges/evaluate", req, res, &service));
+    REQUIRE(dispatch(req, res, db));
     REQUIRE(res.result() == http::status::ok);
 
     const auto payload = nlohmann::json::parse(res.body());
@@ -383,14 +386,13 @@ TEST_CASE("AiNudgeRoutes rejects malformed or non-actionable candidates", "[ai][
   }
 }
 
-TEST_CASE("AiNudgeRoutes list prunes stale nudges", "[ai][nudges]") {
+TEST_CASE("AI nudge routes list prunes stale nudges", "[ai][nudges]") {
   const auto dir = holder::test::make_temp_dir();
   const auto repo_dir = dir / "repo";
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::test::create_project(db, "proj-1", repo_dir.string());
   create_card_fixture(db, "proj-1", "card-1");
   write_text(repo_dir / "cards" / "card-1.md", "# Frog\n\nNow with body.\n");
-  holder::ai::NudgeService service(db);
 
   auto create_req = make_request(
       http::verb::post,
@@ -410,17 +412,12 @@ TEST_CASE("AiNudgeRoutes list prunes stale nudges", "[ai][nudges]") {
                                  })"
   );
   http::response<http::string_body> create_res;
-  REQUIRE(holder::api::routes::handle_ai_nudge_routes(
-      "/ai/nudges/evaluate",
-      create_req,
-      create_res,
-      &service
-  ));
+  REQUIRE(dispatch(create_req, create_res, db));
   REQUIRE(create_res.result() == http::status::ok);
 
   auto list_req = make_request(http::verb::get, "/ai/nudges?project_id=proj-1&card_id=card-1", "");
   http::response<http::string_body> list_res;
-  REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges", list_req, list_res, &service));
+  REQUIRE(dispatch(list_req, list_res, db));
   REQUIRE(list_res.result() == http::status::ok);
 
   const auto payload = nlohmann::json::parse(list_res.body());
@@ -429,12 +426,11 @@ TEST_CASE("AiNudgeRoutes list prunes stale nudges", "[ai][nudges]") {
   REQUIRE(payload["data"]["nudges"].empty());
 }
 
-TEST_CASE("AiNudgeRoutes lists and dismisses created nudges", "[ai][nudges]") {
+TEST_CASE("AI nudge routes lists and dismisses created nudges", "[ai][nudges]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::test::create_project(db, "proj-1");
   create_card_fixture(db, "proj-1", "card-1");
-  holder::ai::NudgeService service(db);
 
   auto create_req = make_request(
       http::verb::post,
@@ -454,12 +450,7 @@ TEST_CASE("AiNudgeRoutes lists and dismisses created nudges", "[ai][nudges]") {
                                  })"
   );
   http::response<http::string_body> create_res;
-  REQUIRE(holder::api::routes::handle_ai_nudge_routes(
-      "/ai/nudges/evaluate",
-      create_req,
-      create_res,
-      &service
-  ));
+  REQUIRE(dispatch(create_req, create_res, db));
   const auto created_payload = nlohmann::json::parse(create_res.body());
   const auto nudge_id = created_payload["data"]["nudge"]["nudge_id"].get<std::string>();
 
@@ -467,7 +458,7 @@ TEST_CASE("AiNudgeRoutes lists and dismisses created nudges", "[ai][nudges]") {
     auto req = make_request(http::verb::get, "/ai/nudges?project_id=proj-1&card_id=card-1", "");
     http::response<http::string_body> res;
 
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges", req, res, &service));
+    REQUIRE(dispatch(req, res, db));
     REQUIRE(res.result() == http::status::ok);
 
     const auto payload = nlohmann::json::parse(res.body());
@@ -479,18 +470,13 @@ TEST_CASE("AiNudgeRoutes lists and dismisses created nudges", "[ai][nudges]") {
   SECTION("dismiss hides nudge from subsequent list") {
     auto dismiss_req = make_request(http::verb::post, "/ai/nudges/" + nudge_id + "/dismiss", "");
     http::response<http::string_body> dismiss_res;
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes(
-        "/ai/nudges/" + nudge_id + "/dismiss",
-        dismiss_req,
-        dismiss_res,
-        &service
-    ));
+    REQUIRE(dispatch(dismiss_req, dismiss_res, db));
     REQUIRE(dismiss_res.result() == http::status::ok);
 
     auto list_req =
         make_request(http::verb::get, "/ai/nudges?project_id=proj-1&card_id=card-1", "");
     http::response<http::string_body> list_res;
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges", list_req, list_res, &service)
+    REQUIRE(dispatch(list_req, list_res, db)
     );
 
     const auto payload = nlohmann::json::parse(list_res.body());
@@ -499,53 +485,35 @@ TEST_CASE("AiNudgeRoutes lists and dismisses created nudges", "[ai][nudges]") {
   }
 }
 
-TEST_CASE("AiNudgeRoutes handle service and query error branches", "[ai][nudges]") {
+TEST_CASE("AI nudge routes handle query and lookup errors", "[ai][nudges]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::test::create_project(db, "proj-1");
   create_card_fixture(db, "proj-1", "card-1");
-  holder::ai::NudgeService service(db);
-
-  SECTION("list returns service unavailable when service is null") {
-    auto req = make_request(http::verb::get, "/ai/nudges?project_id=proj-1", "");
-    http::response<http::string_body> res;
-
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges", req, res, nullptr));
-    REQUIRE(res.result() == http::status::internal_server_error);
-
-    const auto payload = nlohmann::json::parse(res.body());
-    REQUIRE(payload["error"]["code"] == "service_unavailable");
-  }
 
   SECTION("list requires project_id query parameter") {
     auto req = make_request(http::verb::get, "/ai/nudges?card_id=card-1", "");
     http::response<http::string_body> res;
 
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges", req, res, &service));
+    REQUIRE(dispatch(req, res, db));
     REQUIRE(res.result() == http::status::bad_request);
 
     const auto payload = nlohmann::json::parse(res.body());
-    REQUIRE(payload["error"]["code"] == "invalid_query");
-    REQUIRE(payload["error"]["message"] == "project_id is required.");
+    REQUIRE(payload["error"]["code"] == "bad_request");
   }
 
-  SECTION("dismiss returns service unavailable when service is null") {
-    auto req = make_request(http::verb::post, "/ai/nudges/n-1/dismiss", "");
-    http::response<http::string_body> res;
-
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges/n-1/dismiss", req, res, nullptr)
-    );
-    REQUIRE(res.result() == http::status::internal_server_error);
-
-    const auto payload = nlohmann::json::parse(res.body());
-    REQUIRE(payload["error"]["code"] == "service_unavailable");
-  }
-
-  SECTION("dismiss returns not found for empty nudge id") {
+  SECTION("dismiss without a nudge ID is not a route") {
     auto req = make_request(http::verb::post, "/ai/nudges//dismiss", "");
     http::response<http::string_body> res;
 
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges//dismiss", req, res, &service));
+    REQUIRE_FALSE(dispatch(req, res, db));
+  }
+
+  SECTION("dismiss returns not found for unknown nudge id") {
+    auto req = make_request(http::verb::post, "/ai/nudges/missing/dismiss", "");
+    http::response<http::string_body> res;
+
+    REQUIRE(dispatch(req, res, db));
     REQUIRE(res.result() == http::status::not_found);
 
     const auto payload = nlohmann::json::parse(res.body());
@@ -553,45 +521,12 @@ TEST_CASE("AiNudgeRoutes handle service and query error branches", "[ai][nudges]
     REQUIRE(payload["error"]["message"] == "Nudge not found.");
   }
 
-  SECTION("dismiss returns not found for unknown nudge id") {
-    auto req = make_request(http::verb::post, "/ai/nudges/missing/dismiss", "");
+  SECTION("an empty card_id lists every card's nudges") {
+    auto req = make_request(http::verb::get, "/ai/nudges?project_id=proj-1&card_id=", "");
     http::response<http::string_body> res;
 
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes(
-        "/ai/nudges/missing/dismiss",
-        req,
-        res,
-        &service
-    ));
-    REQUIRE(res.result() == http::status::not_found);
-
-    const auto payload = nlohmann::json::parse(res.body());
-    REQUIRE(payload["error"]["code"] == "not_found");
-  }
-
-  SECTION("evaluate returns service unavailable when service is null") {
-    auto req = make_request(
-        http::verb::post,
-        "/ai/nudges/evaluate",
-        R"({
-                              "kind":"card.title_only",
-                              "project_id":"proj-1",
-                              "card_id":"card-1",
-                              "created_at":0,
-                              "facts":{
-                                "title":"Frog",
-                                "body_empty":true,
-                                "doc_chars":12,
-                                "body_chars":0
-                              }
-                            })"
-    );
-    http::response<http::string_body> res;
-
-    REQUIRE(holder::api::routes::handle_ai_nudge_routes("/ai/nudges/evaluate", req, res, nullptr));
-    REQUIRE(res.result() == http::status::internal_server_error);
-
-    const auto payload = nlohmann::json::parse(res.body());
-    REQUIRE(payload["error"]["code"] == "service_unavailable");
+    REQUIRE(dispatch(req, res, db));
+    REQUIRE(res.result() == http::status::ok);
+    REQUIRE(nlohmann::json::parse(res.body())["data"]["nudges"].empty());
   }
 }

@@ -50,7 +50,6 @@ TEST_CASE("HTTP open flow lists projects then cards", "[http]") {
   const std::string project_id = created_project["data"]["project_id"].get<std::string>();
 
   nlohmann::json card_body = {
-      {"project_id", project_id},
       {"title", "Card A"},
       {"content", "hello"}
   };
@@ -60,7 +59,7 @@ TEST_CASE("HTTP open flow lists projects then cards", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::post,
-      "/cards",
+      "/projects/" + project_id + "/cards",
       card_body,
       boost::beast::http::status::created
   );
@@ -92,14 +91,14 @@ TEST_CASE("HTTP open flow lists projects then cards", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards?project_id=" + project_id,
+      "/projects/" + project_id + "/cards?parent=roots",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
   REQUIRE(cards["ok"] == true);
-  REQUIRE(cards["data"].is_array());
-  REQUIRE(cards["data"].size() == 1);
-  REQUIRE(cards["data"][0]["card_id"] == card_id);
+  REQUIRE(cards["data"]["items"].is_array());
+  REQUIRE(cards["data"]["items"].size() == 1);
+  REQUIRE(cards["data"]["items"][0]["card_id"] == card_id);
 
   std::raise(SIGTERM);
   server_thread.join();

@@ -47,7 +47,7 @@ class WholeAppSmokeTest {
             val home = HolderNative.listProjects().firstOrNull { it.name == "Home" } ?: return@runCatching
             HolderNative.listCards(home.projectId)
                 .filter { it.title == title }
-                .forEach { HolderNative.deleteCard(it.cardId) }
+                .forEach { HolderNative.deleteCard(home.projectId, it.cardId) }
         }
         HolderNative.close()
     }

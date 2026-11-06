@@ -3,9 +3,20 @@ namespace HolderLinux {
 public class ApiClientProjectsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration branch artifact
     public static async Gee.ArrayList<Project> list_projects(ApiClient client) throws Error { // LCOV_EXCL_BR_LINE: async declaration branch artifact
         var query = new HashTable<string, string>(str_hash, str_equal);
-        query.insert("count", "true"); // LCOV_EXCL_BR_LINE: hash insert branch artifact
+        query.insert("include_card_counts", "true"); // LCOV_EXCL_BR_LINE: hash insert branch artifact
         var root = yield client.request_json("GET", "/projects", null, query); // LCOV_EXCL_BR_LINE: yield resume edge artifact
-        return ApiParsersProjects.parse_projects(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
+        var projects = ApiParsersProjects.parse_projects(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
+        // Each project's sync state, which the sidebar and the Git tool show.
+        foreach (var project in projects) {
+            var status = yield client.request_json(
+                "GET",
+                "/projects/%s/git/sync-status".printf(Uri.escape_string(project.project_id)),
+                null,
+                null
+            );
+            project.sync = ApiParsersProjects.parse_project_sync_status(status);
+        }
+        return projects;
     }
 
     public static async string create_project(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact

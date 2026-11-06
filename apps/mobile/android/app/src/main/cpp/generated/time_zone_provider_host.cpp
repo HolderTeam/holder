@@ -1,0 +1,123 @@
+// Generated from contract/interface by compiler. Do not edit; run make -C contract update.
+#include "holder/holder_api.h"
+#include <jni.h>
+
+#include <cstdlib>
+#include <cstring>
+#include <new>
+
+namespace {
+struct HostContext {
+  JavaVM* vm;
+  jobject provider;
+  jmethodID utc_offset;
+  jmethodID current_zone;
+};
+
+class AttachedEnv {
+ public:
+  explicit AttachedEnv(JavaVM* vm) : vm_(vm) {
+    const jint result = vm->GetEnv(reinterpret_cast<void**>(&env_), JNI_VERSION_1_6);
+    if (result == JNI_EDETACHED) {
+      if (vm->AttachCurrentThread(&env_, nullptr) == JNI_OK) attached_ = true;
+      else env_ = nullptr;
+    } else if (result != JNI_OK) env_ = nullptr;
+  }
+  ~AttachedEnv() { if (attached_) vm_->DetachCurrentThread(); }
+  JNIEnv* get() const { return env_; }
+ private:
+  JavaVM* vm_;
+  JNIEnv* env_ = nullptr;
+  bool attached_ = false;
+};
+
+int callback_error(JNIEnv* env, char** out_error, const char* message) {
+  if (env && env->ExceptionCheck()) env->ExceptionClear();
+  if (out_error) {
+    const size_t length = std::strlen(message) + 1;
+    *out_error = static_cast<char*>(std::malloc(length));
+    if (*out_error) std::memcpy(*out_error, message, length);
+  }
+  return 1;
+}
+
+int utc_offset(void* user_data, const char* zone, int64_t seconds, int64_t* out_value,
+               int* out_present, char** out_error) {
+  auto* ctx = static_cast<HostContext*>(user_data);
+  AttachedEnv attached(ctx->vm);
+  JNIEnv* env = attached.get();
+  if (!env) return callback_error(nullptr, out_error, "could not attach JNI thread");
+  jstring name = env->NewStringUTF(zone);
+  if (!name || env->ExceptionCheck()) return callback_error(env, out_error, "could not create zone name");
+  jobject boxed = env->CallObjectMethod(ctx->provider, ctx->utc_offset, name, static_cast<jlong>(seconds));
+  env->DeleteLocalRef(name);
+  if (env->ExceptionCheck()) return callback_error(env, out_error, "host utcOffset failed");
+  *out_present = boxed ? 1 : 0;
+  if (boxed) {
+    jclass number = env->FindClass("java/lang/Long");
+    if (!number || env->ExceptionCheck()) { env->DeleteLocalRef(boxed); return callback_error(env, out_error, "Long class unavailable"); }
+    jmethodID value = env->GetMethodID(number, "longValue", "()J");
+    if (!value || env->ExceptionCheck()) { env->DeleteLocalRef(number); env->DeleteLocalRef(boxed); return callback_error(env, out_error, "Long.longValue unavailable"); }
+    *out_value = env->CallLongMethod(boxed, value);
+    env->DeleteLocalRef(number);
+    env->DeleteLocalRef(boxed);
+    if (env->ExceptionCheck()) return callback_error(env, out_error, "host utcOffset result failed");
+  }
+  return 0;
+}
+
+int current_zone(void* user_data, char** out_value, char** out_error) {
+  auto* ctx = static_cast<HostContext*>(user_data);
+  AttachedEnv attached(ctx->vm);
+  JNIEnv* env = attached.get();
+  if (!env) return callback_error(nullptr, out_error, "could not attach JNI thread");
+  auto name = static_cast<jstring>(env->CallObjectMethod(ctx->provider, ctx->current_zone));
+  if (env->ExceptionCheck() || !name) return callback_error(env, out_error, "host currentZone failed");
+  const char* chars = env->GetStringUTFChars(name, nullptr);
+  if (!chars || env->ExceptionCheck()) { env->DeleteLocalRef(name); return callback_error(env, out_error, "could not read current zone"); }
+  const size_t length = std::strlen(chars) + 1;
+  *out_value = static_cast<char*>(std::malloc(length));
+  if (*out_value) std::memcpy(*out_value, chars, length);
+  env->ReleaseStringUTFChars(name, chars);
+  env->DeleteLocalRef(name);
+  return *out_value ? 0 : callback_error(env, out_error, "could not allocate current zone");
+}
+
+void destroy(void* user_data) {
+  auto* ctx = static_cast<HostContext*>(user_data);
+  AttachedEnv attached(ctx->vm);
+  if (JNIEnv* env = attached.get()) env->DeleteGlobalRef(ctx->provider);
+  delete ctx;
+}
+} // namespace
+
+extern "C" JNIEXPORT void JNICALL
+Java_team_holder_android_contract_HostServices_registerTimeZoneProvider(JNIEnv* env, jclass, jobject provider) {
+  if (!provider) { env->ThrowNew(env->FindClass("java/lang/IllegalArgumentException"), "provider is required"); return; }
+  auto* ctx = new (std::nothrow) HostContext{};
+  if (!ctx) { env->ThrowNew(env->FindClass("java/lang/OutOfMemoryError"), "host context allocation failed"); return; }
+  env->GetJavaVM(&ctx->vm);
+  ctx->provider = env->NewGlobalRef(provider);
+  jclass clazz = env->GetObjectClass(provider);
+  if (clazz) {
+    ctx->utc_offset = env->GetMethodID(clazz, "utcOffset", "(Ljava/lang/String;J)Ljava/lang/Long;");
+    ctx->current_zone = env->GetMethodID(clazz, "currentZone", "()Ljava/lang/String;");
+    env->DeleteLocalRef(clazz);
+  }
+  if (env->ExceptionCheck() || !ctx->provider || !ctx->utc_offset || !ctx->current_zone) {
+    env->ExceptionClear();
+    if (ctx->provider) env->DeleteGlobalRef(ctx->provider);
+    delete ctx;
+    env->ThrowNew(env->FindClass("java/lang/IllegalArgumentException"), "invalid host provider");
+    return;
+  }
+  const holder_time_zone_provider_callbacks callbacks{utc_offset, current_zone};
+  holder_error* error = nullptr;
+  // Core owns ctx from this call onward, including when registration fails.
+  const int status = holder_register_time_zone_provider(&callbacks, ctx, destroy, &error);
+  if (status != HOLDER_OK) {
+    const char* message = error ? holder_error_message(error) : "host registration failed";
+    env->ThrowNew(env->FindClass("java/lang/IllegalStateException"), message);
+  }
+  if (error) holder_error_destroy(error);
+}

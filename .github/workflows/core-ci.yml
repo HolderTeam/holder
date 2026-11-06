@@ -9,9 +9,17 @@ on:
       - main
     paths:
       - core/**
+      # The contract's conformance tests run against core here.
+      - contract/**
       - .github/workflows/core-ci.yml
       - .github/workflows/core-sdk.yml
+      - .github/actions/core-sdk/**
   workflow_dispatch:
+    inputs:
+      measure_cache:
+        description: Measure cold and warm clean builds with one changed core source file
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -46,13 +54,16 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          if grep -qE '^(core/|\.github/workflows/core-(ci|sdk)\.yml$)' <<< "$changed"; then
+          if grep -qE '^(core/|contract/|\.github/workflows/core-(ci|sdk)\.yml$|\.github/actions/core-sdk/)' <<< "$changed"; then
             echo "core=true" >> "$GITHUB_OUTPUT"
           else
             echo "core=false" >> "$GITHUB_OUTPUT"
           fi
 
   linux:
+    permissions:
+      actions: write
+      contents: read
     needs: changes
     if: needs.changes.outputs.core == 'true'
     runs-on: ubuntu-24.04
@@ -90,9 +101,7 @@ jobs:
             libsodium-dev \
             libgit2-dev \
             libmd4c-dev \
-            libsecret-1-dev \
-            lcov \
-            gcovr
+            libsecret-1-dev
           find "${PWD}/.apt-cache/archives" -maxdepth 1 -type f -name '*.deb' -exec cp {} "${PWD}/.apt-cache/debs/" \;
 
       - name: Save apt package cache
@@ -102,14 +111,40 @@ jobs:
           path: core/.apt-cache/debs
           key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core-ci.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
+      - name: Restore core compiler cache
+        id: compiler-cache
+        uses: ./.github/actions/core-sdk/ccache
+        with:
+          variant: tests
+          build-type: RelWithDebInfo
+          measure: ${{ inputs.measure_cache && 'true' || 'false' }}
+
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DHOLDER_CORE_BUILD_SHARED=ON
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DHOLDER_CORE_BUILD_SHARED=ON -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
+        if: ${{ !inputs.measure_cache }}
         run: cmake --build build --parallel
+
+      - name: Measure cold and warm compiler cache
+        if: inputs.measure_cache
+        run: python scripts/benchmark-compiler-cache.py build
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
+
+      - name: Stage the shared library for conformance tests
+        run: |
+          mkdir -p out/conformance
+          cp -L build/libholder.so out/conformance/libholder.so
+
+      - name: Upload the shared library for conformance tests
+        uses: actions/upload-artifact@v7
+        with:
+          name: core-conformance-linux
+          path: core/out/conformance/libholder.so
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Install
         run: cmake --install build --prefix out/install/linux
@@ -124,9 +159,84 @@ jobs:
           ctest --test-dir out/consumer-shared --output-on-failure
 
       - name: Test the SDK tooling
-        run: python3 -m unittest discover -s tests -p test_core_sdk.py -v
+        run: python3 -m unittest discover -s tests -p "test_*.py" -v
 
-      - name: Coverage
+      - name: Save core compiler cache
+        uses: ./.github/actions/core-sdk/ccache-save
+        with:
+          key: ${{ steps.compiler-cache.outputs.key }}
+          prefix: ${{ steps.compiler-cache.outputs.prefix }}
+          measure: ${{ inputs.measure_cache && 'true' || 'false' }}
+
+  conformance:
+    needs: linux
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: contract
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@v7
+
+      - name: Install shared library dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libssl-dev libyaml-cpp-dev libspdlog-dev libsqlite3-dev \
+            libsodium-dev libgit2-dev libmd4c-dev libsecret-1-dev
+
+      - name: Download the Linux shared library
+        uses: actions/download-artifact@v8
+        with:
+          name: core-conformance-linux
+          path: core/out/conformance
+
+      - name: Verify the shared library
+        run: |
+          test -s ../core/out/conformance/libholder.so
+          ldd ../core/out/conformance/libholder.so
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Run the contract's conformance tests
+        # The contract's operations, driven by Hypothesis through the shared library's C API.
+        env:
+          HOLDER_LIBRARY: ${{ github.workspace }}/core/out/conformance/libholder.so
+          HOLDER_CONFORMANCE_EXAMPLES: "100"
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pytest tests/conformance -p no:cacheprovider
+
+  coverage:
+    permissions:
+      actions: write
+      contents: read
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@v7
+
+      - name: Install coverage build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake catch2 ninja-build pkg-config libssl-dev nlohmann-json3-dev \
+            libyaml-cpp-dev libspdlog-dev libsqlite3-dev libsodium-dev \
+            libgit2-dev libmd4c-dev libsecret-1-dev lcov gcovr
+
+      - name: Restore coverage compiler cache
+        id: compiler-cache
+        uses: ./.github/actions/core-sdk/ccache
+        with:
+          variant: coverage
+          build-type: Debug
+
+      - name: Build, test, and report coverage
         run: ./make.sh coverage
 
       - name: Upload coverage report
@@ -137,7 +247,16 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Save coverage compiler cache
+        uses: ./.github/actions/core-sdk/ccache-save
+        with:
+          key: ${{ steps.compiler-cache.outputs.key }}
+          prefix: ${{ steps.compiler-cache.outputs.prefix }}
+
   macos:
+    permissions:
+      actions: write
+      contents: read
     needs: changes
     if: needs.changes.outputs.core == 'true'
     runs-on: macos-15
@@ -169,6 +288,14 @@ jobs:
             md4c \
             openssl@3
 
+      - name: Restore core compiler cache
+        id: compiler-cache
+        uses: ./.github/actions/core-sdk/ccache
+        with:
+          variant: tests
+          build-type: RelWithDebInfo
+          measure: ${{ inputs.measure_cache && 'true' || 'false' }}
+
       - name: Configure
         run: |
           brew_prefix="$(brew --prefix)"
@@ -180,10 +307,16 @@ jobs:
             -G Ninja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_PREFIX_PATH="${brew_prefix};${openssl_prefix}" \
-            -DOPENSSL_ROOT_DIR="${openssl_prefix}"
+            -DOPENSSL_ROOT_DIR="${openssl_prefix}" \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
+        if: ${{ !inputs.measure_cache }}
         run: cmake --build build --parallel
+
+      - name: Measure cold and warm compiler cache
+        if: inputs.measure_cache
+        run: python scripts/benchmark-compiler-cache.py build
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
@@ -196,6 +329,13 @@ jobs:
           cmake -S tests/installed-consumer -B out/consumer -DCMAKE_PREFIX_PATH="${{ github.workspace }}/core/out/install/macos;$(brew --prefix);$(brew --prefix openssl@3)"
           cmake --build out/consumer --parallel
           ctest --test-dir out/consumer --output-on-failure
+
+      - name: Save core compiler cache
+        uses: ./.github/actions/core-sdk/ccache-save
+        with:
+          key: ${{ steps.compiler-cache.outputs.key }}
+          prefix: ${{ steps.compiler-cache.outputs.prefix }}
+          measure: ${{ inputs.measure_cache && 'true' || 'false' }}
 
   windows:
     needs: changes
@@ -235,11 +375,29 @@ jobs:
           & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
           New-Item -ItemType Directory -Force "$env:VCPKG_DEFAULT_BINARY_CACHE" | Out-Null
 
+      - name: Restore core compiler cache
+        id: compiler-cache
+        uses: ./.github/actions/core-sdk/ccache
+        with:
+          variant: tests
+          build-type: Debug
+          measure: ${{ inputs.measure_cache && 'true' || 'false' }}
+
       - name: Configure
-        run: cmake --preset windows-vcpkg-debug
+        # /Z7 embeds debug information in objects, which ccache can cache; /Zi cannot.
+        run: >-
+          cmake --preset windows-vcpkg-debug
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          -DCMAKE_POLICY_DEFAULT_CMP0141=NEW
+          -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
 
       - name: Build
+        if: ${{ !inputs.measure_cache }}
         run: cmake --build out/build/windows-vcpkg-debug --parallel
+
+      - name: Measure cold and warm compiler cache
+        if: inputs.measure_cache
+        run: python scripts/benchmark-compiler-cache.py out/build/windows-vcpkg-debug
 
       - name: Run tests
         run: ctest --test-dir out/build/windows-vcpkg-debug --output-on-failure
@@ -275,6 +433,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ctest --test-dir out/consumer --output-on-failure
 
+      - name: Save core compiler cache
+        uses: ./.github/actions/core-sdk/ccache-save
+        with:
+          key: ${{ steps.compiler-cache.outputs.key }}
+          prefix: ${{ steps.compiler-cache.outputs.prefix }}
+          measure: ${{ inputs.measure_cache && 'true' || 'false' }}
+
   sdk:
     # Core's SDK for this commit, cached by core/'s tree. Saved from main, it is the latest core
     # that consumers and pull requests not changing core take instead of building core again.
@@ -284,6 +449,8 @@ jobs:
       actions: write
       contents: read
     uses: ./.github/workflows/core-sdk.yml
+    with:
+      measure_cache: ${{ inputs.measure_cache || false }}
 
   ubuntu-packages:
     # Core's libholder0 and libholder-dev packages for both Ubuntu series, built on main for
@@ -331,7 +498,7 @@ jobs:
     # instead of building core, and keeps the newest 32 such releases. Only main may use the
     # holder-sdk-publish environment, which holds the publishing app's key; pull requests never
     # run this job.
-    needs: [linux, macos, windows, sdk, ubuntu-packages]
+    needs: [linux, conformance, coverage, macos, windows, sdk, ubuntu-packages]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment: holder-sdk-publish
@@ -396,7 +563,7 @@ jobs:
     # The required check. It runs even when jobs fail or are skipped, and passes only when every
     # selected job succeeded and no job ran that was not selected.
     if: always()
-    needs: [changes, linux, macos, windows, sdk]
+    needs: [changes, linux, conformance, coverage, macos, windows, sdk]
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -411,7 +578,7 @@ jobs:
           jq -e --arg selected "$SELECTED" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.linux, .macos, .windows, .sdk] | all(.result == "success"))
+               ([.linux, .conformance, .coverage, .macos, .windows, .sdk] | all(.result == "success"))
              else
-               ([.linux, .macos, .windows, .sdk] | all(.result == "skipped"))
+               ([.linux, .conformance, .coverage, .macos, .windows, .sdk] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null

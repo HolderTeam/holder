@@ -22,9 +22,8 @@ data class RestoreResult(val group: SnapshotGroup, val outcome: RestoreOutcome)
  * work against itself), and one group failing doesn't stop the rest.
  */
 object BackupRestore {
-    /** Matches BACKUP_RESTORE_DESIGN.md's chosen commit message -- plain, factual, and
-     * honestly signals that this project's history begins here, not a continuation of
-     * anything. */
+    /** Plain and factual: it honestly signals that this project's history begins here, not a
+     * continuation of anything. */
     const val COMMIT_MESSAGE = "Restored from Android backup"
 
     suspend fun restoreAll(
@@ -37,7 +36,7 @@ object BackupRestore {
 
     private suspend fun restoreOne(group: SnapshotGroup): RestoreOutcome = runCatching {
         withContext(Dispatchers.IO) {
-            HolderNative.backupRestore(group.projectName, group.privacyMode, group.cardsJson, COMMIT_MESSAGE)
+            HolderNative.restoreRecoverySnapshot(group.projectName, group.privacyMode, group.snapshot, COMMIT_MESSAGE)
         }
     }.fold(
         onSuccess = { RestoreOutcome.Success(it) },

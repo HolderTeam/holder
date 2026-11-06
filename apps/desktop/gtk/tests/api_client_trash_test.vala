@@ -90,7 +90,7 @@ private void test_restore_trash_item_card_and_ai_message_paths() {
 
     bool done_card = false;
     bool ok_card = false;
-    client.restore_trash_item.begin("card", "card id/1", (obj, res) => {
+    client.restore_trash_item.begin("p1", "card", "card id/1", (obj, res) => {
         try {
             client.restore_trash_item.end(res);
             ok_card = true;
@@ -103,13 +103,11 @@ private void test_restore_trash_item_card_and_ai_message_paths() {
     assert(wait_for_condition(() => done_card));
     assert(ok_card);
     assert(transport.last_method == "POST");
-    assert(transport.last_uri.contains("/cards/"));
-    assert(transport.last_uri.contains("/restore"));
-    assert(transport.last_uri.contains("card%20id%2F1"));
+    assert(transport.last_uri.contains("/projects/p1/cards/card%20id%2F1/restore"));
 
     bool done_ai = false;
     bool ok_ai = false;
-    client.restore_trash_item.begin("ai_message", "msg id/2", (obj, res) => {
+    client.restore_trash_item.begin("p1", "ai_message", "msg id/2", (obj, res) => {
         try {
             client.restore_trash_item.end(res);
             ok_ai = true;
@@ -133,7 +131,7 @@ private void test_restore_trash_item_unsupported_type_is_protocol_error() {
 
     bool done = false;
     bool got_protocol = false;
-    client.restore_trash_item.begin("resource", "r1", (obj, res) => {
+    client.restore_trash_item.begin("p1", "resource", "r1", (obj, res) => {
         try {
             client.restore_trash_item.end(res);
         } catch (Error e) {

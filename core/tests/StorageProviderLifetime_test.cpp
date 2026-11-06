@@ -1,7 +1,8 @@
+#include "capi_asset_helpers.h"
 #include "core_test_helpers.h"
 #include "resource/LocalDirectoryProvider.h"
 
-#include <holder/holder.h>
+#include <holder/holder_api.h>
 #include <nlohmann/json.hpp>
 
 #include <atomic>
@@ -29,14 +30,13 @@ struct ProviderProbe {
 
 using ProbeOwner = std::shared_ptr<ProviderProbe>;
 
-int register_probe(const char* name, const ProbeOwner& probe) {
+int register_probe(holder_register_storage_provider_kind kind, const ProbeOwner& probe) {
   holder_error* error = nullptr;
-  const int result = holder_storage_provider_register(
-      name,
+  const holder_storage_provider_callbacks callbacks{
       [](void* data,
          const char* key,
          const char* file,
-         long long size,
+         int64_t size,
          const char* hash,
          int*,
          char**) {
@@ -62,7 +62,11 @@ int register_probe(const char* name, const ProbeOwner& probe) {
         const auto state = *static_cast<ProbeOwner*>(data);
         state->files.remove(key);
         return 0;
-      },
+      }
+  };
+  const int result = holder_register_storage_provider(
+      kind,
+      &callbacks,
       new ProbeOwner(probe),
       [](void* data) {
         const std::unique_ptr<ProbeOwner> owner(static_cast<ProbeOwner*>(data));
@@ -75,20 +79,6 @@ int register_probe(const char* name, const ProbeOwner& probe) {
   return result;
 }
 
-template <typename Fn> nlohmann::json call_json(Fn&& fn) {
-  char* raw = nullptr;
-  holder_error* error = nullptr;
-  const int result = fn(&raw, &error);
-  const std::unique_ptr<char, decltype(&holder_string_free)> output(raw, holder_string_free);
-  const std::unique_ptr<holder_error, decltype(&holder_error_destroy)> failure(
-      error,
-      holder_error_destroy
-  );
-  INFO((error ? holder_error_message(error) : "no C API error"));
-  REQUIRE(result == HOLDER_OK);
-  return nlohmann::json::parse(raw);
-}
-
 struct AssetFixture {
   std::filesystem::path root = holder::test::make_temp_dir();
   std::unique_ptr<holder_context, decltype(&holder_context_destroy)> context{
@@ -98,7 +88,8 @@ struct AssetFixture {
   std::string project_id;
   std::string card_id;
 
-  explicit AssetFixture(const char* provider) {
+  // The fixture's location uses the S3-compatible kind, which each test registers its probes as.
+  AssetFixture() {
     std::ifstream schema_file(SCHEMA_SQL_PATH);
     const std::string schema((std::istreambuf_iterator<char>(schema_file)), {});
     holder_context* raw_context = nullptr;
@@ -108,61 +99,65 @@ struct AssetFixture {
     context.reset(raw_context);
     holder_error_destroy(error);
     REQUIRE(result == HOLDER_OK);
-    project_id =
-        call_json([&](char** out, holder_error** err) {
-          return holder_project_create(context.get(), "Lifetime", nullptr, nullptr, out, err);
-        })
-            .at("project_id")
-            .get<std::string>();
-    card_id = call_json([&](char** out, holder_error** err) {
-                return holder_card_create(
-                    context.get(),
-                    project_id.c_str(),
-                    "Asset",
-                    nullptr,
-                    nullptr,
-                    out,
-                    err
-                );
-              })
-                  .at("card_id")
-                  .get<std::string>();
-    const auto location = nlohmann::json{
-        {"location_id", "lifetime-location"},
-        {"project_id", project_id},
-        {"name", "Lifetime"},
-        {"provider", provider},
-        {"configuration", nlohmann::json::object()},
-        {"created_at", 1},
-        {"updated_at", 1}
-    }.dump();
-    call_json([&](char** out, holder_error** err) {
-      return holder_location_put_json(context.get(), location.c_str(), out, err);
-    });
+    const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(holder_arena_new(), holder_arena_free);
+    holder_new_project project_request{};
+    project_request.name = "Lifetime";
+    project_request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN;
+    const holder_project* project = nullptr;
+    REQUIRE(holder_create_project(context.get(), &project_request, arena.get(), &project, &error) == HOLDER_OK);
+    project_id = project->project_id;
+    holder_new_card card_request{};
+    card_request.title = "Asset";
+    const holder_card* card = nullptr;
+    REQUIRE(holder_create_card(context.get(), project_id.c_str(), &card_request, arena.get(), &card, &error) ==
+            HOLDER_OK);
+    card_id = card->card_id;
+    holder_new_storage_location location_request{};
+    location_request.location_id = "lifetime-location";
+    location_request.project_id = project_id.c_str();
+    location_request.name = "Lifetime";
+    location_request.provider = HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE;
+    const holder_project_storage_location* location = nullptr;
+    REQUIRE(holder_create_storage_location(context.get(), &location_request, arena.get(), &location, &error) ==
+            HOLDER_OK);
+    holder_error_destroy(error);
+  }
+
+  std::string placement_id(const std::string& resource_id) const {
+    const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(holder_arena_new(), holder_arena_free);
+    holder_error* error = nullptr;
+    const holder_resource* resource = nullptr;
+    const int rc = holder_get_resource(context.get(), project_id.c_str(), resource_id.c_str(),
+                                       arena.get(), &resource, &error);
+    INFO((error ? holder_error_message(error) : "no C API error"));
+    REQUIRE(rc == HOLDER_OK);
+    REQUIRE(resource->assets.count == 1);
+    REQUIRE(resource->assets.items[0].placements.count == 1);
+    const std::string id = resource->assets.items[0].placements.items[0].placement_id;
+    holder_error_destroy(error);
+    return id;
   }
 
   nlohmann::json import() {
     const auto source = (root / "input.txt").string();
     std::ofstream(source) << "provider lifetime bytes";
-    return call_json([&](char** out, holder_error** err) {
-      return holder_asset_import_file(
-          context.get(),
-          project_id.c_str(),
-          card_id.c_str(),
-          "lifetime-location",
-          source.c_str(),
-          out,
-          err
-      );
-    });
+    nlohmann::json result;
+    holder_error* error = nullptr;
+    const int rc = holder::test::import_asset_file(
+        context.get(), project_id.c_str(), card_id.c_str(), "lifetime-location", source.c_str(), &result, &error);
+    const std::string message = error != nullptr ? holder_error_message(error) : "";
+    holder_error_destroy(error);
+    INFO(message);
+    REQUIRE(rc == HOLDER_OK);
+    return result;
   }
 };
 
 } // namespace
 
 TEST_CASE("C API asset operations retain providers replaced inside callbacks", "[capi][resource]") {
-  const char* name = "lifetime-operation";
-  AssetFixture fixture(name);
+  const auto name = HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE;
+  AssetFixture fixture;
   auto original = std::make_shared<ProviderProbe>(fixture.root / "objects");
   auto replacement = std::make_shared<ProviderProbe>(fixture.root / "objects");
   REQUIRE(register_probe(name, original) == HOLDER_OK);
@@ -178,15 +173,11 @@ TEST_CASE("C API asset operations retain providers replaced inside callbacks", "
     const auto imported = fixture.import();
     const auto resource_id = imported.at("resource_id").get<std::string>();
     const auto asset_id = imported.at("asset_id").get<std::string>();
-    const auto resource = call_json([&](char** out, holder_error** err) {
-      return holder_resource_get(fixture.context.get(), resource_id.c_str(), out, err);
-    });
-    const auto placement_id =
-        resource.at("assets").at(0).at("placements").at(0).at("placement_id").get<std::string>();
+    const auto placement_id = fixture.placement_id(resource_id);
     original->on_get = replace;
     holder_error* error = nullptr;
     const auto destination = (fixture.root / "download.txt").string();
-    const int result = holder_asset_retrieve(
+    const int result = holder::test::retrieve_asset_file(
         fixture.context.get(),
         resource_id.c_str(),
         asset_id.c_str(),
@@ -214,10 +205,10 @@ TEST_CASE("C API storage provider cleanup can register another provider", "[capi
   auto nested = std::make_shared<ProviderProbe>(root);
   original->on_destroy = [weak = std::weak_ptr<ProviderProbe>(original), nested] {
     if (auto state = weak.lock())
-      state->replacement_result = register_probe("lifetime-nested", nested);
+      state->replacement_result = register_probe(HOLDER_REGISTER_STORAGE_PROVIDER_KIND_GOOGLE_DRIVE, nested);
   };
-  REQUIRE(register_probe("lifetime-cleanup", original) == HOLDER_OK);
-  REQUIRE(register_probe("lifetime-cleanup", replacement) == HOLDER_OK);
+  REQUIRE(register_probe(HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE, original) == HOLDER_OK);
+  REQUIRE(register_probe(HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE, replacement) == HOLDER_OK);
   REQUIRE(original->destroyed.load() == 1);
   REQUIRE(original->replacement_result == HOLDER_OK);
 }
@@ -227,8 +218,8 @@ TEST_CASE(
     "[capi][resource][concurrency][stress]"
 ) {
   using namespace std::chrono_literals;
-  const char* name = "lifetime-concurrent";
-  AssetFixture fixture(name);
+  const auto name = HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE;
+  AssetFixture fixture;
   auto original = std::make_shared<ProviderProbe>(fixture.root / "objects");
   REQUIRE(register_probe(name, original) == HOLDER_OK);
   std::vector<ProbeOwner> replacements;
@@ -252,11 +243,7 @@ TEST_CASE(
     const auto imported = fixture.import();
     resource_id = imported.at("resource_id").get<std::string>();
     asset_id = imported.at("asset_id").get<std::string>();
-    const auto resource = call_json([&](char** out, holder_error** err) {
-      return holder_resource_get(fixture.context.get(), resource_id.c_str(), out, err);
-    });
-    placement_id =
-        resource.at("assets").at(0).at("placements").at(0).at("placement_id").get<std::string>();
+    placement_id = fixture.placement_id(resource_id);
     original->on_get = during_callback;
   }
   bool registrations_ok = true;
@@ -274,7 +261,7 @@ TEST_CASE(
   } else {
     holder_error* error = nullptr;
     const auto destination = (fixture.root / "concurrent-download.txt").string();
-    const auto result = holder_asset_retrieve(
+    const auto result = holder::test::retrieve_asset_file(
         fixture.context.get(),
         resource_id.c_str(),
         asset_id.c_str(),

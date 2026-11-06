@@ -43,9 +43,10 @@ Most endpoints require:
 
 - `Authorization: Bearer <auth_token>`
 
-Unauthenticated endpoints are static/docs only:
+Unauthenticated endpoints are liveness checks and static documents only:
 
-- `GET /openapi.yaml`
+- `GET /ping` and `GET /alive`
+- `GET /openapi.yaml` and `GET /openapi.json`
 - `GET /ai_catalog.yaml`
 - `GET /ai_catalog.json`
 - `GET /git_providers.yaml`
@@ -61,6 +62,31 @@ Unauthenticated endpoints are static/docs only:
 
 Common error codes include `bad_request`, `not_found`, `unauthorized`, `conflict`, `method_not_allowed`.
 
+### Query-string encoding
+
+For endpoints that declare query parameters, the generated request dispatcher
+decodes query parameter names and values once, before passing them to endpoint
+handlers. This applies to text filters and IDs as well as numeric, boolean and
+enum parameters, including the OAuth callback and streaming endpoints with query
+parameters.
+
+- Encode text as UTF-8 and percent-escape reserved bytes. Both `+` and `%20`
+  represent a space; encode a literal plus sign as `%2B`.
+- Decoding happens once: `%252B` becomes the literal text `%2B`, not `+` or a
+  space. Endpoint handlers must not URL-decode their arguments again.
+- A percent escape must contain two hexadecimal digits. Invalid or incomplete
+  escapes in a query name or value produce HTTP 400 (`bad_request`), including
+  in an unrecognized query parameter.
+- Duplicate parameter names produce HTTP 400 (`bad_request`), even when their
+  values are identical or their encoded names differ (`project_id` and
+  `project%5Fid`, for example).
+
+Use the client's query-parameter encoder with the original value. The generated
+Python client uses HTTPX query parameters, GTK uses `Uri.escape_string`, and
+`holderctl` uses `url_encode_component`; each protects literal plus signs as
+`%2B`. Do not pre-escape values passed to those encoders. The dispatcher applies
+any type, range or enum validation after decoding.
+
 ## 4) Core Non-AI Endpoints
 
 Project/card clients usually use:
@@ -71,13 +97,16 @@ Project/card clients usually use:
 - `POST /projects/{project_id}/git/push`
 - `GET /projects/{project_id}/git/sync-status`
 - `GET /projects/{project_id}/encryption-check`
+- `POST /projects/{project_id}/repair-hierarchy`
 - `POST /projects/{project_id}/recovery-token/export`
 - `POST /projects/{project_id}/recovery-token/import`
 - `POST /recovery-token/import`
 
-- `GET/POST /cards`
-- `GET/PATCH/DELETE /cards/{card_id}`
-- `GET /cards/context`
+- `GET/POST /projects/{project_id}/cards`
+- `GET/PATCH/DELETE /projects/{project_id}/cards/{card_id}`
+- `GET /projects/{project_id}/cards/{card_id}/breadcrumbs`
+- `POST /projects/{project_id}/cards/{card_id}/move`
+- `POST /projects/{project_id}/cards/{card_id}/restore`
 
 - `GET/POST /resources`
 - `PATCH/DELETE /resources/{resource_id}`

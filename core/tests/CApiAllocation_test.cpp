@@ -1,4 +1,4 @@
-#include <holder/holder.h>
+#include <holder/holder_api.h>
 
 #include <cstddef>
 #include <cstdio>
@@ -32,11 +32,8 @@ int main() {
     int result = HOLDER_OK;
     switch (api) {
     case 0:
-      result = holder_storage_provider_register(
-          "allocation-test",
-          nullptr,
-          nullptr,
-          nullptr,
+      result = holder_register_storage_provider(
+          HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE,
           nullptr,
           &destroyed,
           destroy,
@@ -44,10 +41,10 @@ int main() {
       );
       break;
     case 1:
-      result = holder_keyring_set_provider(nullptr, nullptr, nullptr, &destroyed, destroy, &error);
+      result = holder_register_keyring_provider(nullptr, &destroyed, destroy, &error);
       break;
     case 2:
-      result = holder_git_set_ssh_signer(
+      result = holder_register_ssh_signer(
           nullptr,
           nullptr,
           nullptr,

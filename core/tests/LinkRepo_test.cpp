@@ -7,6 +7,7 @@
 
 #include "card/CardRepo.h"
 #include "card/LinkRepo.h"
+#include "card/LinkVisibility.h"
 #include "model/Card.h"
 #include "model/CardLink.h"
 #include "model/Project.h"
@@ -15,10 +16,12 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -118,11 +121,14 @@ TEST_CASE("LinkRepo upsert/list/delete", "[linkrepo]") {
 
   auto outgoing = repo.list_outgoing("proj-1", "card-a");
   REQUIRE(outgoing.size() == 2);
+  REQUIRE_FALSE(outgoing[0].target_project_id.has_value());
+  REQUIRE_FALSE(outgoing[1].target_project_id.has_value());
 
   auto backlinks = repo.list_backlinks("proj-1", "card-b");
   REQUIRE(backlinks.size() == 1);
   REQUIRE(backlinks[0].from_card_id == "card-a");
   REQUIRE(backlinks[0].label.has_value());
+  REQUIRE_FALSE(backlinks[0].target_project_id.has_value());
 
   const auto incoming_resources = repo.list_incoming_typed("proj-1", "resource");
   REQUIRE(incoming_resources.size() == 1);
@@ -139,6 +145,147 @@ TEST_CASE("LinkRepo upsert/list/delete", "[linkrepo]") {
   repo.delete_links_from("proj-1", "card-a");
   outgoing = repo.list_outgoing("proj-1", "card-a");
   REQUIRE(outgoing.empty());
+}
+
+TEST_CASE("LinkRepo preserves an explicit target project ID", "[linkrepo]") {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  create_project(db, "proj-1");
+  create_card(db, "card-a", "proj-1");
+  create_card(db, "card-b", "proj-1");
+
+  holder::model::CardLink link;
+  link.project_id = "proj-1";
+  link.from_card_id = "card-a";
+  link.to_card_id = "card-b";
+  link.target_project_id = "proj-2";
+  link.to_type = "card";
+  link.kind = "ref";
+  link.created_at = 10;
+  holder::card::LinkRepo repo(db);
+  repo.upsert_links("proj-1", "card-a", {link});
+
+  const auto outgoing = repo.list_outgoing("proj-1", "card-a");
+  REQUIRE(outgoing.size() == 1);
+  REQUIRE(outgoing[0].target_project_id == "proj-2");
+  REQUIRE(repo.list_backlinks("proj-1", "card-b").empty());
+  repo.delete_links_to_typed("proj-1", "card-b", "card");
+  REQUIRE(repo.list_outgoing("proj-1", "card-a").size() == 1);
+}
+
+TEST_CASE("LinkRepo external backlinks require an allowed source and exact target", "[linkrepo]") {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  create_project(db, "source-a");
+  create_project(db, "source-b");
+  create_project(db, "target");
+  create_card(db, "from-a", "source-a");
+  create_card(db, "from-b", "source-b");
+  create_card(db, "target-card", "target");
+
+  holder::card::LinkRepo repo(db);
+  holder::model::CardLink link;
+  link.project_id = "source-a";
+  link.from_card_id = "from-a";
+  link.to_card_id = "target-card";
+  link.target_project_id = "target";
+  link.to_type = "card";
+  link.kind = "ref";
+  link.created_at = 10;
+  repo.upsert_links("source-a", "from-a", {link});
+
+  auto other_source = link;
+  other_source.project_id = "source-b";
+  other_source.from_card_id = "from-b";
+  other_source.created_at = 20;
+  repo.upsert_links("source-b", "from-b", {other_source});
+
+  auto other_target = link;
+  other_target.target_project_id = "other-target";
+  other_target.created_at = 30;
+  repo.upsert_links("source-a", "from-a", {other_target});
+
+  auto other_type = link;
+  other_type.to_type = "resource";
+  other_type.created_at = 40;
+  repo.upsert_links("source-a", "from-a", {other_type});
+
+  auto local = link;
+  local.target_project_id.reset();
+  local.created_at = 50;
+  repo.upsert_links("source-a", "from-a", {local});
+
+  REQUIRE(repo.list_external_backlinks_typed("target", "target-card", "card", {}).empty());
+  REQUIRE(repo.list_external_backlinks_typed("target", "target-card", "card", {"target"}).empty());
+  const auto allowed = repo.list_external_backlinks_typed(
+      "target", "target-card", "card", {"source-a", "source-a"}
+  );
+  REQUIRE(allowed.size() == 1);
+  REQUIRE(allowed[0].project_id == "source-a");
+  REQUIRE(allowed[0].target_project_id == "target");
+
+  const auto both = repo.list_external_backlinks_typed(
+      "target", "target-card", "card", {"source-a", "source-b"}
+  );
+  REQUIRE(both.size() == 2);
+  REQUIRE(both[0].project_id == "source-b");
+  REQUIRE(both[1].project_id == "source-a");
+  REQUIRE(repo.list_external_backlinks_typed(
+      "other-target", "target-card", "card", {"source-a"}
+  ).size() == 1);
+  REQUIRE(repo.list_external_backlinks_typed(
+      "target", "target-card", "resource", {"source-a"}
+  ).size() == 1);
+  REQUIRE(repo.list_external_backlinks_typed(
+      "target", "different-card", "card", {"source-a", "source-b"}
+  ).empty());
+  REQUIRE(repo.list_backlinks("source-a", "target-card").size() == 1);
+}
+
+TEST_CASE("LinkRepo distinguishes target projects sharing a card ID", "[linkrepo]") {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  create_project(db, "proj-1");
+  create_card(db, "card-a", "proj-1");
+
+  holder::model::CardLink link;
+  link.project_id = "proj-1";
+  link.from_card_id = "card-a";
+  link.to_card_id = "shared-card-id";
+  link.to_type = "card";
+  link.kind = "ref";
+  link.created_at = 10;
+  auto external = link;
+  external.target_project_id = "proj-2";
+  external.label = "Other project";
+  auto explicit_local = link;
+  explicit_local.target_project_id = "proj-1";
+  explicit_local.label = "Local project";
+
+  holder::card::LinkRepo repo(db);
+  repo.upsert_links("proj-1", "card-a", {link, external, explicit_local});
+  const auto outgoing = repo.list_outgoing("proj-1", "card-a");
+  REQUIRE(outgoing.size() == 2);
+  const auto external_it = std::find_if(outgoing.begin(), outgoing.end(), [](const auto& item) {
+    return item.target_project_id == "proj-2";
+  });
+  const auto local_it = std::find_if(outgoing.begin(), outgoing.end(), [](const auto& item) {
+    return !item.target_project_id.has_value();
+  });
+  REQUIRE(external_it != outgoing.end());
+  REQUIRE(local_it != outgoing.end());
+  REQUIRE(local_it->label == "Local project");
+
+  repo.delete_link_exact("proj-1", "card-a", "shared-card-id", "card", "ref", "proj-2");
+  const auto remaining = repo.list_outgoing("proj-1", "card-a");
+  REQUIRE(remaining.size() == 1);
+  REQUIRE_FALSE(remaining[0].target_project_id.has_value());
 }
 
 TEST_CASE("LinkRepo upsert rejects project/from mismatch", "[linkrepo]") {
@@ -426,4 +573,52 @@ TEST_CASE("LinkRepo delete methods throw when sqlite delete step fails", "[linkr
       repo.delete_links_from("proj-1", "card-a"),
       Catch::Matchers::ContainsSubstring("delete links failed: blocked delete")
   );
+}
+
+TEST_CASE("Link visibility hides missing or trashed local endpoints", "[linkrepo]") {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  create_project(db, "proj-1");
+  create_card(db, "card-live", "proj-1");
+  create_card(db, "card-trashed", "proj-1");
+  holder::card::CardRepo(db).soft_delete("card-trashed", 5, 5);
+  db.exec("INSERT INTO ai_threads(thread_id, project_id, title, created_at, updated_at) "
+          "VALUES('thread-1', 'proj-1', 'Thread', 1, 1);");
+  db.exec("INSERT INTO ai_messages(message_id, thread_id, role, source, content, created_at) "
+          "VALUES('msg-live', 'thread-1', 'user', 'manual', 'hi', 1);");
+  db.exec("INSERT INTO ai_messages(message_id, thread_id, role, source, content, created_at, "
+          "deleted_at) VALUES('msg-trashed', 'thread-1', 'user', 'manual', 'hi', 1, 5);");
+
+  const auto link = [](std::string from, std::string to, std::string type) {
+    holder::model::CardLink value;
+    value.project_id = "proj-1";
+    value.from_card_id = std::move(from);
+    value.to_card_id = std::move(to);
+    value.to_type = std::move(type);
+    value.kind = "ref";
+    return value;
+  };
+  using holder::card::backlink_source_visible;
+  using holder::card::link_target_visible;
+
+  CHECK(link_target_visible(db, link("x", "card-live", "card")));
+  CHECK_FALSE(link_target_visible(db, link("x", "card-trashed", "card")));
+  CHECK_FALSE(link_target_visible(db, link("x", "card-missing", "card")));
+  auto external = link("x", "card-missing", "card");
+  external.target_project_id = "proj-2";
+  CHECK(link_target_visible(db, external));
+  auto same_project = link("x", "card-missing", "card");
+  same_project.target_project_id = "proj-1";
+  CHECK_FALSE(link_target_visible(db, same_project));
+  CHECK(link_target_visible(db, link("x", "msg-live", "ai_message")));
+  CHECK_FALSE(link_target_visible(db, link("x", "msg-trashed", "ai_message")));
+  CHECK(link_target_visible(db, link("x", "res-missing", "resource")));
+
+  CHECK(backlink_source_visible(db, link("card-live", "y", "card")));
+  CHECK_FALSE(backlink_source_visible(db, link("card-trashed", "y", "card")));
+  CHECK(backlink_source_visible(db, link("msg-live", "y", "ai_message")));
+  CHECK_FALSE(backlink_source_visible(db, link("msg-trashed", "y", "ai_message")));
+  CHECK_FALSE(backlink_source_visible(db, link("missing", "y", "card")));
 }

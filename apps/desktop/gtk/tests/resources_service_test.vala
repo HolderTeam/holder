@@ -50,7 +50,7 @@ private void test_update_resource_sets_updated_at() {
     var service = new HolderLinux.ResourcesService();
     bool done = false;
 
-    service.update_resource.begin(api, "r-1", "file", "file:///tmp/a.txt", "A", null, null, (obj, res) => {
+    service.update_resource.begin(api, "p-1", "r-1", "file", "file:///tmp/a.txt", "A", null, null, (obj, res) => {
         try {
             service.update_resource.end(res);
             assert(api.update_resource_calls == 1);
@@ -73,7 +73,7 @@ private void test_delete_resource_forwards_id() {
     var service = new HolderLinux.ResourcesService();
     bool done = false;
 
-    service.delete_resource.begin(api, "r-9", (obj, res) => {
+    service.delete_resource.begin(api, "p-1", "r-9", (obj, res) => {
         try {
             service.delete_resource.end(res);
             assert(api.delete_resource_calls == 1);
@@ -134,7 +134,7 @@ private void test_update_resource_failure_propagates() {
     bool done = false;
     bool got_error = false;
 
-    service.update_resource.begin(api, "r-1", "file", "file:///tmp/a.txt", "A", null, null, (obj, res) => {
+    service.update_resource.begin(api, "p-1", "r-1", "file", "file:///tmp/a.txt", "A", null, null, (obj, res) => {
         try {
             service.update_resource.end(res);
         } catch (Error e) {
@@ -154,7 +154,7 @@ private void test_delete_resource_failure_propagates() {
     bool done = false;
     bool got_error = false;
 
-    service.delete_resource.begin(api, "r-9", (obj, res) => {
+    service.delete_resource.begin(api, "p-1", "r-9", (obj, res) => {
         try {
             service.delete_resource.end(res);
         } catch (Error e) {

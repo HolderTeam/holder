@@ -53,6 +53,11 @@ def _parse_response(
 
         return response_409
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -77,8 +82,10 @@ def sync_detailed(
 ) -> Response[AiThreadCreateResponse | ErrorResponse]:
     """Create an AI thread
 
+     Create an AI thread
+
     Args:
-        body (AiThreadCreateRequest):
+        body (AiThreadCreateRequest): AI ThreadCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -106,8 +113,10 @@ def sync(
 ) -> AiThreadCreateResponse | ErrorResponse | None:
     """Create an AI thread
 
+     Create an AI thread
+
     Args:
-        body (AiThreadCreateRequest):
+        body (AiThreadCreateRequest): AI ThreadCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -130,8 +139,10 @@ async def asyncio_detailed(
 ) -> Response[AiThreadCreateResponse | ErrorResponse]:
     """Create an AI thread
 
+     Create an AI thread
+
     Args:
-        body (AiThreadCreateRequest):
+        body (AiThreadCreateRequest): AI ThreadCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -157,8 +168,10 @@ async def asyncio(
 ) -> AiThreadCreateResponse | ErrorResponse | None:
     """Create an AI thread
 
+     Create an AI thread
+
     Args:
-        body (AiThreadCreateRequest):
+        body (AiThreadCreateRequest): AI ThreadCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

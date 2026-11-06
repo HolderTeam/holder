@@ -71,7 +71,7 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
     public string? last_card_id = null;
     public string? last_project_id = null;
 
-    public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string card_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string project_id, string card_id) throws Error {
         list_card_links_calls++;
         last_card_id = card_id;
         if (slow_links_once) {
@@ -122,7 +122,7 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
                                                               string? parent_card_id = null) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
-    public async HolderLinux.CardDetail get_card(string card_id) throws Error { throw new IOError.NOT_SUPPORTED("unused"); }
+    public async HolderLinux.CardDetail get_card(string project_id, string card_id) throws Error { throw new IOError.NOT_SUPPORTED("unused"); }
     public async Gee.ArrayList<HolderLinux.TagCount> list_project_tags(string project_id) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
@@ -130,7 +130,14 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
                                                                             string tag) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
-    public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string card_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.LinkKindLabels> list_link_kinds() throws Error {
+        var kinds = new Gee.ArrayList<HolderLinux.LinkKindLabels>();
+        kinds.add(new HolderLinux.LinkKindLabels("ref", "References", "Referenced by"));
+        kinds.add(new HolderLinux.LinkKindLabels("depends_on", "Depends on", "Required by"));
+        return kinds;
+    }
+
+    public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string project_id, string card_id) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
     public async Gee.ArrayList<HolderLinux.TrashItem> list_trash_items(string project_id,
@@ -140,7 +147,7 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
     public async void empty_trash(string project_id, string type = "all") throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
-    public async void restore_trash_item(string item_type, string item_id) throws Error {
+    public async void restore_trash_item(string project_id, string item_type, string item_id) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
     public async void hard_delete_trash_item(string item_type, string item_id) throws Error {
@@ -154,7 +161,8 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
                                         Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
-    public async void update_resource(string resource_id,
+    public async void update_resource(string project_id,
+                                      string resource_id,
                                       string? kind,
                                       string? uri,
                                       string? label,
@@ -163,18 +171,21 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
                                       Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
-    public async void delete_resource(string resource_id) throws Error { throw new IOError.NOT_SUPPORTED("unused"); }
-    public async HolderLinux.CardLink create_card_link(string from_card_id,
+    public async void delete_resource(string project_id, string resource_id) throws Error { throw new IOError.NOT_SUPPORTED("unused"); }
+    public async HolderLinux.CardLink create_card_link(string project_id,
+                                                       string from_card_id,
                                                        string to_card_id,
                                                        string kind = "ref",
                                                        string? label = null,
                                                        string to_type = "card") throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
-    public async void delete_card_link(string from_card_id,
+    public async void delete_card_link(string project_id,
+                                       string from_card_id,
                                        string to_card_id,
                                        string kind,
-                                       string to_type = "card") throws Error {
+                                       string to_type = "card",
+                                       string? target_project_id = null) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
     public async Gee.ArrayList<HolderLinux.SearchCardResult> search_cards(string project_id,
@@ -182,7 +193,7 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
                                                                            int limit = 30) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
-    public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error {
+    public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? runner_id = null) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
     public async HolderLinux.AiStatusInfo get_ai_status() throws Error { throw new IOError.NOT_SUPPORTED("unused"); }
@@ -260,13 +271,11 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
         throw new IOError.NOT_SUPPORTED("unused");
     }
     public async void set_project_git_remote(string project_id,
-                                             string? git_remote_url,
-                                             int64 updated_at) throws Error {
+                                             string? git_remote_url) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
     public async HolderLinux.GitTestRemoteResult test_project_git_remote(string project_id,
-                                                                         string? remote_url = null,
-                                                                         string branch = "") throws Error {
+                                                                         string? remote_url = null) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
     public async HolderLinux.GitPushResult push_project_git(string project_id,
@@ -291,21 +300,23 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
                                     string? parent_card_id = null) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
-    public async void update_card(string card_id,
+    public async void update_card(string project_id,
+                                  string card_id,
                                   string title,
                                   string content,
                                   int64 updated_at) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
-    public async void update_card_position(string card_id,
+    public async void update_card_position(string project_id,
+                                           string card_id,
                                            string? parent_card_id,
                                            double sort_key,
                                            int64 updated_at) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
-    public async void delete_card(string card_id, bool trash_subtree = false) throws Error { throw new IOError.NOT_SUPPORTED("unused"); }
-    public async HolderLinux.CardMoveResult move_card(string card_id,
-                                                      string project_id,
+    public async void delete_card(string project_id, string card_id, bool trash_subtree = false) throws Error { throw new IOError.NOT_SUPPORTED("unused"); }
+    public async HolderLinux.CardMoveResult move_card(string project_id,
+                                                      string card_id,
                                                       string intent,
                                                       string? target_card_id = null,
                                                       string? parent_card_id = null) throws Error {

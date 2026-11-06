@@ -91,7 +91,8 @@ private void test_core_domain_methods_smoke_delegation() {
 
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"P\",\"privacy_mode\":\"encrypted_git\"}]}");
-    transport.enqueue_read(200, "{\"ok\":true,\"data\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"T\"}]}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"sync\":{\"uncommitted_changes_count\":0,\"unpushed_commits_count\":0,\"retry_count\":0,\"pull_retry_count\":0}}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"T\"}],\"next_cursor\":null}}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
@@ -211,12 +212,12 @@ private void test_core_git_mutation_methods_delegate() {
     var client = make_client(transport);
 
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
-    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"u\",\"branch\":\"main\",\"status\":\"ok\"}}");
-    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"u\",\"branch\":\"main\",\"status\":\"ok\"}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"u\",\"status\":\"ok\"}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"u\",\"status\":\"succeeded\",\"push\":{\"status\":\"ok\"}}}");
 
     bool done_set = false;
     bool set_ok = false;
-    client.set_project_git_remote.begin("p1", "https://example/repo.git", 10, (obj, res) => {
+    client.set_project_git_remote.begin("p1", "https://example/repo.git", (obj, res) => {
         try {
             client.set_project_git_remote.end(res);
             set_ok = true;
@@ -230,7 +231,7 @@ private void test_core_git_mutation_methods_delegate() {
 
     bool done_test = false;
     HolderLinux.GitTestRemoteResult? test_result = null;
-    client.test_project_git_remote.begin("p1", "https://example/repo.git", "main", (obj, res) => {
+    client.test_project_git_remote.begin("p1", "https://example/repo.git", (obj, res) => {
         try {
             test_result = client.test_project_git_remote.end(res);
         } catch (Error e) {
@@ -281,7 +282,7 @@ private void test_core_trash_mutation_methods_delegate() {
 
     bool done_restore = false;
     bool restore_ok = false;
-    client.restore_trash_item.begin("card", "c1", (obj, res) => {
+    client.restore_trash_item.begin("p1", "card", "c1", (obj, res) => {
         try {
             client.restore_trash_item.end(res);
             restore_ok = true;

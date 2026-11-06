@@ -1,6 +1,5 @@
 """Tag collections use daemon data and project-scoped mutations."""
 
-import json
 from dataclasses import FrozenInstanceError
 
 import httpx
@@ -47,7 +46,7 @@ def test_lazy_tag_collections_lookup_cache_and_reverse_cards():
             assert request.url.params["tag"] == "research"
             assert request.url.params["parent"] == "roots"
             return ok({"items": [card_payload()], "next_cursor": None})
-        if path.startswith("/cards/"):
+        if path.startswith("/projects/p-0/cards/"):
             return ok(tagged_card(["research", "draft"]))
         return ok(project_payload())
 
@@ -92,23 +91,17 @@ def test_tag_mutations_send_scope_and_input_unchanged_and_refresh(method):
     def respond(request):
         nonlocal content
         requests.append(request)
-        if request.url.path.endswith("/tags"):
-            assert request.method == ("POST" if method == "add" else "DELETE")
-            assert json.loads(request.content) == {
-                "project_id": "p-0",
-                "tag": "Research",
-            }
+        if "/tags/" in request.url.path:
+            assert request.method == ("PUT" if method == "add" else "DELETE")
+            # The tag goes as given, in the card's own path, with no body.
+            assert request.url.path == "/projects/p-0/cards/c-0000/tags/Research"
+            assert request.content == b""
             names[:] = ["research"]
             content = "Server content\n#research"
             return ok(
-                {
-                    "card_id": "c-0000",
-                    "tag": "research",
-                    "outcome": "added" if method == "add" else "removed",
-                    "changed": True,
-                }
+                {**tagged_card(list(names)), "content": content, "updated_at": 10}
             )
-        if request.url.path.startswith("/cards/"):
+        if request.url.path.startswith("/projects/p-0/cards/"):
             return ok(
                 {**tagged_card(list(names)), "content": content, "updated_at": 10}
             )
@@ -126,7 +119,7 @@ def test_tag_mutations_send_scope_and_input_unchanged_and_refresh(method):
         assert [t.name for t in tags] == ["research"]
         with pytest.raises(RuntimeError):
             next(active)
-        assert sum(r.method in ("POST", "DELETE") for r in requests) == 1
+        assert sum(r.method in ("PUT", "DELETE") for r in requests) == 1
         with pytest.raises(TypeError):
             getattr(tags, method)(None)
     with pytest.raises(ClosedError):
@@ -136,7 +129,7 @@ def test_tag_mutations_send_scope_and_input_unchanged_and_refresh(method):
 @pytest.mark.parametrize("tags", [None, "research", [1], [""]])
 def test_invalid_or_missing_tag_data_is_not_an_empty_collection(tags):
     def respond(request):
-        if request.url.path.startswith("/cards/"):
+        if request.url.path.startswith("/projects/p-0/cards/"):
             return ok(tagged_card(tags))
         return ok(project_payload())
 
@@ -144,14 +137,14 @@ def test_invalid_or_missing_tag_data_is_not_an_empty_collection(tags):
         list(h.projects.get("p-0").cards.get("c-0000").tags)
 
 
-def test_tag_read_rejects_card_moved_to_another_project():
+def test_tag_read_of_a_card_no_longer_in_the_project_is_not_found():
     calls = 0
 
     def respond(request):
         nonlocal calls
-        if request.url.path.startswith("/cards/"):
+        if request.url.path.startswith("/projects/p-0/cards/"):
             calls += 1
-            return ok({**tagged_card([]), "project_id": "p-0" if calls == 1 else "p-1"})
+            return ok(tagged_card([])) if calls == 1 else failure(404)
         return ok(project_payload())
 
     with holder_for(respond) as h:
@@ -162,30 +155,25 @@ def test_tag_read_rejects_card_moved_to_another_project():
 
 @pytest.mark.parametrize("method", ["add", "remove"])
 @pytest.mark.parametrize(
-    "error", ["auth", "transport", "invalid", "scope", "missing", "refresh"]
+    "error", ["auth", "transport", "invalid", "conflict", "missing", "refresh"]
 )
 def test_tag_writes_are_not_retried(monkeypatch, method, error):
     cli = mock_cli(monkeypatch)
     writes = []
 
     def respond(request):
-        if request.method in ("POST", "DELETE"):
+        if request.method in ("PUT", "DELETE"):
             writes.append(request)
             if error == "transport":
                 raise httpx.ReadError("Interrupted", request=request)
             if error != "refresh":
                 return failure(
-                    {"auth": 401, "invalid": 400, "scope": 422, "missing": 404}[error]
+                    {"auth": 401, "invalid": 400, "conflict": 409, "missing": 404}[
+                        error
+                    ]
                 )
-            return ok(
-                {
-                    "card_id": "c-0000",
-                    "tag": "research",
-                    "outcome": "added",
-                    "changed": True,
-                }
-            )
-        if request.url.path.startswith("/cards/"):
+            return ok(tagged_card(["research"]))
+        if request.url.path.startswith("/projects/p-0/cards/"):
             return failure(404) if writes else ok(tagged_card(["draft"]))
         return ok(project_payload())
 
@@ -193,7 +181,7 @@ def test_tag_writes_are_not_retried(monkeypatch, method, error):
         "auth": AuthenticationError,
         "transport": ConnectionError,
         "invalid": APIError,
-        "scope": APIError,
+        "conflict": APIError,
         "missing": NotFoundError,
         "refresh": NotFoundError,
     }[error]
@@ -215,8 +203,8 @@ def test_content_update_invalidates_cached_tags():
     def respond(request):
         if request.method == "PATCH":
             names.clear()
-            return ok({"card_id": "c-0000"})
-        if request.url.path.startswith("/cards/"):
+            return ok(card_payload(content=True))
+        if request.url.path.startswith("/projects/p-0/cards/"):
             return ok(tagged_card(list(names)))
         return ok(project_payload())
 

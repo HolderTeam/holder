@@ -6,14 +6,14 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.post_ai_runner_pull_body import PostAiRunnerPullBody
+from ...models.post_ai_runner_pull_request import PostAiRunnerPullRequest
 from ...models.runner_pull_start_response import RunnerPullStartResponse
 from ...types import Response
 
 
 def _get_kwargs(
     *,
-    body: PostAiRunnerPullBody,
+    body: PostAiRunnerPullRequest,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -48,10 +48,15 @@ def _parse_response(
 
         return response_401
 
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
+    if response.status_code == 404:
+        response_404 = ErrorResponse.from_dict(response.json())
 
-        return response_501
+        return response_404
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -78,12 +83,15 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: PostAiRunnerPullBody,
+    body: PostAiRunnerPullRequest,
 ) -> Response[ErrorResponse | RunnerPullStartResponse]:
     """Start pulling a local model
 
+     Pulls on runner_id, or the auto-local runner when it is omitted or empty. Follow progress with GET
+    /ai/runner/pull/{job_id} or its events stream.
+
     Args:
-        body (PostAiRunnerPullBody):
+        body (PostAiRunnerPullRequest): PostAI RunnerPullRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -107,12 +115,15 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    body: PostAiRunnerPullBody,
+    body: PostAiRunnerPullRequest,
 ) -> ErrorResponse | RunnerPullStartResponse | None:
     """Start pulling a local model
 
+     Pulls on runner_id, or the auto-local runner when it is omitted or empty. Follow progress with GET
+    /ai/runner/pull/{job_id} or its events stream.
+
     Args:
-        body (PostAiRunnerPullBody):
+        body (PostAiRunnerPullRequest): PostAI RunnerPullRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -131,12 +142,15 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: PostAiRunnerPullBody,
+    body: PostAiRunnerPullRequest,
 ) -> Response[ErrorResponse | RunnerPullStartResponse]:
     """Start pulling a local model
 
+     Pulls on runner_id, or the auto-local runner when it is omitted or empty. Follow progress with GET
+    /ai/runner/pull/{job_id} or its events stream.
+
     Args:
-        body (PostAiRunnerPullBody):
+        body (PostAiRunnerPullRequest): PostAI RunnerPullRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -158,12 +172,15 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    body: PostAiRunnerPullBody,
+    body: PostAiRunnerPullRequest,
 ) -> ErrorResponse | RunnerPullStartResponse | None:
     """Start pulling a local model
 
+     Pulls on runner_id, or the auto-local runner when it is omitted or empty. Follow progress with GET
+    /ai/runner/pull/{job_id} or its events stream.
+
     Args:
-        body (PostAiRunnerPullBody):
+        body (PostAiRunnerPullRequest): PostAI RunnerPullRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

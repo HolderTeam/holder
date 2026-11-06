@@ -27,7 +27,6 @@ PROJECT_DTYPES = {
     "name": "string",
     "root_path": "string",
     "privacy_mode": "string",
-    "id_scheme": "string",
     "created_at": "datetime64[ns, UTC]",
     "updated_at": "datetime64[ns, UTC]",
     "git_remote_url": "string",
@@ -192,7 +191,7 @@ def test_combined_exports_match_collection_tables_and_join_after_close(tmp_path:
     tables["connections"].loc[:, "kind"] = "local kind"
     tables["projects"].loc[:, "name"] = "local name"
     with holderkit.open(data) as reopened:
-        assert reopened.get_card_content(source.card_id) == "body"
+        assert reopened.get_card_content(source.project_id, source.card_id) == "body"
         assert reopened.connections.to_records()[0]["kind"] == "references"
         assert {project.name for project in reopened.list_projects()} == {"First", "Second"}
 
@@ -211,6 +210,7 @@ def test_combined_project_scope_preserves_external_targets(tmp_path: Path) -> No
         assert scoped["cards"]["card_id"].tolist() == [source.card_id]
         assert scoped["connections"]["from_card_id"].tolist() == [source.card_id]
         assert scoped["connections"]["to_card_id"].tolist() == [target.card_id]
+        assert scoped["connections"]["target_project_id"].tolist() == [second.project_id]
         assert target.card_id not in scoped["cards"]["card_id"].tolist()
         empty_tables = context.to_dataframes(empty.project_id)
         assert empty_tables["projects"]["project_id"].tolist() == [empty.project_id]
@@ -230,7 +230,7 @@ def test_combined_export_reuses_card_selection_during_later_changes(
         def changing_list_cards(native_context: _native.Context, project_id: str) -> list[dict[str, Any]]:
             selected = list_cards(native_context, project_id)
             added = context.create_card(project_id, "Added after selection", "#later")
-            context.milestones.add(added.card_id, 100)
+            context.milestones.add(added.project_id, added.card_id)
             context.connections.add(added.card_id, original_card.card_id, "references")
             return selected
 
@@ -247,7 +247,9 @@ def test_combined_export_content_failures_and_closed_context(tmp_path: Path) -> 
         project = context.create_project("Missing body")
         card = context.create_card(project.project_id, "Card", "body")
         (Path(project.root_path) / card.rel_path).unlink()
-        assert "content" not in context.to_dataframes()["cards"].columns
+        assert "content" not in context.cards.to_dataframe().columns
+        with pytest.raises(holderkit.HolderError, match="card content missing"):
+            context.to_dataframes()
         with pytest.raises(holderkit.HolderError, match="card content missing"):
             context.to_dataframes(include_content=True)
     with pytest.raises(RuntimeError, match="closed"):

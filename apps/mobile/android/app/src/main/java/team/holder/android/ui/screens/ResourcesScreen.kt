@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -29,6 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,6 +52,7 @@ import kotlinx.coroutines.withContext
 import team.holder.android.HolderCardLinks
 import team.holder.android.HolderNative
 import team.holder.android.HolderOutgoingLink
+import team.holder.android.HolderResource
 import team.holder.android.R
 import team.holder.android.resource.AttachFlowConnectDialog
 import team.holder.android.resource.createCameraCaptureUri
@@ -86,6 +89,10 @@ fun ResourcesScreen(
     var linksState by remember(cardId) { mutableStateOf<LoadState<HolderCardLinks>>(LoadState.Loading) }
     var viewerAttachment by remember { mutableStateOf<HolderOutgoingLink?>(null) }
     var showAttachSheet by remember { mutableStateOf(false) }
+    var showExistingSheet by remember { mutableStateOf(false) }
+    var existingResources by remember { mutableStateOf<List<HolderResource>?>(null) }
+    var detachCandidate by remember { mutableStateOf<HolderOutgoingLink?>(null) }
+    val scope = rememberCoroutineScope()
     // Bumped after a successful attach so the list below notices without leaving this screen;
     // MainActivity's shared refreshKey handles noticing from everywhere else instead.
     var localRefreshKey by remember(cardId) { mutableIntStateOf(0) }
@@ -114,7 +121,7 @@ fun ResourcesScreen(
 
     LaunchedEffect(cardId, refreshKey, localRefreshKey) {
         linksState = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.listCardLinks(cardId) }
+            withContext(Dispatchers.IO) { HolderNative.listCardLinks(projectId, cardId) }
         }.fold(
             onSuccess = { LoadState.Success(it) },
             onFailure = { LoadState.Error(it.message ?: it::class.java.simpleName) },
@@ -160,7 +167,9 @@ fun ResourcesScreen(
                 is LoadState.Error ->
                     CenteredMessage(Modifier.fillMaxSize()) { Text("Failed to load resources: ${state.message}") }
                 is LoadState.Success -> {
-                    val attachments = state.value.outgoing.filter { it.toType == "resource" }
+                    val attachments = state.value.outgoing.filter {
+                        it.toType == "resource" && it.kind == "attachment"
+                    }
                     if (attachments.isEmpty()) {
                         CenteredMessage(Modifier.fillMaxSize()) {
                             Text(
@@ -171,7 +180,12 @@ fun ResourcesScreen(
                     } else {
                         LazyColumn(modifier = Modifier.padding(innerPadding)) {
                             items(attachments, key = { "attachment:${it.toCardId}" }) { link ->
-                                AttachmentRow(link = link, onOpenImage = { viewerAttachment = link })
+                                AttachmentRow(
+                                    projectId = projectId,
+                                    link = link,
+                                    onOpenImage = { viewerAttachment = link },
+                                    onDetach = { detachCandidate = link },
+                                )
                             }
                         }
                     }
@@ -182,6 +196,7 @@ fun ResourcesScreen(
 
     viewerAttachment?.let { link ->
         ResourceImageViewerDialog(
+            projectId = projectId,
             resourceId = link.toCardId,
             altText = link.label ?: "Photo",
             onDismiss = { viewerAttachment = null },
@@ -190,6 +205,23 @@ fun ResourcesScreen(
 
     if (showAttachSheet) {
         ModalBottomSheet(onDismissRequest = { showAttachSheet = false }) {
+            ListItem(
+                headlineContent = { Text("Existing resource") },
+                supportingContent = { Text("Attach a resource already in this project") },
+                modifier = Modifier.clickable {
+                    showAttachSheet = false
+                    existingResources = null
+                    showExistingSheet = true
+                    scope.launch {
+                        runCatching { withContext(Dispatchers.IO) { HolderNative.listResources(projectId) } }
+                            .onSuccess { existingResources = it }
+                            .onFailure {
+                                showExistingSheet = false
+                                snackbarHostState.showSnackbar("Couldn't load resources: ${it.message}")
+                            }
+                    }
+                },
+            )
             ListItem(
                 headlineContent = { Text("Photo") },
                 supportingContent = { Text("Pick from your photos") },
@@ -228,6 +260,57 @@ fun ResourcesScreen(
         }
     }
 
+    if (showExistingSheet) {
+        ModalBottomSheet(onDismissRequest = { showExistingSheet = false }) {
+            val attachedIds = (linksState as? LoadState.Success)?.value?.outgoing
+                ?.filter { it.toType == "resource" && it.kind == "attachment" }
+                ?.map { it.toCardId }?.toSet().orEmpty()
+            val available = existingResources?.filter { it.resourceId !in attachedIds }
+            when {
+                available == null -> CircularProgressIndicator(Modifier.padding(24.dp))
+                available.isEmpty() -> Text("No other resources in this project", Modifier.padding(24.dp))
+                else -> LazyColumn {
+                    items(available, key = { it.resourceId }) { resource ->
+                        ListItem(
+                            headlineContent = { Text(resource.label.ifEmpty { "Resource" }) },
+                            modifier = Modifier.clickable {
+                                showExistingSheet = false
+                                scope.launch {
+                                    runCatching {
+                                        withContext(Dispatchers.IO) {
+                                            HolderNative.attachResource(projectId, cardId, resource.resourceId, resource.label)
+                                        }
+                                    }.onSuccess { localRefreshKey++ }
+                                        .onFailure { snackbarHostState.showSnackbar("Couldn't attach: ${it.message}") }
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    detachCandidate?.let { link ->
+        AlertDialog(
+            onDismissRequest = { detachCandidate = null },
+            title = { Text("Detach resource?") },
+            text = { Text("The attachment entry will be removed. Links in the card text and the stored resource remain.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    detachCandidate = null
+                    scope.launch {
+                        runCatching {
+                            withContext(Dispatchers.IO) { HolderNative.detachResource(projectId, cardId, link.toCardId) }
+                        }.onSuccess { localRefreshKey++ }
+                            .onFailure { snackbarHostState.showSnackbar("Couldn't detach: ${it.message}") }
+                    }
+                }) { Text("Detach") }
+            },
+            dismissButton = { TextButton(onClick = { detachCandidate = null }) { Text("Cancel") } },
+        )
+    }
+
     AttachFlowConnectDialog(attachFlow)
 }
 
@@ -238,18 +321,19 @@ fun ResourcesScreen(
  * by the Resource's own recorded media type, not by guesswork. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AttachmentRow(link: HolderOutgoingLink, onOpenImage: () -> Unit) {
+private fun AttachmentRow(projectId: String, link: HolderOutgoingLink, onOpenImage: () -> Unit, onDetach: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var openError by remember(link.toCardId) { mutableStateOf<String?>(null) }
     val displayName = link.label ?: "Attachment"
-    val kind = rememberResourceAttachmentKind(link.toCardId, displayName)
+    val kind = rememberResourceAttachmentKind(projectId, link.toCardId, displayName)
 
     Column {
         ListItem(
             leadingContent = {
                 if (kind is ResourceAttachmentKind.Image) {
                     ResourceImage(
+                        projectId = projectId,
                         resourceId = link.toCardId,
                         altText = displayName,
                         modifier = Modifier.size(48.dp).clip(MaterialTheme.shapes.small),
@@ -263,6 +347,7 @@ private fun AttachmentRow(link: HolderOutgoingLink, onOpenImage: () -> Unit) {
                 }
             },
             headlineContent = { Text(displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            trailingContent = { TextButton(onClick = onDetach) { Text("Detach") } },
             modifier = Modifier.combinedClickable(
                 onClick = {
                     if (kind is ResourceAttachmentKind.Image) {
@@ -270,12 +355,12 @@ private fun AttachmentRow(link: HolderOutgoingLink, onOpenImage: () -> Unit) {
                     } else {
                         openError = null
                         scope.launch {
-                            runCatching { openResourceExternally(context, link.toCardId) }
+                            runCatching { openResourceExternally(context, projectId, link.toCardId) }
                                 .onFailure { failure -> openError = failure.message ?: failure::class.java.simpleName }
                         }
                     }
                 },
-                onLongClick = {},
+                onLongClick = onDetach,
             ),
         )
         openError?.let { message ->

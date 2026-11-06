@@ -1,4 +1,5 @@
 #include "http_test_helpers.h"
+#include "project/ProjectRepo.h"
 
 #include <fstream>
 
@@ -73,15 +74,8 @@ TEST_CASE("HTTP project privacy-check reports unsafe plaintext blobs", "[http]")
   REQUIRE(checked["data"]["check"]["unsafe_paths"].is_array());
   REQUIRE(checked["data"]["check"]["unsafe_paths"][0] == "cards/ab/plain.md");
 
-  http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::patch,
-      "/projects/proj-1",
-      {{"privacy_mode", "plain"}, {"updated_at", 20}},
-      boost::beast::http::status::ok
-  );
+  // The API sets a project's privacy only when it is made, so the test changes it underneath.
+  holder::project::ProjectRepo(db).update_privacy_mode("proj-1", "plain", 20);
 
   const auto checked_plain = http_json_request(
       bound.bind,

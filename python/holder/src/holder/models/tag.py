@@ -9,12 +9,11 @@ from typing import TYPE_CHECKING, Any, Self
 from ..collections import Collection
 from ..exceptions import NotFoundError, ProtocolError
 from ..generated.api.default import (
-    delete_cards_card_id_tags,
-    get_cards_card_id,
+    delete_projects_project_id_cards_card_id_tags_tag,
+    get_projects_project_id_cards_card_id,
     get_projects_project_id_tags,
-    post_cards_card_id_tags,
+    put_projects_project_id_cards_card_id_tags_tag,
 )
-from ..generated.models import CardTagMutationRequest
 
 if TYPE_CHECKING:
     from .card import Card, CardCollection
@@ -56,12 +55,11 @@ class CardTagCollection(TagCollection):
         return type(self)(self._card)
 
     def _fetch_page(self) -> tuple[list[Tag], None]:
-        data = self._holder._call(get_cards_card_id, self._card.id)
-        if data.project_id != self._project.id:
-            raise NotFoundError(404, "not_found", "Card not found in this project")
-        # The generated client retains the daemon's tag array as an additional
-        # property because CardData does not yet declare it explicitly.
-        names = data.additional_properties.get("tags")
+        data = self._holder._call(
+            get_projects_project_id_cards_card_id, self._project.id, self._card.id
+        )
+        # The generated model does not check the array's item types.
+        names = data.tags
         if not isinstance(names, list) or any(
             not isinstance(name, str) or not name for name in names
         ):
@@ -69,22 +67,25 @@ class CardTagCollection(TagCollection):
         return [Tag(name, self._project) for name in names], None
 
     def add(self, name: str) -> Self:
-        """Add a tag and refresh the card. Validation and normalization are server-side."""
-        return self._mutate(post_cards_card_id_tags, name)
+        """Add a tag and refresh the card. Validation and normalization are server-side.
+
+        A card that already carries the tag, anywhere in its content, is left as it is.
+        """
+        return self._mutate(put_projects_project_id_cards_card_id_tags_tag, name)
 
     def remove(self, name: str) -> Self:
-        """Remove a trailing-line tag; body mentions remain until content is edited."""
-        return self._mutate(delete_cards_card_id_tags, name)
+        """Remove a tag from the card's trailing tag line, and refresh the card.
+
+        A card that does not carry the tag is left as it is. Prose is never rewritten,
+        so a card that would still carry the tag in its prose raises an APIError
+        with status 409 until its content is edited.
+        """
+        return self._mutate(delete_projects_project_id_cards_card_id_tags_tag, name)
 
     def _mutate(self, endpoint: Any, name: str) -> Self:
         if not isinstance(name, str):
             raise TypeError("name must be a string")
-        self._holder._call(
-            endpoint,
-            self._card.id,
-            body=CardTagMutationRequest(project_id=self._project.id, tag=name),
-            write=True,
-        )
+        self._holder._call(endpoint, self._project.id, self._card.id, name, write=True)
         # Invalidate even if the following read fails. The write is never retried.
         self.refresh()
         self._card.refresh()

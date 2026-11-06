@@ -41,6 +41,9 @@ Use the native Android testing stack. Do not duplicate libholder/C API tests in 
 
    - Do not test every API level.
 
+   To run the instrumentation tests on a local emulator, see
+   [Running instrumentation tests on a local emulator](#running-instrumentation-tests-on-a-local-emulator).
+
 7. **Screenshot tests**
    - Add after core behavioural tests.
    - Capture major screens in light/dark mode and useful size/font configurations.
@@ -62,3 +65,73 @@ Use the native Android testing stack. Do not duplicate libholder/C API tests in 
 Target testing pyramid:
 
 `C API tests >> Kotlin tests > Compose tests > JNI/integration tests > full-app E2E tests`
+
+## Running instrumentation tests on a local emulator
+
+These steps run `androidTest` classes on the Pixel 2 API 30 emulator that
+Gradle manages, on a Fedora Wayland desktop.
+
+**SDK tools.** The commands below assume `ANDROID_HOME` names the SDK
+(`sdk.dir` in `local.properties`) and that `adb` is on `PATH`:
+
+```bash
+export ANDROID_HOME="$HOME/Android/Sdk"
+export PATH="$ANDROID_HOME/platform-tools:$PATH"
+```
+
+**The AVD.** It is the `pixel2Api30` managed device in `app/build.gradle.kts`.
+Gradle creates it, with its system image, the first time it is needed:
+
+```bash
+./gradlew :app:pixel2Api30Setup
+```
+
+Gradle keeps it under `~/.android/avd/gradle-managed`, so a plain
+`emulator -list-avds` shows nothing. Check it is there with:
+
+```bash
+ANDROID_AVD_HOME="$HOME/.android/avd/gradle-managed" "$ANDROID_HOME/emulator/emulator" -list-avds
+```
+
+**Starting it.** Gradle's own `pixel2Api30DebugAndroidTest` snapshot setup,
+and headless launches with `swiftshader_indirect` or `software` graphics,
+crash in the emulator's render thread (exit 139). Launch it directly with host
+graphics and the session's Xwayland credentials, which `ps` shows as Xwayland's
+`-auth` argument:
+
+```bash
+export ANDROID_AVD_HOME="$HOME/.android/avd/gradle-managed"
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export WAYLAND_DISPLAY=wayland-0
+export DISPLAY=:0
+export XAUTHORITY="$(ps -C Xwayland -o args= | sed -n 's/.*-auth \([^ ]*\).*/\1/p' | head -1)"
+export QT_QPA_PLATFORM=xcb
+"$ANDROID_HOME/emulator/emulator" -avd dev30_aosp_atd_x86_64_Pixel_2 \
+  -no-window -no-audio -no-boot-anim -gpu host -no-snapshot
+```
+
+Keep that running, and in another terminal wait until it has booted:
+
+```bash
+adb -s emulator-5554 wait-for-device shell \
+  'while [ -z "$(getprop sys.boot_completed)" ]; do sleep 2; done'
+```
+
+**Which device.** `adb devices` lists every emulator and connected phone. With
+more than one, pass the emulator's serial (usually `emulator-5554`) with `-s`,
+as below, or set `ANDROID_SERIAL`.
+
+**Running the tests.** Build the x86_64 APKs, install both, and run the
+instrumentation class you need:
+
+```bash
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -Pholder.android.abis=x86_64
+adb -s emulator-5554 install -r app/build/outputs/apk/debug/app-debug.apk
+adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb -s emulator-5554 shell am instrument -w \
+  -e class team.holder.android.HolderNativeIntegrationTest \
+  team.holder.android.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+Stop the emulator with `adb -s emulator-5554 emu kill`. These steps passed all
+41 tests in `HolderNativeIntegrationTest` on the API 30 AVD.

@@ -20,7 +20,7 @@ private HolderLinux.GitProviderCatalogEntry make_entry(string id, string name, s
 }
 
 private HolderLinux.GitPushResult make_push(string status, string error_message = "") {
-    return new HolderLinux.GitPushResult("p1", "git@x:y/z.git", "main", status, 0, 0, "abc", "", error_message, "");
+    return new HolderLinux.GitPushResult("p1", "git@x:y/z.git", "main", status, 0, 0, "abc", error_message, "");
 }
 
 // --- GitSyncProjectState -------------------------------------------------

@@ -19,9 +19,12 @@ Holder Kit embeds libholder in the Python process. It does not talk to a running
 
 Keep reusable storage and domain behavior in core (`../../core`). The Python
 layer calls core's semantic operations, including tag and milestone edits, rather
-than reimplementing them by parsing or rewriting card files. Kit uses only core's
-C API; see [AGENTS.md](../AGENTS.md). A change that needs both goes in one pull
-request.
+than reimplementing them by parsing or rewriting card files. Kit uses only
+core's generated C API, `#include <holder/holder_api.h>`. Its native extension must not
+include core's other headers or refer to files in `../../core` by path from code,
+CMake or scripts. Kit consumes core's installed header, CMake package and schema;
+CI checks this boundary by building against a core SDK from the same commit.
+A change that needs both goes in one pull request, with core's own tests.
 
 The package ships the schema from the selected core source or SDK as
 `holderkit/_schema.sql`. Installed packages must work without a source checkout.
@@ -102,10 +105,8 @@ dependencies, ownership checks and failure behavior where relevant.
 
 ## Clone build requirements
 
-Clone uses core's `holder_project_import` API, which the core beside Kit
-provides. Building against an older core SDK without project import support
-still makes clone raise `NotImplementedError` before creating storage or
-contacting the remote.
+Clone uses core's generated `holder_import_project` API. Build Kit against a
+core SDK from the same revision so this operation is available.
 
 ## Native sanitizers
 
@@ -151,9 +152,7 @@ former `holder` distribution and replace `import holder` with `import holderkit`
 Dependency declarations use `holder-kit`, `holder-kit[pandas]` or
 `holder-kit[graph]`. There is no compatibility import shim.
 
-## Filtered card batch build requirements
+## Card batches
 
-Filtered `project.cards(...)` batches use Core's `holder_card_collection_page_json`
-API, advertised by `HOLDER_HAS_CARD_COLLECTION_PAGE`, which the core beside Kit
-provides. Existing unfiltered batches work with older SDKs; requesting filters
-or explicit ordering without this API raises `NotImplementedError`.
+`project.cards(...)` batches, filtered or not, page through Core's generated
+`list_cards` operation, which Kit builds against from the same commit.

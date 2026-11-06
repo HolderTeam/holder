@@ -4,8 +4,9 @@
 Core must build on its own, so nothing in core/ may name the directories beside it. The daemon,
 holderctl, the shared platform code and Holder Kit use core only through what core installs (its
 headers, CMake package and resources), so their code, CMake and scripts may not name files in
-core/. Kit and the Android app go further and use only core's stable C API, so their C and C++
-sources may include no other core header. The builds against core's SDK catch includes of anything core does not install; this
+core/. Kit and the Android app go further and use only core's public C API: generated
+holder_api.h for operations and host callbacks. Their C and C++ sources may include
+no other core header. The builds against core's SDK catch includes of anything core does not install; this
 check catches the paths that a build in one tree would not notice. Documentation is not checked."""
 
 from pathlib import Path
@@ -25,8 +26,8 @@ INTO_CORE = re.compile(r"(?:\.\./)+core/(?!\.\.)\S|(?:\.\./)+holder-core\b|(?<![
 # and Windows Debug presets point HOLDER_CORE_SOURCE_DIR at ../core itself, Kit's developer script
 # at ../../core, and the Android build at core/ of this repository, not at a file inside it).
 SOURCE_DIR = re.compile(r"""(?:\.\./)+core["']?\s*$|(?:\.\./)+core["'),]|(?:\.\./)+core\s*&&|(?:\.\./)+core/CMakeLists\.txt""")
-# Any core header other than the C API's.
-NOT_C_API = re.compile(r"""#\s*include\s*[<"]holder/(?!holder\.h[>"])""")
+# Any core header other than the generated C API.
+NOT_C_API = re.compile(r"""#\s*include\s*[<"]holder/(?!holder_api\.h[>"])""")
 
 
 def checked_files(top):
@@ -58,7 +59,7 @@ def main():
             print(f"{title}:")
             print("\n".join(f"  {line}" for line in lines))
     if failed:
-        print("Use core's installed interface instead; see daemon/AGENTS.md, python/kit/AGENTS.md and apps/mobile/android/AGENTS.md.", file=sys.stderr)
+        print("Use core's installed interface instead; see daemon/docs/development.md, python/kit/docs/development.md and apps/mobile/android/README.md.", file=sys.stderr)
         return 1
     print("Core boundary: no paths across it in either direction.")
     return 0

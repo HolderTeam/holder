@@ -78,7 +78,7 @@ notes="Holder core's SDK (libholder), built from HolderTeam/holder commit $commi
 $about sdk-index.json lists each archive's size and SHA-256 checksum."
 
 gh release create "$tag" --repo "$repo" --target main --draft "${flags[@]}" \
-  --title "$title" --notes "$notes" "$assets"/*
+  --title "$(date -u +%Y-%m-%d-%H-%M) $title" --notes "$notes" "$assets"/*
 read -r id draft < <(release)
 gh api -X PATCH "repos/$repo/releases/$id" -F draft=false -f make_latest="$latest" > /dev/null
 echo "Published https://github.com/$repo/releases/tag/$tag"

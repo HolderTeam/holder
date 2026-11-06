@@ -5,138 +5,125 @@
 #endif
 
 #include "ai/AiRunRepo.h"
-#include "api/routes/ai/runs/AiRunQueryRoutes.h"
+#include "api/GeneratedRoutes.h"
 #include "http_test_helpers.h"
 
 #include <boost/beast/http.hpp>
 #include <nlohmann/json.hpp>
 
+#include <string>
+#include <utility>
+
 namespace {
 
 namespace http = boost::beast::http;
 
-} // namespace
-
-TEST_CASE("AiRunQueryRoutes list route validates params and supports project_id", "[http]") {
-  const auto dir = holder::test::make_temp_dir();
-  auto db = holder::test::open_db_with_schema(dir / "holder.db");
-
+std::pair<http::status, nlohmann::json> get(holder::platform::Db& db, const std::string& target) {
+  http::request<http::string_body> req{http::verb::get, target, 11};
   http::response<http::string_body> res;
-  auto missing = holder::api::routes::ai::runs::handle_ai_runs_list_route(
-      [](const std::string&) {
-        return std::string();
-      },
-      res,
-      db
-  );
-  REQUIRE(missing.handled == true);
-  REQUIRE(res.result() == http::status::bad_request);
-  const auto missing_payload = nlohmann::json::parse(res.body());
-  REQUIRE(missing_payload["error"]["message"] == "Missing project_id or thread_id.");
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+  return {res.result(), nlohmann::json::parse(res.body())};
+}
 
-  db.exec("INSERT INTO projects(project_id, name, root_path, created_at, updated_at) "
-          "VALUES('proj-1', 'Project', '/tmp/project', 1, 1);");
-
-  holder::ai::AiRunRepo repo(db);
+holder::model::AiRun make_run(const std::string& run_id) {
   holder::model::AiRun run;
-  run.run_id = "run-1";
+  run.run_id = run_id;
   run.project_id = "proj-1";
   run.mode = "auto";
   run.prompt = "hello";
   run.status = "completed";
   run.created_at = 1;
   run.updated_at = 2;
-  repo.create(run);
-
-  auto listed = holder::api::routes::ai::runs::handle_ai_runs_list_route(
-      [](const std::string& key) {
-        return key == "project_id" ? std::string("proj-1") : std::string();
-      },
-      res,
-      db
-  );
-  REQUIRE(listed.handled == true);
-  REQUIRE(res.result() == http::status::ok);
-  const auto list_payload = nlohmann::json::parse(res.body());
-  REQUIRE(list_payload["ok"] == true);
-  REQUIRE(list_payload["data"].is_array());
-  REQUIRE(list_payload["data"].size() == 1);
-  REQUIRE(list_payload["data"][0]["run_id"] == "run-1");
+  return run;
 }
 
-TEST_CASE("AiRunQueryRoutes get route handles fallback policy parsing and not_found", "[http]") {
+} // namespace
+
+TEST_CASE("Generated AI run listing validates its scope", "[http]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+
+  for (const std::string target :
+       {"/ai/runs", "/ai/runs?project_id=", "/ai/runs?thread_id=", "/ai/runs?project_id=&thread_id="}) {
+    CAPTURE(target);
+    const auto [status, payload] = get(db, target);
+    REQUIRE(status == http::status::bad_request);
+    REQUIRE(payload["error"]["code"] == "bad_request");
+    REQUIRE(payload["error"]["message"] == "Missing project_id or thread_id.");
+  }
+
+  db.exec("INSERT INTO projects(project_id, name, root_path, created_at, updated_at) "
+          "VALUES('proj-1', 'Project', '/tmp/project', 1, 1);");
+  db.exec("INSERT INTO ai_threads(thread_id, project_id, title, created_at, updated_at) "
+          "VALUES('thread-1', 'proj-1', 'Thread', 1, 1);");
+  holder::ai::AiRunRepo repo(db);
+  auto run = make_run("run-1");
+  run.router_model = "auto-local::qwen-fast";
+  run.chosen_model = "auto-local::qwen-strong";
+  repo.create(run);
+  auto threaded = make_run("run-2");
+  threaded.thread_id = "thread-1";
+  repo.create(threaded);
+
+  const auto [status, listed] = get(db, "/ai/runs?project_id=proj-1");
+  REQUIRE(status == http::status::ok);
+  REQUIRE(listed["ok"] == true);
+  REQUIRE(listed["data"].size() == 2);
+  const auto& first = listed["data"][0]["run_id"] == "run-1" ? listed["data"][0] : listed["data"][1];
+  REQUIRE(first["router_runner_id"] == "auto-local");
+  REQUIRE(first["chosen_runner_id"] == "auto-local");
+  REQUIRE(first["thread_id"].is_null());
+  REQUIRE(first["error"].is_null());
+  REQUIRE(first.size() == 18);
+
+  // thread_id wins when both are given.
+  const auto [thread_status, by_thread] =
+      get(db, "/ai/runs?project_id=proj-1&thread_id=thread-1");
+  REQUIRE(thread_status == http::status::ok);
+  REQUIRE(by_thread["data"].size() == 1);
+  REQUIRE(by_thread["data"][0]["run_id"] == "run-2");
+  REQUIRE(by_thread["data"][0]["router_runner_id"].is_null());
+}
+
+TEST_CASE("Generated AI run fetch handles fallback policy parsing and not_found", "[http]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   db.exec("INSERT INTO projects(project_id, name, root_path, created_at, updated_at) "
           "VALUES('proj-1', 'Project', '/tmp/project', 1, 1);");
 
   holder::ai::AiRunRepo repo(db);
-
-  holder::model::AiRun legacy;
-  legacy.run_id = "run-legacy";
-  legacy.project_id = "proj-1";
-  legacy.mode = "auto";
-  legacy.prompt = "legacy";
+  auto legacy = make_run("run-legacy");
   legacy.ranked_json = std::string("{\"path\":\"cloud\",\"attempts\":[]}");
-  legacy.status = "completed";
-  legacy.created_at = 1;
-  legacy.updated_at = 2;
   repo.create(legacy);
-
-  holder::model::AiRun malformed;
-  malformed.run_id = "run-malformed";
-  malformed.project_id = "proj-1";
-  malformed.mode = "auto";
-  malformed.prompt = "bad";
+  auto malformed = make_run("run-malformed");
   malformed.policy_trace_json = std::string("{");
   malformed.ranked_json = std::string("[1,2,3]");
   malformed.status = "failed";
-  malformed.created_at = 1;
-  malformed.updated_at = 2;
   repo.create(malformed);
 
-  http::response<http::string_body> res;
-  auto got_legacy =
-      holder::api::routes::ai::runs::handle_ai_runs_get_route("/ai/runs/run-legacy", res, db);
-  REQUIRE(got_legacy.handled == true);
-  REQUIRE(res.result() == http::status::ok);
-  const auto legacy_payload = nlohmann::json::parse(res.body());
+  const auto [legacy_status, legacy_payload] = get(db, "/ai/runs/run-legacy");
+  REQUIRE(legacy_status == http::status::ok);
   REQUIRE(legacy_payload["data"]["policy_trace"].is_object());
   REQUIRE(legacy_payload["data"]["policy_trace"]["path"] == "cloud");
+  REQUIRE(legacy_payload["data"]["ranked_json"] == "{\"path\":\"cloud\",\"attempts\":[]}");
 
-  auto got_malformed =
-      holder::api::routes::ai::runs::handle_ai_runs_get_route("/ai/runs/run-malformed", res, db);
-  REQUIRE(got_malformed.handled == true);
-  REQUIRE(res.result() == http::status::ok);
-  const auto malformed_payload = nlohmann::json::parse(res.body());
+  const auto [malformed_status, malformed_payload] = get(db, "/ai/runs/run-malformed");
+  REQUIRE(malformed_status == http::status::ok);
   REQUIRE(malformed_payload["data"]["policy_trace"].is_null());
+  REQUIRE(malformed_payload["data"]["policy_trace_json"] == "{");
 
-  auto not_found =
-      holder::api::routes::ai::runs::handle_ai_runs_get_route("/ai/runs/does-not-exist", res, db);
-  REQUIRE(not_found.handled == true);
-  REQUIRE(res.result() == http::status::not_found);
+  const auto [missing_status, missing_payload] = get(db, "/ai/runs/does-not-exist");
+  REQUIRE(missing_status == http::status::not_found);
+  REQUIRE(missing_payload["error"]["message"] == "Run not found.");
 
-  auto empty_id = holder::api::routes::ai::runs::handle_ai_runs_get_route("/ai/runs/", res, db);
-  REQUIRE(empty_id.handled == true);
-  REQUIRE(res.result() == http::status::not_found);
+  http::request<http::string_body> empty_id{http::verb::get, "/ai/runs/", 11};
+  http::response<http::string_body> res;
+  REQUIRE_FALSE(holder::api::dispatch_generated_routes(empty_id, res, db));
 }
 
-TEST_CASE("AiRunQueryRoutes list/get return bad_request when DB access throws", "[http]") {
+TEST_CASE("Generated AI run reads report storage failures as internal errors", "[http]") {
   holder::platform::Db unopened_db;
-  http::response<http::string_body> res;
-
-  auto list_out = holder::api::routes::ai::runs::handle_ai_runs_list_route(
-      [](const std::string& key) {
-        return key == "project_id" ? std::string("proj-1") : std::string();
-      },
-      res,
-      unopened_db
-  );
-  REQUIRE(list_out.handled == true);
-  REQUIRE(res.result() == http::status::bad_request);
-
-  auto get_out =
-      holder::api::routes::ai::runs::handle_ai_runs_get_route("/ai/runs/run-1", res, unopened_db);
-  REQUIRE(get_out.handled == true);
-  REQUIRE(res.result() == http::status::bad_request);
+  REQUIRE(get(unopened_db, "/ai/runs?project_id=proj-1").first ==
+          http::status::internal_server_error);
+  REQUIRE(get(unopened_db, "/ai/runs/run-1").first == http::status::internal_server_error);
 }

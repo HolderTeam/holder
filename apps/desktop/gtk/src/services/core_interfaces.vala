@@ -27,17 +27,18 @@ public interface IHolderApi : Object {
                                                                  int limit = 0) throws Error;
     public abstract async CardContextData get_card_context(string project_id,
                                                            string? parent_card_id = null) throws Error;
-    public abstract async CardDetail get_card(string card_id) throws Error;
+    public abstract async CardDetail get_card(string project_id, string card_id) throws Error;
     public abstract async Gee.ArrayList<TagCount> list_project_tags(string project_id) throws Error;
     public abstract async Gee.ArrayList<CardSummary> list_cards_with_tag(string project_id,
                                                                          string tag) throws Error;
-    public abstract async Gee.ArrayList<CardLink> list_card_links(string card_id) throws Error;
-    public abstract async Gee.ArrayList<CardLink> list_card_backlinks(string card_id) throws Error;
+    public abstract async Gee.ArrayList<LinkKindLabels> list_link_kinds() throws Error;
+    public abstract async Gee.ArrayList<CardLink> list_card_links(string project_id, string card_id) throws Error;
+    public abstract async Gee.ArrayList<CardLink> list_card_backlinks(string project_id, string card_id) throws Error;
     public abstract async Gee.ArrayList<ProjectResource> list_resources(string project_id) throws Error;
     public abstract async Gee.ArrayList<TrashItem> list_trash_items(string project_id,
                                                                      string type = "all") throws Error;
     public abstract async void empty_trash(string project_id, string type = "all") throws Error;
-    public abstract async void restore_trash_item(string item_type, string item_id) throws Error;
+    public abstract async void restore_trash_item(string project_id, string item_type, string item_id) throws Error;
     public abstract async void hard_delete_trash_item(string item_type, string item_id) throws Error;
     public abstract async string create_resource(string project_id,
                                                  string kind,
@@ -45,27 +46,31 @@ public interface IHolderApi : Object {
                                                  string label,
                                                  string? desc = null,
                                                  Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error;
-    public abstract async void update_resource(string resource_id,
+    public abstract async void update_resource(string project_id,
+                                               string resource_id,
                                                string? kind,
                                                string? uri,
                                                string? label,
                                                string? desc,
                                                int64 updated_at,
                                                Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error;
-    public abstract async void delete_resource(string resource_id) throws Error;
-    public abstract async CardLink create_card_link(string from_card_id,
+    public abstract async void delete_resource(string project_id, string resource_id) throws Error;
+    public abstract async CardLink create_card_link(string project_id,
+                                                    string from_card_id,
                                                     string to_card_id,
                                                     string kind = "ref",
                                                     string? label = null,
                                                     string to_type = "card") throws Error;
-    public abstract async void delete_card_link(string from_card_id,
+    public abstract async void delete_card_link(string project_id,
+                                                string from_card_id,
                                                 string to_card_id,
                                                 string kind,
-                                                string to_type = "card") throws Error;
+                                                string to_type = "card",
+                                                string? target_project_id = null) throws Error;
     public abstract async Gee.ArrayList<SearchCardResult> search_cards(string project_id,
                                                                        string query_text,
                                                                        int limit = 30) throws Error;
-    public abstract async AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error;
+    public abstract async AiCapabilitiesInfo get_ai_capabilities(string? runner_id = null) throws Error;
     public abstract async AiStatusInfo get_ai_status() throws Error;
     public abstract async string start_ai_runner_pull(string model_tag, string? runner_id = null) throws Error;
     public abstract async Gee.ArrayList<AiRunnerInfo> list_ai_runners() throws Error;
@@ -103,11 +108,9 @@ public interface IHolderApi : Object {
                                                                          string? basis_commit = null) throws Error;
     public abstract async Gee.ArrayList<GitProviderCatalogEntry> list_git_provider_catalog() throws Error;
     public abstract async void set_project_git_remote(string project_id,
-                                                      string? git_remote_url,
-                                                      int64 updated_at) throws Error;
+                                                      string? git_remote_url) throws Error;
     public abstract async GitTestRemoteResult test_project_git_remote(string project_id,
-                                                                      string? remote_url = null,
-                                                                      string branch = "") throws Error;
+                                                                      string? remote_url = null) throws Error;
     public abstract async GitPushResult push_project_git(string project_id,
                                                          string branch = "",
                                                          bool set_upstream = true) throws Error;
@@ -124,18 +127,20 @@ public interface IHolderApi : Object {
                                              string title,
                                              string content,
                                              string? parent_card_id = null) throws Error;
-    public abstract async void update_card(string card_id,
+    public abstract async void update_card(string project_id,
+                                           string card_id,
                                            string title,
                                            string content,
                                            int64 updated_at) throws Error;
-    public abstract async void update_card_position(string card_id,
+    public abstract async void update_card_position(string project_id,
+                                                    string card_id,
                                                     string? parent_card_id,
                                                     double sort_key,
                                                     int64 updated_at) throws Error;
     // trash_subtree sends every live descendant to Trash too; otherwise children move up a level.
-    public abstract async void delete_card(string card_id, bool trash_subtree = false) throws Error;
-    public abstract async CardMoveResult move_card(string card_id,
-                                                   string project_id,
+    public abstract async void delete_card(string project_id, string card_id, bool trash_subtree = false) throws Error;
+    public abstract async CardMoveResult move_card(string project_id,
+                                                   string card_id,
                                                    string intent,
                                                    string? target_card_id = null,
                                                    string? parent_card_id = null) throws Error;
@@ -178,21 +183,24 @@ public interface IMilestoneApi : Object {
     public abstract async ProjectCalendar get_project_calendar(string project_id,
                                                                int64 from_epoch,
                                                                int64 to_epoch) throws Error;
-    public abstract async Gee.ArrayList<Milestone> list_card_milestones(string card_id) throws Error;
-    public abstract async Milestone add_card_milestone(string card_id,
+    public abstract async Gee.ArrayList<Milestone> list_card_milestones(string project_id,
+                                                                        string card_id) throws Error;
+    public abstract async Milestone add_card_milestone(string project_id,
+                                                       string card_id,
                                                        int64 start_at,
                                                        int64? end_at,
                                                        bool all_day,
                                                        string? kind,
                                                        string? description) throws Error;
-    public abstract async Milestone update_card_milestone(string card_id,
-                                                          string milestone_id,
+    // Changes the milestone's start and end, keeping its other dates.
+    public abstract async Milestone update_card_milestone(Milestone milestone,
                                                           int64 start_at,
                                                           int64? end_at,
                                                           bool all_day,
                                                           string? kind,
                                                           string? description) throws Error;
-    public abstract async bool remove_card_milestone(string card_id,
+    public abstract async void remove_card_milestone(string project_id,
+                                                     string card_id,
                                                      string milestone_id) throws Error;
 }
 

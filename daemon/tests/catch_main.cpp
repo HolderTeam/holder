@@ -1,9 +1,17 @@
 #if __has_include(<catch2/catch_session.hpp>)
 #include <catch2/catch_session.hpp>
+#else
+#define CATCH_CONFIG_RUNNER
+#include <catch2/catch.hpp>
+#endif
 
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <iostream>
+#include <stdexcept>
 #include <string>
+#include <system_error>
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -16,18 +24,46 @@
 
 namespace {
 
+std::filesystem::path isolate_temp_dir() {
+#ifdef _WIN32
+  const int pid = static_cast<int>(GetCurrentProcessId());
+#else
+  const int pid = static_cast<int>(::getpid());
+#endif
+  const auto started_at = std::chrono::steady_clock::now().time_since_epoch().count();
+  const auto root = std::filesystem::temp_directory_path() /
+                    ("holder_daemon_test_" + std::to_string(pid) + "-" + std::to_string(started_at));
+  if (!std::filesystem::create_directory(root)) {
+    throw std::runtime_error("daemon test scratch directory already exists: " + root.string());
+  }
+#ifdef _WIN32
+  _putenv_s("TMP", root.string().c_str());
+  _putenv_s("TEMP", root.string().c_str());
+#else
+  setenv("TMPDIR", root.string().c_str(), 1);
+#endif
+  return root;
+}
+
+void remove_isolated_temp_dir(const std::filesystem::path& root) {
+  if (std::getenv("HOLDER_TEST_KEEP_TMP")) {
+    std::cerr << "Retained daemon test scratch directory: " << root << '\n';
+    return;
+  }
+  std::error_code ec;
+  std::filesystem::remove_all(root, ec);
+  if (ec) {
+    std::cerr << "Could not remove daemon test scratch directory " << root << ": "
+              << ec.message() << '\n';
+  }
+}
+
 void ensure_test_keystore_env() {
   if (std::getenv("HOLDER_TEST_KEYSTORE_DIR")) {
     return;
   }
 
   std::filesystem::path dir = std::filesystem::temp_directory_path() / "holder_test_keystore";
-#ifdef _WIN32
-  const int pid = static_cast<int>(GetCurrentProcessId());
-#else
-  const int pid = static_cast<int>(::getpid());
-#endif
-  dir /= std::to_string(pid);
   std::filesystem::create_directories(dir);
 
 #ifdef _WIN32
@@ -51,12 +87,6 @@ void ensure_test_xdg_env(const char* key, const char* leaf) {
   }
 
   std::filesystem::path dir = std::filesystem::temp_directory_path() / "holder_test_xdg";
-#ifdef _WIN32
-  const int pid = static_cast<int>(GetCurrentProcessId());
-#else
-  const int pid = static_cast<int>(::getpid());
-#endif
-  dir /= std::to_string(pid);
   dir /= leaf;
   std::filesystem::create_directories(dir);
 
@@ -88,13 +118,12 @@ int main(int argc, char* argv[]) {
 #ifdef _WIN32
   suppress_windows_error_dialogs();
 #endif
+  const auto temp_root = isolate_temp_dir();
   ensure_test_keystore_env();
   ensure_test_xdg_env("XDG_DATA_HOME", "data");
   ensure_test_xdg_env("XDG_CONFIG_HOME", "config");
   ensure_test_xdg_env("XDG_CACHE_HOME", "cache");
-  return Catch::Session().run(argc, argv);
+  const int result = Catch::Session().run(argc, argv);
+  remove_isolated_temp_dir(temp_root);
+  return result;
 }
-#else
-#define CATCH_CONFIG_MAIN
-#include <catch2/catch.hpp>
-#endif

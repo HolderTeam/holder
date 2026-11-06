@@ -1,5 +1,7 @@
 #include "resource/ResourceRepo.h"
 
+#include "model/ConflictError.h"
+
 #include <sqlite3.h>
 
 #include <stdexcept>
@@ -81,7 +83,7 @@ ResourceRepo::ResourceRepo(holder::platform::Db& db)
 
 void ResourceRepo::add(const holder::model::Resource& resource) {
   if (get(resource.resource_id).has_value()) {
-    throw std::runtime_error("conflict: resource_id already exists");
+    throw holder::model::ConflictError("resource_id already exists");
   }
   put_bundle(holder::model::ResourceBundle{resource, {}});
 }

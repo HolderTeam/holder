@@ -1,7 +1,6 @@
 #pragma once
 
-#include <optional>
-#include <string>
+#include "api/Contract.h"
 
 namespace holder::model {
 
@@ -11,16 +10,8 @@ enum class CardScope {
   Either,
 };
 
-struct Card {
-  std::string card_id;
-  std::string project_id;
-  std::string title;
-  std::string rel_path;
-  std::optional<std::string> parent_card_id;
-  double sort_key = 0.0;
-  long long created_at = 0;
-  long long updated_at = 0;
-  std::optional<long long> deleted_at;
-};
+// A card's metadata, as stored: the contract's CardMetadata (contract/interface/cards.py), so the
+// record core stores and the record the contract describes are one type.
+using Card = holder::contract::CardMetadata;
 
 } // namespace holder::model

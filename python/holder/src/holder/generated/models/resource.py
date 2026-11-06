@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
@@ -17,16 +16,17 @@ T = TypeVar("T", bound="Resource")
 
 @_attrs_define
 class Resource:
-    """
+    """A resource in a project, with its files.
+
     Attributes:
         resource_id (str):
         project_id (str):
-        type_ (str): Friendly, extensible type rather than a closed enum.
-        label (str):
-        metadata (ResourceMetadata): Permissive metadata map. Repeated and custom values are preserved in order.
-        assets (list[ResourceAsset]):
-        created_at (int):
-        updated_at (int):
+        type_ (str):
+        label (str): The resource's name.
+        metadata (ResourceMetadata):
+        assets (list[ResourceAsset]): The resource's files.
+        created_at (int): When the resource was made.
+        updated_at (int): When the resource was last changed.
     """
 
     resource_id: str
@@ -37,7 +37,6 @@ class Resource:
     assets: list[ResourceAsset]
     created_at: int
     updated_at: int
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         resource_id = self.resource_id
@@ -60,7 +59,7 @@ class Resource:
         updated_at = self.updated_at
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "resource_id": resource_id,
@@ -114,21 +113,4 @@ class Resource:
             updated_at=updated_at,
         )
 
-        resource.additional_properties = d
         return resource
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties

@@ -16,10 +16,11 @@ T = TypeVar("T", bound="AiProviderCatalogResponse")
 
 @_attrs_define
 class AiProviderCatalogResponse:
-    """
+    """AI ProviderCatalog response.
+
     Attributes:
-        ok (bool):
-        data (AiProviderCatalogResponseData):
+        ok (bool): The ok.
+        data (AiProviderCatalogResponseData): AI ProviderCatalog responseData.
     """
 
     ok: bool

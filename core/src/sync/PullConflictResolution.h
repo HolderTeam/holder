@@ -25,9 +25,9 @@ void reconcile_index_after_pull(
 // merge-base). This preserves the pre-merge LOCAL version of each such card by re-creating it
 // as a brand new card titled "<original title> (conflicted copy)" -- the Dropbox-style
 // resolution: never a line-level merge, always both full versions kept, nothing silently lost.
-// A card whose pre-merge content can't be read/decrypted/parsed is skipped rather than failing
-// the whole pull -- a partial resolution beats losing an otherwise-successful pull over one
-// unreadable conflict. Returns how many conflicts were resolved this way.
+// A card whose pre-merge content can't be read/decrypted/parsed is skipped. Failure to write a
+// parsed copy is reported as an error, with the pre-merge local commit still available for
+// recovery. Returns how many conflicts were preserved as new cards.
 int resolve_pull_conflicts(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,

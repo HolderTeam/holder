@@ -96,6 +96,7 @@ public class MilestonesController : Object {
     }
 
     public async MilestoneMutationResult add_flow(IMilestoneApi? api,
+                                                  string project_id,
                                                   string card_id,
                                                   int64 start_at,
                                                   int64? end_at,
@@ -104,7 +105,9 @@ public class MilestonesController : Object {
                                                   string? description) {
         if (api == null) return silent_failure();
         try {
-            yield ((!) api).add_card_milestone(card_id, start_at, end_at, all_day, kind, description);
+            yield ((!) api).add_card_milestone(
+                project_id, card_id, start_at, end_at, all_day, kind, description
+            );
             return new MilestoneMutationResult(true, "Milestone added.", null, null, true);
         } catch (Error e) {
             return new MilestoneMutationResult(false, null, "Failed to add milestone", e.message, false);
@@ -121,13 +124,7 @@ public class MilestonesController : Object {
         if (api == null) return silent_failure();
         try {
             yield ((!) api).update_card_milestone(
-                milestone.card_id,
-                milestone.milestone_id,
-                start_at,
-                end_at,
-                all_day,
-                kind,
-                description
+                milestone, start_at, end_at, all_day, kind, description
             );
             return new MilestoneMutationResult(true, "Milestone updated.", null, null, true);
         } catch (Error e) {
@@ -140,16 +137,10 @@ public class MilestonesController : Object {
     public async MilestoneMutationResult remove_flow(IMilestoneApi? api, Milestone milestone) {
         if (api == null) return silent_failure();
         try {
-            var removed = yield ((!) api).remove_card_milestone(
-                milestone.card_id, milestone.milestone_id
+            yield ((!) api).remove_card_milestone(
+                milestone.project_id, milestone.card_id, milestone.milestone_id
             );
-            return new MilestoneMutationResult(
-                true,
-                removed ? "Milestone removed." : "Milestone was already removed.",
-                null,
-                null,
-                true
-            );
+            return new MilestoneMutationResult(true, "Milestone removed.", null, null, true);
         } catch (Error e) {
             return new MilestoneMutationResult(
                 false, null, "Failed to remove milestone", e.message, false

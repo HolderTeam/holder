@@ -45,7 +45,7 @@ std::string api_error_message(const HttpJsonResponse& response, const std::strin
 
 nlohmann::json list_projects_payload(const holder::core::Paths& paths, bool include_count) {
   const auto connection = read_secure_daemon_connection(paths);
-  const std::string target = include_count ? "/projects?count=true" : "/projects";
+  const std::string target = include_count ? "/projects?include_card_counts=true" : "/projects";
   const auto response = http_json_request(
       connection,
       boost::beast::http::verb::get,
@@ -425,11 +425,11 @@ std::string resolve_card_reference(
       boost::beast::http::verb::post,
       "/card-references/resolve",
       std::chrono::seconds(10), // LCOV_EXCL_LINE
-      nlohmann::json{
+      std::make_optional<nlohmann::json>(nlohmann::json{
           {"project_id", project_id},
           {"reference", reference},
           {"scope", card_reference_scope_name(scope)},
-      }
+      })
   );
 
   if (response.status != boost::beast::http::status::ok || !response.payload.value("ok", false)) {
@@ -546,6 +546,11 @@ std::string display_card_id(const std::string& card_id) {
   return display_card_ids({card_id}).front();
 }
 
+std::string card_api_path(const std::string& project_id, const std::string& card_id) {
+  return "/projects/" + url_encode_component(project_id) + "/cards/" +
+         url_encode_component(card_id);
+}
+
 nlohmann::json card_api_request(
     const holder::core::Paths& paths,
     boost::beast::http::verb method,
@@ -585,6 +590,24 @@ nlohmann::json card_api_request(
   } // LCOV_EXCL_LINE
 
   return response.payload;
+}
+
+nlohmann::json list_project_cards_payload(const holder::core::Paths& paths,
+                                          const std::string& target,
+                                          std::size_t max_items) {
+  nlohmann::json result = {{"ok", true}, {"data", nlohmann::json::array()}};
+  std::string cursor;
+  do {
+    const auto page_target = target + (cursor.empty() ? "" : "&cursor=" + url_encode_component(cursor));
+    const auto payload = card_api_request(paths, boost::beast::http::verb::get, page_target);
+    const auto& page = payload.at("data");
+    for (const auto& item : page.at("items")) {
+      result["data"].push_back(item);
+      if (max_items != 0 && result["data"].size() >= max_items) return result;
+    }
+    cursor = page.at("next_cursor").is_null() ? "" : page.at("next_cursor").get<std::string>();
+  } while (!cursor.empty());
+  return result;
 }
 
 } // namespace holder::cli

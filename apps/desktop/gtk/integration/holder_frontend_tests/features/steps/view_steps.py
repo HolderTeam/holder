@@ -56,9 +56,9 @@ def step_search_result_visible(context, text):
     )
 
 
-@when('I open search result "{text}"')
-def step_open_search_result(context, text):
-    context.driver.open_search_result(text)
+@when('I open sidebar card "{text}"')
+def step_open_sidebar_card(context, text):
+    context.driver.open_sidebar_card(text)
 
 
 @when('I replace all "{find_text}" with "{replace_text}"')

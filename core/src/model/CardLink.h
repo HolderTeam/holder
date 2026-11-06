@@ -13,6 +13,8 @@ struct CardLink {
   std::string kind;
   std::optional<std::string> label;
   long long created_at = 0;
+  // Null means the target belongs to the source project.
+  std::optional<std::string> target_project_id;
 };
 
 } // namespace holder::model

@@ -266,17 +266,18 @@ if(HOLDER_CORE_SOURCE_DIR)
   endif()
   set(HOLDER_CORE_TARGET Holder::Core)
   set(HOLDER_CORE_SCHEMA "${HOLDER_CORE_SOURCE_DIR}/schema/schema.sql")
-  set(HOLDER_CORE_WELCOME "${HOLDER_CORE_SOURCE_DIR}/resources/WELCOME.md")
 elseif(HOLDER_CORE_INSTALL)
-  set(holder_DIR "${HOLDER_CORE_INSTALL}/lib/cmake/holder" CACHE PATH "Selected core CMake package" FORCE)
+  # Let CMake search the installation prefix so it can locate lib, lib64, or
+  # a platform-specific library directory. Discard a package path cached by
+  # an earlier configuration before selecting this installation.
+  unset(holder_DIR CACHE)
+  find_package(holder CONFIG REQUIRED PATHS "${HOLDER_CORE_INSTALL}" NO_DEFAULT_PATH)
   set(HOLDER_LOCAL_CORE_PACKAGE_DIR "${holder_DIR}" CACHE INTERNAL "Previously selected local core package")
-  find_package(holder CONFIG REQUIRED PATHS "${HOLDER_CORE_INSTALL}/lib/cmake/holder" NO_DEFAULT_PATH)
   if(NOT DEFINED holder_BUILD_TYPE OR NOT CMAKE_BUILD_TYPE STREQUAL holder_BUILD_TYPE)
     message(FATAL_ERROR "Installed core build type '${holder_BUILD_TYPE}' does not match daemon '${CMAKE_BUILD_TYPE}'; rebuild and install core with the matching build type")
   endif()
   set(HOLDER_CORE_TARGET Holder::Core)
   set(HOLDER_CORE_SCHEMA "${holder_SCHEMA_FILE}")
-  set(HOLDER_CORE_WELCOME "${holder_WELCOME_FILE}")
 elseif(HOLDER_USE_SYSTEM_CORE)
   if(holder_DIR STREQUAL "${HOLDER_CORE_SDK}/lib/cmake/holder" OR holder_DIR STREQUAL HOLDER_LOCAL_CORE_PACKAGE_DIR)
     unset(holder_DIR CACHE)
@@ -293,7 +294,6 @@ elseif(HOLDER_USE_SYSTEM_CORE)
       PATHS /usr/share/holder /usr/local/share/holder REQUIRED)
   endif()
   set(HOLDER_CORE_SCHEMA "${holder_DATA_DIR}/schema/schema.sql")
-  set(HOLDER_CORE_WELCOME "${holder_DATA_DIR}/resources/WELCOME.md")
 else()
   if(NOT EXISTS "${HOLDER_CORE_SDK}/libholder-manifest.json")
     message(FATAL_ERROR "No core selected. Run make.sh to build and install core separately, or select HOLDER_CORE_INSTALL, HOLDER_CORE_SDK or HOLDER_USE_SYSTEM_CORE.")
@@ -307,14 +307,13 @@ else()
   find_package(holder CONFIG REQUIRED PATHS "${holder_DIR}" NO_DEFAULT_PATH)
   set(HOLDER_CORE_TARGET Holder::Core)
   set(HOLDER_CORE_SCHEMA "${HOLDER_CORE_SDK}/share/holder/schema/schema.sql")
-  set(HOLDER_CORE_WELCOME "${HOLDER_CORE_SDK}/share/holder/resources/WELCOME.md")
   configure_file("${HOLDER_CORE_SDK}/libholder-manifest.json"
     "${CMAKE_CURRENT_BINARY_DIR}/core-build.json" COPYONLY)
   install(FILES "${CMAKE_CURRENT_BINARY_DIR}/core-build.json"
     DESTINATION ${CMAKE_INSTALL_DATADIR}/holder-daemon)
 endif()
-if(NOT EXISTS "${HOLDER_CORE_SCHEMA}" OR NOT EXISTS "${HOLDER_CORE_WELCOME}")
-  message(FATAL_ERROR "Selected core installation lacks schema or welcome resources")
+if(NOT EXISTS "${HOLDER_CORE_SCHEMA}")
+  message(FATAL_ERROR "Selected core installation lacks its schema")
 endif()
 
 function(holder_stage_windows_runtime target)
@@ -331,15 +330,7 @@ function(holder_stage_windows_runtime target)
   endif()
 endfunction()
 
-# Stage resources from the same core installation used for linking.
-configure_file(
-  "${HOLDER_CORE_WELCOME}"
-  "${CMAKE_CURRENT_SOURCE_DIR}/config/WELCOME.md"
-  COPYONLY
-)
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/config")
-configure_file("${HOLDER_CORE_WELCOME}"
-  "${CMAKE_CURRENT_BINARY_DIR}/config/WELCOME.md" COPYONLY)
 
 # Keep a build-tree schema beside holderd for development runs and staged artifacts.
 # The only tracked schema source is core's, installed with it.
@@ -367,7 +358,6 @@ add_executable(holderd
   ${HOLDER_COMMON_DIR}/src/platform/Paths.cpp
   src/platform/DatabaseRecovery.cpp
   src/platform/DeviceConfigStore.cpp
-  src/platform/ProjectRegistry.cpp
   src/platform/LockFile.cpp
   src/platform/ServerInfo.cpp
   src/platform/Signal.cpp
@@ -385,57 +375,52 @@ add_executable(holderd
   src/llm/RunnerModelRef.cpp
   src/llm/RunnerRegistry.cpp
   src/api/HttpServer.cpp
+  src/api/GeneratedRoutes.cpp
+  src/api/Health.cpp
+  src/api/LocationRead.cpp
+  src/api/LocationWrite.cpp
+  src/api/AiMessageRead.cpp
+  src/api/AiMessageWrite.cpp
+  src/api/AiLocalModelConfig.cpp
+  src/api/AiProviderCatalog.cpp
+  src/api/AiRunnerRead.cpp
+  src/api/AiRunnerWrite.cpp
+  src/api/RunnerPull.cpp
+  src/api/AssetImportRead.cpp
+  src/api/AiRuns.cpp
+  src/api/AiStatus.cpp
+  src/api/AiThreadRead.cpp
+  src/api/AiThreadWrite.cpp
+  src/api/AssetImportWrite.cpp
+  src/api/ProviderCredentials.cpp
+  src/api/ProviderSettings.cpp
   src/api/Listener.cpp
-  src/api/routes/ai/AiProviderRoutes.cpp
-  src/api/routes/ai/providers/AiProviderCatalogRoutes.cpp
-  src/api/routes/ai/providers/AiProviderCredentialRoutes.cpp
-  src/api/routes/ai/AiNudgeRoutes.cpp
-  src/api/routes/AuthenticatedRoutes.cpp
-  src/api/routes/ai/AiDispatch.cpp
-  src/api/routes/ai/AiMessageRoutes.cpp
-  src/api/routes/ai/messages/AiMessageCaptureRoutes.cpp
-  src/api/routes/ai/messages/AiMessageCrudRoutes.cpp
-  src/api/routes/ai/messages/AiMessageLinkRoutes.cpp
-  src/api/routes/AiResourceRoutes.cpp
+  src/api/AiNudges.cpp
+  src/api/AssetContent.cpp
+  src/api/EventCursor.cpp
+  src/api/Streams.cpp
+  src/api/GoogleDriveOAuth.cpp
   src/api/routes/GoogleDriveOAuthRoutes.cpp
   src/api/routes/ai/runs/AiRunPostRoute.cpp
   src/api/routes/ai/runs/AiRunQueryRoutes.cpp
-  src/api/routes/ai/AiRunRoutes.cpp
-  src/api/routes/ai/AiRunnerRoutes.cpp
   src/api/routes/ai/runner/AiRunnerPullEventRoutes.cpp
-  src/api/routes/ai/runner/AiRunnerPullRoutes.cpp
-  src/api/routes/ai/AiStatusRoutes.cpp
-  src/api/routes/ai/status/AiCapabilitiesRoutes.cpp
-  src/api/routes/ai/status/AiRuntimeStatusRoutes.cpp
-  src/api/routes/ai/status/AiLocalModelConfigRoutes.cpp
-  src/api/routes/ai/AiThreadRoutes.cpp
-  src/api/routes/ai/threads/AiThreadCollectionRoutes.cpp
-  src/api/routes/ai/threads/AiThreadItemRoutes.cpp
-  src/api/routes/CardReferenceRoutes.cpp
-  src/api/routes/CardRoutes.cpp
-  src/api/routes/ProjectCardRoutes.cpp
-  src/api/routes/HistoryRoutes.cpp
-  src/api/routes/MilestoneRoutes.cpp
-  src/api/routes/ProjectRoutes.cpp
-  src/api/routes/RebuildRoutes.cpp
-  src/api/routes/ReindexRoutes.cpp
-  src/api/routes/SearchRoutes.cpp
-  src/api/routes/TrashRoutes.cpp
-  src/api/routes/StaticRoutes.cpp
-  src/api/support/Health.cpp
+  src/api/StaticFiles.cpp
   src/api/support/PathDiscovery.cpp
   src/api/support/CloudConfig.cpp
   src/api/support/CloudClient.cpp
   src/api/support/CloudQuota.cpp
   src/api/support/ThreadCompaction.cpp
   src/api/support/LocalModelRouting.cpp
+  src/api/support/AssetImportJobs.cpp
+  src/api/support/StorageErrors.cpp
+  src/api/support/StorageProviders.cpp
   src/api/support/RunEventStore.cpp
   src/api/support/EventJournal.cpp
   src/api/support/SseStream.cpp
+  src/api/support/StreamServer.cpp
   src/api/support/ChangeFeed.cpp
   src/api/support/EventService.cpp
   src/api/Session.cpp
-  src/api/Router.cpp
   src/git/ExecutorGitOps.cpp
   src/sync/ProjectSyncWorker.cpp
   src/storage/S3SigV4.cpp
@@ -452,9 +437,41 @@ add_executable(holderd
   # src/markdown/parse_links.cpp
 )
 
+# The daemon serves api/openapi.json and api/openapi.yaml from bytes compiled into it, so it
+# always serves the contract it was built from and no file has to be shipped beside it.
+set(HOLDER_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+add_custom_command(
+  OUTPUT "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiJson.h"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${HOLDER_GENERATED_INCLUDE_DIR}"
+  COMMAND ${CMAKE_COMMAND}
+    -DINPUT=${HOLDER_API_DIR}/openapi.json
+    -DOUTPUT=${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiJson.h
+    -DNAME=openapi_json
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake
+  DEPENDS "${HOLDER_API_DIR}/openapi.json" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake"
+  VERBATIM
+)
+add_custom_command(
+  OUTPUT "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiYaml.h"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${HOLDER_GENERATED_INCLUDE_DIR}"
+  COMMAND ${CMAKE_COMMAND}
+    -DINPUT=${HOLDER_API_DIR}/openapi.yaml
+    -DOUTPUT=${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiYaml.h
+    -DNAME=openapi_yaml
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake
+  DEPENDS "${HOLDER_API_DIR}/openapi.yaml" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake"
+  VERBATIM
+)
+add_custom_target(holder_openapi_documents DEPENDS
+  "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiJson.h"
+  "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiYaml.h"
+)
+add_dependencies(holderd holder_openapi_documents)
+
 target_include_directories(holderd PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${HOLDER_COMMON_DIR}/src
+  ${HOLDER_GENERATED_INCLUDE_DIR}
 )
 
 target_compile_definitions(holderd PRIVATE
@@ -554,7 +571,6 @@ if(WIN32)
       "${CMAKE_CURRENT_BINARY_DIR}/config"
       "${CMAKE_CURRENT_BINARY_DIR}/assets"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/config/WELCOME.md"
       "${CMAKE_CURRENT_SOURCE_DIR}/config/ai_catalog.yaml"
       "${CMAKE_CURRENT_SOURCE_DIR}/config/git_providers.yaml"
       "${CMAKE_CURRENT_BINARY_DIR}/config"
@@ -639,7 +655,6 @@ install(
   DESTINATION ${CMAKE_INSTALL_DATADIR}/holder-daemon/schema
 )
 install(FILES
-  config/WELCOME.md
   config/ai_catalog.yaml
   config/git_providers.yaml
   DESTINATION ${CMAKE_INSTALL_DATADIR}/holder-daemon/config

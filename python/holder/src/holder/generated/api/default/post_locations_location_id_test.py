@@ -6,6 +6,8 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.error_response import ErrorResponse
+from ...models.location_test_response import LocationTestResponse
 from ...types import Response
 
 
@@ -25,12 +27,56 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Any | None:
+) -> ErrorResponse | LocationTestResponse | None:
     if response.status_code == 200:
-        return None
+        response_200 = LocationTestResponse.from_dict(response.json())
+
+        return response_200
 
     if response.status_code == 400:
-        return None
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
+
+    if response.status_code == 401:
+        response_401 = ErrorResponse.from_dict(response.json())
+
+        return response_401
+
+    if response.status_code == 404:
+        response_404 = ErrorResponse.from_dict(response.json())
+
+        return response_404
+
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
+    if response.status_code == 422:
+        response_422 = ErrorResponse.from_dict(response.json())
+
+        return response_422
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 502:
+        response_502 = ErrorResponse.from_dict(response.json())
+
+        return response_502
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
+
+    if response.status_code == 507:
+        response_507 = ErrorResponse.from_dict(response.json())
+
+        return response_507
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -40,7 +86,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[Any]:
+) -> Response[ErrorResponse | LocationTestResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -53,8 +99,10 @@ def sync_detailed(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[Any]:
-    """Upload, verify, and remove a storage probe
+) -> Response[ErrorResponse | LocationTestResponse]:
+    """Upload, verify, and remove a storage probe.
+
+     Upload, verify, and remove a storage probe.
 
     Args:
         location_id (str):
@@ -64,7 +112,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Any]
+        Response[ErrorResponse | LocationTestResponse]
     """
 
     kwargs = _get_kwargs(
@@ -78,12 +126,14 @@ def sync_detailed(
     return _build_response(client=client, response=response)
 
 
-async def asyncio_detailed(
+def sync(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[Any]:
-    """Upload, verify, and remove a storage probe
+) -> ErrorResponse | LocationTestResponse | None:
+    """Upload, verify, and remove a storage probe.
+
+     Upload, verify, and remove a storage probe.
 
     Args:
         location_id (str):
@@ -93,7 +143,33 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Any]
+        ErrorResponse | LocationTestResponse
+    """
+
+    return sync_detailed(
+        location_id=location_id,
+        client=client,
+    ).parsed
+
+
+async def asyncio_detailed(
+    location_id: str,
+    *,
+    client: AuthenticatedClient | Client,
+) -> Response[ErrorResponse | LocationTestResponse]:
+    """Upload, verify, and remove a storage probe.
+
+     Upload, verify, and remove a storage probe.
+
+    Args:
+        location_id (str):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Response[ErrorResponse | LocationTestResponse]
     """
 
     kwargs = _get_kwargs(
@@ -103,3 +179,31 @@ async def asyncio_detailed(
     response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    location_id: str,
+    *,
+    client: AuthenticatedClient | Client,
+) -> ErrorResponse | LocationTestResponse | None:
+    """Upload, verify, and remove a storage probe.
+
+     Upload, verify, and remove a storage probe.
+
+    Args:
+        location_id (str):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        ErrorResponse | LocationTestResponse
+    """
+
+    return (
+        await asyncio_detailed(
+            location_id=location_id,
+            client=client,
+        )
+    ).parsed

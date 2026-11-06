@@ -103,18 +103,16 @@ fun CardViewScreen(
 
     LaunchedEffect(cardId, refreshKey) {
         state = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.getCardContent(cardId) }
+            withContext(Dispatchers.IO) { HolderNative.getCardContent(projectId, cardId) }
         }.fold(
             onSuccess = { LoadState.Success(it) },
             onFailure = { LoadState.Error(it.message ?: it::class.java.simpleName) },
         )
     }
 
-    // There's no single-card fetch, so this piggybacks on the project's full list -- same
-    // approach ConnectionsSummary's Next/Previous/Follows/Precedes already use.
     LaunchedEffect(cardId, projectId, refreshKey) {
         cardMeta = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.listCards(projectId).find { it.cardId == cardId } }
+            withContext(Dispatchers.IO) { HolderNative.getCard(projectId, cardId) }
         }.getOrNull()
     }
 
@@ -271,7 +269,7 @@ fun CardViewScreen(
                     if (!isDeleting) {
                         isDeleting = true
                         scope.launch {
-                            runCatching { withContext(Dispatchers.IO) { HolderNative.deleteCard(cardId) } }
+                            runCatching { withContext(Dispatchers.IO) { HolderNative.deleteCard(projectId, cardId) } }
                             // Explicitly back on the main thread before onDeleted() -- which
                             // navigates -- rather than relying on withContext(IO) to resume there
                             // on its own; see AddMilestoneScreen for why.
@@ -339,7 +337,7 @@ private fun ConnectionsSummary(
 
     LaunchedEffect(cardId, refreshKey) {
         state = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.listCardLinks(cardId) }
+            withContext(Dispatchers.IO) { HolderNative.listCardLinks(projectId, cardId) }
         }.fold(
             onSuccess = { LoadState.Success(it) },
             onFailure = { LoadState.Error(it.message ?: it::class.java.simpleName) },

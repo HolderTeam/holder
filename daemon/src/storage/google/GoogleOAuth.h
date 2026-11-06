@@ -5,8 +5,7 @@
 namespace holder::storage::google {
 
 // The Google Cloud "Desktop app" OAuth client Holder registers under the same project
-// (and consent screen / Testing publishing status) as its existing Android client --
-// see holder-planning/current/GOOGLE_DRIVE.md for that decision and its reasoning.
+// (and consent screen / Testing publishing status) as its existing Android client.
 // Client id/secret are read from environment variables at daemon startup
 // (HOLDER_GOOGLE_OAUTH_CLIENT_ID/HOLDER_GOOGLE_OAUTH_CLIENT_SECRET), never committed.
 struct GoogleOAuthClient {
@@ -34,8 +33,8 @@ struct GoogleTokenResponse {
 };
 
 // Reads HOLDER_GOOGLE_OAUTH_CLIENT_ID/HOLDER_GOOGLE_OAUTH_CLIENT_SECRET from the
-// environment. Documented as developer setup, never committed -- see
-// holder-planning/current/GOOGLE_DRIVE.md. Throws std::runtime_error if either is unset,
+// environment. Documented as developer setup, never committed. Throws std::runtime_error
+// if either is unset,
 // with a message safe to surface directly in an API error response (names the env vars,
 // never a value).
 GoogleOAuthClient google_oauth_client_from_env();

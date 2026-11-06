@@ -521,7 +521,7 @@ private void test_saving_a_key_asks_the_chooser_for_the_default_name_and_hands_o
 
     assert(f.picker.requests.size == 1 && f.picker.requests[0] == "save|Save Recovery Key|team-recovery.hrk");
     assert(wait_for_condition(() => called));
-    assert(saved == path);
+    assert(saved == f.picker.choice.get_path());
 }
 
 private void test_saving_to_a_non_local_location_is_reported_instead_of_ignored() {

@@ -18,17 +18,22 @@ def _get_kwargs(
     project_id: str,
     card_id: str,
     *,
-    from_: str | Unset = UNSET,
-    to: str,
+    to_oid: str,
+    from_oid: None | str | Unset = UNSET,
     mode: GetProjectsProjectIdHistoryCardsCardIdCompareMode
     | Unset = GetProjectsProjectIdHistoryCardsCardIdCompareMode.SINCE,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
-    params["from"] = from_
+    params["to_oid"] = to_oid
 
-    params["to"] = to
+    json_from_oid: None | str | Unset
+    if isinstance(from_oid, Unset):
+        json_from_oid = UNSET
+    else:
+        json_from_oid = from_oid
+    params["from_oid"] = json_from_oid
 
     json_mode: str | Unset = UNSET
     if not isinstance(mode, Unset):
@@ -63,6 +68,11 @@ def _parse_response(
 
         return response_400
 
+    if response.status_code == 401:
+        response_401 = ErrorResponse.from_dict(response.json())
+
+        return response_401
+
     if response.status_code == 404:
         response_404 = ErrorResponse.from_dict(response.json())
 
@@ -77,6 +87,11 @@ def _parse_response(
         response_413 = ErrorResponse.from_dict(response.json())
 
         return response_413
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -105,26 +120,26 @@ def sync_detailed(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    from_: str | Unset = UNSET,
-    to: str,
+    to_oid: str,
+    from_oid: None | str | Unset = UNSET,
     mode: GetProjectsProjectIdHistoryCardsCardIdCompareMode
     | Unset = GetProjectsProjectIdHistoryCardsCardIdCompareMode.SINCE,
 ) -> Response[CardHistoryComparisonResponse | ErrorResponse]:
-    """Compare saved card versions or the change introduced by one revision
+    """Compare saved card versions or one revision's change.
 
-     In since mode, compares the explicitly selected from and to snapshots. In change mode, compares the
-    first parent of to with to; a root commit is compared with a previously nonexistent card. Merge
-    commits use only their first parent, not a combined multi-parent diff.
+     In since mode, compares the selected before and after snapshots. In change mode, compares the first
+    parent
+    of to_oid with to_oid. A root commit has a previously nonexistent card as its before state; a merge
+    uses only
+    its first parent.
 
     Args:
         project_id (str):
         card_id (str):
-        from_ (str | Unset): Full Git commit object ID or a unique leading commit-ID prefix.
-            Successful responses use the canonical full lowercase object ID.
-        to (str): Full Git commit object ID or a unique leading commit-ID prefix. Successful
-            responses use the canonical full lowercase object ID.
-        mode (GetProjectsProjectIdHistoryCardsCardIdCompareMode | Unset):  Default:
-            GetProjectsProjectIdHistoryCardsCardIdCompareMode.SINCE.
+        to_oid (str):
+        from_oid (None | str | Unset): Required in since mode; ignored in change mode.
+        mode (GetProjectsProjectIdHistoryCardsCardIdCompareMode | Unset): Compare two snapshots or
+            one introduced change. Default: GetProjectsProjectIdHistoryCardsCardIdCompareMode.SINCE.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -137,8 +152,8 @@ def sync_detailed(
     kwargs = _get_kwargs(
         project_id=project_id,
         card_id=card_id,
-        from_=from_,
-        to=to,
+        to_oid=to_oid,
+        from_oid=from_oid,
         mode=mode,
     )
 
@@ -154,26 +169,26 @@ def sync(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    from_: str | Unset = UNSET,
-    to: str,
+    to_oid: str,
+    from_oid: None | str | Unset = UNSET,
     mode: GetProjectsProjectIdHistoryCardsCardIdCompareMode
     | Unset = GetProjectsProjectIdHistoryCardsCardIdCompareMode.SINCE,
 ) -> CardHistoryComparisonResponse | ErrorResponse | None:
-    """Compare saved card versions or the change introduced by one revision
+    """Compare saved card versions or one revision's change.
 
-     In since mode, compares the explicitly selected from and to snapshots. In change mode, compares the
-    first parent of to with to; a root commit is compared with a previously nonexistent card. Merge
-    commits use only their first parent, not a combined multi-parent diff.
+     In since mode, compares the selected before and after snapshots. In change mode, compares the first
+    parent
+    of to_oid with to_oid. A root commit has a previously nonexistent card as its before state; a merge
+    uses only
+    its first parent.
 
     Args:
         project_id (str):
         card_id (str):
-        from_ (str | Unset): Full Git commit object ID or a unique leading commit-ID prefix.
-            Successful responses use the canonical full lowercase object ID.
-        to (str): Full Git commit object ID or a unique leading commit-ID prefix. Successful
-            responses use the canonical full lowercase object ID.
-        mode (GetProjectsProjectIdHistoryCardsCardIdCompareMode | Unset):  Default:
-            GetProjectsProjectIdHistoryCardsCardIdCompareMode.SINCE.
+        to_oid (str):
+        from_oid (None | str | Unset): Required in since mode; ignored in change mode.
+        mode (GetProjectsProjectIdHistoryCardsCardIdCompareMode | Unset): Compare two snapshots or
+            one introduced change. Default: GetProjectsProjectIdHistoryCardsCardIdCompareMode.SINCE.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -187,8 +202,8 @@ def sync(
         project_id=project_id,
         card_id=card_id,
         client=client,
-        from_=from_,
-        to=to,
+        to_oid=to_oid,
+        from_oid=from_oid,
         mode=mode,
     ).parsed
 
@@ -198,26 +213,26 @@ async def asyncio_detailed(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    from_: str | Unset = UNSET,
-    to: str,
+    to_oid: str,
+    from_oid: None | str | Unset = UNSET,
     mode: GetProjectsProjectIdHistoryCardsCardIdCompareMode
     | Unset = GetProjectsProjectIdHistoryCardsCardIdCompareMode.SINCE,
 ) -> Response[CardHistoryComparisonResponse | ErrorResponse]:
-    """Compare saved card versions or the change introduced by one revision
+    """Compare saved card versions or one revision's change.
 
-     In since mode, compares the explicitly selected from and to snapshots. In change mode, compares the
-    first parent of to with to; a root commit is compared with a previously nonexistent card. Merge
-    commits use only their first parent, not a combined multi-parent diff.
+     In since mode, compares the selected before and after snapshots. In change mode, compares the first
+    parent
+    of to_oid with to_oid. A root commit has a previously nonexistent card as its before state; a merge
+    uses only
+    its first parent.
 
     Args:
         project_id (str):
         card_id (str):
-        from_ (str | Unset): Full Git commit object ID or a unique leading commit-ID prefix.
-            Successful responses use the canonical full lowercase object ID.
-        to (str): Full Git commit object ID or a unique leading commit-ID prefix. Successful
-            responses use the canonical full lowercase object ID.
-        mode (GetProjectsProjectIdHistoryCardsCardIdCompareMode | Unset):  Default:
-            GetProjectsProjectIdHistoryCardsCardIdCompareMode.SINCE.
+        to_oid (str):
+        from_oid (None | str | Unset): Required in since mode; ignored in change mode.
+        mode (GetProjectsProjectIdHistoryCardsCardIdCompareMode | Unset): Compare two snapshots or
+            one introduced change. Default: GetProjectsProjectIdHistoryCardsCardIdCompareMode.SINCE.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -230,8 +245,8 @@ async def asyncio_detailed(
     kwargs = _get_kwargs(
         project_id=project_id,
         card_id=card_id,
-        from_=from_,
-        to=to,
+        to_oid=to_oid,
+        from_oid=from_oid,
         mode=mode,
     )
 
@@ -245,26 +260,26 @@ async def asyncio(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    from_: str | Unset = UNSET,
-    to: str,
+    to_oid: str,
+    from_oid: None | str | Unset = UNSET,
     mode: GetProjectsProjectIdHistoryCardsCardIdCompareMode
     | Unset = GetProjectsProjectIdHistoryCardsCardIdCompareMode.SINCE,
 ) -> CardHistoryComparisonResponse | ErrorResponse | None:
-    """Compare saved card versions or the change introduced by one revision
+    """Compare saved card versions or one revision's change.
 
-     In since mode, compares the explicitly selected from and to snapshots. In change mode, compares the
-    first parent of to with to; a root commit is compared with a previously nonexistent card. Merge
-    commits use only their first parent, not a combined multi-parent diff.
+     In since mode, compares the selected before and after snapshots. In change mode, compares the first
+    parent
+    of to_oid with to_oid. A root commit has a previously nonexistent card as its before state; a merge
+    uses only
+    its first parent.
 
     Args:
         project_id (str):
         card_id (str):
-        from_ (str | Unset): Full Git commit object ID or a unique leading commit-ID prefix.
-            Successful responses use the canonical full lowercase object ID.
-        to (str): Full Git commit object ID or a unique leading commit-ID prefix. Successful
-            responses use the canonical full lowercase object ID.
-        mode (GetProjectsProjectIdHistoryCardsCardIdCompareMode | Unset):  Default:
-            GetProjectsProjectIdHistoryCardsCardIdCompareMode.SINCE.
+        to_oid (str):
+        from_oid (None | str | Unset): Required in since mode; ignored in change mode.
+        mode (GetProjectsProjectIdHistoryCardsCardIdCompareMode | Unset): Compare two snapshots or
+            one introduced change. Default: GetProjectsProjectIdHistoryCardsCardIdCompareMode.SINCE.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -279,8 +294,8 @@ async def asyncio(
             project_id=project_id,
             card_id=card_id,
             client=client,
-            from_=from_,
-            to=to,
+            to_oid=to_oid,
+            from_oid=from_oid,
             mode=mode,
         )
     ).parsed

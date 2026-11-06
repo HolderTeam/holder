@@ -58,6 +58,11 @@ def _parse_response(
 
         return response_409
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -82,8 +87,11 @@ def sync_detailed(
 ) -> Response[AiMessageCaptureResponse | ErrorResponse]:
     """Capture prompt/response pair with provenance
 
+     Appends the prompt as a user message and the response as an assistant message carrying provider,
+    model, url and context.
+
     Args:
-        body (AiMessageCaptureRequest):
+        body (AiMessageCaptureRequest): AI MessageCaptureRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -111,8 +119,11 @@ def sync(
 ) -> AiMessageCaptureResponse | ErrorResponse | None:
     """Capture prompt/response pair with provenance
 
+     Appends the prompt as a user message and the response as an assistant message carrying provider,
+    model, url and context.
+
     Args:
-        body (AiMessageCaptureRequest):
+        body (AiMessageCaptureRequest): AI MessageCaptureRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -135,8 +146,11 @@ async def asyncio_detailed(
 ) -> Response[AiMessageCaptureResponse | ErrorResponse]:
     """Capture prompt/response pair with provenance
 
+     Appends the prompt as a user message and the response as an assistant message carrying provider,
+    model, url and context.
+
     Args:
-        body (AiMessageCaptureRequest):
+        body (AiMessageCaptureRequest): AI MessageCaptureRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -162,8 +176,11 @@ async def asyncio(
 ) -> AiMessageCaptureResponse | ErrorResponse | None:
     """Capture prompt/response pair with provenance
 
+     Appends the prompt as a user message and the response as an assistant message carrying provider,
+    model, url and context.
+
     Args:
-        body (AiMessageCaptureRequest):
+        body (AiMessageCaptureRequest): AI MessageCaptureRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

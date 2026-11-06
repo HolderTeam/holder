@@ -7,19 +7,17 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.project_recovery_token_import_request import (
-    ProjectRecoveryTokenImportRequest,
+from ...models.project_recovery_token_import_result_response import (
+    ProjectRecoveryTokenImportResultResponse,
 )
-from ...models.project_recovery_token_import_response import (
-    ProjectRecoveryTokenImportResponse,
-)
+from ...models.recovery_token_import_request import RecoveryTokenImportRequest
 from ...types import Response
 
 
 def _get_kwargs(
     project_id: str,
     *,
-    body: ProjectRecoveryTokenImportRequest,
+    body: RecoveryTokenImportRequest,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -40,9 +38,11 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | ProjectRecoveryTokenImportResponse | None:
+) -> ErrorResponse | ProjectRecoveryTokenImportResultResponse | None:
     if response.status_code == 200:
-        response_200 = ProjectRecoveryTokenImportResponse.from_dict(response.json())
+        response_200 = ProjectRecoveryTokenImportResultResponse.from_dict(
+            response.json()
+        )
 
         return response_200
 
@@ -61,6 +61,16 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -69,7 +79,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | ProjectRecoveryTokenImportResponse]:
+) -> Response[ErrorResponse | ProjectRecoveryTokenImportResultResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -82,20 +92,22 @@ def sync_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectRecoveryTokenImportRequest,
-) -> Response[ErrorResponse | ProjectRecoveryTokenImportResponse]:
-    """Import project recovery token
+    body: RecoveryTokenImportRequest,
+) -> Response[ErrorResponse | ProjectRecoveryTokenImportResultResponse]:
+    """Restore an encrypted project's key from a token for that project.
+
+     Restore an encrypted project's key from a token for that project.
 
     Args:
         project_id (str):
-        body (ProjectRecoveryTokenImportRequest):
+        body (RecoveryTokenImportRequest): PIN and serialized .hrk token to restore.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectRecoveryTokenImportResponse]
+        Response[ErrorResponse | ProjectRecoveryTokenImportResultResponse]
     """
 
     kwargs = _get_kwargs(
@@ -114,20 +126,22 @@ def sync(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectRecoveryTokenImportRequest,
-) -> ErrorResponse | ProjectRecoveryTokenImportResponse | None:
-    """Import project recovery token
+    body: RecoveryTokenImportRequest,
+) -> ErrorResponse | ProjectRecoveryTokenImportResultResponse | None:
+    """Restore an encrypted project's key from a token for that project.
+
+     Restore an encrypted project's key from a token for that project.
 
     Args:
         project_id (str):
-        body (ProjectRecoveryTokenImportRequest):
+        body (RecoveryTokenImportRequest): PIN and serialized .hrk token to restore.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectRecoveryTokenImportResponse
+        ErrorResponse | ProjectRecoveryTokenImportResultResponse
     """
 
     return sync_detailed(
@@ -141,20 +155,22 @@ async def asyncio_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectRecoveryTokenImportRequest,
-) -> Response[ErrorResponse | ProjectRecoveryTokenImportResponse]:
-    """Import project recovery token
+    body: RecoveryTokenImportRequest,
+) -> Response[ErrorResponse | ProjectRecoveryTokenImportResultResponse]:
+    """Restore an encrypted project's key from a token for that project.
+
+     Restore an encrypted project's key from a token for that project.
 
     Args:
         project_id (str):
-        body (ProjectRecoveryTokenImportRequest):
+        body (RecoveryTokenImportRequest): PIN and serialized .hrk token to restore.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectRecoveryTokenImportResponse]
+        Response[ErrorResponse | ProjectRecoveryTokenImportResultResponse]
     """
 
     kwargs = _get_kwargs(
@@ -171,20 +187,22 @@ async def asyncio(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectRecoveryTokenImportRequest,
-) -> ErrorResponse | ProjectRecoveryTokenImportResponse | None:
-    """Import project recovery token
+    body: RecoveryTokenImportRequest,
+) -> ErrorResponse | ProjectRecoveryTokenImportResultResponse | None:
+    """Restore an encrypted project's key from a token for that project.
+
+     Restore an encrypted project's key from a token for that project.
 
     Args:
         project_id (str):
-        body (ProjectRecoveryTokenImportRequest):
+        body (RecoveryTokenImportRequest): PIN and serialized .hrk token to restore.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectRecoveryTokenImportResponse
+        ErrorResponse | ProjectRecoveryTokenImportResultResponse
     """
 
     return (

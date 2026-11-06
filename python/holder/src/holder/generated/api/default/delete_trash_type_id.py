@@ -7,12 +7,13 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.trash_delete_response import TrashDeleteResponse
+from ...models.trash_delete_result_response import TrashDeleteResultResponse
+from ...models.trash_item_type import TrashItemType
 from ...types import Response
 
 
 def _get_kwargs(
-    type_: str,
+    type_: TrashItemType,
     id: str,
 ) -> dict[str, Any]:
 
@@ -29,9 +30,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | TrashDeleteResponse | None:
+) -> ErrorResponse | TrashDeleteResultResponse | None:
     if response.status_code == 200:
-        response_200 = TrashDeleteResponse.from_dict(response.json())
+        response_200 = TrashDeleteResultResponse.from_dict(response.json())
 
         return response_200
 
@@ -39,6 +40,31 @@ def _parse_response(
         response_400 = ErrorResponse.from_dict(response.json())
 
         return response_400
+
+    if response.status_code == 401:
+        response_401 = ErrorResponse.from_dict(response.json())
+
+        return response_401
+
+    if response.status_code == 404:
+        response_404 = ErrorResponse.from_dict(response.json())
+
+        return response_404
+
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -48,7 +74,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | TrashDeleteResponse]:
+) -> Response[ErrorResponse | TrashDeleteResultResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -58,15 +84,17 @@ def _build_response(
 
 
 def sync_detailed(
-    type_: str,
+    type_: TrashItemType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | TrashDeleteResponse]:
-    """Permanently delete a trashed item
+) -> Response[ErrorResponse | TrashDeleteResultResponse]:
+    """Permanently remove a trashed item by its global ID (legacy route).
+
+     Permanently remove a trashed item by its global ID (legacy route).
 
     Args:
-        type_ (str):
+        type_ (TrashItemType):
         id (str):
 
     Raises:
@@ -74,7 +102,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | TrashDeleteResponse]
+        Response[ErrorResponse | TrashDeleteResultResponse]
     """
 
     kwargs = _get_kwargs(
@@ -90,15 +118,17 @@ def sync_detailed(
 
 
 def sync(
-    type_: str,
+    type_: TrashItemType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | TrashDeleteResponse | None:
-    """Permanently delete a trashed item
+) -> ErrorResponse | TrashDeleteResultResponse | None:
+    """Permanently remove a trashed item by its global ID (legacy route).
+
+     Permanently remove a trashed item by its global ID (legacy route).
 
     Args:
-        type_ (str):
+        type_ (TrashItemType):
         id (str):
 
     Raises:
@@ -106,7 +136,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | TrashDeleteResponse
+        ErrorResponse | TrashDeleteResultResponse
     """
 
     return sync_detailed(
@@ -117,15 +147,17 @@ def sync(
 
 
 async def asyncio_detailed(
-    type_: str,
+    type_: TrashItemType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | TrashDeleteResponse]:
-    """Permanently delete a trashed item
+) -> Response[ErrorResponse | TrashDeleteResultResponse]:
+    """Permanently remove a trashed item by its global ID (legacy route).
+
+     Permanently remove a trashed item by its global ID (legacy route).
 
     Args:
-        type_ (str):
+        type_ (TrashItemType):
         id (str):
 
     Raises:
@@ -133,7 +165,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | TrashDeleteResponse]
+        Response[ErrorResponse | TrashDeleteResultResponse]
     """
 
     kwargs = _get_kwargs(
@@ -147,15 +179,17 @@ async def asyncio_detailed(
 
 
 async def asyncio(
-    type_: str,
+    type_: TrashItemType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | TrashDeleteResponse | None:
-    """Permanently delete a trashed item
+) -> ErrorResponse | TrashDeleteResultResponse | None:
+    """Permanently remove a trashed item by its global ID (legacy route).
+
+     Permanently remove a trashed item by its global ID (legacy route).
 
     Args:
-        type_ (str):
+        type_ (TrashItemType):
         id (str):
 
     Raises:
@@ -163,7 +197,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | TrashDeleteResponse
+        ErrorResponse | TrashDeleteResultResponse
     """
 
     return (

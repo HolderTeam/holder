@@ -16,10 +16,11 @@ T = TypeVar("T", bound="AiMessageCreateResponse")
 
 @_attrs_define
 class AiMessageCreateResponse:
-    """
+    """AI MessageCreate response.
+
     Attributes:
-        ok (bool):
-        data (AiMessageCreateResponseData):
+        ok (bool): The ok.
+        data (AiMessageCreateResponseData): AI MessageCreate responseData.
     """
 
     ok: bool

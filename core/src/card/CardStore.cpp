@@ -1,4 +1,5 @@
 #include "card/CardStore.h"
+#include "card/CardPlacementError.h"
 
 #include "card/CardFrontMatter.h"
 #include "card/CardHierarchy.h"
@@ -10,6 +11,7 @@
 #include "git/GitOps.h"
 #include "git/GitRepo.h"
 #include "identity/Uuid.h"
+#include "model/ConflictError.h"
 #include "platform/Fs.h"
 #include "platform/Tx.h"
 #include "privacy/ProjectPrivacy.h"
@@ -19,6 +21,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <iterator>
 #include <map>
 #include <set>
 #include <stdexcept>
@@ -59,6 +62,44 @@ void write_card_file(
   repo.write_file(card.rel_path, plain);
 }
 
+// The order create_batch writes items in, each parent before its children, and each item's
+// parent within the batch: none for a root, for a parent outside the batch, or to break a loop.
+std::pair<std::vector<std::size_t>, std::vector<std::optional<std::string>>> batch_order(
+    const std::vector<BatchCardInput>& items
+) {
+  std::map<std::string, std::size_t> index;
+  for (std::size_t i = 0; i < items.size(); ++i) index.emplace(items[i].card_id, i);
+  std::vector<std::optional<std::string>> parents(items.size());
+  for (std::size_t i = 0; i < items.size(); ++i) {
+    const auto& parent = items[i].parent_card_id;
+    if (parent && index.contains(*parent)) parents[i] = *parent;
+  }
+  enum class Mark { None, Visiting, Done };
+  std::vector<Mark> marks(items.size(), Mark::None);
+  std::vector<std::size_t> order;
+  order.reserve(items.size());
+  for (std::size_t start = 0; start < items.size(); ++start) {
+    // Climb to the first ancestor not yet written, then write back down the path.
+    std::vector<std::size_t> path;
+    auto at = start;
+    while (marks[at] == Mark::None) {
+      marks[at] = Mark::Visiting;
+      path.push_back(at);
+      if (!parents[at]) break;
+      at = index.at(*parents[at]);
+      if (marks[at] == Mark::Visiting) {
+        parents[path.back()].reset();  // The loop closes here: make this card a root.
+        break;
+      }
+    }
+    for (auto it = path.rbegin(); it != path.rend(); ++it) {
+      marks[*it] = Mark::Done;
+      order.push_back(*it);
+    }
+  }
+  return {std::move(order), std::move(parents)};
+}
+
 std::string decode_card_blob(const holder::model::Project& project, const std::string& blob) {
   if (project.privacy_mode != "encrypted_git") {
     return blob;
@@ -83,12 +124,14 @@ std::optional<std::string> read_card_content_locked(
     const holder::model::Project& project,
     const holder::model::Card& card
 ) {
-  const std::string expected = holder::core::card_rel_path(card.card_id);
-  if (card.rel_path != expected) {
+  // A card in the trash keeps its file in the trash directory.
+  const std::string live_path = holder::core::card_rel_path(card.card_id);
+  const std::string trash_path = holder::core::card_trash_rel_path(card.card_id);
+  if (card.rel_path != live_path && card.rel_path != trash_path) {
     throw std::runtime_error("card rel_path does not match card_id");
   }
 
-  const auto full_path = git.repo_dir() / card.rel_path;
+  const auto full_path = git.repo_dir() / (card.deleted_at ? trash_path : live_path);
   if (!fs.exists(full_path)) {
     return std::nullopt;
   }
@@ -132,7 +175,9 @@ holder::model::Project CardStore::require_project(const std::string& project_id)
 void CardStore::create(
     holder::model::Card card,
     const std::string& content,
-    const std::optional<double>& explicit_sort_key
+    const std::optional<double>& explicit_sort_key,
+    const std::vector<holder::model::CardLink>& links,
+    const std::vector<holder::model::Milestone>& milestones
 ) {
   const auto project = require_project(card.project_id);
   auto operation = git_->lock_operation(project.root_path);
@@ -153,36 +198,48 @@ void CardStore::create(
   }
 
   if (card_repo_.get(card.card_id).has_value()) {
-    throw std::runtime_error("conflict: card_id already exists");
+    throw holder::model::ConflictError("card_id already exists");
   }
 
   const auto full_path = git_->repo_dir() / card.rel_path;
   if (fs_->exists(full_path)) {
-    throw std::runtime_error("conflict: card file already exists");
+    throw holder::model::ConflictError("card file already exists");
   }
 
-  const auto links = link_repo_.list_outgoing(card.project_id, card.card_id);
-  write_card_file(*git_, project, card, links, {}, content);
+  for (const auto& link : links) {
+    if (link.project_id != card.project_id || link.from_card_id != card.card_id)
+      throw std::invalid_argument("card link source does not match new card");
+  }
+  for (const auto& milestone : milestones) {
+    if (milestone.project_id != card.project_id || milestone.card_id != card.card_id)
+      throw std::invalid_argument("milestone owner does not match new card");
+  }
+
+  write_card_file(*git_, project, card, links, milestones, content);
 
   git_->stage_path(card.rel_path);
   assert_project_staged_blobs_safe(project, {card.rel_path});
 
   try {
+    holder::platform::Tx tx(db_);
     card_repo_.create(card);
+    if (fts_) {
+      fts_->upsert_card(card.card_id, card.project_id, card.title, content);
+    }
+    tag_repo_.set_tags_for_card(
+        card.project_id,
+        card.card_id,
+        holder::core::extract_tags(content),
+        card.created_at
+    );
+    if (!links.empty()) link_repo_.upsert_links(card.project_id, card.card_id, links);
+    if (!milestones.empty())
+      milestone_repo_.replace_for_card(card.project_id, card.card_id, milestones);
+    tx.commit();
   } catch (...) {
     fs_->remove(git_->repo_dir() / card.rel_path);
     throw;
   }
-
-  if (fts_) {
-    fts_->upsert_card(card.card_id, card.project_id, card.title, content);
-  }
-  tag_repo_.set_tags_for_card(
-      card.project_id,
-      card.card_id,
-      holder::core::extract_tags(content),
-      card.created_at
-  );
 
   git_->commit("Add card " + card.title);
 }
@@ -191,7 +248,8 @@ void CardStore::create_batch(
     const std::string& project_id,
     const std::vector<BatchCardInput>& items,
     const std::function<std::string()>& uuid_v4,
-    const std::string& commit_message
+    const std::string& commit_message,
+    const std::map<std::string, std::string>& resource_id_remap
 ) {
   const auto project = require_project(project_id);
   auto operation = git_->lock_operation(project.root_path);
@@ -205,6 +263,7 @@ void CardStore::create_batch(
   for (const auto& item : items) {
     id_remap[item.card_id] = holder::identity::generate_id(project.id_scheme);
   }
+  const auto [order, parents] = batch_order(items);
 
   std::vector<std::string> staged_paths;
   staged_paths.reserve(items.size());
@@ -215,25 +274,34 @@ void CardStore::create_batch(
   // git_->stage_paths below). Rolled back automatically if anything throws before commit().
   holder::platform::Tx tx(db_);
 
-  for (const auto& item : items) {
+  for (const auto index : order) {
+    const auto& item = items[index];
     holder::model::Card card;
     card.card_id = id_remap.at(item.card_id);
     card.project_id = project_id;
     card.title = item.title;
     card.rel_path = holder::core::card_rel_path(card.card_id);
-    card.sort_key = card_repo_.next_sort_key(project_id, std::nullopt);
+    if (parents[index]) card.parent_card_id = id_remap.at(*parents[index]);
+    card.sort_key = item.sort_key.value_or(card_repo_.next_sort_key(project_id, card.parent_card_id));
     card.created_at = item.created_at;
     card.updated_at = item.updated_at;
 
     std::vector<holder::model::CardLink> links;
     for (const auto& link : item.links) {
-      const auto remapped = id_remap.find(link.to_card_id);
-      if (link.to_type != "card" || remapped == id_remap.end()) {
-        // Dropped, not written dangling: the target either wasn't a card link or didn't make
-        // it into this restore batch (evicted from the snapshot, or a resource-ref -- see
-        // BACKUP_RESTORE_DESIGN.md's "open" section on resource-ref hydration being deferred).
+      // An explicit target project identifies a card outside this restored project. Keep
+      // that identity even when its card ID also appears among this batch's local cards.
+      if (link.to_type == "card" && link.target_project_id.has_value()) {
+        holder::model::CardLink resolved = link;
+        resolved.project_id = project_id;
+        resolved.from_card_id = card.card_id;
+        if (resolved.created_at <= 0) resolved.created_at = card.updated_at;
+        links.push_back(std::move(resolved));
         continue;
       }
+      const auto& targets = link.to_type == "resource" ? resource_id_remap : id_remap;
+      const auto remapped = targets.find(link.to_card_id);
+      if ((link.to_type != "card" && link.to_type != "resource") || remapped == targets.end())
+        continue; // A target absent from this snapshot cannot be written as a dangling link.
       holder::model::CardLink resolved = link;
       resolved.to_card_id = remapped->second;
       resolved.project_id = project_id;
@@ -450,14 +518,14 @@ CardMoveResult CardStore::move_to(
     long long updated_at
 ) {
   auto card = card_repo_.get(card_id);
-  if (!card || card->deleted_at) throw std::runtime_error("card_not_found");
-  if (card->project_id != project_id) throw std::runtime_error("cross_project_move_forbidden");
+  if (!card || card->deleted_at) throw CardPlacementError(CardPlacementErrorCode::CardNotFound);
+  if (card->project_id != project_id) throw CardPlacementError(CardPlacementErrorCode::CrossProjectMoveForbidden);
   const auto project = require_project(project_id);
   auto operation = git_->lock_operation(project.root_path);
   const auto placement =
       CardPlacementResolver(card_repo_).resolve(project_id, card_id, request, updated_at);
   card = card_repo_.get(card_id);
-  if (!card) throw std::runtime_error("card_not_found"); // LCOV_EXCL_LINE - resolve checked.
+  if (!card) throw CardPlacementError(CardPlacementErrorCode::CardNotFound); // LCOV_EXCL_LINE - resolve checked.
   const bool moved = placement.parent_card_id != card->parent_card_id ||
                      placement.sort_key != card->sort_key;
   if (!moved && placement.sibling_changes.empty()) return {*card, placement.moved_into_title};
@@ -583,6 +651,94 @@ void CardStore::update_milestones(const std::string& card_id, long long updated_
   git_->commit("Update milestones for " + card.title);
 }
 
+bool CardStore::change_milestones(
+    const std::string& project_id,
+    const std::string& card_id,
+    long long updated_at,
+    const std::string& message,
+    const std::function<bool(std::vector<holder::model::Milestone>&)>& change,
+    bool missing_card_is_noop
+) {
+  auto card = card_repo_.get(card_id);
+  if (!card || card->project_id != project_id || card->deleted_at) {
+    if (missing_card_is_noop) return false;
+    throw std::runtime_error("live card not found: " + card_id);
+  }
+  const auto project = require_project(project_id);
+  auto operation = git_->lock_operation(project.root_path);
+  card = card_repo_.get(card_id);
+  if (!card || card->project_id != project_id || card->deleted_at) {
+    if (missing_card_is_noop) return false;
+    throw std::runtime_error("live card not found: " + card_id);
+  }
+  git_->open_or_init(project.root_path);
+  if (project.git_remote_url) git_->set_remote("origin", *project.git_remote_url);
+
+  if (card->rel_path != holder::core::card_rel_path(card_id))
+    throw std::runtime_error("card rel_path does not match card_id");
+  const auto path = git_->repo_dir() / card->rel_path;
+  if (!fs_->exists(path)) throw std::runtime_error("card content missing");
+  auto target = holder::core::parse_card_file(decode_card_blob(project, fs_->read_file(path)));
+  if (!target.has_front_matter || target.card.card_id != card_id ||
+      target.card.project_id != project_id)
+    throw std::runtime_error("card front matter identity mismatch");
+  target.card = *card;
+  // Even an absent remove must surface a broken projection rather than claim success.
+  milestone_repo_.list_for_card(project_id, card_id);
+  if (!change(target.milestones)) return false;
+  target.card.updated_at = updated_at;
+  apply_card_changes(project, *card, std::move(target), {}, message + card->title);
+  return true;
+}
+
+holder::model::Milestone CardStore::add_milestone(
+    holder::model::Milestone milestone,
+    long long updated_at
+) {
+  if (milestone.project_id.empty() || milestone.card_id.empty())
+    throw std::invalid_argument("milestone project_id/card_id must not be empty");
+  for (const auto& value : milestone.dates) holder::model::validate_milestone_date(value);
+  if (milestone.milestone_id.empty()) milestone.milestone_id = holder::identity::uuid_v4();
+  if (milestone.created_at == 0) milestone.created_at = updated_at;
+  milestone.updated_at = updated_at;
+  change_milestones(
+      milestone.project_id,
+      milestone.card_id,
+      updated_at,
+      "Add milestone for ",
+      [&](auto& milestones) {
+        if (std::any_of(milestones.begin(), milestones.end(), [&](const auto& existing) {
+              return existing.milestone_id == milestone.milestone_id;
+            }))
+          throw std::invalid_argument("milestone ID already exists");
+        milestones.push_back(milestone);
+        return true;
+      }
+  );
+  return milestone;
+}
+
+bool CardStore::remove_milestone(
+    const std::string& project_id,
+    const std::string& card_id,
+    const std::string& milestone_id,
+    long long updated_at
+) {
+  return change_milestones(
+      project_id,
+      card_id,
+      updated_at,
+      "Remove milestone from ",
+      [&](auto& milestones) {
+        const auto before = milestones.size();
+        std::erase_if(milestones, [&](const auto& value) {
+          return value.milestone_id == milestone_id;
+        });
+        return milestones.size() != before;
+      }
+  );
+}
+
 std::optional<holder::model::Milestone> CardStore::update_milestone(
     const std::string& project_id,
     const std::string& card_id,
@@ -596,58 +752,91 @@ std::optional<holder::model::Milestone> CardStore::update_milestone(
     return std::nullopt;
   }
 
-  auto milestones = milestone_repo_.list_for_card(project_id, card_id);
-  const auto position = std::find_if(milestones.begin(), milestones.end(), [&](const auto& value) {
-    return value.milestone_id == milestone_id;
-  });
-  if (position == milestones.end()) return std::nullopt;
-
-  auto updated = *position;
-  if (update.start_at.has_value()) updated.start_at = *update.start_at;
-  if (update.has_end_at) updated.end_at = update.end_at;
-  if (update.all_day.has_value()) updated.all_day = *update.all_day;
-  if (update.has_kind) updated.kind = update.kind;
-  if (update.has_description) updated.description = update.description;
-
-  if (updated.end_at.has_value() && *updated.end_at < updated.start_at) {
-    throw std::invalid_argument("milestone end_at must not be before start_at");
-  }
-
-  const bool changed = updated.start_at != position->start_at ||
-                       updated.end_at != position->end_at || updated.all_day != position->all_day ||
-                       updated.kind != position->kind ||
-                       updated.description != position->description;
-  if (!changed) return *position;
-
-  updated.updated_at = updated_at;
-  *position = updated;
-
-  auto card = *card_opt;
-  const auto project = require_project(project_id);
-  auto operation = git_->lock_operation(project.root_path);
-  git_->open_or_init(project.root_path);
-  if (project.git_remote_url.has_value()) git_->set_remote("origin", *project.git_remote_url);
-  const std::string expected = holder::core::card_rel_path(card.card_id);
-  if (card.rel_path != expected) {
-    throw std::runtime_error("card rel_path does not match card_id");
-  }
-
-  const auto full_path = git_->repo_dir() / card.rel_path;
-  if (!fs_->exists(full_path)) {
-    throw std::runtime_error("card content missing");
-  }
-  const auto raw = fs_->read_file(full_path);
-  const auto plain = decode_card_blob(project, raw);
-  const auto parsed = holder::core::parse_card_file(plain);
-
-  card.updated_at = updated_at;
-  write_card_file(*git_, project, card, parsed.links, milestones, parsed.body);
-  git_->stage_path(card.rel_path);
-  assert_project_staged_blobs_safe(project, {card.rel_path});
-  milestone_repo_.replace_for_card(project_id, card_id, milestones);
-  card_repo_.touch_updated(card_id, updated_at);
-  git_->commit("Update milestone for " + card.title);
-  return updated;
+  std::optional<holder::model::Milestone> result;
+  change_milestones(
+      project_id,
+      card_id,
+      updated_at,
+      "Update milestone for ",
+      [&](auto& milestones) {
+        const auto position =
+            std::find_if(milestones.begin(), milestones.end(), [&](const auto& value) {
+              return value.milestone_id == milestone_id;
+            });
+        if (position == milestones.end()) return false;
+        auto updated = *position;
+        if (update.dates) updated.dates = *update.dates;
+        if (update.start_at || update.has_end_at || update.all_day) {
+          if (update.dates)
+            throw std::invalid_argument("dates cannot be mixed with legacy milestone fields");
+          const auto find_role = [&](const std::string& role) {
+            auto first = std::find_if(
+                updated.dates.begin(), updated.dates.end(),
+                [&](const auto& value) { return value.role == role; }
+            );
+            if (first != updated.dates.end() &&
+                std::find_if(std::next(first), updated.dates.end(), [&](const auto& value) {
+                  return value.role == role;
+                }) != updated.dates.end())
+              throw std::invalid_argument("legacy milestone update requires a unique " + role);
+            return first;
+          };
+          const auto start = find_role("start");
+          const auto old_start = start != updated.dates.end()
+                                     ? holder::model::milestone_legacy_epoch(*start)
+                                     : std::nullopt;
+          if (!update.start_at && !old_start)
+            throw std::invalid_argument("legacy milestone update requires a single start value");
+          const auto at = update.start_at ? *update.start_at : *old_start;
+          const bool all_day = update.all_day.value_or(
+              start != updated.dates.end() && start->date.has_value()
+          );
+          const auto new_start = holder::model::milestone_date_from_legacy("start", at, all_day);
+          if (start == updated.dates.end())
+            updated.dates.push_back(new_start);
+          else
+            *start = new_start;
+          const auto end = find_role("end");
+          std::optional<long long> end_at;
+          if (end != updated.dates.end()) end_at = holder::model::milestone_legacy_epoch(*end);
+          if (end != updated.dates.end() && !end_at && !update.has_end_at)
+            throw std::invalid_argument("legacy milestone update requires a single end value");
+          if (update.has_end_at) end_at = update.end_at;
+          const auto normalized_start = holder::model::milestone_legacy_epoch(new_start).value();
+          if (end_at) {
+            const long long end_epoch = *end_at;
+            long long normalized_end = end_epoch;
+            if (all_day)
+              normalized_end = holder::model::milestone_day_utc_epoch(
+                  holder::model::milestone_utc_date(end_epoch)
+              );
+            if (normalized_end < normalized_start)
+              throw std::invalid_argument("milestone end_at must not be before start_at");
+            const auto new_end =
+                holder::model::milestone_date_from_legacy("end", end_epoch, all_day);
+            if (end == updated.dates.end())
+              updated.dates.push_back(new_end);
+            else
+              *end = new_end;
+          } else if (end != updated.dates.end()) {
+            updated.dates.erase(end);
+          }
+        }
+        if (update.has_kind) updated.kind = update.kind;
+        if (update.has_description) updated.description = update.description;
+        for (const auto& value : updated.dates) holder::model::validate_milestone_date(value);
+        const bool changed = updated.dates != position->dates || updated.kind != position->kind ||
+                             updated.description != position->description;
+        if (changed) {
+          updated.updated_at = updated_at;
+          *position = updated;
+        }
+        result = updated;
+        return changed;
+      },
+      true
+  );
+  return result;
 }
 
 CardStore::CardChange CardStore::placement_change(
@@ -702,7 +891,7 @@ void CardStore::apply_card_changes(
       throw std::runtime_error("card content missing");
     if (source_path != target_path) {
       if (fs_->exists(git_->repo_dir() / target_path))
-        throw std::runtime_error("conflict: destination card file already exists");
+        throw holder::model::ConflictError("destination card file already exists");
       renames.push_back({source_path, target_path});
     }
     change.target.card.rel_path = live_path;
@@ -972,18 +1161,28 @@ void CardStore::restore_version(
   );
 }
 
-void CardStore::hard_delete(const std::string& card_id) {
+void CardStore::hard_delete(
+    const std::string& card_id,
+    const std::optional<std::string>& expected_project_id
+) {
   const auto card_opt = card_repo_.get(card_id);
   if (!card_opt.has_value()) {
     throw std::runtime_error("card not found: " + card_id);
   }
-  const auto& card = card_opt.value();
-  if (!card.deleted_at.has_value()) {
+  if (expected_project_id && card_opt->project_id != *expected_project_id) {
+    throw std::runtime_error("card not found in project: " + card_id);
+  }
+  const auto project = require_project(card_opt->project_id);
+  auto operation = git_->lock_operation(project.root_path);
+  const auto current = card_repo_.get(card_id);
+  if (!current.has_value() || current->project_id != project.project_id ||
+      (expected_project_id && current->project_id != *expected_project_id)) {
+    throw std::runtime_error("card not found in project: " + card_id);
+  }
+  if (!current->deleted_at.has_value()) {
     throw std::runtime_error("card is not deleted");
   }
-
-  const auto project = require_project(card.project_id);
-  auto operation = git_->lock_operation(project.root_path);
+  const auto& card = *current;
   git_->open_or_init(project.root_path);
   if (project.git_remote_url.has_value()) git_->set_remote("origin", *project.git_remote_url);
   const std::string trash_rel = holder::core::card_trash_rel_path(card.card_id);
@@ -1060,7 +1259,7 @@ CollectionCardPage CardStore::list_collection_page(
     if (metadata.size() > static_cast<std::size_t>(limit)) {
       metadata.resize(static_cast<std::size_t>(limit));
       const auto& last = metadata.back();
-      page.next_cursor = CardPageCursor{last.card_id, last.updated_at};
+      page.next_cursor = CardPageCursor{last.card_id, last.updated_at, last.sort_key};
     }
     for (auto& card : metadata) {
       std::string content;

@@ -489,7 +489,7 @@ namespace {
 // one GitRepo per Git operation, a balanced init/shutdown per instance drives
 // that refcount back to zero between operations -- after which a later
 // git_repository_open fails outright on Windows. Initialize once for the
-// process and never shut down; this matches holder_git_set_homedir's own
+// process and never shut down; this matches configure_git_home's own
 // permanent reference and the requirement noted there.
 void ensure_libgit2_initialized() {
   static const int once = git_libgit2_init();

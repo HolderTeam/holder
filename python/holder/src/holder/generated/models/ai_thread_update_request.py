@@ -14,11 +14,12 @@ T = TypeVar("T", bound="AiThreadUpdateRequest")
 
 @_attrs_define
 class AiThreadUpdateRequest:
-    """
+    """AI ThreadUpdateRequest.
+
     Attributes:
-        updated_at (int):
-        title (None | str | Unset):
-        card_id (None | str | Unset):
+        updated_at (int): The updated at.
+        title (None | str | Unset): Omit or send null to leave it unchanged.
+        card_id (None | str | Unset): Omit to leave it unchanged; null detaches the thread from its card.
     """
 
     updated_at: int

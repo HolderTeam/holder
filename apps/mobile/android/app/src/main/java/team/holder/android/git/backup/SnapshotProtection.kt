@@ -8,7 +8,7 @@ import java.io.File
  * whatever snapshot a genuine "lost phone" reinstall found waiting at [snapshotFile] before
  * this install's first launch.
  *
- * The race: `ensure_default_project` seeds a fresh "Home" welcome card, timestamped `now`, the
+ * The race: `ensure_home_project` seeds a fresh "Home" welcome card, timestamped `now`, the
  * moment `HolderNative.initialize()` first runs on this install -- including a reinstall, since
  * `files/holder/` is excluded from Auto Backup and always starts empty. That alone is enough
  * for [SnapshotWriter.deviceMaxUpdatedAt] to look newer than

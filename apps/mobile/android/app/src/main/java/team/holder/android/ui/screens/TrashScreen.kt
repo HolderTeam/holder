@@ -33,7 +33,7 @@ import androidx.compose.ui.Modifier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import team.holder.android.HolderCard
+import team.holder.android.HolderTrashedCard
 import team.holder.android.HolderNative
 import team.holder.android.ui.CenteredMessage
 import team.holder.android.ui.LoadState
@@ -47,7 +47,7 @@ private fun formatDeletedAt(epochSeconds: Long?): String? =
     epochSeconds?.let { "Deleted ${DELETED_AT_FORMAT.format(Instant.ofEpochSecond(it))}" }
 
 /**
- * Lists project_id's trashed cards (holder_card_delete moves them here instead of removing them
+ * Lists project_id's trashed cards (trash_card moves them here instead of removing them
  * outright) with per-card restore/permanent-delete actions, mirroring desktop Holder's trash tool
  * (same "Restore"/"Delete Permanently"/"Empty Trash" terminology) minus the AI-message rows and
  * type filter desktop has, since Android doesn't sync AI threads yet.
@@ -58,9 +58,9 @@ fun TrashScreen(
     projectId: String,
     onBack: () -> Unit,
 ) {
-    var cardsState by remember(projectId) { mutableStateOf<LoadState<List<HolderCard>>>(LoadState.Loading) }
+    var cardsState by remember(projectId) { mutableStateOf<LoadState<List<HolderTrashedCard>>>(LoadState.Loading) }
     var menuOpenFor by remember { mutableStateOf<String?>(null) }
-    var cardPendingDelete by remember { mutableStateOf<HolderCard?>(null) }
+    var cardPendingDelete by remember { mutableStateOf<HolderTrashedCard?>(null) }
     var emptyTrashPending by remember { mutableStateOf(false) }
     // Guards restore/delete against double-tap: a second tap can reach the same button or dialog
     // action before recomposition clears it, re-running the request.
@@ -78,23 +78,23 @@ fun TrashScreen(
 
     LaunchedEffect(projectId) { refresh() }
 
-    fun restore(card: HolderCard) {
+    fun restore(card: HolderTrashedCard) {
         if (isSubmitting) return
         isSubmitting = true
         menuOpenFor = null
         scope.launch {
-            runCatching { withContext(Dispatchers.IO) { HolderNative.restoreCard(card.cardId) } }
+            runCatching { withContext(Dispatchers.IO) { HolderNative.restoreCard(projectId, card.cardId) } }
             isSubmitting = false
             refresh()
         }
     }
 
-    fun deletePermanently(card: HolderCard) {
+    fun deletePermanently(card: HolderTrashedCard) {
         if (isSubmitting) return
         isSubmitting = true
         cardPendingDelete = null
         scope.launch {
-            runCatching { withContext(Dispatchers.IO) { HolderNative.purgeCard(card.cardId) } }
+            runCatching { withContext(Dispatchers.IO) { HolderNative.purgeCard(projectId, card.cardId) } }
             isSubmitting = false
             refresh()
         }
@@ -104,12 +104,9 @@ fun TrashScreen(
         if (isSubmitting) return
         isSubmitting = true
         emptyTrashPending = false
-        val current = (cardsState as? LoadState.Success)?.value.orEmpty()
         scope.launch {
             withContext(Dispatchers.IO) {
-                for (card in current) {
-                    runCatching { HolderNative.purgeCard(card.cardId) }
-                }
+                runCatching { HolderNative.emptyCardTrash(projectId) }
             }
             isSubmitting = false
             refresh()

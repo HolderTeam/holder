@@ -1,4 +1,5 @@
 #include "card/CardPlacementResolver.h"
+#include "card/CardPlacementError.h"
 #include "card/CardHierarchy.h"
 
 #include <algorithm>
@@ -54,11 +55,11 @@ CardPlacementResult CardPlacementResolver::resolve(
 ) const {
   const auto source_opt = cards_.get(card_id);
   if (!source_opt.has_value() || source_opt->deleted_at.has_value()) {
-    throw std::runtime_error("card_not_found");
+    throw CardPlacementError(CardPlacementErrorCode::CardNotFound);
   }
   const auto& source = source_opt.value();
   if (source.project_id != project_id) {
-    throw std::runtime_error("cross_project_move_forbidden");
+    throw CardPlacementError(CardPlacementErrorCode::CrossProjectMoveForbidden);
   }
 
   const auto cards = cards_.list_all(project_id);
@@ -101,18 +102,18 @@ CardPlacementResult CardPlacementResolver::resolve(
   case CardPlacementIntent::Before:
   case CardPlacementIntent::After: {
     if (!request.target_card_id.has_value()) {
-      throw std::runtime_error("missing_target_card_id");
+      throw CardPlacementError(CardPlacementErrorCode::MissingTargetCardId);
     }
     const std::string& target_card_id = request.target_card_id.value();
     const auto it = cards_by_id.find(target_card_id);
     if (it == cards_by_id.end() || it->second.deleted_at.has_value()) {
-      throw std::runtime_error("target_not_found");
+      throw CardPlacementError(CardPlacementErrorCode::TargetNotFound);
     }
     const auto& target = it->second;
     if (request.intent == CardPlacementIntent::Into) {
       next_parent = target.card_id;
       if (is_descendant_of(cards_by_id, next_parent, source.card_id)) {
-        throw std::runtime_error("move_would_create_cycle");
+        throw CardPlacementError(CardPlacementErrorCode::MoveWouldCreateCycle);
       }
       destination = siblings_for_parent(next_parent, source.card_id);
       at = destination.size();
@@ -125,7 +126,7 @@ CardPlacementResult CardPlacementResolver::resolve(
             return c.card_id == target.card_id;
           });
       if (target_it == destination.end()) {
-        throw std::runtime_error("invalid_target");
+        throw CardPlacementError(CardPlacementErrorCode::InvalidTarget);
       }
       at = static_cast<std::size_t>(target_it - destination.begin()) +
            (request.intent == CardPlacementIntent::After ? 1U : 0U);
@@ -144,7 +145,7 @@ CardPlacementResult CardPlacementResolver::resolve(
     if (next_parent.has_value()) {
       const auto parent_it = cards_by_id.find(next_parent.value());
       if (parent_it == cards_by_id.end() || parent_it->second.deleted_at.has_value()) {
-        throw std::runtime_error("target_not_found");
+        throw CardPlacementError(CardPlacementErrorCode::TargetNotFound);
       }
     }
 
@@ -182,7 +183,7 @@ CardPlacementResult CardPlacementResolver::resolve(
   case CardPlacementIntent::UpLevel: {
     const auto current_parent = normalize_parent_id(source.parent_card_id);
     if (!current_parent.has_value()) {
-      throw std::runtime_error("already_at_project_root");
+      throw CardPlacementError(CardPlacementErrorCode::AlreadyAtProjectRoot);
     }
     const auto parent_it = cards_by_id.find(current_parent.value());
     if (parent_it == cards_by_id.end() || parent_it->second.deleted_at.has_value()) {
@@ -203,7 +204,7 @@ CardPlacementResult CardPlacementResolver::resolve(
   default:
     // Every CardPlacementIntent value is handled above; this guards against an out-of-range
     // enum value crossing some future boundary.
-    throw std::runtime_error("invalid_move_intent");
+    throw CardPlacementError(CardPlacementErrorCode::InvalidMoveIntent);
   }
 
   CardPlacementResult result;

@@ -12,11 +12,12 @@ T = TypeVar("T", bound="AiMessageCaptureResponseData")
 
 @_attrs_define
 class AiMessageCaptureResponseData:
-    """
+    """AI MessageCapture responseData.
+
     Attributes:
-        thread_id (str):
-        user_message_id (str):
-        assistant_message_id (str):
+        thread_id (str): The thread id.
+        user_message_id (str): The user message id.
+        assistant_message_id (str): The assistant message id.
     """
 
     thread_id: str

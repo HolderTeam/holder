@@ -23,7 +23,7 @@ from .graph import records_to_networkx
 from .dataframe import DataFrames, _require_pandas, records_to_dataframe
 from .data import (
     MILESTONE_RECORD_FIELDS, PROJECT_MILESTONE_RECORD_FIELDS,
-    MilestoneRecord, ProjectMilestoneRecord, MilestoneUpdate,
+    MilestoneDateRecord, MilestoneRecord, ProjectMilestoneRecord, MilestoneUpdate,
     TAG_RECORD_FIELDS, ProjectTagRecord, TaggedCardRecord, TagRecord, TagAddResult, TagRemoveResult,
     CARD_METADATA_RECORD_FIELDS,
     CARD_RECORD_FIELDS,
@@ -151,13 +151,13 @@ class Context:
     def list_cards(self, project_id: str) -> list[Card]:
         return self.cards.list(project_id)
 
-    def get_card_content(self, card_id: str) -> str:
-        return self._context.get_card_content(card_id)
+    def get_card_content(self, project_id: str, card_id: str) -> str:
+        return self._context.get_card_content(project_id, card_id)
 
     def update_card(
-        self, card_id: str, content: str, title: str | None = None
+        self, project_id: str, card_id: str, content: str, title: str | None = None
     ) -> Card:
-        metadata = self._context.update_card(card_id, content, title)
+        metadata = self._context.update_card(project_id, card_id, content, title)
         return Card._from_native(metadata, Project(self._context, str(metadata["project_id"])))
 
     def __enter__(self) -> Context:
@@ -181,7 +181,7 @@ from ._storage import clone, create, reopen
 __all__ = [
     "clone", "create", "reopen",
     "MILESTONE_RECORD_FIELDS", "PROJECT_MILESTONE_RECORD_FIELDS", "MilestoneCollection",
-    "MilestoneRecord", "ProjectMilestoneRecord", "MilestoneUpdate",
+    "MilestoneDateRecord", "MilestoneRecord", "ProjectMilestoneRecord", "MilestoneUpdate",
     "TAG_RECORD_FIELDS", "TagCollection", "ProjectTagRecord", "TaggedCardRecord",
     "TagRecord", "TagAddResult", "TagRemoveResult",
     "CONNECTION_RECORD_FIELDS",

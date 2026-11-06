@@ -186,6 +186,13 @@ TEST_CASE("AiRunRepo list_by_thread and list_by_project return newest first", "[
   REQUIRE(by_project.size() == 2);
   REQUIRE(by_project[0].run_id == "run-new");
   REQUIRE(by_project[1].run_id == "run-old");
+
+  REQUIRE(repo.count_started() == 0);
+  holder::model::AiRun started = older;
+  started.run_id = "run-started";
+  started.status = "started";
+  repo.create(started);
+  REQUIRE(repo.count_started() == 1);
 }
 
 TEST_CASE("AiRunRepo throws when insert step fails", "[db]") {
@@ -245,6 +252,10 @@ TEST_CASE("AiRunRepo throws when table missing for prepare paths", "[db]") {
   REQUIRE_THROWS_WITH(
       repo.create(run),
       Catch::Matchers::ContainsSubstring("prepare ai_runs insert failed: no such table: ai_runs")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.count_started(),
+      Catch::Matchers::ContainsSubstring("prepare ai_runs count_started failed")
   );
   REQUIRE_THROWS_WITH(
       repo.get("run-prepare"),

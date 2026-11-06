@@ -7,15 +7,15 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.project_update_request import ProjectUpdateRequest
-from ...models.project_update_response import ProjectUpdateResponse
-from ...types import Response
+from ...models.project_response import ProjectResponse
+from ...models.project_update import ProjectUpdate
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     project_id: str,
     *,
-    body: ProjectUpdateRequest,
+    body: ProjectUpdate | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -26,7 +26,8 @@ def _get_kwargs(
         ),
     }
 
-    _kwargs["json"] = body.to_dict()
+    if not isinstance(body, Unset):
+        _kwargs["json"] = body.to_dict()
 
     headers["Content-Type"] = "application/json"
 
@@ -36,9 +37,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | ProjectUpdateResponse | None:
+) -> ErrorResponse | ProjectResponse | None:
     if response.status_code == 200:
-        response_200 = ProjectUpdateResponse.from_dict(response.json())
+        response_200 = ProjectResponse.from_dict(response.json())
 
         return response_200
 
@@ -57,6 +58,21 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -65,7 +81,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | ProjectUpdateResponse]:
+) -> Response[ErrorResponse | ProjectResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -78,20 +94,27 @@ def sync_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectUpdateRequest,
-) -> Response[ErrorResponse | ProjectUpdateResponse]:
-    """Update a project
+    body: ProjectUpdate | Unset = UNSET,
+) -> Response[ErrorResponse | ProjectResponse]:
+    """Change a project's settings.
+
+     Each field left out keeps its value, and an update that changes nothing writes nothing. The settings
+    are
+    committed to the project's repository; a Git remote is set there before it is stored, and one Git
+    does not
+    accept is an invalid argument.
 
     Args:
         project_id (str):
-        body (ProjectUpdateRequest):
+        body (ProjectUpdate | Unset): A change to a project's settings. Each field left out keeps
+            its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectUpdateResponse]
+        Response[ErrorResponse | ProjectResponse]
     """
 
     kwargs = _get_kwargs(
@@ -110,20 +133,27 @@ def sync(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectUpdateRequest,
-) -> ErrorResponse | ProjectUpdateResponse | None:
-    """Update a project
+    body: ProjectUpdate | Unset = UNSET,
+) -> ErrorResponse | ProjectResponse | None:
+    """Change a project's settings.
+
+     Each field left out keeps its value, and an update that changes nothing writes nothing. The settings
+    are
+    committed to the project's repository; a Git remote is set there before it is stored, and one Git
+    does not
+    accept is an invalid argument.
 
     Args:
         project_id (str):
-        body (ProjectUpdateRequest):
+        body (ProjectUpdate | Unset): A change to a project's settings. Each field left out keeps
+            its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectUpdateResponse
+        ErrorResponse | ProjectResponse
     """
 
     return sync_detailed(
@@ -137,20 +167,27 @@ async def asyncio_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectUpdateRequest,
-) -> Response[ErrorResponse | ProjectUpdateResponse]:
-    """Update a project
+    body: ProjectUpdate | Unset = UNSET,
+) -> Response[ErrorResponse | ProjectResponse]:
+    """Change a project's settings.
+
+     Each field left out keeps its value, and an update that changes nothing writes nothing. The settings
+    are
+    committed to the project's repository; a Git remote is set there before it is stored, and one Git
+    does not
+    accept is an invalid argument.
 
     Args:
         project_id (str):
-        body (ProjectUpdateRequest):
+        body (ProjectUpdate | Unset): A change to a project's settings. Each field left out keeps
+            its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectUpdateResponse]
+        Response[ErrorResponse | ProjectResponse]
     """
 
     kwargs = _get_kwargs(
@@ -167,20 +204,27 @@ async def asyncio(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectUpdateRequest,
-) -> ErrorResponse | ProjectUpdateResponse | None:
-    """Update a project
+    body: ProjectUpdate | Unset = UNSET,
+) -> ErrorResponse | ProjectResponse | None:
+    """Change a project's settings.
+
+     Each field left out keeps its value, and an update that changes nothing writes nothing. The settings
+    are
+    committed to the project's repository; a Git remote is set there before it is stored, and one Git
+    does not
+    accept is an invalid argument.
 
     Args:
         project_id (str):
-        body (ProjectUpdateRequest):
+        body (ProjectUpdate | Unset): A change to a project's settings. Each field left out keeps
+            its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectUpdateResponse
+        ErrorResponse | ProjectResponse
     """
 
     return (

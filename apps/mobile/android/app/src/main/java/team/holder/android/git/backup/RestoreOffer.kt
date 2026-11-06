@@ -16,7 +16,7 @@ import team.holder.android.HolderSettings
  * restore isn't the one-time surprise this guards against firing more than once.
  *
  * `HolderNative.initialize()` always creates a default "Home" welcome project on a project-
- * less device (see `ensure_default_project`) before this offer ever gets a chance to run, so
+ * less device (see `ensure_home_project`) before this offer ever gets a chance to run, so
  * unlike [team.holder.android.git.github.GitHubBackfill] this can't gate on "zero local
  * projects" -- that's never actually true by the time a caller can check. The flag is the
  * only signal: a device that has already been offered this once, ever, won't be offered again

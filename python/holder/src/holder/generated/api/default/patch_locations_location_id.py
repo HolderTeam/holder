@@ -6,14 +6,16 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.patch_locations_location_id_body import PatchLocationsLocationIdBody
-from ...types import Response
+from ...models.error_response import ErrorResponse
+from ...models.project_storage_location_response import ProjectStorageLocationResponse
+from ...models.storage_location_update import StorageLocationUpdate
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     location_id: str,
     *,
-    body: PatchLocationsLocationIdBody,
+    body: StorageLocationUpdate | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -24,7 +26,8 @@ def _get_kwargs(
         ),
     }
 
-    _kwargs["json"] = body.to_dict()
+    if not isinstance(body, Unset):
+        _kwargs["json"] = body.to_dict()
 
     headers["Content-Type"] = "application/json"
 
@@ -34,9 +37,31 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Any | None:
+) -> ErrorResponse | ProjectStorageLocationResponse | None:
     if response.status_code == 200:
-        return None
+        response_200 = ProjectStorageLocationResponse.from_dict(response.json())
+
+        return response_200
+
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
+
+    if response.status_code == 401:
+        response_401 = ErrorResponse.from_dict(response.json())
+
+        return response_401
+
+    if response.status_code == 404:
+        response_404 = ErrorResponse.from_dict(response.json())
+
+        return response_404
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -46,7 +71,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[Any]:
+) -> Response[ErrorResponse | ProjectStorageLocationResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -59,20 +84,22 @@ def sync_detailed(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: PatchLocationsLocationIdBody,
-) -> Response[Any]:
-    """Update a storage location declaration
+    body: StorageLocationUpdate | Unset = UNSET,
+) -> Response[ErrorResponse | ProjectStorageLocationResponse]:
+    """Change a storage declaration; configuration replaces the whole map.
+
+     Change a storage declaration; configuration replaces the whole map.
 
     Args:
         location_id (str):
-        body (PatchLocationsLocationIdBody):
+        body (StorageLocationUpdate | Unset): Changes to a portable location declaration.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Any]
+        Response[ErrorResponse | ProjectStorageLocationResponse]
     """
 
     kwargs = _get_kwargs(
@@ -87,24 +114,55 @@ def sync_detailed(
     return _build_response(client=client, response=response)
 
 
-async def asyncio_detailed(
+def sync(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: PatchLocationsLocationIdBody,
-) -> Response[Any]:
-    """Update a storage location declaration
+    body: StorageLocationUpdate | Unset = UNSET,
+) -> ErrorResponse | ProjectStorageLocationResponse | None:
+    """Change a storage declaration; configuration replaces the whole map.
+
+     Change a storage declaration; configuration replaces the whole map.
 
     Args:
         location_id (str):
-        body (PatchLocationsLocationIdBody):
+        body (StorageLocationUpdate | Unset): Changes to a portable location declaration.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Any]
+        ErrorResponse | ProjectStorageLocationResponse
+    """
+
+    return sync_detailed(
+        location_id=location_id,
+        client=client,
+        body=body,
+    ).parsed
+
+
+async def asyncio_detailed(
+    location_id: str,
+    *,
+    client: AuthenticatedClient | Client,
+    body: StorageLocationUpdate | Unset = UNSET,
+) -> Response[ErrorResponse | ProjectStorageLocationResponse]:
+    """Change a storage declaration; configuration replaces the whole map.
+
+     Change a storage declaration; configuration replaces the whole map.
+
+    Args:
+        location_id (str):
+        body (StorageLocationUpdate | Unset): Changes to a portable location declaration.
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Response[ErrorResponse | ProjectStorageLocationResponse]
     """
 
     kwargs = _get_kwargs(
@@ -115,3 +173,34 @@ async def asyncio_detailed(
     response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    location_id: str,
+    *,
+    client: AuthenticatedClient | Client,
+    body: StorageLocationUpdate | Unset = UNSET,
+) -> ErrorResponse | ProjectStorageLocationResponse | None:
+    """Change a storage declaration; configuration replaces the whole map.
+
+     Change a storage declaration; configuration replaces the whole map.
+
+    Args:
+        location_id (str):
+        body (StorageLocationUpdate | Unset): Changes to a portable location declaration.
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        ErrorResponse | ProjectStorageLocationResponse
+    """
+
+    return (
+        await asyncio_detailed(
+            location_id=location_id,
+            client=client,
+            body=body,
+        )
+    ).parsed

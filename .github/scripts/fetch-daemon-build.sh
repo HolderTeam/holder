@@ -4,14 +4,14 @@
 # found=true or found=false (no such release, or holder-sdk unreachable) to $GITHUB_OUTPUT, so
 # the caller builds the daemon only when it must. A checksum mismatch is an error.
 #
-# Usage: fetch-daemon-build.sh <cache key> <stage dir>
+# Usage: fetch-daemon-build.sh <cache key> <stage dir> [archive name]
 set -euo pipefail
 
 key="$1"
 stage="$2"
 tag="daemon-${key#linux-daemon-}"
 url="https://github.com/HolderTeam/holder-sdk/releases/download/$tag"
-archive=holder-daemon-linux-x86_64.tar.gz
+archive=${3:-holder-daemon-linux-x86_64.tar.gz}
 work=$(mktemp -d)
 
 found=false

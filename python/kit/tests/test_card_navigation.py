@@ -116,7 +116,13 @@ def test_navigation_reads_metadata_without_bodies_or_project_scans(
 
         monkeypatch.setattr(_native.Context, 'list_cards', forbidden)
         monkeypatch.setattr(_native.Context, 'get_card_content', forbidden)
-        monkeypatch.setattr(_native.Context, 'list_complete_cards_page', forbidden)
+        original_page = _native.Context.list_cards_page
+
+        def metadata_only(self: _native.Context, project_id: str, **options: Any) -> dict[str, Any]:
+            assert not options.get('include_content'), 'Navigation must not read bodies'
+            return original_page(self, project_id, **options)
+
+        monkeypatch.setattr(_native.Context, 'list_cards_page', metadata_only)
         assert project.cards.get(parent.card_id) == parent
         assert parent.children.list() == [child]
         assert parent.children.list()[0].parent == parent

@@ -20,7 +20,7 @@ object StorageLocations {
         configuration: Map<String, String>,
     ): HolderLocation = withContext(Dispatchers.IO) {
         HolderNative.listLocations(projectId).firstOrNull { it.provider == providerId }
-            ?: HolderNative.putLocation(
+            ?: HolderNative.createLocation(
                 locationId = UUID.randomUUID().toString(),
                 projectId = projectId,
                 name = locationName,

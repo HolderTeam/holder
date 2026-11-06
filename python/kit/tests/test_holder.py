@@ -41,15 +41,18 @@ def test_complete_card_lifecycle(tmp_path: Path) -> None:
             project.project_id, "First card", "Initial body"
         )
 
-        assert context.get_card_content(card.card_id) == "Initial body"
+        assert context._context.get_project(project.project_id)["name"] == "Python test"
+        assert context._context.get_card(project.project_id, card.card_id)["project_id"] == project.project_id
+
+        assert context.get_card_content(project.project_id, card.card_id) == "Initial body"
         assert context.list_cards(project.project_id) == [card]
 
         updated = context.update_card(
-            card.card_id, "Updated body", title="Updated card"
+            project.project_id, card.card_id, "Updated body", title="Updated card"
         )
         assert updated.card_id == card.card_id
         assert updated.title == "Updated card"
-        assert context.get_card_content(card.card_id) == "Updated body"
+        assert context.get_card_content(project.project_id, card.card_id) == "Updated body"
         assert context.list_cards(project.project_id)[0].title == "Updated card"
 
     assert context.closed
@@ -68,6 +71,16 @@ def test_invalid_input_and_native_failures(tmp_path: Path) -> None:
     context.close()
     with pytest.raises(RuntimeError, match="closed"):
         context.list_cards("anything")
+
+
+def test_generated_reference_result_is_detached(tmp_path: Path) -> None:
+    with holderkit.Context(tmp_path / "holder-data") as context:
+        project = context.create_project("References")
+        card = context.create_card(project.project_id, "One")
+        resolved = context._context.resolve_card(project.project_id, card.card_id)
+        assert resolved["status"] == "resolved"
+        assert resolved["card"]["card_id"] == card.card_id
+    assert resolved["card"]["title"] == "One"
 
 
 def test_context_destruction_releases_native_resources(tmp_path: Path) -> None:
@@ -108,7 +121,7 @@ def test_context_keeps_working_after_result_objects_are_released(tmp_path: Path)
     del card
     gc.collect()
 
-    assert context.get_card_content(card_id) == "body"
+    assert context.get_card_content(project_id, card_id) == "body"
     context.close()
 
 
@@ -197,16 +210,17 @@ def test_native_complete_card_pages_use_opaque_lookahead_cursor(
             second.card_id: second.content,
         }
 
-        first_page = context._context.list_complete_cards_page(
-            project.project_id, limit=1
+        first_page = context._context.list_cards_page(
+            project.project_id, limit=1, include_content=True
         )
         assert len(first_page["cards"]) == 1
         first_card = first_page["cards"][0]
         assert first_card["content"] == expected[first_card["card_id"]]
-        assert first_page["next_cursor"] == first_card["card_id"]
+        assert isinstance(first_page["next_cursor"], str)
+        assert first_page["next_cursor"]
 
-        second_page = context._context.list_complete_cards_page(
-            project.project_id, first_page["next_cursor"], 1
+        second_page = context._context.list_cards_page(
+            project.project_id, cursor=first_page["next_cursor"], limit=1, include_content=True
         )
         assert len(second_page["cards"]) == 1
         second_card = second_page["cards"][0]
@@ -215,9 +229,9 @@ def test_native_complete_card_pages_use_opaque_lookahead_cursor(
         assert first_card["card_id"] != second_card["card_id"]
 
         with pytest.raises(ValueError, match="limit"):
-            context._context.list_complete_cards_page(project.project_id, limit=0)
+            context._context.list_cards_page(project.project_id, limit=0, include_content=True)
         with pytest.raises(ValueError, match="limit"):
-            context._context.list_complete_cards_page(project.project_id, limit=1001)
+            context._context.list_cards_page(project.project_id, limit=1001, include_content=True)
 
 
 def test_metadata_records_do_not_require_card_files(tmp_path: Path) -> None:

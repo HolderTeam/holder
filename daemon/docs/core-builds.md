@@ -26,7 +26,7 @@ To manage the steps independently, start at the repository root:
 
 ```sh
 (cd core && ./make.sh install RelWithDebInfo)
-(cd daemon && HOLDER_CORE_INSTALL="$PWD/../core/out/install/local" ./make.sh build)
+(cd daemon && HOLDER_CORE_INSTALL="$PWD/core/out/install/local" ./make.sh build)
 ```
 
 With `HOLDER_CORE_INSTALL` set, the daemon helper does not build or install core.

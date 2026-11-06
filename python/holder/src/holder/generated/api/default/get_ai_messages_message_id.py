@@ -33,6 +33,11 @@ def _parse_response(
 
         return response_200
 
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
+
     if response.status_code == 401:
         response_401 = ErrorResponse.from_dict(response.json())
 
@@ -42,6 +47,11 @@ def _parse_response(
         response_404 = ErrorResponse.from_dict(response.json())
 
         return response_404
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -66,6 +76,8 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AiMessageGetResponse | ErrorResponse]:
     """Fetch an AI message
+
+     A message in the trash is not found.
 
     Args:
         message_id (str):
@@ -96,6 +108,8 @@ def sync(
 ) -> AiMessageGetResponse | ErrorResponse | None:
     """Fetch an AI message
 
+     A message in the trash is not found.
+
     Args:
         message_id (str):
 
@@ -119,6 +133,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AiMessageGetResponse | ErrorResponse]:
     """Fetch an AI message
+
+     A message in the trash is not found.
 
     Args:
         message_id (str):
@@ -146,6 +162,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> AiMessageGetResponse | ErrorResponse | None:
     """Fetch an AI message
+
+     A message in the trash is not found.
 
     Args:
         message_id (str):

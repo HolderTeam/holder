@@ -19,7 +19,7 @@ class ResourceResponse:
     """
     Attributes:
         ok (bool):
-        data (Resource):
+        data (Resource): A resource in a project, with its files.
     """
 
     ok: bool

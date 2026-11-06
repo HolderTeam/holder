@@ -1,0 +1,29 @@
+name: Save core compiler cache
+description: Report compiler cache statistics and save/prune successful main snapshots
+inputs:
+  key:
+    required: true
+    description: Snapshot key from cache setup
+  prefix:
+    required: true
+    description: Compatible snapshot prefix from cache setup
+  measure:
+    default: 'false'
+    description: Measurement caches are never persisted
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: ccache --show-stats --verbose
+    - id: save
+      if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && inputs.measure != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: .core-ccache
+        key: ${{ inputs.key }}
+    - if: steps.save.outcome == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && inputs.measure != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        CACHE_PREFIX: ${{ inputs.prefix }}
+      run: '"$GITHUB_WORKSPACE/.github/scripts/prune-run-caches.sh" "$CACHE_PREFIX"'

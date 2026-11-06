@@ -18,24 +18,27 @@ T = TypeVar("T", bound="AiRunItem")
 
 @_attrs_define
 class AiRunItem:
-    """
+    """AI RunItem.
+
     Attributes:
-        run_id (str):
-        mode (str):
-        prompt (str):
-        status (str):
-        created_at (int):
-        updated_at (int):
-        project_id (None | str | Unset):
-        thread_id (None | str | Unset):
-        message_id (None | str | Unset):
-        context_json (None | str | Unset):
-        router_model (None | str | Unset):
-        ranked_json (None | str | Unset):
-        policy_trace_json (None | str | Unset):
-        policy_trace (AiRunItemPolicyTraceType0 | None | Unset):
-        chosen_model (None | str | Unset):
-        error (None | str | Unset):
+        run_id (str): The run id.
+        mode (str): The mode.
+        prompt (str): The prompt.
+        status (str): The status.
+        created_at (int): The created at.
+        updated_at (int): The updated at.
+        project_id (None | str | Unset): The project id.
+        thread_id (None | str | Unset): The thread id.
+        message_id (None | str | Unset): The message id.
+        context_json (None | str | Unset): The context json.
+        router_model (None | str | Unset): The router model.
+        router_runner_id (None | str | Unset): The runner named by router_model's reference, or null.
+        ranked_json (None | str | Unset): The ranked json.
+        policy_trace_json (None | str | Unset): The policy trace json.
+        policy_trace (AiRunItemPolicyTraceType0 | None | Unset): The policy trace.
+        chosen_model (None | str | Unset): The chosen model.
+        chosen_runner_id (None | str | Unset): The runner named by chosen_model's reference, or null.
+        error (None | str | Unset): The error.
     """
 
     run_id: str
@@ -49,10 +52,12 @@ class AiRunItem:
     message_id: None | str | Unset = UNSET
     context_json: None | str | Unset = UNSET
     router_model: None | str | Unset = UNSET
+    router_runner_id: None | str | Unset = UNSET
     ranked_json: None | str | Unset = UNSET
     policy_trace_json: None | str | Unset = UNSET
     policy_trace: AiRunItemPolicyTraceType0 | None | Unset = UNSET
     chosen_model: None | str | Unset = UNSET
+    chosen_runner_id: None | str | Unset = UNSET
     error: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -103,6 +108,12 @@ class AiRunItem:
         else:
             router_model = self.router_model
 
+        router_runner_id: None | str | Unset
+        if isinstance(self.router_runner_id, Unset):
+            router_runner_id = UNSET
+        else:
+            router_runner_id = self.router_runner_id
+
         ranked_json: None | str | Unset
         if isinstance(self.ranked_json, Unset):
             ranked_json = UNSET
@@ -128,6 +139,12 @@ class AiRunItem:
             chosen_model = UNSET
         else:
             chosen_model = self.chosen_model
+
+        chosen_runner_id: None | str | Unset
+        if isinstance(self.chosen_runner_id, Unset):
+            chosen_runner_id = UNSET
+        else:
+            chosen_runner_id = self.chosen_runner_id
 
         error: None | str | Unset
         if isinstance(self.error, Unset):
@@ -157,6 +174,8 @@ class AiRunItem:
             field_dict["context_json"] = context_json
         if router_model is not UNSET:
             field_dict["router_model"] = router_model
+        if router_runner_id is not UNSET:
+            field_dict["router_runner_id"] = router_runner_id
         if ranked_json is not UNSET:
             field_dict["ranked_json"] = ranked_json
         if policy_trace_json is not UNSET:
@@ -165,6 +184,8 @@ class AiRunItem:
             field_dict["policy_trace"] = policy_trace
         if chosen_model is not UNSET:
             field_dict["chosen_model"] = chosen_model
+        if chosen_runner_id is not UNSET:
+            field_dict["chosen_runner_id"] = chosen_runner_id
         if error is not UNSET:
             field_dict["error"] = error
 
@@ -234,6 +255,15 @@ class AiRunItem:
 
         router_model = _parse_router_model(d.pop("router_model", UNSET))
 
+        def _parse_router_runner_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        router_runner_id = _parse_router_runner_id(d.pop("router_runner_id", UNSET))
+
         def _parse_ranked_json(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -280,6 +310,15 @@ class AiRunItem:
 
         chosen_model = _parse_chosen_model(d.pop("chosen_model", UNSET))
 
+        def _parse_chosen_runner_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        chosen_runner_id = _parse_chosen_runner_id(d.pop("chosen_runner_id", UNSET))
+
         def _parse_error(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -301,10 +340,12 @@ class AiRunItem:
             message_id=message_id,
             context_json=context_json,
             router_model=router_model,
+            router_runner_id=router_runner_id,
             ranked_json=ranked_json,
             policy_trace_json=policy_trace_json,
             policy_trace=policy_trace,
             chosen_model=chosen_model,
+            chosen_runner_id=chosen_runner_id,
             error=error,
         )
 

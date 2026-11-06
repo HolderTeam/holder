@@ -14,14 +14,15 @@ T = TypeVar("T", bound="AiThread")
 
 @_attrs_define
 class AiThread:
-    """
+    """AI Thread.
+
     Attributes:
-        thread_id (str):
-        project_id (str):
-        title (str):
-        created_at (int):
-        updated_at (int):
-        card_id (None | str | Unset):
+        thread_id (str): The thread id.
+        project_id (str): The project id.
+        title (str): The title.
+        created_at (int): The created at.
+        updated_at (int): The updated at.
+        card_id (None | str | Unset): The card id.
     """
 
     thread_id: str

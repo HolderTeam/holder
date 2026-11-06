@@ -14,11 +14,11 @@ private Json.Object parse_json_object(string payload) {
 
 private void test_parse_cards_full_and_defaults() {
     var root = parse_json_object(
-        "{\"data\":[" +
+        "{\"data\":{\"items\":[" +
         "{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"One\",\"rel_path\":\"a.md\",\"sort_key\":1.5,\"parent_card_id\":\"p\",\"created_at\":10,\"updated_at\":11}," +
         "{\"card_id\":\"c2\",\"project_id\":\"p1\",\"title\":\"Two\",\"parent_card_id\":null}," +
         "{\"card_id\":\"c3\",\"project_id\":\"p2\",\"title\":\"Three\"}" +
-        "]}"
+        "],\"next_cursor\":null}}"
     );
 
     Gee.ArrayList<HolderLinux.CardSummary> cards;
@@ -129,72 +129,12 @@ private void test_parse_card_detail_missing_data_is_protocol_error() {
     assert(got_protocol);
 }
 
-private void test_parse_card_context_full_and_defaults() {
-    var root_full = parse_json_object(
-        "{\"data\":{" +
-        "\"project\":{\"project_id\":\"p1\",\"name\":\"Project One\"}," +
-        "\"current_parent_card_id\":\"parent\"," +
-        "\"breadcrumbs\":[{\"type\":\"project\",\"title\":\"Project One\",\"project_id\":\"p1\"}]," +
-        "\"cards\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"A\",\"rel_path\":\"a.md\",\"sort_key\":2.5,\"parent_card_id\":\"parent\",\"created_at\":1,\"updated_at\":2,\"child_count\":3}]" +
-        "}}"
-    );
-
-    HolderLinux.CardContextData full;
-    try {
-        full = HolderLinux.ApiParsersCards.parse_card_context(root_full);
-    } catch (Error e) {
-        assert_not_reached();
-    }
-    assert(full.project.project_id == "p1");
-    assert(full.project.name == "Project One");
-    assert(full.current_parent_card_id == "parent");
-    assert(full.breadcrumbs.size == 1);
-    assert(full.breadcrumbs[0].crumb_type == "project");
-    assert(full.cards.size == 1);
-    assert(full.cards[0].card_id == "c1");
-    assert(full.cards[0].sort_key == 2.5);
-    assert(full.cards[0].parent_card_id == "parent");
-    assert(full.cards[0].child_count == 3);
-
-    var root_default = parse_json_object(
-        "{\"data\":{\"project\":{\"project_id\":\"p2\",\"name\":\"P2\"}}}"
-    );
-    HolderLinux.CardContextData defaults;
-    try {
-        defaults = HolderLinux.ApiParsersCards.parse_card_context(root_default);
-    } catch (Error e) {
-        assert_not_reached();
-    }
-    assert(defaults.current_parent_card_id == null);
-    assert(defaults.breadcrumbs.size == 0);
-    assert(defaults.cards.size == 0);
-}
-
-private void test_parse_card_context_errors() {
-    var no_data = parse_json_object("{\"ok\":true}");
-    bool no_data_protocol = false;
-    try {
-        HolderLinux.ApiParsersCards.parse_card_context(no_data);
-    } catch (Error e) {
-        no_data_protocol = e.message.contains("Missing data for cards context response");
-    }
-    assert(no_data_protocol);
-
-    var no_project = parse_json_object("{\"data\":{}}");
-    bool no_project_protocol = false;
-    try {
-        HolderLinux.ApiParsersCards.parse_card_context(no_project);
-    } catch (Error e) {
-        no_project_protocol = e.message.contains("Missing project for cards context response");
-    }
-    assert(no_project_protocol);
-}
-
 private void test_parse_card_links_and_link_defaults() {
     var root = parse_json_object(
         "{\"data\":[" +
-        "{\"from_card_id\":\"a\",\"to_card_id\":\"b\",\"to_type\":\"card\",\"kind\":\"ref\",\"label\":\"L\",\"created_at\":9}," +
-        "{\"from_card_id\":\"x\",\"to_card_id\":\"y\"}" +
+        "{\"source_project_id\":\"p1\",\"source_id\":\"a\",\"target_project_id\":\"p2\",\"target_id\":\"b\"," +
+        "\"target_type\":\"card\",\"kind\":\"ref\",\"label\":\"L\",\"created_at\":9}," +
+        "{\"source_id\":\"x\",\"target_id\":\"y\",\"label\":null}" +
         "]}"
     );
 
@@ -212,6 +152,8 @@ private void test_parse_card_links_and_link_defaults() {
     assert(links[0].kind == "ref");
     assert(links[0].label == "L");
     assert(links[0].created_at == 9);
+    assert(links[0].source_project_id == "p1");
+    assert(links[0].target_project_id == "p2");
 
     assert(links[1].from_card_id == "x");
     assert(links[1].to_card_id == "y");
@@ -234,7 +176,7 @@ private void test_parse_card_links_missing_data_is_protocol_error() {
 
 private void test_parse_card_move_result_full_and_defaults() {
     var full = parse_json_object(
-        "{\"card_id\":\"c1\",\"parent_card_id\":\"p\",\"sort_key\":2.0,\"revision\":7,\"moved_into_title\":\"Inbox\"}"
+        "{\"card_id\":\"c1\",\"parent_card_id\":\"p\",\"sort_key\":2.0,\"title\":\"Inbox\"}"
     );
 
     HolderLinux.CardMoveResult moved;
@@ -246,11 +188,9 @@ private void test_parse_card_move_result_full_and_defaults() {
     assert(moved.card_id == "c1");
     assert(moved.parent_card_id == "p");
     assert(moved.sort_key == 2.0);
-    assert(moved.revision == 7);
-    assert(moved.moved_into_title == "Inbox");
 
     var defaults = parse_json_object(
-        "{\"card_id\":\"c2\",\"parent_card_id\":null,\"sort_key\":1.0,\"revision\":8}"
+        "{\"card_id\":\"c2\",\"parent_card_id\":null,\"sort_key\":1.0}"
     );
     HolderLinux.CardMoveResult moved_default;
     try {
@@ -259,7 +199,6 @@ private void test_parse_card_move_result_full_and_defaults() {
         assert_not_reached();
     }
     assert(moved_default.parent_card_id == null);
-    assert(moved_default.moved_into_title == "");
 }
 
 private void test_parse_card_move_result_missing_fields_is_protocol_error() {
@@ -274,19 +213,25 @@ private void test_parse_card_move_result_missing_fields_is_protocol_error() {
 }
 
 private void test_parse_project_calendar_and_milestones() {
+    // 200 and 220 are 1970-01-01T00:03:20Z and 00:03:40Z; m2 starts outside the window.
     var root = parse_json_object(
         "{\"data\":{" +
-        "\"project_id\":\"p1\",\"from\":100,\"to\":500," +
-        "\"milestones\":[{\"milestone_id\":\"m1\",\"card_id\":\"c1\"," +
-        "\"start_at\":200,\"end_at\":220,\"all_day\":false,\"kind\":\"Exam\"," +
-        "\"description\":\"Final\",\"created_at\":10,\"updated_at\":11," +
+        "\"milestones\":[{\"milestone_id\":\"m1\",\"project_id\":\"p1\",\"card_id\":\"c1\"," +
+        "\"dates\":[{\"role\":\"start\",\"datetime\":\"1970-01-01T01:03:20+01:00\"}," +
+        "{\"role\":\"due\",\"date\":\"1970-01-02\"}," +
+        "{\"role\":\"end\",\"datetime\":\"1970-01-01T00:03:40Z\"}]," +
+        "\"kind\":\"Exam\",\"description\":\"Final\",\"created_at\":10,\"updated_at\":11," +
+        "\"card_title\":\"Revision\"}," +
+        "{\"milestone_id\":\"m2\",\"project_id\":\"p1\",\"card_id\":\"c1\"," +
+        "\"dates\":[{\"role\":\"start\",\"datetime\":\"1970-01-01T00:16:40Z\"}]," +
+        "\"kind\":null,\"description\":null,\"created_at\":10,\"updated_at\":11," +
         "\"card_title\":\"Revision\"}]," +
         "\"created_cards\":[{\"card_id\":\"c2\",\"title\":\"Created\",\"created_at\":150,\"updated_at\":150}]," +
         "\"updated_cards\":[{\"card_id\":\"c3\",\"title\":\"Updated\",\"created_at\":120,\"updated_at\":250}]}}"
     );
     HolderLinux.ProjectCalendar parsed;
     try {
-        parsed = HolderLinux.ApiParsersCards.parse_project_calendar(root);
+        parsed = HolderLinux.ApiParsersCards.parse_project_calendar(root, "p1", 100, 500);
     } catch (Error e) {
         assert_not_reached();
     }
@@ -295,7 +240,11 @@ private void test_parse_project_calendar_and_milestones() {
     assert(parsed.to_epoch == 500);
     assert(parsed.milestones.length == 1);
     assert(parsed.milestones[0].milestone_id == "m1");
+    assert(parsed.milestones[0].project_id == "p1");
+    assert(parsed.milestones[0].start_at == 200);
     assert(parsed.milestones[0].end_at == 220);
+    assert(!parsed.milestones[0].all_day);
+    assert(parsed.milestones[0].dates_json.contains("\"due\""));
     assert(parsed.milestones[0].kind == "Exam");
     assert(parsed.milestones[0].card_title == "Revision");
     assert(parsed.created_cards.length == 1);
@@ -303,10 +252,21 @@ private void test_parse_project_calendar_and_milestones() {
     assert(parsed.updated_cards.length == 1);
     assert(parsed.updated_cards[0].updated_at == 250);
 
+    // A day starts at its local midnight. Milestones without one start, or with two ends, are
+    // not shown.
     var list_root = parse_json_object(
-        "{\"data\":[{\"milestone_id\":\"m2\",\"card_id\":\"c2\"," +
-        "\"start_at\":300,\"end_at\":null,\"all_day\":true,\"kind\":null," +
-        "\"description\":null,\"created_at\":1,\"updated_at\":1}]}"
+        "{\"data\":[{\"milestone_id\":\"m2\",\"project_id\":\"p1\",\"card_id\":\"c2\"," +
+        "\"dates\":[{\"role\":\"start\",\"date\":\"2026-06-01\"}],\"kind\":null," +
+        "\"description\":null,\"created_at\":1,\"updated_at\":1}," +
+        "{\"milestone_id\":\"m3\",\"project_id\":\"p1\",\"card_id\":\"c2\",\"dates\":[]," +
+        "\"kind\":null,\"description\":null,\"created_at\":1,\"updated_at\":1}," +
+        "{\"milestone_id\":\"m4\",\"project_id\":\"p1\",\"card_id\":\"c2\"," +
+        "\"dates\":[{\"role\":\"start\",\"date\":\"2026-06-01\"},{\"role\":\"start\",\"date\":\"2026-06-02\"}]," +
+        "\"kind\":null,\"description\":null,\"created_at\":1,\"updated_at\":1}," +
+        "{\"milestone_id\":\"m5\",\"project_id\":\"p1\",\"card_id\":\"c2\"," +
+        "\"dates\":[{\"role\":\"start\",\"date\":\"2026-06-01\"},{\"role\":\"end\",\"date\":\"2026-06-02\"}," +
+        "{\"role\":\"end\",\"date\":\"2026-06-03\"}]," +
+        "\"kind\":null,\"description\":null,\"created_at\":1,\"updated_at\":1}]}"
     );
     Gee.ArrayList<HolderLinux.Milestone> listed;
     try {
@@ -315,7 +275,9 @@ private void test_parse_project_calendar_and_milestones() {
         assert_not_reached();
     }
     assert(listed.size == 1);
+    assert(listed[0].milestone_id == "m2");
     assert(listed[0].all_day);
+    assert(listed[0].start_at == new DateTime.local(2026, 6, 1, 0, 0, 0).to_unix());
     assert(listed[0].end_at == null);
     assert(listed[0].kind == null);
 }
@@ -360,8 +322,8 @@ private void test_parse_card_history_page_and_comparison() {
 
     var comparison_root = parse_json_object(
         "{\"data\":{" +
-        "\"from\":{\"exists\":true,\"oid\":\"old1\",\"title\":\"Old\",\"body\":\"before\"}," +
-        "\"to\":{\"exists\":true,\"oid\":\"head1\",\"title\":\"New\",\"body\":\"after\"}," +
+        "\"before\":{\"exists\":true,\"oid\":\"old1\",\"title\":\"Old\",\"body\":\"before\"}," +
+        "\"after\":{\"exists\":true,\"oid\":\"head1\",\"title\":\"New\",\"body\":\"after\"}," +
         "\"summary\":\"Changed 1 line\",\"truncated\":false,\"lines\":[" +
         "{\"origin\":\"-\",\"text\":\"before\",\"old_line\":1,\"new_line\":null}," +
         "{\"origin\":\"+\",\"text\":\"after\",\"old_line\":null,\"new_line\":1}]}}"
@@ -464,7 +426,7 @@ private void test_parse_milestones_and_calendar_missing_data_are_protocol_errors
         milestones = e.message.contains("Missing data for milestones response");
     }
     try {
-        HolderLinux.ApiParsersCards.parse_project_calendar(parse_json_object("{\"ok\":true}"));
+        HolderLinux.ApiParsersCards.parse_project_calendar(parse_json_object("{\"ok\":true}"), "p1", 0, 1);
     } catch (Error e) {
         calendar = e.message.contains("Missing data for calendar response");
     }
@@ -480,8 +442,6 @@ public static int main(string[] args) {
     Test.add_func("/parsers/cards/card-detail-full-and-default", test_parse_card_detail_full_and_default);
     Test.add_func("/parsers/cards/project-tags", test_parse_project_tags);
     Test.add_func("/parsers/cards/card-detail-missing-data-protocol-error", test_parse_card_detail_missing_data_is_protocol_error);
-    Test.add_func("/parsers/cards/card-context-full-and-defaults", test_parse_card_context_full_and_defaults);
-    Test.add_func("/parsers/cards/card-context-errors", test_parse_card_context_errors);
     Test.add_func("/parsers/cards/card-links-and-link-defaults", test_parse_card_links_and_link_defaults);
     Test.add_func("/parsers/cards/card-links-missing-data-protocol-error", test_parse_card_links_missing_data_is_protocol_error);
     Test.add_func("/parsers/cards/card-move-result-full-and-defaults", test_parse_card_move_result_full_and_defaults);

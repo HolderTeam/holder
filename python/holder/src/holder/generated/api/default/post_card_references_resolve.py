@@ -5,8 +5,10 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.card_reference_resolve_data_response import (
+    CardReferenceResolveDataResponse,
+)
 from ...models.card_reference_resolve_request import CardReferenceResolveRequest
-from ...models.card_reference_resolve_response import CardReferenceResolveResponse
 from ...models.error_response import ErrorResponse
 from ...types import Response
 
@@ -32,9 +34,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> CardReferenceResolveResponse | ErrorResponse | None:
+) -> CardReferenceResolveDataResponse | ErrorResponse | None:
     if response.status_code == 200:
-        response_200 = CardReferenceResolveResponse.from_dict(response.json())
+        response_200 = CardReferenceResolveDataResponse.from_dict(response.json())
 
         return response_200
 
@@ -66,7 +68,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[CardReferenceResolveResponse | ErrorResponse]:
+) -> Response[CardReferenceResolveDataResponse | ErrorResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -79,18 +81,20 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: CardReferenceResolveRequest,
-) -> Response[CardReferenceResolveResponse | ErrorResponse]:
-    """Resolve a card reference within a project and deletion scope
+) -> Response[CardReferenceResolveDataResponse | ErrorResponse]:
+    """Resolve a card reference within a project and deletion scope.
+
+     Resolve a card reference within a project and deletion scope.
 
     Args:
-        body (CardReferenceResolveRequest):
+        body (CardReferenceResolveRequest): A reference to resolve among one project's cards.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardReferenceResolveResponse | ErrorResponse]
+        Response[CardReferenceResolveDataResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -108,18 +112,20 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     body: CardReferenceResolveRequest,
-) -> CardReferenceResolveResponse | ErrorResponse | None:
-    """Resolve a card reference within a project and deletion scope
+) -> CardReferenceResolveDataResponse | ErrorResponse | None:
+    """Resolve a card reference within a project and deletion scope.
+
+     Resolve a card reference within a project and deletion scope.
 
     Args:
-        body (CardReferenceResolveRequest):
+        body (CardReferenceResolveRequest): A reference to resolve among one project's cards.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardReferenceResolveResponse | ErrorResponse
+        CardReferenceResolveDataResponse | ErrorResponse
     """
 
     return sync_detailed(
@@ -132,18 +138,20 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: CardReferenceResolveRequest,
-) -> Response[CardReferenceResolveResponse | ErrorResponse]:
-    """Resolve a card reference within a project and deletion scope
+) -> Response[CardReferenceResolveDataResponse | ErrorResponse]:
+    """Resolve a card reference within a project and deletion scope.
+
+     Resolve a card reference within a project and deletion scope.
 
     Args:
-        body (CardReferenceResolveRequest):
+        body (CardReferenceResolveRequest): A reference to resolve among one project's cards.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardReferenceResolveResponse | ErrorResponse]
+        Response[CardReferenceResolveDataResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -159,18 +167,20 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     body: CardReferenceResolveRequest,
-) -> CardReferenceResolveResponse | ErrorResponse | None:
-    """Resolve a card reference within a project and deletion scope
+) -> CardReferenceResolveDataResponse | ErrorResponse | None:
+    """Resolve a card reference within a project and deletion scope.
+
+     Resolve a card reference within a project and deletion scope.
 
     Args:
-        body (CardReferenceResolveRequest):
+        body (CardReferenceResolveRequest): A reference to resolve among one project's cards.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardReferenceResolveResponse | ErrorResponse
+        CardReferenceResolveDataResponse | ErrorResponse
     """
 
     return (

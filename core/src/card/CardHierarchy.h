@@ -4,7 +4,7 @@
 
 namespace holder::card {
 
-// The manual tree order: sort key, newest update, case-insensitive title, then ID.
+// Sibling order: sort key, then ID, the order list_cards pages through by sort key.
 bool card_tree_less(const holder::model::Card& a, const holder::model::Card& b);
 
 // Walk the entire chain, rejecting cycles. Skip unreachable/deleted ancestors when

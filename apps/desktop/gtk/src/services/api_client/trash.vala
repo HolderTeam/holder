@@ -25,12 +25,13 @@ public class ApiClientTrashEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
     }
 
     public static async void restore_trash_item(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                                string project_id,
                                                 string item_type,
                                                 string item_id) throws Error {
         if (item_type == "card") {
             yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
                 "POST",
-                "/cards/%s/restore".printf(Uri.escape_string(item_id)),
+                ApiClientCardsEndpoints.card_path(project_id, item_id) + "/restore",
                 null,
                 null
             );

@@ -5,14 +5,14 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 
 /** One thread that owns one native holder context and runs every call on it in order.
- * holder-core's contexts are not safe to use from two threads at once (see holder.h): a read
+ * holder-core's contexts are not safe to use from two threads at once (see holder_api.h): a read
  * on another thread would share the connection and see a write's uncommitted rows. So
  * [HolderNative] opens one context per lane, the same way holder-daemon gives each worker its
  * own connection, and each lane's calls run one at a time on that lane's thread.
  *
  * [call] blocks the calling thread (normally Dispatchers.IO) until the call is done, so
- * HolderNative's functions keep their blocking signatures. A call made from the lane's own
- * thread runs inline instead of queueing behind itself. */
+ * HolderNative's functions keep their blocking signatures. A callback on this lane cannot
+ * start another call on its busy context. */
 internal class NativeLane(name: String) {
     @Volatile
     private var thread: Thread? = null
@@ -26,6 +26,7 @@ internal class NativeLane(name: String) {
 
     /** Only touched on the lane's own thread, by [attach], [detach] and the calls in between. */
     private var handle = 0L
+    private var executing = false
 
     fun <T> call(block: (Long) -> T): T = onLane {
         check(handle != 0L) { "HolderNative.initialize() must be called first" }
@@ -47,8 +48,8 @@ internal class NativeLane(name: String) {
     }
 
     private fun <T> onLane(block: () -> T): T {
-        if (Thread.currentThread() === thread) return block()
-        val future = executor.submit(Callable { block() })
+        if (Thread.currentThread() === thread) return runOnLane(block)
+        val future = executor.submit(Callable { runOnLane(block) })
         try {
             return future.get()
         } catch (failure: ExecutionException) {
@@ -58,6 +59,16 @@ internal class NativeLane(name: String) {
             future.cancel(false)
             Thread.currentThread().interrupt()
             throw interrupted
+        }
+    }
+
+    private fun <T> runOnLane(block: () -> T): T {
+        check(!executing) { "NativeLane is already executing a native call" }
+        executing = true
+        try {
+            return block()
+        } finally {
+            executing = false
         }
     }
 }

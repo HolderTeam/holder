@@ -1,0 +1,196 @@
+// Generated from contract/interface by compiler. Do not edit; run make -C contract update.
+package team.holder.android.contract
+
+/** The name of the project Holder makes on a device that has none. Project lists put it first. */
+const val HOME_PROJECT_NAME = "Home"
+
+/** The content of Home's welcome card. Its first line, without the heading's hashes, is the card's title. */
+const val WELCOME_CARD = "# Welcome to Holder\n\nClick here to edit your first card (tap if you are using a touchscreen).\n\nThe first line is the card’s title. By Markdown convention, we declare the title with a hash (#), but you don't have to.\n\nTry changing the title above.\n\nTwo square brackets create an internal link: [[MySecondCard]]\n\nFollow the link to it. Since it doesn’t exist yet, you’ll be prompted to create it.\n\nCreate more cards whenever you like, or simply by making internal links.\n\nExplore the other tools when you’re ready, this is enough to get started.\n\nHappy card writing!\n"
+
+enum class ListProjectsOrder(val value: String) {
+    UPDATED_AT_DESC("updated_at_desc"),
+    UPDATED_AT_ASC("updated_at_asc"),
+    CREATED_AT_DESC("created_at_desc"),
+    CREATED_AT_ASC("created_at_asc"),
+    NAME_DESC("name_desc"),
+    NAME_ASC("name_asc"),
+}
+
+/** How the project's files are stored. */
+enum class ProjectPrivacyMode(val value: String) {
+    ENCRYPTED_GIT("encrypted_git"),
+    PLAIN("plain"),
+}
+
+/** How the project's files are stored. */
+enum class NewProjectPrivacyMode(val value: String) {
+    ENCRYPTED_GIT("encrypted_git"),
+    PLAIN("plain"),
+}
+
+/** A project on this device. */
+data class Project(
+    /** The project's ID. */
+    val projectId: String,
+    /** The project's name. */
+    val name: String,
+    /** The directory that holds the project's repository on this device. */
+    val rootPath: String,
+    /** The Git remote the project syncs with; null when it has none. */
+    val gitRemoteUrl: String? = null,
+    /** Who hosts the Git remote, such as github; null when unknown. */
+    val gitProvider: String? = null,
+    /** How the project's files are stored. */
+    val privacyMode: ProjectPrivacyMode,
+    /** The ID of an encrypted project's key; null for a plain project. */
+    val projectKeyId: String? = null,
+    /** When the project was made. */
+    val createdAt: Long,
+    /** When the project's settings last changed. */
+    val updatedAt: Long,
+)
+
+/** What ensure_home_project did. */
+data class HomeProject(
+    /** The Home project it made; null when the device already had a project, which it left alone. */
+    val project: Project? = null,
+)
+
+/** A project in a listing. */
+data class ProjectListItem(
+    /** The project's ID. */
+    val projectId: String,
+    /** The project's name. */
+    val name: String,
+    /** The directory that holds the project's repository on this device. */
+    val rootPath: String,
+    /** The Git remote the project syncs with; null when it has none. */
+    val gitRemoteUrl: String? = null,
+    /** Who hosts the Git remote, such as github; null when unknown. */
+    val gitProvider: String? = null,
+    /** How the project's files are stored. */
+    val privacyMode: ProjectPrivacyMode,
+    /** The ID of an encrypted project's key; null for a plain project. */
+    val projectKeyId: String? = null,
+    /** When the project was made. */
+    val createdAt: Long,
+    /** When the project's settings last changed. */
+    val updatedAt: Long,
+    /** The project's live cards; present when asked for. */
+    val cardCount: Int? = null,
+    /** The project's live root cards; present when asked for. */
+    val rootCardCount: Int? = null,
+)
+
+/** A project to make. */
+data class NewProject(
+    /** The project's ID, for imports; omit for a new one. */
+    val projectId: String? = null,
+    /** The project's name. */
+    val name: String,
+    /** The directory for the project's repository, an absolute path; omit for one under this device's projects directory, named for the project. */
+    val rootPath: String? = null,
+    /** The Git remote to sync with; null or omitted for none. One Git does not accept is an invalid argument. */
+    val gitRemoteUrl: String? = null,
+    /** Who hosts the Git remote; null or omitted when unknown. */
+    val gitProvider: String? = null,
+    /** How the project's files are stored. */
+    val privacyMode: NewProjectPrivacyMode = NewProjectPrivacyMode.ENCRYPTED_GIT,
+    /** When the project was made, for imports, after the epoch; omit for now. */
+    val createdAt: Long? = null,
+    /** When the project's settings last changed, for imports, after the epoch; omit for when it was made. */
+    val updatedAt: Long? = null,
+)
+
+/** A change to a project's settings. Each field left out keeps its value. */
+data class ProjectUpdate(
+    /** The project's name. */
+    val name: String? = null,
+    /** The Git remote to sync with; null for none. */
+    val gitRemoteUrl: Change<String> = Change.Keep,
+    /** Who hosts the Git remote; null when unknown. */
+    val gitProvider: Change<String> = Change.Keep,
+)
+
+/** The projects operations of core's C API. Each fails with a [ContractException]. */
+object Projects {
+    init {
+        System.loadLibrary("holder_jni")
+    }
+
+    /**
+     * Make Home, with its welcome card, on a device that has no project; otherwise do nothing.
+     * Home is named HOME_PROJECT_NAME, is encrypted_git, and holds one card with WELCOME_CARD as its
+     * content. The check and the making happen together, so calling this again, or from a second
+     * context, never makes a second Home. Projects that already exist keep their privacy mode. The app
+     * decides when to call it: the daemon calls it when it starts, and does not serve it over HTTP.
+     */
+    external fun ensureHomeProject(
+        contextHandle: Long,
+    ): HomeProject
+
+    /**
+     * Register a durable plain project in an empty context database.
+     * The project must be an immediate child of the context's projects directory and
+     * contain independent ordinary files. This preserves project and card identities,
+     * rebuilds indexes, and leaves the durable files untouched. Encrypted projects are
+     * not supported. No other operation may use this context during import.
+     */
+    external fun importProject(
+        contextHandle: Long,
+        projectRoot: String,
+    ): Project
+
+    /**
+     * List the projects on this device.
+     * Filters combine. Projects that tie in the order keep the order they were stored in.
+     */
+    external fun listProjects(
+        contextHandle: Long,
+        name: String? = null,
+        updatedAfter: Long? = null,
+        updatedBefore: Long? = null,
+        order: ListProjectsOrder? = null,
+        limit: Int = 100,
+        offset: Int = 0,
+        includeCardCounts: Boolean = false,
+    ): List<ProjectListItem>
+
+    /** Fetch a project. */
+    external fun getProject(
+        contextHandle: Long,
+        projectId: String,
+    ): Project
+
+    /**
+     * Make a project.
+     * Its repository is made, with its settings, and an encrypted project's key. An ID a project on this device has
+     * is a Conflict. Making a project that was removed from this device makes it known here again.
+     */
+    external fun createProject(
+        contextHandle: Long,
+        project: NewProject,
+    ): Project
+
+    /**
+     * Change a project's settings.
+     * Each field left out keeps its value, and an update that changes nothing writes nothing. The settings are
+     * committed to the project's repository; a Git remote is set there before it is stored, and one Git does not
+     * accept is an invalid argument.
+     */
+    external fun updateProject(
+        contextHandle: Long,
+        projectId: String,
+        update: ProjectUpdate,
+    ): Project
+
+    /**
+     * Remove a project from this device.
+     * The project's files and keys are kept, and its removal is remembered, so that looking for projects does not
+     * bring it back; making it again does. Returns the project as it was.
+     */
+    external fun deleteProject(
+        contextHandle: Long,
+        projectId: String,
+    ): Project
+}

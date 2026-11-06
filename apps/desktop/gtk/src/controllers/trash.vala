@@ -170,9 +170,14 @@ public class TrashController : Object {
         if (api == null) {
             return;
         }
+        // A card is restored within its project: the one whose trash is listed.
         var project_id = owning_project_id();
+        if (project_id == null) {
+            error_reported("Failed to restore item", "No project is selected.");
+            return;
+        }
         try {
-            yield api.restore_trash_item(item.item_type, item.item_id);
+            yield api.restore_trash_item((!) project_id, item.item_type, item.item_id);
             activity_requested(
                 ACTIVITY_KIND_RESTORED,
                 "Restored %s: %s".printf(item.item_type, item.title),

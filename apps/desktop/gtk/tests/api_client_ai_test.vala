@@ -6,7 +6,7 @@ private HolderLinux.ApiClient make_client(FakeApiHttpTransport transport) {
     return new HolderLinux.ApiClient("http://127.0.0.1:8080", "token-123", transport);
 }
 
-private void test_get_ai_capabilities_with_project_query() {
+private void test_get_ai_capabilities_with_runner_query() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
@@ -16,7 +16,7 @@ private void test_get_ai_capabilities_with_project_query() {
 
     bool done = false;
     HolderLinux.AiCapabilitiesInfo? info = null;
-    client.get_ai_capabilities.begin("p1", (obj, res) => {
+    client.get_ai_capabilities.begin("manual-a", (obj, res) => {
         try {
             info = client.get_ai_capabilities.end(res);
         } catch (Error e) {
@@ -31,11 +31,10 @@ private void test_get_ai_capabilities_with_project_query() {
     assert(info.runner_version == "1.0");
     assert(info.models.size == 1);
     assert(info.models[0] == "m1");
-    assert(transport.last_uri.contains("/ai/capabilities"));
-    assert(transport.last_uri.contains("project_id=p1"));
+    assert(transport.last_uri == "http://127.0.0.1:8080/ai/capabilities?runner_id=manual-a");
 }
 
-private void test_get_ai_capabilities_without_project_query() {
+private void test_get_ai_capabilities_without_runner_query() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
@@ -58,7 +57,7 @@ private void test_get_ai_capabilities_without_project_query() {
     assert(info != null);
     assert(!info.runner_available);
     assert(transport.last_uri.contains("/ai/capabilities"));
-    assert(!transport.last_uri.contains("project_id="));
+    assert(transport.last_uri == "http://127.0.0.1:8080/ai/capabilities");
 }
 
 private void test_get_ai_status_parses_response() {
@@ -644,10 +643,10 @@ private void test_create_update_delete_ai_runner_requests() {
 public static int main(string[] args) {
     Test.init(ref args);
 
-    Test.add_func("/api_client_ai/get_ai_capabilities_with_project_query",
-                  test_get_ai_capabilities_with_project_query);
-    Test.add_func("/api_client_ai/get_ai_capabilities_without_project_query",
-                  test_get_ai_capabilities_without_project_query);
+    Test.add_func("/api_client_ai/get_ai_capabilities_with_runner_query",
+                  test_get_ai_capabilities_with_runner_query);
+    Test.add_func("/api_client_ai/get_ai_capabilities_without_runner_query",
+                  test_get_ai_capabilities_without_runner_query);
     Test.add_func("/api_client_ai/get_ai_status_parses_response",
                   test_get_ai_status_parses_response);
     Test.add_func("/api_client_ai/start_ai_runner_pull_success",

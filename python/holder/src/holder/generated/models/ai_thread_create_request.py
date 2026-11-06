@@ -14,22 +14,23 @@ T = TypeVar("T", bound="AiThreadCreateRequest")
 
 @_attrs_define
 class AiThreadCreateRequest:
-    """
+    """AI ThreadCreateRequest.
+
     Attributes:
-        project_id (str):
-        title (str):
-        thread_id (str | Unset): Optional; server generates if omitted.
-        card_id (None | str | Unset):
-        created_at (int | Unset): Optional; server uses current time if omitted or 0.
-        updated_at (int | Unset): Optional; server uses created_at if omitted or 0.
+        project_id (str): The project id.
+        title (str): The title.
+        thread_id (None | str | Unset): Optional; server generates if omitted.
+        card_id (None | str | Unset): The card id.
+        created_at (int | None | Unset): Optional; server uses current time if omitted or 0.
+        updated_at (int | None | Unset): Optional; server uses created_at if omitted or 0.
     """
 
     project_id: str
     title: str
-    thread_id: str | Unset = UNSET
+    thread_id: None | str | Unset = UNSET
     card_id: None | str | Unset = UNSET
-    created_at: int | Unset = UNSET
-    updated_at: int | Unset = UNSET
+    created_at: int | None | Unset = UNSET
+    updated_at: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -37,7 +38,11 @@ class AiThreadCreateRequest:
 
         title = self.title
 
-        thread_id = self.thread_id
+        thread_id: None | str | Unset
+        if isinstance(self.thread_id, Unset):
+            thread_id = UNSET
+        else:
+            thread_id = self.thread_id
 
         card_id: None | str | Unset
         if isinstance(self.card_id, Unset):
@@ -45,9 +50,17 @@ class AiThreadCreateRequest:
         else:
             card_id = self.card_id
 
-        created_at = self.created_at
+        created_at: int | None | Unset
+        if isinstance(self.created_at, Unset):
+            created_at = UNSET
+        else:
+            created_at = self.created_at
 
-        updated_at = self.updated_at
+        updated_at: int | None | Unset
+        if isinstance(self.updated_at, Unset):
+            updated_at = UNSET
+        else:
+            updated_at = self.updated_at
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -75,7 +88,14 @@ class AiThreadCreateRequest:
 
         title = d.pop("title")
 
-        thread_id = d.pop("thread_id", UNSET)
+        def _parse_thread_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        thread_id = _parse_thread_id(d.pop("thread_id", UNSET))
 
         def _parse_card_id(data: object) -> None | str | Unset:
             if data is None:
@@ -86,9 +106,23 @@ class AiThreadCreateRequest:
 
         card_id = _parse_card_id(d.pop("card_id", UNSET))
 
-        created_at = d.pop("created_at", UNSET)
+        def _parse_created_at(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
 
-        updated_at = d.pop("updated_at", UNSET)
+        created_at = _parse_created_at(d.pop("created_at", UNSET))
+
+        def _parse_updated_at(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
+
+        updated_at = _parse_updated_at(d.pop("updated_at", UNSET))
 
         ai_thread_create_request = cls(
             project_id=project_id,

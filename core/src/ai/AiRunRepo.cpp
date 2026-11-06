@@ -185,6 +185,18 @@ std::vector<model::AiRun> AiRunRepo::list_by_project(const std::string& project_
   return runs;
 } // LCOV_EXCL_LINE
 
+long long AiRunRepo::count_started() const {
+  static constexpr const char* SQL = "SELECT COUNT(*) FROM ai_runs WHERE status = 'started';";
+  sqlite3_stmt* stmt = nullptr;
+  if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK) {
+    throw_sqlite(db_.handle(), "prepare ai_runs count_started failed");
+  }
+  long long count = 0;
+  if (sqlite3_step(stmt) == SQLITE_ROW) count = sqlite3_column_int64(stmt, 0);
+  sqlite3_finalize(stmt);
+  return count;
+}
+
 void AiRunRepo::update_status(
     const std::string& run_id,
     const std::string& status,

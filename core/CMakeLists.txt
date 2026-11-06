@@ -127,6 +127,26 @@ else()
 endif()
 
 set(HOLDER_CORE_SOURCES
+  src/api/Cards.cpp
+  src/api/Breadcrumbs.cpp
+  src/api/CardReference.cpp
+  src/api/Git.cpp
+  src/api/History.cpp
+  src/api/Trash.cpp
+  src/api/Links.cpp
+  src/api/Milestones.cpp
+  src/api/Projects.cpp
+  src/api/ProjectMaintenance.cpp
+  src/api/RecoveryTokens.cpp
+  src/api/RecoverySnapshots.cpp
+  src/api/Assets.cpp
+  src/api/Rebuild.cpp
+  src/api/Resources.cpp
+  src/api/Locations.cpp
+  src/api/Search.cpp
+  src/api/ContractCApi.cpp
+  src/api/HostCApi.cpp
+  src/api/RuntimeHosts.cpp
   src/capi/holder.cpp
   src/capi/version.cpp
   src/ai/AiMessageFrontMatter.cpp
@@ -149,6 +169,8 @@ set(HOLDER_CORE_SOURCES
   src/card/CardStore.cpp
   src/card/LinkKindCatalog.cpp
   src/card/LinkRepo.cpp
+  src/card/LinkMutation.cpp
+  src/card/LinkVisibility.cpp
   src/card/MilestoneRepo.cpp
   src/card/TagExtractor.cpp
   src/card/TagLineEditor.cpp
@@ -172,6 +194,7 @@ set(HOLDER_CORE_SOURCES
   src/platform/Fs.cpp
   src/platform/Migrations.cpp
   src/platform/Tx.cpp
+  src/platform/time_zone/TimeZones.cpp
   src/privacy/CryptoService.cpp
   src/privacy/PlatformKeyring.cpp
   src/privacy/ProjectPrivacy.cpp
@@ -181,6 +204,7 @@ set(HOLDER_CORE_SOURCES
   src/project/ProjectManifest.cpp
   src/project/ProjectImport.cpp
   src/project/ProjectRepo.cpp
+  src/project/ProjectRegistry.cpp
   src/project/ProjectStore.cpp
   src/project/ProjectSyncRepo.cpp
   src/project/Rebuilder.cpp
@@ -200,6 +224,17 @@ set(HOLDER_CORE_SOURCES
   src/sync/ProjectSyncPolicy.cpp
   src/sync/PullConflictResolution.cpp
 )
+
+# The built-in time-zone provider (src/platform/time_zone/TimeZones.h): std::chrono where the C++
+# library has its time-zone database, Core Foundation on macOS, and none on Android, whose app
+# registers one.
+if(ANDROID)
+  list(APPEND HOLDER_CORE_SOURCES src/platform/time_zone/TimeZonesNone.cpp)
+elseif(APPLE)
+  list(APPEND HOLDER_CORE_SOURCES src/platform/time_zone/TimeZonesCoreFoundation.cpp)
+else()
+  list(APPEND HOLDER_CORE_SOURCES src/platform/time_zone/TimeZonesChrono.cpp)
+endif()
 add_library(holder STATIC ${HOLDER_CORE_SOURCES})
 add_library(Holder::Core ALIAS holder)
 set_target_properties(holder PROPERTIES
@@ -271,6 +306,10 @@ function(holder_configure_library target)
       "${HOLDER_CORE_COREFOUNDATION_FRAMEWORK}"
     )
   endif()
+  if(APPLE)
+    # Time zones (src/platform/time_zone/TimeZonesCoreFoundation.cpp).
+    target_link_libraries(${target} PUBLIC "-framework CoreFoundation")
+  endif()
 
   if(HOLDER_CORE_HAVE_WINDOWS_CREDENTIAL_MANAGER)
     target_link_libraries(${target} PUBLIC Advapi32)
@@ -316,7 +355,6 @@ install(DIRECTORY include/
   FILES_MATCHING PATTERN "*.h"
 )
 install(FILES schema/schema.sql DESTINATION ${CMAKE_INSTALL_DATADIR}/holder/schema)
-install(FILES resources/WELCOME.md DESTINATION ${CMAKE_INSTALL_DATADIR}/holder/resources)
 install(EXPORT holderTargets
   NAMESPACE Holder::
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/holder

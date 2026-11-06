@@ -19,7 +19,7 @@ class MilestoneResponse:
     """
     Attributes:
         ok (bool):
-        data (Milestone):
+        data (Milestone): A milestone on a card: its dates, which may repeat a role or be none, and what it is.
     """
 
     ok: bool

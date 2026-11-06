@@ -14,11 +14,12 @@ T = TypeVar("T", bound="AiProviderCredentialUpsertRequest")
 
 @_attrs_define
 class AiProviderCredentialUpsertRequest:
-    """
+    """AI ProviderCredentialUpsertRequest.
+
     Attributes:
-        provider (str):
-        api_key (str):
-        updated_at (int | None | Unset):
+        provider (str): The provider.
+        api_key (str): The api key.
+        updated_at (int | None | Unset): The updated at.
     """
 
     provider: str

@@ -58,6 +58,11 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -83,12 +88,14 @@ def sync_detailed(
 ) -> Response[AiMessageCreateResponse | ErrorResponse]:
     """Delete links from an AI message
 
-     Provide to_card_id (and optional to_type/kind) to delete a specific link. If omitted, deletes all
-    outgoing links.
+     Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector
+    without target_project_id is rejected if more than one target project matches. Provide
+    target_project_id together with to_card_id, to_type and kind to select one qualified target. If
+    to_card_id is omitted, deletes all outgoing links.
 
     Args:
         message_id (str):
-        body (CardLinkDeleteRequest | Unset):
+        body (CardLinkDeleteRequest | Unset): CardLinkDeleteRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -118,12 +125,14 @@ def sync(
 ) -> AiMessageCreateResponse | ErrorResponse | None:
     """Delete links from an AI message
 
-     Provide to_card_id (and optional to_type/kind) to delete a specific link. If omitted, deletes all
-    outgoing links.
+     Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector
+    without target_project_id is rejected if more than one target project matches. Provide
+    target_project_id together with to_card_id, to_type and kind to select one qualified target. If
+    to_card_id is omitted, deletes all outgoing links.
 
     Args:
         message_id (str):
-        body (CardLinkDeleteRequest | Unset):
+        body (CardLinkDeleteRequest | Unset): CardLinkDeleteRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -148,12 +157,14 @@ async def asyncio_detailed(
 ) -> Response[AiMessageCreateResponse | ErrorResponse]:
     """Delete links from an AI message
 
-     Provide to_card_id (and optional to_type/kind) to delete a specific link. If omitted, deletes all
-    outgoing links.
+     Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector
+    without target_project_id is rejected if more than one target project matches. Provide
+    target_project_id together with to_card_id, to_type and kind to select one qualified target. If
+    to_card_id is omitted, deletes all outgoing links.
 
     Args:
         message_id (str):
-        body (CardLinkDeleteRequest | Unset):
+        body (CardLinkDeleteRequest | Unset): CardLinkDeleteRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -181,12 +192,14 @@ async def asyncio(
 ) -> AiMessageCreateResponse | ErrorResponse | None:
     """Delete links from an AI message
 
-     Provide to_card_id (and optional to_type/kind) to delete a specific link. If omitted, deletes all
-    outgoing links.
+     Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector
+    without target_project_id is rejected if more than one target project matches. Provide
+    target_project_id together with to_card_id, to_type and kind to select one qualified target. If
+    to_card_id is omitted, deletes all outgoing links.
 
     Args:
         message_id (str):
-        body (CardLinkDeleteRequest | Unset):
+        body (CardLinkDeleteRequest | Unset): CardLinkDeleteRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

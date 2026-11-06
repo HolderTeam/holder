@@ -20,6 +20,7 @@ TEST_CASE("parse_ai_message_file reads front matter and body", "[ai_message_fron
                           "meta_json: \"{\\\"tokens\\\": 2}\"\n"
                           "links:\n"
                           "  - to: card-1\n"
+                          "    target_project_id: proj-2\n"
                           "    to_type: card\n"
                           "    kind: ref\n"
                           "    created_at: 12\n"
@@ -43,9 +44,11 @@ TEST_CASE("parse_ai_message_file reads front matter and body", "[ai_message_fron
   REQUIRE(parsed.message.meta_json.has_value());
   REQUIRE(parsed.links.size() == 2);
   REQUIRE(parsed.links[0].to_card_id == "card-1");
+  REQUIRE(parsed.links[0].target_project_id == "proj-2");
   REQUIRE(parsed.links[0].to_type == "card");
   REQUIRE(parsed.links[1].to_card_id == "res-1");
   REQUIRE(parsed.links[1].to_type == "resource");
+  REQUIRE_FALSE(parsed.links[1].target_project_id.has_value());
   REQUIRE(parsed.body == "Hello\n");
 }
 
@@ -87,6 +90,7 @@ TEST_CASE(
 
   holder::model::CardLink link;
   link.to_card_id = "card-1";
+  link.target_project_id = "proj-2";
   link.to_type = "card";
   link.kind = "ref";
   link.created_at = 43;
@@ -95,6 +99,7 @@ TEST_CASE(
 
   const auto yaml = holder::core::render_ai_message_front_matter(message, "proj-1", links);
   REQUIRE(yaml.find("label: See also") != std::string::npos);
+  REQUIRE(yaml.find("target_project_id: proj-2") != std::string::npos);
 }
 
 TEST_CASE(

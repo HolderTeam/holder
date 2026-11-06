@@ -18,12 +18,21 @@ from .ai_message_list_response import AiMessageListResponse
 from .ai_message_update_request import AiMessageUpdateRequest
 from .ai_message_update_response import AiMessageUpdateResponse
 from .ai_message_update_response_data import AiMessageUpdateResponseData
+from .ai_nudge import AiNudge
+from .ai_nudge_candidate import AiNudgeCandidate
+from .ai_nudge_candidate_facts import AiNudgeCandidateFacts
+from .ai_nudge_dismiss_data import AiNudgeDismissData
+from .ai_nudge_dismiss_response import AiNudgeDismissResponse
+from .ai_nudge_evaluate_data import AiNudgeEvaluateData
+from .ai_nudge_evaluate_response import AiNudgeEvaluateResponse
+from .ai_nudge_list_data import AiNudgeListData
+from .ai_nudge_list_response import AiNudgeListResponse
+from .ai_nudge_meta_json import AiNudgeMetaJson
+from .ai_provider_catalog_api import AiProviderCatalogApi
+from .ai_provider_catalog_auth import AiProviderCatalogAuth
+from .ai_provider_catalog_model import AiProviderCatalogModel
+from .ai_provider_catalog_model_limits import AiProviderCatalogModelLimits
 from .ai_provider_catalog_provider import AiProviderCatalogProvider
-from .ai_provider_catalog_provider_api_type_0 import AiProviderCatalogProviderApiType0
-from .ai_provider_catalog_provider_auth_type_0 import AiProviderCatalogProviderAuthType0
-from .ai_provider_catalog_provider_models_item import (
-    AiProviderCatalogProviderModelsItem,
-)
 from .ai_provider_catalog_response import AiProviderCatalogResponse
 from .ai_provider_catalog_response_data import AiProviderCatalogResponseData
 from .ai_provider_credential import AiProviderCredential
@@ -33,20 +42,34 @@ from .ai_provider_credential_delete_response_data import (
 )
 from .ai_provider_credential_upsert_request import AiProviderCredentialUpsertRequest
 from .ai_provider_credential_upsert_response import AiProviderCredentialUpsertResponse
+from .ai_provider_credentials_list_data import AiProviderCredentialsListData
 from .ai_provider_credentials_list_response import AiProviderCredentialsListResponse
-from .ai_provider_credentials_list_response_data import (
-    AiProviderCredentialsListResponseData,
-)
+from .ai_provider_setting import AiProviderSetting
+from .ai_provider_setting_delete_data import AiProviderSettingDeleteData
+from .ai_provider_setting_delete_response import AiProviderSettingDeleteResponse
+from .ai_provider_setting_response import AiProviderSettingResponse
+from .ai_provider_setting_update_request import AiProviderSettingUpdateRequest
+from .ai_provider_settings_data import AiProviderSettingsData
+from .ai_provider_settings_response import AiProviderSettingsResponse
 from .ai_run_create_request import AiRunCreateRequest
-from .ai_run_create_request_context import AiRunCreateRequestContext
+from .ai_run_create_request_context_type_0 import AiRunCreateRequestContextType0
 from .ai_run_event_data import AiRunEventData
 from .ai_run_get_response import AiRunGetResponse
 from .ai_run_item import AiRunItem
 from .ai_run_item_policy_trace_type_0 import AiRunItemPolicyTraceType0
 from .ai_run_list_response import AiRunListResponse
+from .ai_runner import AiRunner
+from .ai_runner_create_request import AiRunnerCreateRequest
+from .ai_runner_delete_response import AiRunnerDeleteResponse
+from .ai_runner_delete_response_data import AiRunnerDeleteResponseData
+from .ai_runner_list_response import AiRunnerListResponse
+from .ai_runner_list_response_data import AiRunnerListResponseData
+from .ai_runner_response import AiRunnerResponse
+from .ai_runner_runtime import AiRunnerRuntime
+from .ai_runner_update_request import AiRunnerUpdateRequest
 from .ai_status_data import AiStatusData
-from .ai_status_pull_job import AiStatusPullJob
 from .ai_status_response import AiStatusResponse
+from .ai_stream_resync_data import AiStreamResyncData
 from .ai_thread import AiThread
 from .ai_thread_create_request import AiThreadCreateRequest
 from .ai_thread_create_response import AiThreadCreateResponse
@@ -56,6 +79,7 @@ from .ai_thread_list_response import AiThreadListResponse
 from .ai_thread_patch_response import AiThreadPatchResponse
 from .ai_thread_patch_response_data import AiThreadPatchResponseData
 from .ai_thread_update_request import AiThreadUpdateRequest
+from .alive_response import AliveResponse
 from .asset_import_job import AssetImportJob
 from .asset_import_job_response import AssetImportJobResponse
 from .asset_import_job_status import AssetImportJobStatus
@@ -63,32 +87,24 @@ from .asset_import_request import AssetImportRequest
 from .asset_placement import AssetPlacement
 from .asset_placement_encoding import AssetPlacementEncoding
 from .bye_response import ByeResponse
-from .calendar_card_activity import CalendarCardActivity
-from .card_context_breadcrumb import CardContextBreadcrumb
-from .card_context_breadcrumb_type import CardContextBreadcrumbType
-from .card_context_card import CardContextCard
-from .card_context_data import CardContextData
-from .card_context_data_project import CardContextDataProject
-from .card_context_response import CardContextResponse
-from .card_create_request import CardCreateRequest
-from .card_create_response import CardCreateResponse
-from .card_create_response_data import CardCreateResponseData
-from .card_data import CardData
-from .card_get_response import CardGetResponse
-from .card_history_author import CardHistoryAuthor
-from .card_history_comparison_data import CardHistoryComparisonData
+from .calendar import Calendar
+from .calendar_milestone import CalendarMilestone
+from .calendar_response import CalendarResponse
+from .card import Card
+from .card_breadcrumb import CardBreadcrumb
+from .card_breadcrumb_kind import CardBreadcrumbKind
+from .card_breadcrumb_list_response import CardBreadcrumbListResponse
+from .card_history_comparison import CardHistoryComparison
 from .card_history_comparison_response import CardHistoryComparisonResponse
 from .card_history_diff_line import CardHistoryDiffLine
-from .card_history_diff_line_origin import CardHistoryDiffLineOrigin
 from .card_history_entry import CardHistoryEntry
-from .card_history_entry_kind import CardHistoryEntryKind
-from .card_history_entry_saves_item import CardHistoryEntrySavesItem
-from .card_history_page_data import CardHistoryPageData
+from .card_history_page import CardHistoryPage
 from .card_history_page_response import CardHistoryPageResponse
-from .card_history_restore_response import CardHistoryRestoreResponse
-from .card_history_restore_response_data import CardHistoryRestoreResponseData
+from .card_history_restore_result import CardHistoryRestoreResult
+from .card_history_restore_result_response import CardHistoryRestoreResultResponse
+from .card_history_save import CardHistorySave
+from .card_history_snapshot import CardHistorySnapshot
 from .card_history_snapshot_response import CardHistorySnapshotResponse
-from .card_history_snapshot_response_data import CardHistorySnapshotResponseData
 from .card_history_version import CardHistoryVersion
 from .card_link import CardLink
 from .card_link_create_request import CardLinkCreateRequest
@@ -96,36 +112,32 @@ from .card_link_create_response import CardLinkCreateResponse
 from .card_link_delete_request import CardLinkDeleteRequest
 from .card_link_list_response import CardLinkListResponse
 from .card_list_item import CardListItem
-from .card_list_response import CardListResponse
+from .card_list_item_page import CardListItemPage
+from .card_list_item_page_response import CardListItemPageResponse
+from .card_metadata import CardMetadata
+from .card_metadata_response import CardMetadataResponse
+from .card_move import CardMove
 from .card_move_intent import CardMoveIntent
-from .card_move_request import CardMoveRequest
-from .card_move_response import CardMoveResponse
-from .card_move_result import CardMoveResult
-from .card_page import CardPage
-from .card_page_item import CardPageItem
-from .card_page_response import CardPageResponse
-from .card_patch_response import CardPatchResponse
-from .card_patch_response_data import CardPatchResponseData
 from .card_reference_candidate import CardReferenceCandidate
 from .card_reference_resolve_data import CardReferenceResolveData
-from .card_reference_resolve_data_match_kind import CardReferenceResolveDataMatchKind
+from .card_reference_resolve_data_response import CardReferenceResolveDataResponse
 from .card_reference_resolve_data_status import CardReferenceResolveDataStatus
 from .card_reference_resolve_request import CardReferenceResolveRequest
 from .card_reference_resolve_request_scope import CardReferenceResolveRequestScope
-from .card_reference_resolve_response import CardReferenceResolveResponse
-from .card_tag_mutation_request import CardTagMutationRequest
-from .card_tag_mutation_response import CardTagMutationResponse
-from .card_tag_mutation_result import CardTagMutationResult
-from .card_tag_mutation_result_outcome import CardTagMutationResultOutcome
-from .card_update_request import CardUpdateRequest
+from .card_response import CardResponse
+from .card_update import CardUpdate
 from .caste_info import CasteInfo
 from .caste_info_name import CasteInfoName
 from .caste_recommended_model import CasteRecommendedModel
 from .caste_recommended_model_required_caste import CasteRecommendedModelRequiredCaste
 from .change_event_data import ChangeEventData
 from .change_event_data_entity import ChangeEventDataEntity
-from .delete_cards_card_id_children import DeleteCardsCardIdChildren
-from .delete_cards_card_id_resources_body import DeleteCardsCardIdResourcesBody
+from .delete_projects_project_id_cards_card_id_children import (
+    DeleteProjectsProjectIdCardsCardIdChildren,
+)
+from .due_sync_result import DueSyncResult
+from .due_sync_result_response import DueSyncResultResponse
+from .encryption_safety_check import EncryptionSafetyCheck
 from .error import Error
 from .error_response import ErrorResponse
 from .event_checkpoint import EventCheckpoint
@@ -133,156 +145,119 @@ from .event_checkpoint_git_revisions import EventCheckpointGitRevisions
 from .event_checkpoint_history_urls import EventCheckpointHistoryUrls
 from .event_checkpoint_response import EventCheckpointResponse
 from .event_resync_data import EventResyncData
+from .event_resync_data_git_revisions import EventResyncDataGitRevisions
+from .event_resync_data_history_urls import EventResyncDataHistoryUrls
 from .event_resync_data_reason import EventResyncDataReason
-from .get_ai_catalog_json_response_200 import GetAiCatalogJsonResponse200
+from .get_ai_messages_include_deleted import GetAiMessagesIncludeDeleted
 from .get_ai_messages_message_id_backlinks_include_deleted import (
     GetAiMessagesMessageIdBacklinksIncludeDeleted,
 )
 from .get_ai_messages_message_id_links_include_deleted import (
     GetAiMessagesMessageIdLinksIncludeDeleted,
 )
-from .get_cards_card_id_backlinks_include_deleted import (
-    GetCardsCardIdBacklinksIncludeDeleted,
-)
-from .get_cards_card_id_links_include_deleted import GetCardsCardIdLinksIncludeDeleted
-from .get_cards_context_order import GetCardsContextOrder
-from .get_cards_order import GetCardsOrder
-from .get_cards_view import GetCardsView
-from .get_git_providers_json_response_200 import GetGitProvidersJsonResponse200
-from .get_locations_location_id_response_200 import GetLocationsLocationIdResponse200
 from .get_ping_response_200 import GetPingResponse200
-from .get_projects_order import GetProjectsOrder
-from .get_projects_project_id_cards_order import GetProjectsProjectIdCardsOrder
-from .get_projects_project_id_cards_parent_type_0 import (
-    GetProjectsProjectIdCardsParentType0,
+from .get_projects_order_type_0 import GetProjectsOrderType0
+from .get_projects_project_id_cards_card_id_backlinks_scope import (
+    GetProjectsProjectIdCardsCardIdBacklinksScope,
 )
+from .get_projects_project_id_cards_order import GetProjectsProjectIdCardsOrder
 from .get_projects_project_id_history_cards_card_id_compare_mode import (
     GetProjectsProjectIdHistoryCardsCardIdCompareMode,
 )
-from .get_projects_project_id_history_kind import GetProjectsProjectIdHistoryKind
+from .google_drive_authorization import GoogleDriveAuthorization
+from .google_drive_authorize_response import GoogleDriveAuthorizeResponse
 from .health_data import HealthData
-from .health_data_crypt_filter import HealthDataCryptFilter
+from .health_privacy import HealthPrivacy
 from .health_response import HealthResponse
 from .hierarchy_repair import HierarchyRepair
 from .hierarchy_repair_move import HierarchyRepairMove
 from .hierarchy_repair_request import HierarchyRepairRequest
 from .hierarchy_repair_response import HierarchyRepairResponse
+from .history_affected_object import HistoryAffectedObject
+from .history_affected_path import HistoryAffectedPath
+from .history_author import HistoryAuthor
+from .history_object_kind import HistoryObjectKind
+from .link import Link
+from .link_kind_labels import LinkKindLabels
+from .link_kind_labels_list_response import LinkKindLabelsListResponse
+from .link_list_response import LinkListResponse
+from .link_response import LinkResponse
+from .link_source_type import LinkSourceType
+from .link_target_type import LinkTargetType
 from .local_model import LocalModel
+from .location_action import LocationAction
+from .location_action_response import LocationActionResponse
 from .location_binding_request import LocationBindingRequest
 from .location_binding_request_values import LocationBindingRequestValues
+from .location_configuration import LocationConfiguration
+from .location_delete_result import LocationDeleteResult
+from .location_delete_result_response import LocationDeleteResultResponse
+from .location_provider import LocationProvider
+from .location_test import LocationTest
+from .location_test_response import LocationTestResponse
 from .milestone import Milestone
-from .milestone_create_request import MilestoneCreateRequest
+from .milestone_date import MilestoneDate
 from .milestone_list_response import MilestoneListResponse
-from .milestone_remove_response import MilestoneRemoveResponse
-from .milestone_remove_result import MilestoneRemoveResult
 from .milestone_response import MilestoneResponse
-from .milestone_update_request import MilestoneUpdateRequest
-from .patch_locations_location_id_body import PatchLocationsLocationIdBody
-from .patch_locations_location_id_body_configuration import (
-    PatchLocationsLocationIdBodyConfiguration,
-)
-from .post_ai_runner_pull_body import PostAiRunnerPullBody
-from .post_cards_card_id_resources_body import PostCardsCardIdResourcesBody
-from .post_locations_response_201 import PostLocationsResponse201
+from .milestone_update import MilestoneUpdate
+from .new_card import NewCard
+from .new_link import NewLink
+from .new_milestone import NewMilestone
+from .new_project import NewProject
+from .new_resource import NewResource
+from .new_storage_location import NewStorageLocation
+from .post_ai_runner_pull_request import PostAiRunnerPullRequest
+from .preferred_location_request import PreferredLocationRequest
+from .privacy_mode import PrivacyMode
 from .project import Project
-from .project_calendar_response import ProjectCalendarResponse
-from .project_calendar_response_data import ProjectCalendarResponseData
-from .project_create_request import ProjectCreateRequest
-from .project_create_request_privacy_mode import ProjectCreateRequestPrivacyMode
-from .project_create_response import ProjectCreateResponse
-from .project_create_response_data import ProjectCreateResponseData
-from .project_delete_response import ProjectDeleteResponse
-from .project_delete_response_data import ProjectDeleteResponseData
+from .project_activity import ProjectActivity
 from .project_encryption_check import ProjectEncryptionCheck
 from .project_encryption_check_response import ProjectEncryptionCheckResponse
-from .project_encryption_check_response_data import ProjectEncryptionCheckResponseData
-from .project_encryption_check_response_data_privacy_mode import (
-    ProjectEncryptionCheckResponseDataPrivacyMode,
-)
-from .project_get_response import ProjectGetResponse
-from .project_git_push_request import ProjectGitPushRequest
-from .project_git_push_response import ProjectGitPushResponse
-from .project_git_push_response_data import ProjectGitPushResponseData
-from .project_git_push_response_data_status import ProjectGitPushResponseDataStatus
-from .project_git_sync_operation_response import ProjectGitSyncOperationResponse
-from .project_git_sync_operation_response_data import (
-    ProjectGitSyncOperationResponseData,
-)
-from .project_git_sync_operation_response_data_pull import (
-    ProjectGitSyncOperationResponseDataPull,
-)
-from .project_git_sync_operation_response_data_pull_status import (
-    ProjectGitSyncOperationResponseDataPullStatus,
-)
-from .project_git_sync_operation_response_data_push import (
-    ProjectGitSyncOperationResponseDataPush,
-)
-from .project_git_sync_operation_response_data_push_status import (
-    ProjectGitSyncOperationResponseDataPushStatus,
-)
-from .project_git_sync_operation_response_data_status import (
-    ProjectGitSyncOperationResponseDataStatus,
-)
-from .project_git_sync_request import ProjectGitSyncRequest
-from .project_git_sync_status_response import ProjectGitSyncStatusResponse
-from .project_git_sync_status_response_data import ProjectGitSyncStatusResponseData
-from .project_git_test_remote_request import ProjectGitTestRemoteRequest
-from .project_git_test_remote_response import ProjectGitTestRemoteResponse
-from .project_git_test_remote_response_data import ProjectGitTestRemoteResponseData
-from .project_git_test_remote_response_data_status import (
-    ProjectGitTestRemoteResponseDataStatus,
-)
-from .project_history_activity import ProjectHistoryActivity
-from .project_history_affected_object import ProjectHistoryAffectedObject
-from .project_history_affected_object_kind import ProjectHistoryAffectedObjectKind
-from .project_history_page_data import ProjectHistoryPageData
+from .project_history_page import ProjectHistoryPage
 from .project_history_page_response import ProjectHistoryPageResponse
-from .project_list_response import ProjectListResponse
-from .project_privacy_mode import ProjectPrivacyMode
-from .project_recovery_token_export_request import ProjectRecoveryTokenExportRequest
-from .project_recovery_token_export_response import ProjectRecoveryTokenExportResponse
-from .project_recovery_token_export_response_data import (
-    ProjectRecoveryTokenExportResponseData,
+from .project_list_item import ProjectListItem
+from .project_list_item_list_response import ProjectListItemListResponse
+from .project_recovery_token_export_result import ProjectRecoveryTokenExportResult
+from .project_recovery_token_export_result_response import (
+    ProjectRecoveryTokenExportResultResponse,
 )
-from .project_recovery_token_import_request import ProjectRecoveryTokenImportRequest
-from .project_recovery_token_import_response import ProjectRecoveryTokenImportResponse
-from .project_recovery_token_import_response_data import (
-    ProjectRecoveryTokenImportResponseData,
+from .project_recovery_token_import_result import ProjectRecoveryTokenImportResult
+from .project_recovery_token_import_result_response import (
+    ProjectRecoveryTokenImportResultResponse,
 )
-from .project_sync import ProjectSync
-from .project_tag import ProjectTag
-from .project_tag_list_response import ProjectTagListResponse
-from .project_update_request import ProjectUpdateRequest
-from .project_update_request_privacy_mode import ProjectUpdateRequestPrivacyMode
-from .project_update_response import ProjectUpdateResponse
-from .project_update_response_data import ProjectUpdateResponseData
-from .put_locations_preferred_body import PutLocationsPreferredBody
-from .rebuild_data import RebuildData
+from .project_response import ProjectResponse
+from .project_storage_location import ProjectStorageLocation
+from .project_storage_location_response import ProjectStorageLocationResponse
+from .project_update import ProjectUpdate
+from .pull_phase import PullPhase
+from .pull_phase_status import PullPhaseStatus
+from .push_options import PushOptions
+from .push_phase import PushPhase
+from .push_status import PushStatus
 from .rebuild_request import RebuildRequest
-from .rebuild_response import RebuildResponse
-from .recovery_token_import_auto_response import RecoveryTokenImportAutoResponse
-from .recovery_token_import_auto_response_data import (
-    RecoveryTokenImportAutoResponseData,
+from .rebuild_result import RebuildResult
+from .rebuild_result_response import RebuildResultResponse
+from .recovery_token_export_request import RecoveryTokenExportRequest
+from .recovery_token_global_import_result import RecoveryTokenGlobalImportResult
+from .recovery_token_global_import_result_pull_status import (
+    RecoveryTokenGlobalImportResultPullStatus,
 )
-from .recovery_token_import_auto_response_data_pull_status import (
-    RecoveryTokenImportAutoResponseDataPullStatus,
+from .recovery_token_global_import_result_response import (
+    RecoveryTokenGlobalImportResultResponse,
 )
-from .reindex_data import ReindexData
-from .reindex_response import ReindexResponse
+from .recovery_token_import_request import RecoveryTokenImportRequest
+from .reindex_result import ReindexResult
+from .reindex_result_response import ReindexResultResponse
+from .remote_test import RemoteTest
+from .remote_test_result import RemoteTestResult
+from .remote_test_result_response import RemoteTestResultResponse
+from .remote_test_result_status import RemoteTestResultStatus
 from .resource import Resource
 from .resource_asset import ResourceAsset
-from .resource_attachment_response import ResourceAttachmentResponse
-from .resource_attachment_response_data import ResourceAttachmentResponseData
-from .resource_attachment_response_data_outcome import (
-    ResourceAttachmentResponseDataOutcome,
-)
-from .resource_create_request import ResourceCreateRequest
-from .resource_delete_response import ResourceDeleteResponse
-from .resource_delete_response_data import ResourceDeleteResponseData
 from .resource_list_response import ResourceListResponse
 from .resource_metadata import ResourceMetadata
 from .resource_response import ResourceResponse
-from .resource_update_request import ResourceUpdateRequest
+from .resource_update import ResourceUpdate
 from .runner_capabilities_data import RunnerCapabilitiesData
 from .runner_capabilities_response import RunnerCapabilitiesResponse
 from .runner_pull_job import RunnerPullJob
@@ -290,21 +265,28 @@ from .runner_pull_progress import RunnerPullProgress
 from .runner_pull_start_response import RunnerPullStartResponse
 from .runner_pull_start_response_data import RunnerPullStartResponseData
 from .runner_pull_status_response import RunnerPullStatusResponse
-from .search_card_item import SearchCardItem
-from .search_cards_response import SearchCardsResponse
-from .search_message_item import SearchMessageItem
-from .search_messages_response import SearchMessagesResponse
-from .storage_location import StorageLocation
-from .storage_location_configuration import StorageLocationConfiguration
+from .search_card import SearchCard
+from .search_card_list_response import SearchCardListResponse
+from .search_message import SearchMessage
+from .search_message_list_response import SearchMessageListResponse
 from .storage_location_list_response import StorageLocationListResponse
-from .storage_location_provider import StorageLocationProvider
-from .storage_location_request import StorageLocationRequest
-from .storage_location_request_configuration import StorageLocationRequestConfiguration
-from .storage_location_request_provider import StorageLocationRequestProvider
-from .trash_delete_response import TrashDeleteResponse
-from .trash_delete_response_data import TrashDeleteResponseData
+from .storage_location_update import StorageLocationUpdate
+from .sync_result import SyncResult
+from .sync_result_response import SyncResultResponse
+from .sync_result_status import SyncResultStatus
+from .sync_state import SyncState
+from .sync_state_response import SyncStateResponse
+from .tag_count import TagCount
+from .tag_count_list_response import TagCountListResponse
+from .tag_occurrence import TagOccurrence
+from .trash_delete_result import TrashDeleteResult
+from .trash_delete_result_response import TrashDeleteResultResponse
+from .trash_empty_result import TrashEmptyResult
+from .trash_empty_result_response import TrashEmptyResultResponse
+from .trash_filter import TrashFilter
 from .trash_item import TrashItem
-from .trash_list_response import TrashListResponse
+from .trash_item_list_response import TrashItemListResponse
+from .trash_item_type import TrashItemType
 
 __all__ = (
     "AiLocalModelConfigData",
@@ -323,10 +305,21 @@ __all__ = (
     "AiMessageUpdateRequest",
     "AiMessageUpdateResponse",
     "AiMessageUpdateResponseData",
+    "AiNudge",
+    "AiNudgeCandidate",
+    "AiNudgeCandidateFacts",
+    "AiNudgeDismissData",
+    "AiNudgeDismissResponse",
+    "AiNudgeEvaluateData",
+    "AiNudgeEvaluateResponse",
+    "AiNudgeListData",
+    "AiNudgeListResponse",
+    "AiNudgeMetaJson",
+    "AiProviderCatalogApi",
+    "AiProviderCatalogAuth",
+    "AiProviderCatalogModel",
+    "AiProviderCatalogModelLimits",
     "AiProviderCatalogProvider",
-    "AiProviderCatalogProviderApiType0",
-    "AiProviderCatalogProviderAuthType0",
-    "AiProviderCatalogProviderModelsItem",
     "AiProviderCatalogResponse",
     "AiProviderCatalogResponseData",
     "AiProviderCredential",
@@ -334,18 +327,34 @@ __all__ = (
     "AiProviderCredentialDeleteResponseData",
     "AiProviderCredentialUpsertRequest",
     "AiProviderCredentialUpsertResponse",
+    "AiProviderCredentialsListData",
     "AiProviderCredentialsListResponse",
-    "AiProviderCredentialsListResponseData",
+    "AiProviderSetting",
+    "AiProviderSettingDeleteData",
+    "AiProviderSettingDeleteResponse",
+    "AiProviderSettingResponse",
+    "AiProviderSettingUpdateRequest",
+    "AiProviderSettingsData",
+    "AiProviderSettingsResponse",
     "AiRunCreateRequest",
-    "AiRunCreateRequestContext",
+    "AiRunCreateRequestContextType0",
     "AiRunEventData",
     "AiRunGetResponse",
     "AiRunItem",
     "AiRunItemPolicyTraceType0",
     "AiRunListResponse",
+    "AiRunner",
+    "AiRunnerCreateRequest",
+    "AiRunnerDeleteResponse",
+    "AiRunnerDeleteResponseData",
+    "AiRunnerListResponse",
+    "AiRunnerListResponseData",
+    "AiRunnerResponse",
+    "AiRunnerRuntime",
+    "AiRunnerUpdateRequest",
     "AiStatusData",
-    "AiStatusPullJob",
     "AiStatusResponse",
+    "AiStreamResyncData",
     "AiThread",
     "AiThreadCreateRequest",
     "AiThreadCreateResponse",
@@ -355,6 +364,7 @@ __all__ = (
     "AiThreadPatchResponse",
     "AiThreadPatchResponseData",
     "AiThreadUpdateRequest",
+    "AliveResponse",
     "AssetImportJob",
     "AssetImportJobResponse",
     "AssetImportJobStatus",
@@ -362,32 +372,24 @@ __all__ = (
     "AssetPlacement",
     "AssetPlacementEncoding",
     "ByeResponse",
-    "CalendarCardActivity",
-    "CardContextBreadcrumb",
-    "CardContextBreadcrumbType",
-    "CardContextCard",
-    "CardContextData",
-    "CardContextDataProject",
-    "CardContextResponse",
-    "CardCreateRequest",
-    "CardCreateResponse",
-    "CardCreateResponseData",
-    "CardData",
-    "CardGetResponse",
-    "CardHistoryAuthor",
-    "CardHistoryComparisonData",
+    "Calendar",
+    "CalendarMilestone",
+    "CalendarResponse",
+    "Card",
+    "CardBreadcrumb",
+    "CardBreadcrumbKind",
+    "CardBreadcrumbListResponse",
+    "CardHistoryComparison",
     "CardHistoryComparisonResponse",
     "CardHistoryDiffLine",
-    "CardHistoryDiffLineOrigin",
     "CardHistoryEntry",
-    "CardHistoryEntryKind",
-    "CardHistoryEntrySavesItem",
-    "CardHistoryPageData",
+    "CardHistoryPage",
     "CardHistoryPageResponse",
-    "CardHistoryRestoreResponse",
-    "CardHistoryRestoreResponseData",
+    "CardHistoryRestoreResult",
+    "CardHistoryRestoreResultResponse",
+    "CardHistorySave",
+    "CardHistorySnapshot",
     "CardHistorySnapshotResponse",
-    "CardHistorySnapshotResponseData",
     "CardHistoryVersion",
     "CardLink",
     "CardLinkCreateRequest",
@@ -395,36 +397,30 @@ __all__ = (
     "CardLinkDeleteRequest",
     "CardLinkListResponse",
     "CardListItem",
-    "CardListResponse",
+    "CardListItemPage",
+    "CardListItemPageResponse",
+    "CardMetadata",
+    "CardMetadataResponse",
+    "CardMove",
     "CardMoveIntent",
-    "CardMoveRequest",
-    "CardMoveResponse",
-    "CardMoveResult",
-    "CardPage",
-    "CardPageItem",
-    "CardPageResponse",
-    "CardPatchResponse",
-    "CardPatchResponseData",
     "CardReferenceCandidate",
     "CardReferenceResolveData",
-    "CardReferenceResolveDataMatchKind",
+    "CardReferenceResolveDataResponse",
     "CardReferenceResolveDataStatus",
     "CardReferenceResolveRequest",
     "CardReferenceResolveRequestScope",
-    "CardReferenceResolveResponse",
-    "CardTagMutationRequest",
-    "CardTagMutationResponse",
-    "CardTagMutationResult",
-    "CardTagMutationResultOutcome",
-    "CardUpdateRequest",
+    "CardResponse",
+    "CardUpdate",
     "CasteInfo",
     "CasteInfoName",
     "CasteRecommendedModel",
     "CasteRecommendedModelRequiredCaste",
     "ChangeEventData",
     "ChangeEventDataEntity",
-    "DeleteCardsCardIdChildren",
-    "DeleteCardsCardIdResourcesBody",
+    "DeleteProjectsProjectIdCardsCardIdChildren",
+    "DueSyncResult",
+    "DueSyncResultResponse",
+    "EncryptionSafetyCheck",
     "Error",
     "ErrorResponse",
     "EventCheckpoint",
@@ -432,118 +428,103 @@ __all__ = (
     "EventCheckpointHistoryUrls",
     "EventCheckpointResponse",
     "EventResyncData",
+    "EventResyncDataGitRevisions",
+    "EventResyncDataHistoryUrls",
     "EventResyncDataReason",
-    "GetAiCatalogJsonResponse200",
+    "GetAiMessagesIncludeDeleted",
     "GetAiMessagesMessageIdBacklinksIncludeDeleted",
     "GetAiMessagesMessageIdLinksIncludeDeleted",
-    "GetCardsCardIdBacklinksIncludeDeleted",
-    "GetCardsCardIdLinksIncludeDeleted",
-    "GetCardsContextOrder",
-    "GetCardsOrder",
-    "GetCardsView",
-    "GetGitProvidersJsonResponse200",
-    "GetLocationsLocationIdResponse200",
     "GetPingResponse200",
-    "GetProjectsOrder",
+    "GetProjectsOrderType0",
+    "GetProjectsProjectIdCardsCardIdBacklinksScope",
     "GetProjectsProjectIdCardsOrder",
-    "GetProjectsProjectIdCardsParentType0",
     "GetProjectsProjectIdHistoryCardsCardIdCompareMode",
-    "GetProjectsProjectIdHistoryKind",
+    "GoogleDriveAuthorization",
+    "GoogleDriveAuthorizeResponse",
     "HealthData",
-    "HealthDataCryptFilter",
+    "HealthPrivacy",
     "HealthResponse",
     "HierarchyRepair",
     "HierarchyRepairMove",
     "HierarchyRepairRequest",
     "HierarchyRepairResponse",
+    "HistoryAffectedObject",
+    "HistoryAffectedPath",
+    "HistoryAuthor",
+    "HistoryObjectKind",
+    "Link",
+    "LinkKindLabels",
+    "LinkKindLabelsListResponse",
+    "LinkListResponse",
+    "LinkResponse",
+    "LinkSourceType",
+    "LinkTargetType",
     "LocalModel",
+    "LocationAction",
+    "LocationActionResponse",
     "LocationBindingRequest",
     "LocationBindingRequestValues",
+    "LocationConfiguration",
+    "LocationDeleteResult",
+    "LocationDeleteResultResponse",
+    "LocationProvider",
+    "LocationTest",
+    "LocationTestResponse",
     "Milestone",
-    "MilestoneCreateRequest",
+    "MilestoneDate",
     "MilestoneListResponse",
-    "MilestoneRemoveResponse",
-    "MilestoneRemoveResult",
     "MilestoneResponse",
-    "MilestoneUpdateRequest",
-    "PatchLocationsLocationIdBody",
-    "PatchLocationsLocationIdBodyConfiguration",
-    "PostAiRunnerPullBody",
-    "PostCardsCardIdResourcesBody",
-    "PostLocationsResponse201",
+    "MilestoneUpdate",
+    "NewCard",
+    "NewLink",
+    "NewMilestone",
+    "NewProject",
+    "NewResource",
+    "NewStorageLocation",
+    "PostAiRunnerPullRequest",
+    "PreferredLocationRequest",
+    "PrivacyMode",
     "Project",
-    "ProjectCalendarResponse",
-    "ProjectCalendarResponseData",
-    "ProjectCreateRequest",
-    "ProjectCreateRequestPrivacyMode",
-    "ProjectCreateResponse",
-    "ProjectCreateResponseData",
-    "ProjectDeleteResponse",
-    "ProjectDeleteResponseData",
+    "ProjectActivity",
     "ProjectEncryptionCheck",
     "ProjectEncryptionCheckResponse",
-    "ProjectEncryptionCheckResponseData",
-    "ProjectEncryptionCheckResponseDataPrivacyMode",
-    "ProjectGetResponse",
-    "ProjectGitPushRequest",
-    "ProjectGitPushResponse",
-    "ProjectGitPushResponseData",
-    "ProjectGitPushResponseDataStatus",
-    "ProjectGitSyncOperationResponse",
-    "ProjectGitSyncOperationResponseData",
-    "ProjectGitSyncOperationResponseDataPull",
-    "ProjectGitSyncOperationResponseDataPullStatus",
-    "ProjectGitSyncOperationResponseDataPush",
-    "ProjectGitSyncOperationResponseDataPushStatus",
-    "ProjectGitSyncOperationResponseDataStatus",
-    "ProjectGitSyncRequest",
-    "ProjectGitSyncStatusResponse",
-    "ProjectGitSyncStatusResponseData",
-    "ProjectGitTestRemoteRequest",
-    "ProjectGitTestRemoteResponse",
-    "ProjectGitTestRemoteResponseData",
-    "ProjectGitTestRemoteResponseDataStatus",
-    "ProjectHistoryActivity",
-    "ProjectHistoryAffectedObject",
-    "ProjectHistoryAffectedObjectKind",
-    "ProjectHistoryPageData",
+    "ProjectHistoryPage",
     "ProjectHistoryPageResponse",
-    "ProjectListResponse",
-    "ProjectPrivacyMode",
-    "ProjectRecoveryTokenExportRequest",
-    "ProjectRecoveryTokenExportResponse",
-    "ProjectRecoveryTokenExportResponseData",
-    "ProjectRecoveryTokenImportRequest",
-    "ProjectRecoveryTokenImportResponse",
-    "ProjectRecoveryTokenImportResponseData",
-    "ProjectSync",
-    "ProjectTag",
-    "ProjectTagListResponse",
-    "ProjectUpdateRequest",
-    "ProjectUpdateRequestPrivacyMode",
-    "ProjectUpdateResponse",
-    "ProjectUpdateResponseData",
-    "PutLocationsPreferredBody",
-    "RebuildData",
+    "ProjectListItem",
+    "ProjectListItemListResponse",
+    "ProjectRecoveryTokenExportResult",
+    "ProjectRecoveryTokenExportResultResponse",
+    "ProjectRecoveryTokenImportResult",
+    "ProjectRecoveryTokenImportResultResponse",
+    "ProjectResponse",
+    "ProjectStorageLocation",
+    "ProjectStorageLocationResponse",
+    "ProjectUpdate",
+    "PullPhase",
+    "PullPhaseStatus",
+    "PushOptions",
+    "PushPhase",
+    "PushStatus",
     "RebuildRequest",
-    "RebuildResponse",
-    "RecoveryTokenImportAutoResponse",
-    "RecoveryTokenImportAutoResponseData",
-    "RecoveryTokenImportAutoResponseDataPullStatus",
-    "ReindexData",
-    "ReindexResponse",
+    "RebuildResult",
+    "RebuildResultResponse",
+    "RecoveryTokenExportRequest",
+    "RecoveryTokenGlobalImportResult",
+    "RecoveryTokenGlobalImportResultPullStatus",
+    "RecoveryTokenGlobalImportResultResponse",
+    "RecoveryTokenImportRequest",
+    "ReindexResult",
+    "ReindexResultResponse",
+    "RemoteTest",
+    "RemoteTestResult",
+    "RemoteTestResultResponse",
+    "RemoteTestResultStatus",
     "Resource",
     "ResourceAsset",
-    "ResourceAttachmentResponse",
-    "ResourceAttachmentResponseData",
-    "ResourceAttachmentResponseDataOutcome",
-    "ResourceCreateRequest",
-    "ResourceDeleteResponse",
-    "ResourceDeleteResponseData",
     "ResourceListResponse",
     "ResourceMetadata",
     "ResourceResponse",
-    "ResourceUpdateRequest",
+    "ResourceUpdate",
     "RunnerCapabilitiesData",
     "RunnerCapabilitiesResponse",
     "RunnerPullJob",
@@ -551,19 +532,26 @@ __all__ = (
     "RunnerPullStartResponse",
     "RunnerPullStartResponseData",
     "RunnerPullStatusResponse",
-    "SearchCardItem",
-    "SearchCardsResponse",
-    "SearchMessageItem",
-    "SearchMessagesResponse",
-    "StorageLocation",
-    "StorageLocationConfiguration",
+    "SearchCard",
+    "SearchCardListResponse",
+    "SearchMessage",
+    "SearchMessageListResponse",
     "StorageLocationListResponse",
-    "StorageLocationProvider",
-    "StorageLocationRequest",
-    "StorageLocationRequestConfiguration",
-    "StorageLocationRequestProvider",
-    "TrashDeleteResponse",
-    "TrashDeleteResponseData",
+    "StorageLocationUpdate",
+    "SyncResult",
+    "SyncResultResponse",
+    "SyncResultStatus",
+    "SyncState",
+    "SyncStateResponse",
+    "TagCount",
+    "TagCountListResponse",
+    "TagOccurrence",
+    "TrashDeleteResult",
+    "TrashDeleteResultResponse",
+    "TrashEmptyResult",
+    "TrashEmptyResultResponse",
+    "TrashFilter",
     "TrashItem",
-    "TrashListResponse",
+    "TrashItemListResponse",
+    "TrashItemType",
 )

@@ -1,11 +1,20 @@
 # api
 
-The HTTP contract between the Holder daemon and its clients.
+The HTTP expression of [Holder's Python contract](../contract/README.md).
 
-- [`openapi.yaml`](openapi.yaml) - the OpenAPI description of every endpoint. It is the canonical
-  contract: a change to the daemon's HTTP behaviour changes this file in the same pull request.
+HTTP clients use the OpenAPI specification here to understand and call the daemon.
+Developers change the Python declarations that produce it. The same declarations also
+supply core's C API, keeping shared operations consistent across embedded and HTTP use.
+
+- [`openapi.yaml`](openapi.yaml) - the generated OpenAPI description of the HTTP interface.
   The daemon serves it at `GET /openapi.yaml`, and the Python client in [`python/holder/`](../python/holder/)
-  is generated from a tested snapshot of it.
+  is generated from a tested snapshot of it. The document uses OpenAPI 3.2. It is generated, so
+  never edit it by hand: see [Changing the contract](#changing-the-contract).
+- [`openapi.json`](openapi.json) - the same document as JSON, generated with it. The daemon
+  compiles it in and serves it at `GET /openapi.json`, so a daemon always serves the contract it
+  was built from.
+- [`openapi-base.json`](openapi-base.json) - the API metadata, servers and security shared by
+  every route.
 - [`API_VERSION`](API_VERSION) - the compatibility version clients check (`MAJOR.MINOR`). It is
   separate from the release version in the root [`VERSION`](../VERSION). A client states the range
   it supports with `holderctl ensure --api-min` and `--api-max-exclusive`.
@@ -18,22 +27,31 @@ daemon, in [`daemon/docs/`](../daemon/docs/).
 
 ## Changing the contract
 
+Change public operations, models and their descriptions in [`contract/interface/`](../contract/interface/).
+Shared API metadata and security live in `openapi-base.json`. Run `make -C contract update`
+to regenerate the specification and interface code, then update implementations, affected
+clients and tests in the same pull request. Generated files are reviewed outputs; edit their
+sources. See the [contract development workflow](../contract/README.md#changing-holder).
+
 Holder's own clients (the desktop app, `holderctl`, the Python client) are clients like any
 other: they use only what this contract documents, never undocumented behaviour or the daemon's
 or core's internals. Third-party clients rely on the same document.
 
-- **Breaking changes need a new `API_VERSION`.** Clients accept a range of `API_VERSION`s, so a
-  change that would break an existing client must move `API_VERSION` out of the range they accept:
-  the next minor version while the major version is 0 (0.1 to 0.2), and the next major version from
-  1.0. The `API / Contract` workflow checks every pull request that changes this directory with
-  [oasdiff](https://github.com/oasdiff/oasdiff) and fails on a breaking change without that bump.
-  `API_VERSION` never goes down.
+- **Until Holder 1.0, `API_VERSION` stays at 0.1.** Holder promises no stable API before 1.0, and
+  interface changes must update the declarations and affected consumers together. A pull request that
+  breaks the contract updates Holder's own clients in the same pull request and is labelled
+  `api: unreleased change`, which the `API / Contract` workflow accepts in place of a bump.
+- **From Holder 1.0, breaking changes need a new `API_VERSION`.** Clients accept a range of
+  `API_VERSION`s, so a change that would break an existing client must move `API_VERSION` out of
+  the range they accept: the next major version. The `API / Contract` workflow checks every pull
+  request that changes this directory with [oasdiff](https://github.com/oasdiff/oasdiff) and fails
+  on a breaking change without that bump or the label. `API_VERSION` never goes down.
 - **Changes to something not yet released** (for example an endpoint added since the last release)
   break no one. A maintainer can accept them without a bump by labelling the pull request
   `api: unreleased change`.
 - **Changes in meaning** that a schema comparison cannot see, such as a field that now accepts
-  `null` with a new effect or a default that changes, must be written into the descriptions in
-  `openapi.yaml` in the same pull request, and treated as breaking if an existing client could
+  `null` with a new effect or a default that changes, must be written into the declarations'
+  descriptions in the same pull request, and treated as breaking if an existing client could
   misbehave.
 
 ## Debian source package

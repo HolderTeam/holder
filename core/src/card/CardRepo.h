@@ -10,11 +10,12 @@
 
 namespace holder::card {
 
-enum class CardPageOrder { CardIdAsc, UpdatedDesc };
+enum class CardPageOrder { CardIdAsc, UpdatedDesc, SortKeyAsc };
 
 struct CardPageCursor {
   std::string card_id;
   std::optional<long long> updated_at;
+  std::optional<double> sort_key = std::nullopt;
 };
 
 struct CardPageAll {};

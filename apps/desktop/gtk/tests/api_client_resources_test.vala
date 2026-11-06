@@ -12,6 +12,22 @@ private void test_list_resources_parses_results_and_query() {
         200,
         "{\"ok\":true,\"data\":[{\"resource_id\":\"r1\",\"project_id\":\"p1\",\"type\":\"website\",\"label\":\"Example\",\"metadata\":{\"identifier\":[\"https://example.com\"],\"description\":[\"Docs\"]},\"assets\":[],\"created_at\":1,\"updated_at\":2}]}"
     );
+    // The project's live cards, for the titles of those that link to the resource.
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c2\",\"title\":\"Beta\",\"updated_at\":7}," +
+        "{\"card_id\":\"c1\",\"title\":\"Alpha\",\"updated_at\":5}],\"next_cursor\":null}}"
+    );
+    // Its links: two from c1, one from c2, one from a card in the trash, and one from an AI message.
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[" +
+        "{\"source_type\":\"card\",\"source_id\":\"c1\",\"kind\":\"ref\"}," +
+        "{\"source_type\":\"card\",\"source_id\":\"c1\",\"kind\":\"attachment\"}," +
+        "{\"source_type\":\"card\",\"source_id\":\"c2\",\"kind\":\"attachment\"}," +
+        "{\"source_type\":\"card\",\"source_id\":\"c9\",\"kind\":\"attachment\"}," +
+        "{\"source_type\":\"ai_message\",\"source_id\":\"m1\",\"kind\":\"ref\"}]}"
+    );
     var client = make_client(transport);
 
     bool done = false;
@@ -34,9 +50,14 @@ private void test_list_resources_parses_results_and_query() {
     assert(resources[0].uri == "https://example.com");
     assert(resources[0].desc == "Docs");
     assert(resources[0].label == "Example");
+    var references = resources[0].referenced_by_cards;
+    assert(references.size == 2);
+    assert(references[0].card_id == "c1" && references[0].title == "Alpha" && references[0].updated_at == 5);
+    assert(references[0].link_kinds.size == 2);
+    assert(references[0].link_kinds[0] == "attachment" && references[0].link_kinds[1] == "ref");
+    assert(references[1].card_id == "c2");
     assert(transport.last_method == "GET");
-    assert(transport.last_uri.contains("/resources"));
-    assert(transport.last_uri.contains("project_id=p1"));
+    assert(transport.last_uri.contains("/projects/p1/resources/r1/backlinks"));
 }
 
 private void test_create_resource_with_and_without_desc() {
@@ -59,7 +80,7 @@ private void test_create_resource_with_and_without_desc() {
     assert(wait_for_condition(() => done_first));
     assert(first_id == "r1");
     assert(transport.last_method == "POST");
-    assert(transport.last_uri.contains("/resources"));
+    assert(transport.last_uri.contains("/projects/p1/resources"));
     assert(transport.last_content_type == "application/json");
 
     bool done_second = false;
@@ -105,7 +126,7 @@ private void test_update_resource_and_delete_resource_paths() {
 
     bool done_update = false;
     bool ok_update = false;
-    client.update_resource.begin("r 1/2", "url", null, "New Label", null, 123, null, (obj, res) => {
+    client.update_resource.begin("p1", "r 1/2", "url", null, "New Label", null, 123, null, (obj, res) => {
         try {
             client.update_resource.end(res);
             ok_update = true;
@@ -118,12 +139,12 @@ private void test_update_resource_and_delete_resource_paths() {
     assert(wait_for_condition(() => done_update));
     assert(ok_update);
     assert(transport.last_method == "PATCH");
-    assert(transport.last_uri.contains("/resources/r%201%2F2"));
+    assert(transport.last_uri.contains("/projects/p1/resources/r%201%2F2"));
     assert(transport.last_content_type == "application/json");
 
     bool done_delete = false;
     bool ok_delete = false;
-    client.delete_resource.begin("r 1/2", (obj, res) => {
+    client.delete_resource.begin("p1", "r 1/2", (obj, res) => {
         try {
             client.delete_resource.end(res);
             ok_delete = true;
@@ -136,7 +157,7 @@ private void test_update_resource_and_delete_resource_paths() {
     assert(wait_for_condition(() => done_delete));
     assert(ok_delete);
     assert(transport.last_method == "DELETE");
-    assert(transport.last_uri.contains("/resources/r%201%2F2"));
+    assert(transport.last_uri.contains("/projects/p1/resources/r%201%2F2"));
 }
 
 private void test_start_google_drive_oauth_posts_and_returns_the_authorization_url() {
@@ -196,7 +217,7 @@ private void test_create_and_update_resource_with_metadata_map() {
 
     bool done_update = false;
     bool ok_update = false;
-    client.update_resource.begin("r1", null, null, null, null, 42, metadata, (obj, res) => {
+    client.update_resource.begin("p1", "r1", null, null, null, null, 42, metadata, (obj, res) => {
         try {
             client.update_resource.end(res);
             ok_update = true;

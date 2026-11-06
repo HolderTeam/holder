@@ -184,18 +184,19 @@ UPDATE schema_version SET version = 4 WHERE version = 3;
   tx.commit();
 }
 
-bool projects_has_id_scheme(Db& db) {
+bool table_has_column(Db& db, const char* table, const char* column) {
   sqlite3_stmt* stmt = nullptr;
+  const std::string sql = "PRAGMA table_info(" + std::string(table) + ");";
   if (sqlite3_prepare_v2(
           db.handle(),
-          "PRAGMA table_info(projects);",
+          sql.c_str(),
           -1,
           &stmt,
           nullptr
       ) != // LCOV_EXCL_START - SQLite prepare failure requires engine fault injection.
       SQLITE_OK) {
     throw std::runtime_error(
-        std::string("failed to inspect projects schema: ") + sqlite3_errmsg(db.handle())
+        std::string("failed to inspect table schema: ") + sqlite3_errmsg(db.handle())
     );
   } // LCOV_EXCL_STOP
 
@@ -203,7 +204,7 @@ bool projects_has_id_scheme(Db& db) {
     const int rc = sqlite3_step(stmt);
     if (rc == SQLITE_ROW) {
       const auto* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-      if (name != nullptr && std::string_view(name) == "id_scheme") {
+      if (name != nullptr && std::string_view(name) == column) {
         sqlite3_finalize(stmt);
         return true;
       }
@@ -213,7 +214,7 @@ bool projects_has_id_scheme(Db& db) {
     if (rc !=
         SQLITE_DONE) { // LCOV_EXCL_START - SQLite step failure requires engine fault injection.
       throw std::runtime_error(
-          std::string("failed to inspect projects schema: ") + sqlite3_errmsg(db.handle())
+          std::string("failed to inspect table schema: ") + sqlite3_errmsg(db.handle())
       );
     } // LCOV_EXCL_STOP
     return false;
@@ -222,7 +223,7 @@ bool projects_has_id_scheme(Db& db) {
 
 void migrate_v4_to_v5(Db& db) {
   Tx tx(db);
-  if (!projects_has_id_scheme(db)) {
+  if (!table_has_column(db, "projects", "id_scheme")) {
     db.exec("ALTER TABLE projects ADD COLUMN id_scheme TEXT NOT NULL DEFAULT 'uuid4' "
             "CHECK(id_scheme IN ('uuid4', 'uuid7'));");
   }
@@ -264,6 +265,95 @@ CREATE INDEX idx_card_tags_tag
 UPDATE schema_version SET version = 7 WHERE version = 6;
 )sql";
 
+  Tx tx(db);
+  db.exec(SQL);
+  tx.commit();
+}
+
+void migrate_v7_to_v8(Db& db) {
+  static constexpr const char* SQL = R"sql(
+CREATE TABLE card_links_v8 (
+  project_id TEXT NOT NULL,
+  from_card_id TEXT NOT NULL,
+  to_card_id TEXT NOT NULL,
+  to_type TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  label TEXT NULL,
+  created_at INTEGER NOT NULL,
+  target_project_id TEXT NULL,
+  FOREIGN KEY(project_id) REFERENCES projects(project_id) ON DELETE CASCADE
+);
+
+INSERT INTO card_links_v8
+  (project_id, from_card_id, to_card_id, to_type, kind, label, created_at, target_project_id)
+SELECT project_id, from_card_id, to_card_id, to_type, kind, label, created_at,
+       NULL
+FROM card_links;
+
+DROP TABLE card_links;
+ALTER TABLE card_links_v8 RENAME TO card_links;
+
+CREATE UNIQUE INDEX idx_card_links_identity
+  ON card_links(project_id, from_card_id, to_card_id, to_type, kind,
+                COALESCE(target_project_id, project_id));
+CREATE INDEX idx_card_links_from ON card_links(project_id, from_card_id);
+CREATE INDEX idx_card_links_to ON card_links(project_id, to_card_id);
+CREATE INDEX idx_card_links_external_target
+  ON card_links(target_project_id, to_card_id, to_type, project_id);
+
+CREATE TABLE milestones_v8 (
+  milestone_id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  card_id TEXT NOT NULL,
+  kind TEXT NULL,
+  description TEXT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY(project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
+  FOREIGN KEY(card_id) REFERENCES cards(card_id) ON DELETE CASCADE
+);
+INSERT INTO milestones_v8
+  (milestone_id, project_id, card_id, kind, description, created_at, updated_at)
+SELECT milestone_id, project_id, card_id, kind, description, created_at, updated_at
+FROM milestones;
+
+CREATE TABLE milestone_dates (
+  milestone_id TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  role TEXT NOT NULL CHECK(length(role) > 0),
+  date_value TEXT NULL,
+  datetime_value TEXT NULL,
+  at_epoch INTEGER NULL,
+  PRIMARY KEY(milestone_id, position),
+  FOREIGN KEY(milestone_id) REFERENCES milestones_v8(milestone_id) ON DELETE CASCADE,
+  CHECK ((date_value IS NOT NULL) + (datetime_value IS NOT NULL) = 1),
+  CHECK ((date_value IS NOT NULL AND at_epoch IS NULL) OR
+         (date_value IS NULL AND at_epoch IS NOT NULL))
+);
+INSERT INTO milestone_dates
+  (milestone_id, position, role, date_value, datetime_value, at_epoch)
+SELECT milestone_id, 0, 'start',
+       CASE WHEN all_day != 0 THEN strftime('%Y-%m-%d', start_at, 'unixepoch') END,
+       CASE WHEN all_day = 0 THEN strftime('%Y-%m-%dT%H:%M:%SZ', start_at, 'unixepoch') END,
+       CASE WHEN all_day = 0 THEN start_at END
+FROM milestones;
+INSERT INTO milestone_dates
+  (milestone_id, position, role, date_value, datetime_value, at_epoch)
+SELECT milestone_id, 1, 'end',
+       CASE WHEN all_day != 0 THEN strftime('%Y-%m-%d', end_at, 'unixepoch') END,
+       CASE WHEN all_day = 0 THEN strftime('%Y-%m-%dT%H:%M:%SZ', end_at, 'unixepoch') END,
+       CASE WHEN all_day = 0 THEN end_at END
+FROM milestones WHERE end_at IS NOT NULL;
+
+DROP INDEX idx_milestones_project_card;
+DROP INDEX idx_milestones_project_start;
+DROP TABLE milestones;
+ALTER TABLE milestones_v8 RENAME TO milestones;
+CREATE INDEX idx_milestones_project_card ON milestones(project_id, card_id);
+CREATE INDEX idx_milestone_dates_day ON milestone_dates(role, date_value, milestone_id);
+CREATE INDEX idx_milestone_dates_instant ON milestone_dates(role, at_epoch, milestone_id);
+UPDATE schema_version SET version = 8 WHERE version = 7;
+)sql";
   Tx tx(db);
   db.exec(SQL);
   tx.commit();
@@ -360,6 +450,11 @@ bool Migrations::migrate_to_latest(Db& db) {
     case 6:
       migrate_v6_to_v7(db);
       version = 7;
+      migrated = true;
+      break;
+    case 7:
+      migrate_v7_to_v8(db);
+      version = 8;
       migrated = true;
       break;
     default:

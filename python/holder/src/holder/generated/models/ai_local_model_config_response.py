@@ -16,10 +16,11 @@ T = TypeVar("T", bound="AiLocalModelConfigResponse")
 
 @_attrs_define
 class AiLocalModelConfigResponse:
-    """
+    """AI LocalModelConfig response.
+
     Attributes:
-        ok (bool):
-        data (AiLocalModelConfigData):
+        ok (bool): The ok.
+        data (AiLocalModelConfigData): AI LocalModelConfigData.
     """
 
     ok: bool

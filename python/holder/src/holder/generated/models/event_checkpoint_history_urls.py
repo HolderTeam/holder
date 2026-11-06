@@ -12,7 +12,7 @@ T = TypeVar("T", bound="EventCheckpointHistoryUrls")
 
 @_attrs_define
 class EventCheckpointHistoryUrls:
-    """Existing project history endpoints for durable recovery. Refresh live state after inspecting history."""
+    """Project history endpoints for durable recovery."""
 
     additional_properties: dict[str, str] = _attrs_field(init=False, factory=dict)
 

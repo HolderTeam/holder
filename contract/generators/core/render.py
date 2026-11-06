@@ -1,0 +1,130 @@
+"""Spellings the C header, the C++ declarations and the C glue share."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from compiler.ir import ListType, LiteralType, MapType, NamedType, OperationView, ParameterType, ParameterView, TypeRef
+
+from ..common import Unsupported
+from .abi import SCALARS_CPP, CAbiError, snake
+from .types import CoreTypes, Slot
+
+
+def comment(text: str | None, indent: str = "", style: str = "c") -> list[str]:
+    if not text:
+        return []
+    lines = text.splitlines()
+    if style == "cpp":
+        return [f"{indent}/// {line}".rstrip() for line in lines]
+    if len(lines) == 1:
+        return [f"{indent}/* {lines[0]} */"]
+    return [f"{indent}/* {lines[0]}", *[f"{indent} * {line}".rstrip() for line in lines[1:]], f"{indent} */"]
+
+
+def cpp_literal(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return str(value)
+
+
+def cpp_base(types: CoreTypes, ref: TypeRef, generic: dict[str, str], enum: str | None = None) -> str:
+    """The C++ type of a value in holder::contract; enum names a record's choice of literals."""
+    ref = types.resolve(ref).type
+    if isinstance(ref, LiteralType) and enum is not None:
+        return enum
+    if ref.kind == "string":
+        return "std::string"
+    if ref.kind in SCALARS_CPP:
+        return SCALARS_CPP[ref.kind]
+    if isinstance(ref, ListType):
+        return f"std::vector<{cpp_base(types, ref.items, generic)}>"
+    if isinstance(ref, MapType):
+        return f"std::map<std::string, {cpp_base(types, ref.values, generic)}>"
+    if isinstance(ref, ParameterType):
+        return generic[ref.name]
+    if isinstance(ref, NamedType):
+        return types.instance(ref, {}).cpp_name
+    raise Unsupported(ref.kind)
+
+
+def cpp_type(types: CoreTypes, slot: Slot, generic: dict[str, str] | None = None) -> str:
+    base = cpp_base(types, slot.type, generic or {}, slot.enum)
+    if slot.change:
+        return f"Change<{base}>"
+    return f"std::optional<{base}>" if slot.nullable or (slot.optional and not slot.has_default) else base
+
+
+@dataclass
+class Param:
+    """How one operation parameter is passed in C."""
+
+    slot: Slot
+    c_decl: str
+    note: str
+    enum_lines: list[str]
+
+
+def c_param(types: CoreTypes, op: OperationView, parameter: ParameterView) -> Param:
+    slot = types.parameter_slot(parameter)
+    try:
+        planned = types.abi.operation(op.name).parameter(parameter.name)
+    except CAbiError as error:
+        raise Unsupported(str(error)) from error
+    return Param(slot, planned.c_decl, planned.note, list(planned.enum_lines))
+
+
+def host_c_params(types: CoreTypes, op: OperationView) -> list[Param]:
+    """A host registration's choice-of-literals parameters, which are C enums as in an ordinary operation.
+    Strings and bytes are lowered directly: the operation planner does not take bytes parameters."""
+    return [c_param(types, op, p) for p in op.parameters if isinstance(types.resolve(p.type).type, LiteralType)]
+
+
+def c_out(types: CoreTypes, op: OperationView) -> tuple[str, str] | None:
+    """The result's C type and its out parameter's name; a list is a {items, count} struct."""
+    try:
+        result = types.abi.operation(op.name).result
+    except CAbiError as error:
+        raise Unsupported(str(error)) from error
+    return (result.type_name, result.out_name) if result else None
+
+
+def c_signature(types: CoreTypes, op: OperationView) -> str:
+    """The operation's C function, without a semicolon. An operation that opens a context returns it through
+    out_context; the one that closes a context takes it and reports nothing; one that runs without a context
+    takes none. An operation with no result takes no arena, which holds only results."""
+    if op.host:
+        callbacks = f"holder_{snake(op.host)}_callbacks"
+        args = [] if op.context == "none" else ["holder_context* context"]
+        for parameter in op.parameters:
+            resolved = types.resolve(parameter.type).type
+            if resolved.kind == "bytes":
+                args.extend([f"const unsigned char* {parameter.name}", f"size_t {parameter.name}_len"])
+            elif resolved.kind == "string":
+                args.append(f"const char* {parameter.name}")
+            elif isinstance(resolved, LiteralType):
+                args.append(c_param(types, op, parameter).c_decl)
+            else:
+                raise Unsupported(f"{op.name}({parameter.name}): {resolved.kind} host registration parameter")
+        args.extend([f"const {callbacks}* callbacks", "void* user_data",
+                     "holder_destroy_fn destroy_user_data", "holder_error** out_error"])
+        return f"int holder_{op.name}(" + ", ".join(args) + ")"
+    if op.error == "reads":
+        return f"const char* holder_{op.name}(const holder_error* error)"
+    if op.error == "closes":
+        return f"void holder_{op.name}(holder_error* error)"
+    params = [c_param(types, op, p) for p in op.parameters]
+    if op.context == "closes":
+        return f"void holder_{op.name}(holder_context* context)"
+    if op.context == "opens":
+        args = [*[p.c_decl for p in params], "holder_context** out_context", "holder_error** out_error"]
+        return f"int holder_{op.name}(" + ", ".join(args) + ")"
+    result = c_out(types, op)
+    args = [*([] if op.context == "none" else ["holder_context* context"]), *[p.c_decl for p in params]]
+    if result:
+        args += ["holder_arena* arena", f"const {result[0]}** {result[1]}"]
+    args.append("holder_error** out_error")
+    return f"int holder_{op.name}(" + ", ".join(args) + ")"

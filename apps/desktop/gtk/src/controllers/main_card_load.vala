@@ -8,7 +8,9 @@ internal class MainCardLoadController : Object {
     }
 
     public async void load_card_by_id(string requested_card_id, bool allow_retry = true) {
-        if (owner.api == null) {
+        // Cards are listed for the selected project, so a card to load is one of its cards.
+        var project_id = owner.selected_project_id();
+        if (owner.api == null || project_id == null) {
             return;
         }
 
@@ -24,7 +26,7 @@ internal class MainCardLoadController : Object {
             return Source.REMOVE;
         });
         try {
-            var card = yield owner.api.get_card(requested_card_id);
+            var card = yield owner.api.get_card((!) project_id, requested_card_id);
             if (owner.card_loading_status_id != 0) {
                 owner.scheduler.cancel(owner.card_loading_status_id);
                 owner.card_loading_status_id = 0;

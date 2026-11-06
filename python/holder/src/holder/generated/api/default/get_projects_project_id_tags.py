@@ -7,7 +7,7 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.project_tag_list_response import ProjectTagListResponse
+from ...models.tag_count_list_response import TagCountListResponse
 from ...types import Response
 
 
@@ -27,11 +27,16 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | ProjectTagListResponse | None:
+) -> ErrorResponse | TagCountListResponse | None:
     if response.status_code == 200:
-        response_200 = ProjectTagListResponse.from_dict(response.json())
+        response_200 = TagCountListResponse.from_dict(response.json())
 
         return response_200
+
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
 
     if response.status_code == 401:
         response_401 = ErrorResponse.from_dict(response.json())
@@ -56,7 +61,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | ProjectTagListResponse]:
+) -> Response[ErrorResponse | TagCountListResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -69,8 +74,11 @@ def sync_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | ProjectTagListResponse]:
-    """List project tags with live-card counts
+) -> Response[ErrorResponse | TagCountListResponse]:
+    """List a project's tags.
+
+     Each tag carried by a live card in the project, with how many carry it, by descending count and then
+    by tag.
 
     Args:
         project_id (str):
@@ -80,7 +88,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectTagListResponse]
+        Response[ErrorResponse | TagCountListResponse]
     """
 
     kwargs = _get_kwargs(
@@ -98,8 +106,11 @@ def sync(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | ProjectTagListResponse | None:
-    """List project tags with live-card counts
+) -> ErrorResponse | TagCountListResponse | None:
+    """List a project's tags.
+
+     Each tag carried by a live card in the project, with how many carry it, by descending count and then
+    by tag.
 
     Args:
         project_id (str):
@@ -109,7 +120,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectTagListResponse
+        ErrorResponse | TagCountListResponse
     """
 
     return sync_detailed(
@@ -122,8 +133,11 @@ async def asyncio_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | ProjectTagListResponse]:
-    """List project tags with live-card counts
+) -> Response[ErrorResponse | TagCountListResponse]:
+    """List a project's tags.
+
+     Each tag carried by a live card in the project, with how many carry it, by descending count and then
+    by tag.
 
     Args:
         project_id (str):
@@ -133,7 +147,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectTagListResponse]
+        Response[ErrorResponse | TagCountListResponse]
     """
 
     kwargs = _get_kwargs(
@@ -149,8 +163,11 @@ async def asyncio(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | ProjectTagListResponse | None:
-    """List project tags with live-card counts
+) -> ErrorResponse | TagCountListResponse | None:
+    """List a project's tags.
+
+     Each tag carried by a live card in the project, with how many carry it, by descending count and then
+    by tag.
 
     Args:
         project_id (str):
@@ -160,7 +177,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectTagListResponse
+        ErrorResponse | TagCountListResponse
     """
 
     return (

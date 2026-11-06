@@ -445,3 +445,29 @@ TEST_CASE("FtsIndexer upsert_message throws when sqlite handle is closed", "[fts
       Catch::Matchers::ContainsSubstring("prepare delete ai_fts failed: unknown sqlite error")
   );
 }
+
+TEST_CASE("FtsIndexer reports an invalid search query apart from storage failures", "[fts]") {
+  const auto dir = make_temp_dir();
+  const auto db_path = dir / "holder.db";
+
+  holder::platform::Db db;
+  db.open(db_path);
+  apply_schema(db);
+
+  holder::index::FtsIndexer fts(db);
+  for (const auto* query : {"\"unbalanced", "nosuchcolumn:value", "AND"}) {
+    REQUIRE_THROWS_AS(fts.search_cards("proj-1", query, 10, 0), holder::index::FtsQueryError);
+    REQUIRE_THROWS_AS(fts.search_messages("proj-1", query, 10, 0), holder::index::FtsQueryError);
+  }
+
+  db.close();
+  bool query_error = false;
+  try {
+    fts.search_cards("proj-1", "term", 10, 0);
+  } catch (const holder::index::FtsQueryError&) {
+    query_error = true;
+  } catch (const std::runtime_error&) {
+  }
+  CHECK_FALSE(query_error);
+  REQUIRE_THROWS_AS(fts.search_messages("proj-1", "term", 10, 0), std::runtime_error);
+}

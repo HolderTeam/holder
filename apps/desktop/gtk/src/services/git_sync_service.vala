@@ -193,9 +193,8 @@ public class GitSyncService : Object {
                                                                          string project_id,
                                                                          string remote_url,
                                                                          string branch) throws Error {
-        var updated_at = new DateTime.now_utc().to_unix();
-        yield api.set_project_git_remote(project_id, remote_url, updated_at);
-        var test_result = yield api.test_project_git_remote(project_id, remote_url, branch);
+        yield api.set_project_git_remote(project_id, remote_url);
+        var test_result = yield api.test_project_git_remote(project_id, remote_url);
         GitPushResult? push_result = null;
         if (test_result.status == "reachable") {
             push_result = yield api.push_project_git(project_id, branch, true);

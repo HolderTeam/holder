@@ -223,8 +223,43 @@ private void test_run_ai_stream_serializes_runner_and_model_fields() {
     assert(body.contains("\"model\":\"qwen3:4b\""));
 }
 
+private void test_sse_preserves_field_whitespace() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_stream(200,
+        "event:  custom \n"
+        + "data:  leading and trailing  \n"
+        + "data:\ttabbed\t\n\n"
+        + "event:done\ndata:no-space  \n\n");
+    bool done = false;
+    bool ok = true;
+    var names = new Gee.ArrayList<string>();
+    var values = new Gee.ArrayList<string>();
+    HolderLinux.ApiClientAiStream.run.begin(
+        transport, "http://127.0.0.1:8080", "token", "hello",
+        null, null, null, null, null,
+        (name, payload) => {
+            names.add(name);
+            values.add(payload.get_string_member("raw"));
+        }, null, null, (obj, res) => {
+            try {
+                HolderLinux.ApiClientAiStream.run.end(res);
+            } catch (Error e) {
+                ok = false;
+            }
+            done = true;
+        });
+    assert(wait_for_condition(() => done));
+    assert(ok);
+    assert(names.size == 2);
+    assert(names[0] == " custom ");
+    assert(values[0] == " leading and trailing  \n\ttabbed\t");
+    assert(names[1] == "done");
+    assert(values[1] == "no-space  ");
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
+    Test.add_func("/api_client_ai_stream/preserves_field_whitespace", test_sse_preserves_field_whitespace);
 
     Test.add_func("/api_client_ai_stream/run_ai_stream_parses_sse_and_raw_data",
                   test_run_ai_stream_parses_sse_and_raw_data);

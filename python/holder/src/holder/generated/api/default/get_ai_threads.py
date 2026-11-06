@@ -48,6 +48,11 @@ def _parse_response(
 
         return response_401
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -71,6 +76,8 @@ def sync_detailed(
     project_id: str,
 ) -> Response[AiThreadListResponse | ErrorResponse]:
     """List AI threads by project
+
+     List AI threads by project
 
     Args:
         project_id (str):
@@ -101,6 +108,8 @@ def sync(
 ) -> AiThreadListResponse | ErrorResponse | None:
     """List AI threads by project
 
+     List AI threads by project
+
     Args:
         project_id (str):
 
@@ -124,6 +133,8 @@ async def asyncio_detailed(
     project_id: str,
 ) -> Response[AiThreadListResponse | ErrorResponse]:
     """List AI threads by project
+
+     List AI threads by project
 
     Args:
         project_id (str):
@@ -151,6 +162,8 @@ async def asyncio(
     project_id: str,
 ) -> AiThreadListResponse | ErrorResponse | None:
     """List AI threads by project
+
+     List AI threads by project
 
     Args:
         project_id (str):

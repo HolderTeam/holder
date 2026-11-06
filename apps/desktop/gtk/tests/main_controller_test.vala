@@ -2830,8 +2830,8 @@ private void test_move_card_by_intent_success_reloads_and_preserves_selection() 
     assert(wait_for_condition(() => saw_status && api.list_cards_calls > list_cards_before));
 
     assert(api.update_card_position_calls == 1);
-    assert(api.last_move_project_id == "p1");
     assert(api.last_move_intent == "before");
+    assert(api.last_card_project_id == controller.get_current_project().project_id);
     assert(api.last_move_card_id == "c1");
     assert(api.last_move_target_card_id == "c2");
     assert(controller.selected_card_id() == "c1");
@@ -2902,8 +2902,9 @@ private void test_move_card_by_intent_without_selected_project_emits_error() {
 }
 
 private void test_move_card_by_intent_into_emits_toast() {
+    // The toast names the target from the loaded cards: the fake's c2 is "Card 2".
     var api = new MainControllerFakeApi();
-    api.next_move_into_title = "Folder A";
+    api.include_card2 = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
@@ -2911,10 +2912,11 @@ private void test_move_card_by_intent_into_emits_toast() {
 
     controller.reload_everything.begin();
     assert(wait_for_condition(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => harness.card_store.get_n_items() > 1));
 
     bool saw_toast = false;
     controller.toast_requested.connect((text) => {
-        if (text == "Moved card into Folder A") {
+        if (text == "Moved card into Card 2") {
             saw_toast = true;
         }
     });
@@ -2990,6 +2992,7 @@ private void test_move_card_to_trash_success_emits_toast_and_signal() {
     assert(wait_for_condition(() => saw_status && saw_toast && saw_trashed));
 
     assert(api.delete_card_calls == 1);
+    assert(api.last_card_project_id == controller.get_current_project().project_id);
     assert(api.last_updated_card_id == "c1");
     assert(api.list_cards_calls > list_cards_before);
 }

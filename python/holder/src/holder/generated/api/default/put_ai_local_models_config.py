@@ -10,12 +10,12 @@ from ...models.ai_local_model_config_update_request import (
     AiLocalModelConfigUpdateRequest,
 )
 from ...models.error_response import ErrorResponse
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     *,
-    body: AiLocalModelConfigUpdateRequest,
+    body: AiLocalModelConfigUpdateRequest | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -24,7 +24,8 @@ def _get_kwargs(
         "url": "/ai/local-models/config",
     }
 
-    _kwargs["json"] = body.to_dict()
+    if not isinstance(body, Unset):
+        _kwargs["json"] = body.to_dict()
 
     headers["Content-Type"] = "application/json"
 
@@ -50,6 +51,11 @@ def _parse_response(
 
         return response_401
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -70,12 +76,15 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: AiLocalModelConfigUpdateRequest,
+    body: AiLocalModelConfigUpdateRequest | Unset = UNSET,
 ) -> Response[AiLocalModelConfigResponse | ErrorResponse]:
     """Set or clear local model configuration
 
+     Set or clear local model configuration
+
     Args:
-        body (AiLocalModelConfigUpdateRequest):
+        body (AiLocalModelConfigUpdateRequest | Unset): Replaces the whole configuration: an
+            omitted, null or empty model clears it..
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -99,12 +108,15 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    body: AiLocalModelConfigUpdateRequest,
+    body: AiLocalModelConfigUpdateRequest | Unset = UNSET,
 ) -> AiLocalModelConfigResponse | ErrorResponse | None:
     """Set or clear local model configuration
 
+     Set or clear local model configuration
+
     Args:
-        body (AiLocalModelConfigUpdateRequest):
+        body (AiLocalModelConfigUpdateRequest | Unset): Replaces the whole configuration: an
+            omitted, null or empty model clears it..
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -123,12 +135,15 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: AiLocalModelConfigUpdateRequest,
+    body: AiLocalModelConfigUpdateRequest | Unset = UNSET,
 ) -> Response[AiLocalModelConfigResponse | ErrorResponse]:
     """Set or clear local model configuration
 
+     Set or clear local model configuration
+
     Args:
-        body (AiLocalModelConfigUpdateRequest):
+        body (AiLocalModelConfigUpdateRequest | Unset): Replaces the whole configuration: an
+            omitted, null or empty model clears it..
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -150,12 +165,15 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    body: AiLocalModelConfigUpdateRequest,
+    body: AiLocalModelConfigUpdateRequest | Unset = UNSET,
 ) -> AiLocalModelConfigResponse | ErrorResponse | None:
     """Set or clear local model configuration
 
+     Set or clear local model configuration
+
     Args:
-        body (AiLocalModelConfigUpdateRequest):
+        body (AiLocalModelConfigUpdateRequest | Unset): Replaces the whole configuration: an
+            omitted, null or empty model clears it..
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

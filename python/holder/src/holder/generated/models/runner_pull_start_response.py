@@ -16,10 +16,11 @@ T = TypeVar("T", bound="RunnerPullStartResponse")
 
 @_attrs_define
 class RunnerPullStartResponse:
-    """
+    """RunnerPullStart response.
+
     Attributes:
-        ok (bool):
-        data (RunnerPullStartResponseData):
+        ok (bool): The ok.
+        data (RunnerPullStartResponseData): RunnerPullStart responseData.
     """
 
     ok: bool

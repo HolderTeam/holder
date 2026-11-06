@@ -26,13 +26,13 @@ private void test_recovery_and_git_models_preserve_constructor_values() {
     assert(provider.preferred_transport == "ssh");
 
     var test_remote = new HolderLinux.GitTestRemoteResult(
-        "proj-3", "https://example/repo.git", "main", "ok", true, "", ""
+        "proj-3", "https://example/repo.git", "ok", true, ""
     );
     assert(test_remote.project_id == "proj-3");
     assert(test_remote.remote_has_head);
 
     var push = new HolderLinux.GitPushResult(
-        "proj-4", "https://example/repo.git", "main", "failed", 2, 1, "abc123", "network", "no route", "retry"
+        "proj-4", "https://example/repo.git", "main", "failed", 2, 1, "abc123", "no route", "retry"
     );
     assert(push.project_id == "proj-4");
     assert(push.ahead_count == 2);

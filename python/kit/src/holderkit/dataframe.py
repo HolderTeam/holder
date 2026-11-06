@@ -20,7 +20,9 @@ class DataFrames(TypedDict):
     milestones: pd.DataFrame
 
 
-_TIMESTAMP_FIELDS = frozenset({"created_at", "updated_at", "deleted_at", "start_at", "end_at"})
+_TIMESTAMP_FIELDS = frozenset({"created_at", "updated_at", "deleted_at"})
+# Lists kept as Python objects, such as a milestone's labelled dates.
+_OBJECT_FIELDS = frozenset({"dates"})
 _FLOAT_FIELDS = frozenset({"sort_key"})
 
 
@@ -52,8 +54,10 @@ def records_to_dataframe(
             ).astype("datetime64[ns, UTC]")
         elif column in _FLOAT_FIELDS:
             frame[column] = frame[column].astype("float64")
-        elif column in {"editable", "all_day"}:
+        elif column == "editable":
             frame[column] = frame[column].astype("boolean")
+        elif column in _OBJECT_FIELDS:
+            frame[column] = frame[column].astype("object")
         else:
             frame[column] = frame[column].astype("string")
 

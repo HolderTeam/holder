@@ -17,6 +17,8 @@ class AiRunRepo {
   std::optional<model::AiRun> get(const std::string& run_id) const;
   std::vector<model::AiRun> list_by_thread(const std::string& thread_id) const;
   std::vector<model::AiRun> list_by_project(const std::string& project_id) const;
+  // Runs still in progress, across every project.
+  long long count_started() const;
   void update_status(
       const std::string& run_id,
       const std::string& status,

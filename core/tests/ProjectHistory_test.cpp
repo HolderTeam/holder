@@ -167,7 +167,7 @@ TEST_CASE(
   milestone.milestone_id = "project-history-milestone";
   milestone.project_id = "project-history";
   milestone.card_id = "abcd-card";
-  milestone.start_at = 1;
+  milestone.dates = {holder::model::milestone_date_from_legacy("start", 1, false)};
   milestone.kind = "Review";
   milestone.description = "Project review";
   repo.write_file(
@@ -292,7 +292,7 @@ TEST_CASE("Project history abbreviates long milestone and attachment summaries",
     milestone.milestone_id = "milestone-" + std::to_string(index);
     milestone.project_id = "project-history";
     milestone.card_id = "abcd-many-items";
-    milestone.start_at = index + 1;
+    milestone.dates = {holder::model::milestone_date_from_legacy("start", index + 1, false)};
     milestone.kind = "Review " + std::to_string(index);
     milestones.push_back(milestone);
   }

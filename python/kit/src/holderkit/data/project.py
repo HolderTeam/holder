@@ -29,7 +29,6 @@ class ProjectRecord(TypedDict):
     name: str
     root_path: str
     privacy_mode: str
-    id_scheme: str
     created_at: int
     updated_at: int
     git_remote_url: str | None
@@ -42,7 +41,6 @@ PROJECT_RECORD_FIELDS: tuple[str, ...] = (
     "name",
     "root_path",
     "privacy_mode",
-    "id_scheme",
     "created_at",
     "updated_at",
     "git_remote_url",
@@ -61,7 +59,6 @@ def _project_record_from_native(record: Mapping[str, Any]) -> ProjectRecord:
         "name": str(record["name"]),
         "root_path": str(record["root_path"]),
         "privacy_mode": str(record["privacy_mode"]),
-        "id_scheme": str(record["id_scheme"]),
         "created_at": int(record["created_at"]),
         "updated_at": int(record["updated_at"]),
         "git_remote_url": _optional_string(record["git_remote_url"]),
@@ -146,10 +143,7 @@ class Project:
         return self._context
 
     def _current(self) -> Mapping[str, Any]:
-        for record in self._live_context().list_projects():
-            if record["project_id"] == self._project_id:
-                return record
-        raise _native.HolderError("project not found: " + self._project_id)
+        return self._live_context().get_project(self._project_id)
 
     @property
     def name(self) -> str:
@@ -162,10 +156,6 @@ class Project:
     @property
     def privacy_mode(self) -> str:
         return str(self._current()["privacy_mode"])
-
-    @property
-    def id_scheme(self) -> str:
-        return str(self._current()["id_scheme"])
 
     @property
     def created_at(self) -> int:
@@ -238,11 +228,14 @@ class Project:
         return ProjectMilestones(self)
 
     def _card_record(self, card_id: str) -> Mapping[str, Any]:
-        result = self._live_context().resolve_card(self.project_id, card_id)
-        record = result.get("card")
-        # Core also resolves prefixes/titles; a handle must resolve only its exact identity.
-        if (result.get("status") != "resolved" or not isinstance(record, dict) or
-                record.get("card_id") != card_id or record.get("project_id") != self.project_id):
+        context = self._live_context()
+        try:
+            record = context.get_card(self.project_id, card_id)
+        except _native.HolderError as error:
+            if not str(error).startswith("card not found:"):
+                raise
+            raise KeyError(f"Card not found in this project: {card_id}") from None
+        if record["card_id"] != card_id or record["project_id"] != self.project_id:
             raise KeyError(f"Card not found in this project: {card_id}")
         return record
 
@@ -272,9 +265,9 @@ class Project:
         self._require_owned_card(card)
         context = self._live_context()
         if hard:
-            context.purge_card(card.card_id)
+            context.purge_card(self.project_id, card.card_id)
         else:
-            context.trash_card(card.card_id)
+            context.trash_card(self.project_id, card.card_id)
 
     def trash(self, card: Card) -> None:
         """Move a Card to Trash; equivalent to delete(card)."""
@@ -289,7 +282,7 @@ class Project:
         from .card import Card
 
         self._require_owned_card(card)
-        record = self._live_context().restore_card(card.card_id)
+        record = self._live_context().restore_card(self.project_id, card.card_id)
         return Card._from_native(record, self)
 
     def create_card(
@@ -312,13 +305,13 @@ class Project:
 
     def get_card_content(self, card_id: str) -> str:
         self._require_card(card_id)
-        return self._live_context().get_card_content(card_id)
+        return self._live_context().get_card_content(self.project_id, card_id)
 
     def update_card(self, card_id: str, content: str, title: str | None = None) -> Card:
         from .card import Card
 
         self._require_card(card_id)
-        record = self._live_context().update_card(card_id, content, title)
+        record = self._live_context().update_card(self.project_id, card_id, content, title)
         return Card._from_native(record, self)
 
     def to_dataframes(self, *, include_content: bool = False) -> DataFrames:

@@ -103,8 +103,9 @@ private void test_the_dialog_offers_the_other_cards_and_the_default_kinds() {
     var kinds = cv_dropdown(cvd_content(dialog), "Kind");
     var kind_items = cv_dropdown_items(kinds);
     assert(kind_items.size == 6);
-    assert(cv_eq(kind_items[0], "ref"));
-    assert(cv_eq(kind_items[3], "blocks"));
+    // The kinds read as their labels from the linking card's side.
+    assert(cv_eq(kind_items[0], "References"));
+    assert(cv_eq(kind_items[3], "Blocks"));
     assert(cv_eq(kind_items[5], "custom"));
     assert(kinds.get_selected() == 0);
     assert(!cv_entry(cvd_content(dialog), "custom kind").get_visible());
@@ -205,7 +206,7 @@ private void test_a_custom_kind_is_used_remembered_and_offered_next_time() {
     var reopened = (!) h.dialog();
     var kind_items = cv_dropdown_items(cv_dropdown(cvd_content(reopened), "Kind"));
     assert(kind_items.size == 7);
-    assert(cv_eq(kind_items[5], "inspired_by"));
+    assert(cv_eq(kind_items[5], "Inspired by"));
     assert(cv_eq(kind_items[6], "custom"));
 }
 

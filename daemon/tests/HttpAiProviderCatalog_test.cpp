@@ -1,4 +1,4 @@
-#include "api/routes/ai/providers/AiProviderCatalogRoutes.h"
+#include "api/GeneratedRoutes.h"
 #include "http_test_helpers.h"
 
 #include <boost/beast/http.hpp>
@@ -163,29 +163,19 @@ TEST_CASE("AiProviderCatalogRoutes direct handles missing catalog and db failure
         (dir / "does-not-exist.yaml").string()
     );
     auto req = make_req(http::verb::get, "/ai/providers/catalog");
-    REQUIRE(holder::api::routes::ai::providers::handle_ai_provider_catalog_routes(
-        "/ai/providers/catalog",
-        req,
-        res,
-        db
-    ));
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
     REQUIRE(res.result() == http::status::bad_request);
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["error"]["message"] == "ai_catalog.yaml models runtime/catalog not found.");
   }
 
-  SECTION("db failure on repo list is caught") {
+  SECTION("db failure on repo list is an internal error") {
     const auto ai_catalog_path = std::filesystem::path(DAEMON_AI_CATALOG_PATH);
     holder::test::EnvGuard catalog_env("HOLDER_AI_CATALOG_PATH", ai_catalog_path.string());
     holder::platform::Db unopened_db;
     auto req = make_req(http::verb::get, "/ai/providers/catalog");
-    REQUIRE(holder::api::routes::ai::providers::handle_ai_provider_catalog_routes(
-        "/ai/providers/catalog",
-        req,
-        res,
-        unopened_db
-    ));
-    REQUIRE(res.result() == http::status::bad_request);
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, unopened_db));
+    REQUIRE(res.result() == http::status::internal_server_error);
   }
 }
 
@@ -210,18 +200,28 @@ TEST_CASE("AiProviderCatalogRoutes direct supports minimal provider fields", "[h
 
   http::response<http::string_body> res;
   auto req = make_req(http::verb::get, "/ai/providers/catalog");
-  REQUIRE(holder::api::routes::ai::providers::handle_ai_provider_catalog_routes(
-      "/ai/providers/catalog",
-      req,
-      res,
-      db
-  ));
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(res.result() == http::status::ok);
   const auto payload = nlohmann::json::parse(res.body());
   REQUIRE(payload["ok"] == true);
   REQUIRE(payload["data"]["providers"].is_array());
   REQUIRE(payload["data"]["providers"].size() == 1);
   REQUIRE(payload["data"]["providers"][0]["id"] == "minimal");
-  REQUIRE(payload["data"]["providers"][0]["api"].is_object());
-  REQUIRE(payload["data"]["providers"][0]["auth"].is_object());
+  const auto& provider = payload["data"]["providers"][0];
+  REQUIRE(provider["api"].is_object());
+  REQUIRE(provider["auth"] == nlohmann::json::object());
+  for (const auto* field : {"cost_tier", "setup_url", "docs_url", "api_key_label", "api_key_hint"}) {
+    CAPTURE(field);
+    REQUIRE(provider[field].is_null());
+  }
+  REQUIRE(provider["configured"] == false);
+  REQUIRE(provider["models"] == nlohmann::json::array({{
+      {"id", "tiny"},
+      {"endpoint", "/v1/chat"},
+      {"role", nullptr},
+      {"cost_tier", nullptr},
+      {"default_for_low_budget", false},
+      {"limits", {{"rpm", 0}, {"tpm", 0}, {"rpd", 0}}},
+  }}));
+  REQUIRE(payload["data"].contains("default_provider"));
 }

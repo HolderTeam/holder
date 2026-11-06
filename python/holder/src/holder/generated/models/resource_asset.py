@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
@@ -16,21 +15,20 @@ T = TypeVar("T", bound="ResourceAsset")
 
 @_attrs_define
 class ResourceAsset:
-    """
+    """A file that belongs to a resource.
+
     Attributes:
-        asset_id (str):
-        resource_id (str):
-        original_filename (str):
-        media_type (str):
-        byte_size (int):
-        plaintext_sha256 (str):
-        placements (list[AssetPlacement]):
-        created_at (int):
-        updated_at (int):
+        asset_id (str): The asset's ID.
+        original_filename (str): The file's name when it was imported.
+        media_type (str): The file's media type, such as application/pdf.
+        byte_size (int): The file's size, in bytes.
+        plaintext_sha256 (str): The SHA-256 of the file's content, in lower-case hex.
+        placements (list[AssetPlacement]): The stored copies of the file.
+        created_at (int): When the asset was imported.
+        updated_at (int): When the asset was last changed.
     """
 
     asset_id: str
-    resource_id: str
     original_filename: str
     media_type: str
     byte_size: int
@@ -38,12 +36,9 @@ class ResourceAsset:
     placements: list[AssetPlacement]
     created_at: int
     updated_at: int
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         asset_id = self.asset_id
-
-        resource_id = self.resource_id
 
         original_filename = self.original_filename
 
@@ -63,11 +58,10 @@ class ResourceAsset:
         updated_at = self.updated_at
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "asset_id": asset_id,
-                "resource_id": resource_id,
                 "original_filename": original_filename,
                 "media_type": media_type,
                 "byte_size": byte_size,
@@ -86,8 +80,6 @@ class ResourceAsset:
 
         d = dict(src_dict)
         asset_id = d.pop("asset_id")
-
-        resource_id = d.pop("resource_id")
 
         original_filename = d.pop("original_filename")
 
@@ -110,7 +102,6 @@ class ResourceAsset:
 
         resource_asset = cls(
             asset_id=asset_id,
-            resource_id=resource_id,
             original_filename=original_filename,
             media_type=media_type,
             byte_size=byte_size,
@@ -120,21 +111,4 @@ class ResourceAsset:
             updated_at=updated_at,
         )
 
-        resource_asset.additional_properties = d
         return resource_asset
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties

@@ -16,10 +16,11 @@ T = TypeVar("T", bound="AiProviderCredentialUpsertResponse")
 
 @_attrs_define
 class AiProviderCredentialUpsertResponse:
-    """
+    """AI ProviderCredentialUpsert response.
+
     Attributes:
-        ok (bool):
-        data (AiProviderCredential):
+        ok (bool): The ok.
+        data (AiProviderCredential): AI ProviderCredential.
     """
 
     ok: bool

@@ -6,7 +6,7 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.search_messages_response import SearchMessagesResponse
+from ...models.search_message_list_response import SearchMessageListResponse
 from ...types import UNSET, Response, Unset
 
 
@@ -14,8 +14,8 @@ def _get_kwargs(
     *,
     project_id: str,
     q: str,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
+    limit: int | Unset = 20,
+    offset: int | Unset = 0,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
@@ -41,9 +41,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | SearchMessagesResponse | None:
+) -> ErrorResponse | SearchMessageListResponse | None:
     if response.status_code == 200:
-        response_200 = SearchMessagesResponse.from_dict(response.json())
+        response_200 = SearchMessageListResponse.from_dict(response.json())
 
         return response_200
 
@@ -57,6 +57,11 @@ def _parse_response(
 
         return response_401
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -65,7 +70,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | SearchMessagesResponse]:
+) -> Response[ErrorResponse | SearchMessageListResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -79,23 +84,25 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
     project_id: str,
     q: str,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
-) -> Response[ErrorResponse | SearchMessagesResponse]:
-    """Search AI messages
+    limit: int | Unset = 20,
+    offset: int | Unset = 0,
+) -> Response[ErrorResponse | SearchMessageListResponse]:
+    """Search a project's AI messages, ordered by relevance, best first.
+
+     Search a project's AI messages, ordered by relevance, best first.
 
     Args:
         project_id (str):
-        q (str):
-        limit (int | Unset):
-        offset (int | Unset):
+        q (str): An SQLite FTS5 query for AI message content.
+        limit (int | Unset):  Default: 20.
+        offset (int | Unset):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | SearchMessagesResponse]
+        Response[ErrorResponse | SearchMessageListResponse]
     """
 
     kwargs = _get_kwargs(
@@ -117,23 +124,25 @@ def sync(
     client: AuthenticatedClient | Client,
     project_id: str,
     q: str,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
-) -> ErrorResponse | SearchMessagesResponse | None:
-    """Search AI messages
+    limit: int | Unset = 20,
+    offset: int | Unset = 0,
+) -> ErrorResponse | SearchMessageListResponse | None:
+    """Search a project's AI messages, ordered by relevance, best first.
+
+     Search a project's AI messages, ordered by relevance, best first.
 
     Args:
         project_id (str):
-        q (str):
-        limit (int | Unset):
-        offset (int | Unset):
+        q (str): An SQLite FTS5 query for AI message content.
+        limit (int | Unset):  Default: 20.
+        offset (int | Unset):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | SearchMessagesResponse
+        ErrorResponse | SearchMessageListResponse
     """
 
     return sync_detailed(
@@ -150,23 +159,25 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
     project_id: str,
     q: str,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
-) -> Response[ErrorResponse | SearchMessagesResponse]:
-    """Search AI messages
+    limit: int | Unset = 20,
+    offset: int | Unset = 0,
+) -> Response[ErrorResponse | SearchMessageListResponse]:
+    """Search a project's AI messages, ordered by relevance, best first.
+
+     Search a project's AI messages, ordered by relevance, best first.
 
     Args:
         project_id (str):
-        q (str):
-        limit (int | Unset):
-        offset (int | Unset):
+        q (str): An SQLite FTS5 query for AI message content.
+        limit (int | Unset):  Default: 20.
+        offset (int | Unset):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | SearchMessagesResponse]
+        Response[ErrorResponse | SearchMessageListResponse]
     """
 
     kwargs = _get_kwargs(
@@ -186,23 +197,25 @@ async def asyncio(
     client: AuthenticatedClient | Client,
     project_id: str,
     q: str,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
-) -> ErrorResponse | SearchMessagesResponse | None:
-    """Search AI messages
+    limit: int | Unset = 20,
+    offset: int | Unset = 0,
+) -> ErrorResponse | SearchMessageListResponse | None:
+    """Search a project's AI messages, ordered by relevance, best first.
+
+     Search a project's AI messages, ordered by relevance, best first.
 
     Args:
         project_id (str):
-        q (str):
-        limit (int | Unset):
-        offset (int | Unset):
+        q (str): An SQLite FTS5 query for AI message content.
+        limit (int | Unset):  Default: 20.
+        offset (int | Unset):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | SearchMessagesResponse
+        ErrorResponse | SearchMessageListResponse
     """
 
     return (

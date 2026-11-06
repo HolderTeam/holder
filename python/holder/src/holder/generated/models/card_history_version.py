@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
 T = TypeVar("T", bound="CardHistoryVersion")
@@ -12,19 +11,19 @@ T = TypeVar("T", bound="CardHistoryVersion")
 
 @_attrs_define
 class CardHistoryVersion:
-    """
+    """A card's saved state at one commit, including an explicit absent state.
+
     Attributes:
-        exists (bool):
-        oid (str):
-        title (str):
-        body (str):
+        exists (bool): Whether the card existed in this snapshot.
+        oid (str): The full commit ID.
+        title (str): The card's saved title, empty when absent.
+        body (str): The card's saved body, empty when absent.
     """
 
     exists: bool
     oid: str
     title: str
     body: str
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         exists = self.exists
@@ -36,7 +35,7 @@ class CardHistoryVersion:
         body = self.body
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "exists": exists,
@@ -66,21 +65,4 @@ class CardHistoryVersion:
             body=body,
         )
 
-        card_history_version.additional_properties = d
         return card_history_version
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties

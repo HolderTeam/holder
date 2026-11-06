@@ -763,9 +763,9 @@ private void test_empty_comparison_explains_unchanged_text() {
     assert(wait_for_condition(() => api.compare_history_calls == 1));
     var text_view = history_find_text_view(view.widget);
     assert(text_view != null);
-    assert(text_view_contents((!) text_view).contains(
+    assert(wait_for_condition(() => text_view_contents((!) text_view).contains(
         "No text changes were recorded between these saved versions."
-    ));
+    )));
 }
 
 private void test_creation_change_compares_from_missing_card() {

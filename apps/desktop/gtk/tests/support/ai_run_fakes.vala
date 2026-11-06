@@ -9,6 +9,7 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public string? last_run_model = null;
     public int start_pull_calls = 0;
     public string last_pull_model = "";
+    public string? last_capabilities_runner_id = "unset";
     public bool fail_capabilities = false;
     public bool fail_status = false;
     public bool fail_pull = false;
@@ -18,6 +19,7 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public bool emit_progress_empty = false;
     public bool emit_fallback = false;
     public bool emit_fallback_empty = false;
+    public bool omit_terminal = false;
     public bool emit_failed = false;
     public bool emit_failed_empty = false;
     public bool done_without_model = false;
@@ -86,7 +88,7 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
             new Gee.ArrayList<HolderLinux.CardContextCard>()
         );
     }
-    public async HolderLinux.CardDetail get_card(string card_id) throws Error {
+    public async HolderLinux.CardDetail get_card(string project_id, string card_id) throws Error {
         return new HolderLinux.CardDetail(card_id, "p1", "T", "C", 1);
     }
     public async Gee.ArrayList<HolderLinux.TagCount> list_project_tags(string project_id) throws Error {
@@ -96,10 +98,17 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                                                             string tag) throws Error {
         return new Gee.ArrayList<HolderLinux.CardSummary>();
     }
-    public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string card_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string project_id, string card_id) throws Error {
         return new Gee.ArrayList<HolderLinux.CardLink>();
     }
-    public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string card_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.LinkKindLabels> list_link_kinds() throws Error {
+        var kinds = new Gee.ArrayList<HolderLinux.LinkKindLabels>();
+        kinds.add(new HolderLinux.LinkKindLabels("ref", "References", "Referenced by"));
+        kinds.add(new HolderLinux.LinkKindLabels("depends_on", "Depends on", "Required by"));
+        return kinds;
+    }
+
+    public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string project_id, string card_id) throws Error {
         return new Gee.ArrayList<HolderLinux.CardLink>();
     }
     public async Gee.ArrayList<HolderLinux.ProjectResource> list_resources(string project_id) throws Error {
@@ -110,7 +119,7 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         return new Gee.ArrayList<HolderLinux.TrashItem>();
     }
     public async void empty_trash(string project_id, string type = "all") throws Error {}
-    public async void restore_trash_item(string item_type, string item_id) throws Error {}
+    public async void restore_trash_item(string project_id, string item_type, string item_id) throws Error {}
     public async void hard_delete_trash_item(string item_type, string item_id) throws Error {}
     public async string create_resource(string project_id,
                                         string kind,
@@ -120,31 +129,36 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                         Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
         return "r1";
     }
-    public async void update_resource(string resource_id,
+    public async void update_resource(string project_id,
+                                      string resource_id,
                                       string? kind,
                                       string? uri,
                                       string? label,
                                       string? desc,
                                       int64 updated_at,
                                       Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {}
-    public async void delete_resource(string resource_id) throws Error {}
-    public async HolderLinux.CardLink create_card_link(string from_card_id,
+    public async void delete_resource(string project_id, string resource_id) throws Error {}
+    public async HolderLinux.CardLink create_card_link(string project_id,
+                                                       string from_card_id,
                                                        string to_card_id,
                                                        string kind = "ref",
                                                        string? label = null,
                                                        string to_type = "card") throws Error {
         return new HolderLinux.CardLink(from_card_id, to_card_id, to_type, kind, label, 0);
     }
-    public async void delete_card_link(string from_card_id,
+    public async void delete_card_link(string project_id,
+                                       string from_card_id,
                                        string to_card_id,
                                        string kind,
-                                       string to_type = "card") throws Error {}
+                                       string to_type = "card",
+                                       string? target_project_id = null) throws Error {}
     public async Gee.ArrayList<HolderLinux.SearchCardResult> search_cards(string project_id,
                                                                            string query_text,
                                                                            int limit = 30) throws Error {
         return new Gee.ArrayList<HolderLinux.SearchCardResult>();
     }
-    public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error {
+    public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? runner_id = null) throws Error {
+        last_capabilities_runner_id = runner_id;
         if (fail_capabilities) {
             throw new IOError.FAILED("capabilities failed");
         }
@@ -263,17 +277,13 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         return new Gee.ArrayList<HolderLinux.GitProviderCatalogEntry>();
     }
     public async void set_project_git_remote(string project_id,
-                                             string? git_remote_url,
-                                             int64 updated_at) throws Error {}
+                                             string? git_remote_url) throws Error {}
     public async HolderLinux.GitTestRemoteResult test_project_git_remote(string project_id,
-                                                                         string? remote_url = null,
-                                                                         string branch = "") throws Error {
+                                                                         string? remote_url = null) throws Error {
         return new HolderLinux.GitTestRemoteResult(project_id,
                                                    remote_url ?? "",
-                                                   branch,
                                                    "reachable",
                                                    true,
-                                                   "",
                                                    "");
     }
     public async HolderLinux.GitPushResult push_project_git(string project_id,
@@ -285,7 +295,6 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                              "pushed",
                                              0,
                                              0,
-                                             "",
                                              "",
                                              "",
                                              "");
@@ -379,6 +388,10 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
             on_event("failed", new Json.Object());
         }
 
+        if (omit_terminal || emit_failed || emit_failed_empty) {
+            return;
+        }
+
         var done_obj = new Json.Object();
         done_obj.set_string_member("run_id", emitted_run_id);
         if (emitted_provider.length > 0) {
@@ -395,21 +408,23 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                     string? parent_card_id = null) throws Error {
         return "c1";
     }
-    public async void update_card(string card_id,
+    public async void update_card(string project_id,
+                                  string card_id,
                                   string title,
                                   string content,
                                   int64 updated_at) throws Error {}
-    public async void update_card_position(string card_id,
+    public async void update_card_position(string project_id,
+                                           string card_id,
                                            string? parent_card_id,
                                            double sort_key,
                                            int64 updated_at) throws Error {}
-    public async void delete_card(string card_id, bool trash_subtree = false) throws Error {}
-    public async HolderLinux.CardMoveResult move_card(string card_id,
-                                                       string project_id,
+    public async void delete_card(string project_id, string card_id, bool trash_subtree = false) throws Error {}
+    public async HolderLinux.CardMoveResult move_card(string project_id,
+                                                       string card_id,
                                                        string intent,
                                                        string? target_card_id = null,
                                                        string? parent_card_id = null) throws Error {
-        return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0, 1, "");
+        return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0);
     }
 }
 

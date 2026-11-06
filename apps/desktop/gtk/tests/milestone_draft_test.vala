@@ -9,6 +9,9 @@ private TimeZone? london() {
     try {
         return new TimeZone.identifier(name);
     } catch (Error e) {
+        if (Environment.get_variable("HOLDER_TEST_REQUIRE_TIMEZONE") == "1") {
+            error("Required test timezone %s is unavailable: %s", name, e.message);
+        }
         return null;
     }
 }

@@ -18,31 +18,35 @@ from holder.exceptions import (
     ProtocolError,
 )
 
+SYNC_STATE = {
+    "last_commit_at": None,
+    "last_push_at": None,
+    "last_pull_at": None,
+    "uncommitted_changes_count": 0,
+    "unpushed_commits_count": 0,
+    "last_push_status": None,
+    "last_pull_status": None,
+    "last_sync_error": None,
+    "last_sync_error_at": None,
+    "retry_count": 0,
+    "next_retry_at": None,
+    "pull_retry_count": 0,
+    "next_pull_retry_at": None,
+    "updated_at": None,
+}
+
 
 def project_payload(index=0):
     return {
         "project_id": f"p-{index}",
         "name": f"Project {index}",
         "root_path": f"/p/{index}",
+        "git_remote_url": None,
+        "git_provider": None,
         "privacy_mode": "plain",
+        "project_key_id": None,
         "created_at": 1,
         "updated_at": 2,
-        "sync": {
-            "last_commit_at": None,
-            "last_push_at": None,
-            "last_pull_at": None,
-            "uncommitted_changes_count": 0,
-            "unpushed_commits_count": 0,
-            "last_push_status": None,
-            "last_pull_status": None,
-            "last_sync_error": None,
-            "last_sync_error_at": None,
-            "retry_count": 0,
-            "next_retry_at": None,
-            "pull_retry_count": 0,
-            "next_pull_retry_at": None,
-            "updated_at": None,
-        },
     }
 
 
@@ -59,7 +63,11 @@ def card_payload(index=0, project_id="p-0", content=False):
         "deleted_at": None,
     }
     if content:
+        # A fetched card, as GET /cards/{card_id} sends it.
         result["content"] = "current body"
+        result["tags"] = []
+        result["tag_occurrences"] = []
+        result["removable_tags"] = []
     return result
 
 
@@ -109,7 +117,8 @@ def test_project_create_defaults_hydration_and_listing_cache():
         assert project.created_at == 1
         assert list(h.projects) == []
         assert h.projects.refresh()[0].id == project.id
-        assert [r.method for r in requests] == ["GET", "POST", "GET", "GET"]
+        # The created project comes back from the write; it is not fetched again.
+        assert [r.method for r in requests] == ["GET", "POST", "GET"]
 
 
 def test_project_create_explicit_options_and_rename(tmp_path):
@@ -125,10 +134,9 @@ def test_project_create_explicit_options_and_rename(tmp_path):
             return created(stored)
         if request.method == "PATCH":
             body = json.loads(request.content)
-            assert set(body) == {"name", "updated_at"}
-            assert isinstance(body["updated_at"], int)
+            assert body == {"name": "Renamed"}
             stored.update(body)
-            return ok({"project_id": "p-0"})
+            return ok(stored)
         return ok(stored)
 
     with holder_for(respond) as h:
@@ -147,18 +155,19 @@ def test_card_create_hierarchy_defaults_and_content(scope):
     def respond(request):
         requests.append(request)
         if request.method == "POST":
-            expected = {"project_id": "p-0", "title": "New card", "content": ""}
+            assert request.url.path == "/projects/p-0/cards"
+            expected = {"title": "New card", "content": ""}
             if parent is not None:
                 expected["parent_card_id"] = parent
             assert json.loads(request.content) == expected
-            return created({"card_id": "c-0001", "rel_path": "c/1.md"})
+            # The created card, in full.
+            data = card_payload(1, content=True)
+            data.update(parent_card_id=parent, content="", sort_key=1024)
+            return created(data)
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/cards/c-0000":
-            return ok(card_payload(content=True))
-        data = card_payload(1, content=True)
-        data.update(parent_card_id=parent, content="", sort_key=1024)
-        return ok(data)
+        assert request.url.path == "/projects/p-0/cards/c-0000"
+        return ok(card_payload(content=True))
 
     with holder_for(respond) as h:
         project = h.projects.get("p-0")
@@ -175,7 +184,8 @@ def test_card_create_hierarchy_defaults_and_content(scope):
         assert card.content == ""
         assert card.parent_card_id == parent
         assert card.sort_key == 1024
-        assert requests[-1].url.path == "/cards/c-0001"
+        # The create's response is the card; nothing is fetched after it.
+        assert requests[-1].method == "POST"
 
 
 @pytest.mark.parametrize("operation", ["project_create", "card_create", "rename"])
@@ -193,10 +203,11 @@ def test_new_writes_are_never_retried(monkeypatch, operation, error):
                 raise httpx.ReadError("Interrupted", request=request)
             if error == "validation":
                 return failure(400)
+            # A response that is not the record written, so reading it fails after the write.
             if operation == "project_create":
-                return created(project_payload())
+                return created({"project_id": "p-0"})
             if operation == "card_create":
-                return created({"card_id": "c-0000", "rel_path": "c/0.md"})
+                return created({"card_id": "c-0000"})
             return ok({"project_id": "p-0"})
         if writes:
             return failure(404)
@@ -206,7 +217,8 @@ def test_new_writes_are_never_retried(monkeypatch, operation, error):
         "auth": AuthenticationError,
         "transport": ConnectionError,
         "validation": APIError,
-        "hydrate": NotFoundError,
+        # Each write returns its record, so a bad response fails as a protocol error.
+        "hydrate": ProtocolError,
     }[error]
     with Holder(transport=httpx.MockTransport(respond)) as h:
         with pytest.raises(exception):
@@ -245,7 +257,10 @@ def test_lazy_projects_pages_cache_queries_indexing_and_close():
     def respond(request):
         requests.append(request)
         assert request.headers["Authorization"] == "Bearer secret-token"
-        if request.url.path.startswith("/projects/"):
+        if (
+            request.url.path.startswith("/projects/")
+            and "/cards" not in request.url.path
+        ):
             return ok(project_payload(7))
         offset = int(request.url.params["offset"])
         assert request.url.params["limit"] == "100"
@@ -294,11 +309,12 @@ def test_cards_paginate_and_metadata_does_not_fetch_content():
 
     def respond(request):
         requests.append(request)
-        if request.url.path.startswith("/projects") and not request.url.path.endswith(
-            "/cards"
+        if (
+            request.url.path.startswith("/projects")
+            and "/cards" not in request.url.path
         ):
             return ok(project_payload())
-        if request.url.path.startswith("/cards/"):
+        if request.url.path.startswith("/projects/p-0/cards/"):
             return ok(card_payload(content=True))
         assert request.url.path == "/projects/p-0/cards"
         after = request.url.params.get("cursor")
@@ -337,19 +353,16 @@ def test_scoped_navigation_queries_membership_and_refresh():
 
     def respond(request):
         requests.append(request)
-        if request.url.path.startswith("/projects") and not request.url.path.endswith(
-            "/cards"
+        if (
+            request.url.path.startswith("/projects")
+            and "/cards" not in request.url.path
         ):
             return ok(project_payload())
-        if request.url.path.startswith("/cards/"):
-            return ok(
-                card_payload(
-                    project_id="p-other"
-                    if request.url.path.endswith("foreign")
-                    else "p-0",
-                    content=True,
-                )
-            )
+        if request.url.path == "/projects/p-0/cards/foreign":
+            # A card in another project is not found in this one.
+            return failure(404)
+        if request.url.path.startswith("/projects/p-0/cards/"):
+            return ok(card_payload(content=True))
         return ok({"items": [card_payload()], "next_cursor": None})
 
     with holder_for(respond) as h:
@@ -375,30 +388,30 @@ def test_scoped_navigation_queries_membership_and_refresh():
         assert card.content == "current body"
 
 
-def test_update_fetches_fresh_body_and_refreshes_after_write():
+def test_update_sends_only_what_changes_and_refreshes_after_write():
     requests = []
     title = "Original"
 
     def respond(request):
         nonlocal title
         requests.append(request)
-        if request.url.path.startswith("/projects") and not request.url.path.endswith(
-            "/cards"
+        if (
+            request.url.path.startswith("/projects")
+            and "/cards" not in request.url.path
         ):
             return ok(project_payload())
         if request.method == "PATCH":
-            body = json.loads(request.content)
-            assert body["content"] == "current body"
-            assert isinstance(body["updated_at"], int) and body["updated_at"] > 2
-            title = body["title"]
-            return ok({"card_id": "c-0000"})
+            # The daemon keeps what is left out, so the content is not sent back.
+            assert json.loads(request.content) == {"title": "Better"}
+            title = "Better"
+            return ok({**card_payload(content=True), "title": title})
         return ok({**card_payload(content=True), "title": title})
 
     with holder_for(respond) as h:
         card = h.projects.get("p-0").cards.get("c-0000")
         requests.clear()
         assert card.update(title="Better") is card
-        assert [r.method for r in requests] == ["GET", "PATCH", "GET"]
+        assert [r.method for r in requests] == ["PATCH", "GET"]
         assert card.title == "Better"
         with pytest.raises(TypeError):
             card.update()
@@ -408,14 +421,15 @@ def test_update_fetches_fresh_body_and_refreshes_after_write():
 
 def test_content_only_update_preserves_omitted_title():
     def respond(request):
-        if request.url.path.startswith("/projects") and not request.url.path.endswith(
-            "/cards"
+        if (
+            request.url.path.startswith("/projects")
+            and "/cards" not in request.url.path
         ):
             return ok(project_payload())
         if request.method == "PATCH":
             assert json.loads(request.content)["content"] == "replacement"
             assert "title" not in json.loads(request.content)
-            return ok({"card_id": "c-0000"})
+            return ok(card_payload(content=True))
         return ok(card_payload(content=True))
 
     with holder_for(respond) as h:
@@ -507,8 +521,9 @@ def test_no_retry_of_write_or_explicit_credentials(monkeypatch):
     writes = []
 
     def respond(request):
-        if request.url.path.startswith("/projects") and not request.url.path.endswith(
-            "/cards"
+        if (
+            request.url.path.startswith("/projects")
+            and "/cards" not in request.url.path
         ):
             return ok(project_payload())
         if request.method == "PATCH":
@@ -589,7 +604,7 @@ def test_foreign_card_listing_is_rejected_before_caching():
         return (
             ok(project_payload())
             if request.url.path.startswith("/projects")
-            and not request.url.path.endswith("/cards")
+            and "/cards" not in request.url.path
             else ok(
                 {"items": [card_payload(project_id="foreign")], "next_cursor": None}
             )
@@ -602,29 +617,25 @@ def test_foreign_card_listing_is_rejected_before_caching():
         h.projects.get("p-0").cards[0]
 
 
-def test_update_never_writes_a_card_that_changed_project():
-    gets = []
+def test_update_names_the_cards_project_and_reports_a_missing_card():
     writes = []
 
     def respond(request):
-        if request.url.path.startswith("/projects") and not request.url.path.endswith(
-            "/cards"
+        if (
+            request.url.path.startswith("/projects")
+            and "/cards" not in request.url.path
         ):
             return ok(project_payload())
         if request.method == "PATCH":
             writes.append(request)
-        gets.append(request)
-        return ok(
-            card_payload(
-                project_id="p-0" if len(gets) == 1 else "foreign", content=True
-            )
-        )
+            return failure(404)
+        return ok(card_payload(content=True))
 
     with holder_for(respond) as h:
         card = h.projects.get("p-0").cards.get("c-0000")
         with pytest.raises(NotFoundError):
-            card.update(title="Wrong project")
-        assert writes == []
+            card.update(title="Gone")
+        assert [w.url.path for w in writes] == ["/projects/p-0/cards/c-0000"]
 
 
 def test_title_update_preserves_body_changed_since_card_was_loaded():
@@ -632,13 +643,15 @@ def test_title_update_preserves_body_changed_since_card_was_loaded():
 
     def respond(request):
         nonlocal current_body
-        if request.url.path.startswith("/projects") and not request.url.path.endswith(
-            "/cards"
+        if (
+            request.url.path.startswith("/projects")
+            and "/cards" not in request.url.path
         ):
             return ok(project_payload())
         if request.method == "PATCH":
-            assert json.loads(request.content)["content"] == "new body"
-            return ok({"card_id": "c-0000"})
+            # Only the title is sent, so a body changed elsewhere is not overwritten.
+            assert "content" not in json.loads(request.content)
+            return ok({**card_payload(content=True), "content": current_body})
         return ok({**card_payload(content=True), "content": current_body})
 
     with holder_for(respond) as h:
@@ -697,7 +710,7 @@ def test_filtered_card_collections_follow_continuation(query_kind):
     def respond(request):
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/cards/c-0000":
+        if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         assert request.url.path == "/projects/p-0/cards"
         requests.append(request)

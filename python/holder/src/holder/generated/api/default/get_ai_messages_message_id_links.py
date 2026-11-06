@@ -49,6 +49,11 @@ def _parse_response(
 
         return response_200
 
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
+
     if response.status_code == 401:
         response_401 = ErrorResponse.from_dict(response.json())
 
@@ -58,6 +63,11 @@ def _parse_response(
         response_404 = ErrorResponse.from_dict(response.json())
 
         return response_404
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -84,9 +94,13 @@ def sync_detailed(
 ) -> Response[CardLinkListResponse | ErrorResponse]:
     """List outgoing links for an AI message
 
+     List outgoing links for an AI message
+
     Args:
         message_id (str):
-        include_deleted (GetAiMessagesMessageIdLinksIncludeDeleted | Unset):
+        include_deleted (GetAiMessagesMessageIdLinksIncludeDeleted | Unset): Include links to
+            deleted local targets. External card links remain listed even when their targets are
+            unavailable or trashed.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -116,9 +130,13 @@ def sync(
 ) -> CardLinkListResponse | ErrorResponse | None:
     """List outgoing links for an AI message
 
+     List outgoing links for an AI message
+
     Args:
         message_id (str):
-        include_deleted (GetAiMessagesMessageIdLinksIncludeDeleted | Unset):
+        include_deleted (GetAiMessagesMessageIdLinksIncludeDeleted | Unset): Include links to
+            deleted local targets. External card links remain listed even when their targets are
+            unavailable or trashed.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -143,9 +161,13 @@ async def asyncio_detailed(
 ) -> Response[CardLinkListResponse | ErrorResponse]:
     """List outgoing links for an AI message
 
+     List outgoing links for an AI message
+
     Args:
         message_id (str):
-        include_deleted (GetAiMessagesMessageIdLinksIncludeDeleted | Unset):
+        include_deleted (GetAiMessagesMessageIdLinksIncludeDeleted | Unset): Include links to
+            deleted local targets. External card links remain listed even when their targets are
+            unavailable or trashed.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -173,9 +195,13 @@ async def asyncio(
 ) -> CardLinkListResponse | ErrorResponse | None:
     """List outgoing links for an AI message
 
+     List outgoing links for an AI message
+
     Args:
         message_id (str):
-        include_deleted (GetAiMessagesMessageIdLinksIncludeDeleted | Unset):
+        include_deleted (GetAiMessagesMessageIdLinksIncludeDeleted | Unset): Include links to
+            deleted local targets. External card links remain listed even when their targets are
+            unavailable or trashed.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

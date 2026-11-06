@@ -3,7 +3,7 @@
 using holder::test::make_temp_dir;
 using holder::test::open_db_with_schema;
 
-TEST_CASE("HTTP search endpoints return not_implemented without FTS", "[http]") {
+TEST_CASE("HTTP search endpoints construct an indexer when the daemon has none", "[http]") {
   const auto dir = make_temp_dir();
   const auto db_path = dir / "holder.db";
   auto db = open_db_with_schema(db_path);
@@ -31,9 +31,9 @@ TEST_CASE("HTTP search endpoints return not_implemented without FTS", "[http]") 
       boost::beast::http::verb::get,
       "/search/cards?project_id=p&q=test",
       nlohmann::json::object(),
-      boost::beast::http::status::not_implemented
+      boost::beast::http::status::ok
   );
-  REQUIRE(cards["ok"] == false);
+  REQUIRE(cards["data"].empty());
 
   const auto ai = holder::test::http_json_request(
       bound.bind,
@@ -42,9 +42,9 @@ TEST_CASE("HTTP search endpoints return not_implemented without FTS", "[http]") 
       boost::beast::http::verb::get,
       "/search/ai?project_id=p&q=test",
       nlohmann::json::object(),
-      boost::beast::http::status::not_implemented
+      boost::beast::http::status::ok
   );
-  REQUIRE(ai["ok"] == false);
+  REQUIRE(ai["data"].empty());
 
   std::raise(SIGTERM);
   server_thread.join();

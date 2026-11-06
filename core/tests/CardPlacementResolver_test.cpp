@@ -5,6 +5,7 @@
 #include <catch2/catch.hpp>
 #endif
 
+#include "card/CardPlacementError.h"
 #include "card/CardPlacementResolver.h"
 #include "card/CardRepo.h"
 #include "core_test_helpers.h"
@@ -169,6 +170,16 @@ TEST_CASE(
       ),
       "move_would_create_cycle"
   );
+  try {
+    resolver.resolve(
+        "proj-1",
+        "aaaaaaaa-0000-4000-8000-000000000001",
+        into_request("aaaaaaaa-0000-4000-8000-000000000002")
+    );
+    FAIL("resolve did not throw");
+  } catch (const holder::card::CardPlacementError& error) {
+    REQUIRE(error.code() == holder::card::CardPlacementErrorCode::MoveWouldCreateCycle);
+  }
 }
 
 TEST_CASE("CardPlacementResolver Before and After use real siblings", "[card][placement]") {

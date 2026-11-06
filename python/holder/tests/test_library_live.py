@@ -8,12 +8,13 @@ import json
 import os
 import subprocess
 import time
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
 import pytest
 
-from holder import Holder
+from holder import Holder, MilestoneDate
 from holder.exceptions import APIError, NotFoundError
 
 DAEMON = os.environ.get("HOLDER_TEST_DAEMON")
@@ -86,9 +87,8 @@ def create_project(raw, name):
 
 def create_card(raw, project_id, index, parent=None):
     response = raw.post(
-        "/cards",
+        f"/projects/{project_id}/cards",
         json={
-            "project_id": project_id,
             "title": f"Card {index}",
             "content": f"body {index}\n#research",
             "parent_card_id": parent,
@@ -165,8 +165,11 @@ def test_tag_collections_and_body_mentions_against_daemon(daemon):
         assert {t.name for t in card.tags} == {"body", "research"}
         card.tags.remove("missing")
         before = card.content
-        card.tags.remove("body")
-        assert card.content == before
+        # Prose is never rewritten, so a tag that would stay in it is a conflict.
+        with pytest.raises(APIError) as prose:
+            card.tags.remove("body")
+        assert prose.value.status == 409
+        assert card.refresh().content == before
         assert {t.name for t in card.tags} == {"body", "research"}
         card.tags.remove("research")
         assert [t.name for t in card.tags] == ["body"]
@@ -174,6 +177,124 @@ def test_tag_collections_and_body_mentions_against_daemon(daemon):
         assert {c.id for c in tag.cards.refresh()} == {sibling.id}
         card.update(content="The user removed the inline mention.")
         assert list(card.tags) == []
+
+
+def test_qualified_card_links_and_available_backlinks_against_daemon(daemon):
+    url, token, _, _ = daemon
+    with Holder(url=url, token=token) as h:
+        first = h.projects.create(name="Link source", privacy_mode="plain")
+        second = h.projects.create(name="Link peer", privacy_mode="plain")
+        source = first.cards.create(title="Source")
+        target = first.cards.create(title="Target")
+        peer = second.cards.create(title="Peer")
+
+        local = source.links.add(target.id, label="Local")
+        same_uuid_other_project = source.links.add(
+            target.id, target_project_id=second.id, label="External fork"
+        )
+        unknown = source.links.add(
+            "not-present", target_project_id="unregistered-project", label="Unresolved"
+        )
+        assert local.target_project_id == first.id
+        assert same_uuid_other_project.target_project_id == second.id
+        assert unknown.target_project_id == "unregistered-project"
+        assert {row.target_project_id for row in source.links} == {
+            first.id,
+            second.id,
+            "unregistered-project",
+        }
+        with pytest.raises(NotFoundError):
+            h.projects.get("unregistered-project")
+
+        peer.links.add(target.id, target_project_id=first.id, label="Backlink")
+        assert {row.source_project_id for row in target.backlinks} == {first.id}
+        external = target.backlinks.filter(scope="external")
+        assert {row.source_project_id for row in external} == {second.id}
+        assert all(row.source_type == "card" for row in external)
+        both = target.backlinks.filter(scope="all_available")
+        assert {row.source_project_id for row in both} == {first.id, second.id}
+
+        # The same UUID in two qualified target identities must delete separately.
+        source.links.remove(target.id, target_project_id=second.id)
+        assert any(row.target_project_id == first.id for row in source.links)
+        assert not any(row.target_project_id == second.id for row in source.links)
+        assert len(list(target.backlinks)) == 1  # Cached until explicit refresh.
+
+        source.links.add(target.id, target_project_id=second.id)
+
+        root = Path(second.root_path)
+        unavailable_root = root.with_name(root.name + "-unavailable")
+        root.rename(unavailable_root)
+        try:
+            assert list(external.refresh()) == []
+            assert any(
+                row.target_project_id == "unregistered-project"
+                for row in source.links.refresh()
+            )
+            assert any(row.target_project_id == second.id for row in source.links)
+        finally:
+            unavailable_root.rename(root)
+
+
+def test_full_card_milestones_against_daemon(daemon):
+    url, token, raw, _ = daemon
+    with Holder(url=url, token=token) as h:
+        project = h.projects.create(name="Python milestones", privacy_mode="plain")
+        card = project.cards.create(title="Dates")
+        milestones = card.milestones
+        assert list(milestones) == []
+        undated = milestones.create(kind="task", description="Track this")
+        assert undated.dates == ()
+        assert {item.id for item in milestones} == {undated.id}
+
+        occurred = datetime(
+            2026, 6, 2, 0, 30, tzinfo=timezone(timedelta(hours=2, minutes=30))
+        )
+        dated = milestones.create(
+            dates=[
+                MilestoneDate("deadline", date(2026, 6, 2)),
+                MilestoneDate("deadline", date(2026, 6, 3)),
+                MilestoneDate("occurred", occurred),
+            ],
+            description="A dated event",
+        )
+        assert dated.dates[0].value == date(2026, 6, 2)
+        assert dated.dates[1].value == date(2026, 6, 3)
+        assert dated.dates[2].value == occurred
+        assert {item.id for item in milestones} == {undated.id, dated.id}
+
+        # The calendar day stays June 2; the offset instant is June 1 in UTC.
+        days = project.milestones.between(
+            date(2026, 6, 2), date(2026, 6, 2), role="deadline"
+        )
+        assert [item.id for item in days] == [dated.id]
+        utc = datetime(2026, 6, 1, 22, 0, tzinfo=UTC)
+        instants = project.milestones.between(utc, utc)
+        assert [item.id for item in instants] == [dated.id]
+        def on_calendar(day: str, zone: str) -> list[str]:
+            calendar = raw.get(
+                f"/projects/{project.id}/calendar",
+                params={"first_day": day, "last_day": day, "time_zone": zone},
+            )
+            assert calendar.status_code == 200
+            return [
+                item["milestone_id"] for item in calendar.json()["data"]["milestones"]
+            ]
+
+        # A day is the same wherever the caller is.
+        assert on_calendar("2026-06-03", "Asia/Tokyo") == [dated.id]
+        # The instant, 22:00 UTC on June 1, is June 1 in UTC but already June 2 in Tokyo.
+        assert on_calendar("2026-06-01", "UTC") == [dated.id]
+        assert on_calendar("2026-06-01", "Asia/Tokyo") == []
+
+        assert dated.update(description=None) is dated
+        assert dated.description is None
+        assert dated.dates[2].value == occurred
+        assert dated.update(dates=[]) is dated
+        assert dated.dates == ()
+        assert milestones.get(dated.id).dates == ()
+        assert undated.remove() is None
+        assert {item.id for item in milestones} == {dated.id}
 
 
 def test_card_moves_against_daemon(daemon):
@@ -228,10 +349,16 @@ def test_card_moves_against_daemon(daemon):
             with pytest.raises(NotFoundError):
                 card.move(**kwargs)
         assert card.refresh().parent_card_id is None
-        assert raw.delete(f"/cards/{target.id}").status_code == 200
+        assert (
+            raw.delete(f"/projects/{target.project_id}/cards/{target.id}").status_code
+            == 200
+        )
         with pytest.raises(NotFoundError):
             card.move(after=target)
-        assert raw.delete(f"/cards/{card.id}").status_code == 200
+        assert (
+            raw.delete(f"/projects/{card.project_id}/cards/{card.id}").status_code
+            == 200
+        )
         with pytest.raises(NotFoundError):
             card.move(parent=parent)
 
@@ -293,7 +420,9 @@ def test_card_search_against_daemon(daemon):
             title="Foreign", content="research notes from another project"
         )
         project.cards.create(title="Unrelated", content="Nothing matching here")
-        assert raw.delete(f"/cards/{cards[1].id}").status_code == 200
+        assert (
+            raw.delete(f"/projects/{project.id}/cards/{cards[1].id}").status_code == 200
+        )
         results = project.cards.search('"research notes"')
         rows = list(results)
         expected = {c.id for c in cards} - {cards[1].id}
@@ -311,7 +440,10 @@ def test_card_search_against_daemon(daemon):
             list(project.cards.search('"'))
         assert malformed.value.status == 400
         first.card.update(content="Changed to unrelated content")
-        assert raw.delete(f"/cards/{rows[1].card_id}").status_code == 200
+        assert (
+            raw.delete(f"/projects/{project.id}/cards/{rows[1].card_id}").status_code
+            == 200
+        )
         with pytest.raises(NotFoundError):
             _ = rows[1].card
         assert len(list(results)) == 101  # Already evaluated search stays cached.
@@ -343,7 +475,7 @@ def test_project_scoped_collections_against_daemon(daemon):
     ids = [create_card(raw, project_id, i) for i in range(205)]
     child = create_card(raw, project_id, 205, ids[0])
     foreign = create_card(raw, other_project, 1)
-    assert raw.delete(f"/cards/{ids[1]}").status_code == 200
+    assert raw.delete(f"/projects/{project_id}/cards/{ids[1]}").status_code == 200
     with Holder(url=url, token=token) as h:
         project = h.projects.filter(name="Collection integration")[0]
         assert project.id == project_id

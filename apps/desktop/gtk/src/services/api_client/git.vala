@@ -9,8 +9,7 @@ public class ApiClientGitEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration 
 
     public static async void set_project_git_remote(ApiClient client, // LCOV_EXCL_BR_LINE: async signature branch artifact
                                                     string project_id,
-                                                    string? git_remote_url,
-                                                    int64 updated_at) throws Error {
+                                                    string? git_remote_url) throws Error {
         var body = new Json.Builder();
         body.begin_object();
         body.set_member_name("git_remote_url");
@@ -19,8 +18,6 @@ public class ApiClientGitEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration 
         } else {
             body.add_string_value(git_remote_url);
         }
-        body.set_member_name("updated_at");
-        body.add_int_value(updated_at);
         body.end_object();
 
         yield client.request_json( // LCOV_EXCL_BR_LINE: async yield branch artifact
@@ -33,21 +30,13 @@ public class ApiClientGitEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration 
 
     public static async GitTestRemoteResult test_project_git_remote(ApiClient client, // LCOV_EXCL_BR_LINE: async signature branch artifact
                                                                     string project_id,
-                                                                    string? remote_url = null,
-                                                                    string branch = "") throws Error {
+                                                                    string? remote_url = null) throws Error {
+        // Without a URL, the project's own remote is tested.
         var body = new Json.Builder();
         body.begin_object();
-        if (remote_url != null) {
+        if (remote_url != null && remote_url.strip().length > 0) {
             body.set_member_name("remote_url");
-            if (remote_url.strip().length == 0) {
-                body.add_null_value();
-            } else {
-                body.add_string_value(remote_url);
-            }
-        }
-        if (branch.strip().length > 0) {
-            body.set_member_name("branch");
-            body.add_string_value(branch);
+            body.add_string_value(remote_url);
         }
         body.end_object();
 
@@ -86,7 +75,7 @@ public class ApiClientGitEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration 
         if (!root.has_member("data")) {
             throw new ApiError.PROTOCOL("Missing data for git push response"); // LCOV_EXCL_BR_LINE: throw edge artifact
         }
-        return ApiParsersGit.parse_git_push_result(root.get_object_member("data")); // LCOV_EXCL_BR_LINE: return edge artifact
+        return ApiParsersGit.parse_git_push_result(root.get_object_member("data"), branch); // LCOV_EXCL_BR_LINE: return edge artifact
     }
 }
 

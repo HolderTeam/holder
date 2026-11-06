@@ -59,7 +59,6 @@ class SnapshotWorker(appContext: Context, params: WorkerParameters) : CoroutineW
                 context = applicationContext,
                 dataDir = File(applicationContext.filesDir, "holder"),
                 schemaSql = applicationContext.assets.open("schema.sql").bufferedReader().use { it.readText() },
-                welcomeContent = applicationContext.assets.open("WELCOME.md").bufferedReader().use { it.readText() },
             )
 
             val currentMax = SnapshotWriter.deviceMaxUpdatedAt()

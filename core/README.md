@@ -13,7 +13,7 @@ The daemon still owns process supervision, HTTP routes, local model runners, pla
 
 ## Card lifecycle
 
-`CardStore::trash` and `holder_card_delete` promote immediate live children into
+`CardStore::trash` and the generated `holder_trash_card` operation promote immediate live children into
 their parent's former sibling position, preserving their order and descendants.
 Trashed children stay in Trash. Restoring a card restores that card alone, using
 a reachable ancestor or project roots when its saved parent is unavailable;
@@ -35,16 +35,6 @@ retry. This recovery covers process interruption, not a guarantee of filesystem
 durability across power loss. Promoting children re-spaces sort keys only around
 the insertion point when neighbouring keys leave no room.
 It does not scan for or repair children hidden by older trash operations.
-
-## Card collection pages
-
-`holder_card_collection_page_json` combines tag and hierarchy filters before
-bounded pagination, with card ID or recency ordering and an optional body read.
-Metadata pages do not read card files. Complete pages hold the project operation
-lock across selection and authoritative content reads, and fail as a whole when
-a selected body cannot be read. Each call reads current state; there is no
-snapshot across pages. See `include/holder/holder.h` for the request, cursor and
-response contracts. Existing card-listing APIs retain their behavior.
 
 ## Build
 
@@ -245,9 +235,9 @@ above; move aside any copied versions before running them on the new system.
 
 Core has two interfaces, with different promises:
 
-- **The C API in `include/holder/holder.h` is the stable interface** for embedders such as
-  Holder Kit (Python) and the Android app, and for anyone outside this repository. Within an
-  ABI generation (the SONAME, currently `libholder.so.0`) it stays compatible.
+- **The generated C API in `include/holder/holder_api.h` is the public interface** for embedders
+  such as Holder Kit (Python) and the Android app, including host callback registration. Within an ABI generation (the SONAME,
+  currently `libholder.so.0`) released C symbols stay compatible.
 - **The C++ headers, installed from `src/` under `include/holder/`, are first-party only.**
   The daemon and `holderctl` use them, built from the same commit. They carry no compatibility
   promise and change in any release. The daemon's Ubuntu package therefore requires the
@@ -274,8 +264,8 @@ consumers.
 
 The `Core / SDK` workflow at the repository root builds static libholder SDK archives
 for Linux x86_64, macOS arm64 and Windows x86_64, in `RelWithDebInfo` or `Release`.
-Each archive has `include/`, `lib/`, CMake package files, the schema and
-welcome resource under `share/holder/`, and a
+Each archive has `include/`, `lib/`, CMake package files, the schema under
+`share/holder/`, and a
 `libholder-manifest.json` recording the exact commit, build type, platform,
 architecture, and compiler. Windows archives also carry the vcpkg runtime
 DLLs and license notices in `bin/` and `share/vcpkg-licenses/`.
@@ -328,8 +318,8 @@ Windows toolchain options in `CMAKE_ARGS`. `resolve` still selects the SDKs
 that the former holder-core repository published (`latest-green`, `sdk-<SHA>`
 and version tags), which remain available there.
 
-The installed CMake package exposes `holder_DATA_DIR`, `holder_SCHEMA_FILE`
-and `holder_WELCOME_FILE` alongside `Holder::Core` and `Holder::Shared`.
+The installed CMake package exposes `holder_DATA_DIR` and `holder_SCHEMA_FILE`
+alongside `Holder::Core` and `Holder::Shared`.
 These resource paths follow the selected installation, including relocation.
 
 ## Ubuntu packages
@@ -348,4 +338,4 @@ compiler, dependencies, and hardening flags. These packages do not use the
 GitHub Linux SDK archive. Check Launchpad binary build/publication results
 before relying on an uploaded package.
 
-Non-C++ consumers, such as a future C# frontend, should use the C API in `include/holder/holder.h` rather than binding to the C++ headers.
+Non-C++ consumers, such as a future C# frontend, should use `include/holder/holder_api.h` rather than binding to the C++ headers.

@@ -160,7 +160,6 @@ class MainActivity : ComponentActivity() {
                 context = this,
                 dataDir = holderDataDir,
                 schemaSql = assets.open("schema.sql").bufferedReader().use { it.readText() },
-                welcomeContent = assets.open("WELCOME.md").bufferedReader().use { it.readText() },
             )
         }.exceptionOrNull()
 
@@ -402,7 +401,7 @@ private fun HolderNavHost(
                 if (references.isNotEmpty()) {
                     runCatching {
                         withContext(Dispatchers.IO) {
-                            HolderNative.updateCard(card.cardId, title, references.joinToString("\n"))
+                            HolderNative.updateCard(projectId, card.cardId, title, references.joinToString("\n"))
                         }
                     }
                 }
@@ -693,7 +692,7 @@ private fun HolderNavHost(
                                     // creating a second card.
                                     val existingId = autoCreatedCardId
                                     if (existingId != null) {
-                                        HolderNative.updateCard(existingId, title, content)
+                                        HolderNative.updateCard(projectId, existingId, title, content)
                                     } else {
                                         HolderNative.createCard(projectId, title, content, pendingParentCardId)
                                     }
@@ -934,7 +933,7 @@ private fun HolderNavHost(
             val existingMilestone by produceState<HolderMilestone?>(initialValue = null, cardId, milestoneId) {
                 value = runCatching {
                     withContext(Dispatchers.IO) {
-                        HolderNative.listCardMilestones(cardId).firstOrNull { it.milestoneId == milestoneId }
+                        HolderNative.listCardMilestones(projectId, cardId).firstOrNull { it.milestoneId == milestoneId }
                     }
                 }.getOrNull()
             }
@@ -970,7 +969,7 @@ private fun HolderNavHost(
                         saveError = null
                         scope.launch {
                             val result = runCatching {
-                                withContext(Dispatchers.IO) { HolderNative.updateCard(cardId, title, content) }
+                                withContext(Dispatchers.IO) { HolderNative.updateCard(projectId, cardId, title, content) }
                             }
                             withContext(Dispatchers.Main.immediate) {
                                 saving = false

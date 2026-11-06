@@ -5,6 +5,12 @@
 set -euo pipefail
 
 build_type=$1
+ubuntu_series=${2:-24.04}
+
+case "$ubuntu_series" in
+  24.04) ;;
+  *) echo "Unsupported Ubuntu series: $ubuntu_series" >&2; exit 2 ;;
+esac
 
 inputs=$(git rev-parse \
   HEAD:core \
@@ -17,5 +23,5 @@ inputs=$(git rev-parse \
   HEAD:.github/actions/linux-daemon-deps \
   HEAD:.github/actions/linux-daemon-build)
 
-printf 'linux-daemon-ubuntu-24.04-%s-%s\n' \
-  "$build_type" "$(sha256sum <<< "$inputs" | cut -c1-16)"
+printf 'linux-daemon-ubuntu-%s-%s-%s\n' \
+  "$ubuntu_series" "$build_type" "$(sha256sum <<< "$inputs" | cut -c1-16)"

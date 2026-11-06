@@ -1,4 +1,5 @@
 #include "api/support/ChangeFeed.h"
+#include "api/Schemas.h"
 #include "git/GitRepo.h"
 
 #include <openssl/evp.h>
@@ -12,6 +13,20 @@
 
 namespace holder::api::support {
 namespace {
+
+// Every change-feed entity has the same invalidation data.
+api_runtime::event<nlohmann::json> change_event(const holder::api::ChangeEventData& data) {
+  static const std::set<std::string> kinds = {"project", "card", "resource", "location",
+                                               "thread", "message", "run"};
+  if (!kinds.contains(data.entity)) throw std::logic_error("unknown change event entity: " + data.entity);
+  const auto nullable = [](const std::optional<std::string>& value) -> nlohmann::json {
+    return value ? nlohmann::json(*value) : nlohmann::json(nullptr);
+  };
+  return {data.entity + ".changed",
+          {{"entity", data.entity}, {"entity_id", data.entity_id},
+           {"project_id", nullable(data.project_id)}, {"deleted", data.deleted},
+           {"git_revision", nullable(data.git_revision)}}};
+}
 
 using Statement = std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)>;
 
@@ -189,14 +204,16 @@ void ChangeFeed::poll() {
       changed.insert(Key{"project", project, project});
   }
   for (const auto& [kind, id, project] : changed) {
-    journal_.append(
-        kind + ".changed",
-        {{"entity", kind},
-         {"entity_id", id},
-         {"project_id", project.empty() ? nlohmann::json(nullptr) : nlohmann::json(project)},
-         {"deleted", !current.contains(Key{kind, id, project})},
-         {"git_revision", current_revisions.value(project, nlohmann::json(nullptr))}}
-    );
+    const auto revision = current_revisions.value(project, nlohmann::json(nullptr));
+    const holder::api::ChangeEventData data{
+        kind,
+        id,
+        project.empty() ? std::nullopt : std::optional<std::string>(project),
+        !current.contains(Key{kind, id, project}),
+        revision.is_string() ? std::optional<std::string>(revision.get<std::string>())
+                             : std::nullopt,
+    };
+    journal_.append(change_event(data));
   }
   previous_ = std::move(current);
   version_ = current_version;

@@ -1,5 +1,6 @@
 #include "resource/LocationStore.h"
 
+#include "model/ConflictError.h"
 #include "privacy/ProjectPrivacy.h"
 #include "project/Rebuilder.h"
 #include "resource/ResourceManifest.h"
@@ -74,7 +75,7 @@ void LocationStore::remove(const std::string& location_id) {
   const auto location = location_repo_.get(location_id);
   if (!location.has_value()) throw std::runtime_error("location not found: " + location_id);
   if (location_repo_.is_in_use(location_id)) {
-    throw std::runtime_error("storage location is in use by an asset placement");
+    throw holder::model::ConflictError("storage location is in use by an asset placement");
   }
   const auto project = require_project(location->project_id);
   auto operation = git_->lock_operation(project.root_path);

@@ -58,8 +58,7 @@ class CardPlacementResolver {
       : cards_(cards) {}
 
   // Resolves request against project_id's live cards, given card_id is the card being moved.
-  // Throws std::runtime_error with one of these exact messages on failure, matching the
-  // daemon route's existing error vocabulary:
+  // Throws CardPlacementError on failure; its code's name, the message, is one of:
   //   "card_not_found" -- card_id doesn't exist, or is soft-deleted.
   //   "cross_project_move_forbidden" -- card_id belongs to a different project.
   //   "target_not_found" -- target_card_id (Into/Before/After) or an explicit/inferred

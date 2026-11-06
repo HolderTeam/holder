@@ -1,7 +1,7 @@
 #include "api/HttpServer.h"
 
+#include "api/Bye.h"
 #include "api/Listener.h"
-#include "api/support/Health.h"
 #include "core/ActivityTracker.h"
 #include "platform/Paths.h"
 
@@ -20,6 +20,11 @@ namespace http = boost::beast::http;
 
 } // namespace
 
+ByeResponse say_goodbye() {
+  holder::core::activity().say_goodbye();
+  return {true};
+}
+
 HttpServer::HttpServer(
     std::string bind,
     unsigned short port,
@@ -35,9 +40,7 @@ HttpServer::HttpServer(
       port_(port),
       db_(db),
       auth_token_(std::move(auth_token)),
-      router_(),
       runner_registry_(runner_registry),
-      nudge_service_(db, runner_registry),
       secret_store_(holder::privacy::make_default_secret_store(
           holder::core::Paths::resolve("holder").server_dir()
       )),
@@ -45,29 +48,6 @@ HttpServer::HttpServer(
       fts_(fts),
       git_ops_(git_ops),
       concurrency_(concurrency) {
-  router_.add(http::verb::get, "/health", [this](const Router::Request&, Router::Response& res) {
-    nlohmann::json payload;
-    payload["ok"] = true;
-    payload["data"] = support::build_health_data(db_, started_at_);
-
-    http::response<http::string_body> response{http::status::ok, 11};
-    response.set(http::field::content_type, "application/json");
-    response.keep_alive(false);
-    response.body() = payload.dump();
-    response.prepare_payload();
-    res = std::move(response);
-  });
-
-  // A client that is leaving says so. Only a hint: see holder::core::ActivityTracker.
-  router_.add(http::verb::post, "/bye", [](const Router::Request&, Router::Response& res) {
-    holder::core::activity().say_goodbye();
-    http::response<http::string_body> response{http::status::ok, 11};
-    response.set(http::field::content_type, "application/json");
-    response.keep_alive(false);
-    response.body() = R"({"ok":true})";
-    response.prepare_payload();
-    res = std::move(response);
-  });
 }
 
 HttpServer::~HttpServer() = default;
@@ -79,11 +59,9 @@ HttpServer::BoundInfo HttpServer::start() {
       port_,
       db_,
       auth_token_,
-      router_,
       started_at_,
       card_store_,
-      fts_,
-      &nudge_service_, // LCOV_EXCL_LINE
+      fts_, // LCOV_EXCL_LINE
       secret_store_.get(),
       git_ops_,
       runner_registry_,

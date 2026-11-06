@@ -185,6 +185,8 @@ TEST_CASE(
       "/bye"
   );
   REQUIRE(reply.status == boost::beast::http::status::ok);
+  REQUIRE(reply.content_type == "application/json");
+  REQUIRE(nlohmann::json::parse(reply.body) == nlohmann::json{{"ok", true}});
 
   REQUIRE(holder::test::wait_until(15s, [&]() {
     return exited(*daemon);

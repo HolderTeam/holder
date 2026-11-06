@@ -9,6 +9,7 @@ from typing import Any, Self
 
 import httpx
 
+from .changes import Changes
 from .exceptions import (
     APIError,
     AuthenticationError,
@@ -19,6 +20,7 @@ from .exceptions import (
 )
 from .generated import AuthenticatedClient
 from .generated.models import ErrorResponse
+from .models.intelligence_device import HolderIntelligence
 from .models.project import Project, ProjectCollection
 
 
@@ -49,6 +51,8 @@ class Holder:
         self._client: AuthenticatedClient | None = None
         self._closed = False
         self.projects = ProjectCollection(self)
+        self.changes = Changes(self)
+        self.intelligence = HolderIntelligence(self)
 
     def _command(self, *args: str) -> str:
         try:
@@ -125,7 +129,12 @@ class Holder:
         return iter(self.projects)
 
     def _call(
-        self, endpoint: Any, *args: Any, write: bool = False, **kwargs: Any
+        self,
+        endpoint: Any,
+        *args: Any,
+        write: bool = False,
+        return_envelope: bool = False,
+        **kwargs: Any,
     ) -> Any:
         client = self._active()
         for attempt in range(2):
@@ -176,7 +185,7 @@ class Holder:
                 or getattr(response.parsed, "ok", None) is not True
             ):
                 raise ProtocolError("Invalid daemon success envelope")
-            return response.parsed.data
+            return response.parsed if return_envelope else response.parsed.data
         raise AuthenticationError(
             401, "unauthorized", "Daemon rejected refreshed credentials"
         )

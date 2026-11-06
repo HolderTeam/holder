@@ -12,9 +12,10 @@ T = TypeVar("T", bound="AiProviderCredentialDeleteResponseData")
 
 @_attrs_define
 class AiProviderCredentialDeleteResponseData:
-    """
+    """AI ProviderCredentialDelete responseData.
+
     Attributes:
-        provider (str):
+        provider (str): The provider.
     """
 
     provider: str

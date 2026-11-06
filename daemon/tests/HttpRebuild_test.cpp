@@ -86,11 +86,11 @@ TEST_CASE("HTTP rebuild repopulates DB from files", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards?project_id=" + project_id,
+      "/projects/" + project_id + "/cards?parent=roots",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
-  REQUIRE(cards["data"].size() == 1);
+  REQUIRE(cards["data"]["items"].size() == 1);
 
   auto threads = holder::test::http_json_request(
       bound.bind,

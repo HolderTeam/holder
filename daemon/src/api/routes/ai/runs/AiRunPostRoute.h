@@ -2,7 +2,6 @@
 
 #include "api/support/SseStream.h"
 
-#include "api/routes/ai/AiRunRoutes.h"
 #include "index/FtsIndexer.h"
 #include "llm/RunnerRegistry.h"
 #include "platform/Db.h"
@@ -14,11 +13,22 @@
 #include <functional>
 #include <string>
 
+namespace holder::api::routes {
+
+struct RouteDispatchResult {
+  bool handled = false;
+  bool streamed = false;
+};
+
+} // namespace holder::api::routes
+
 namespace holder::api::routes::ai::runs {
 
-RouteDispatchResult handle_ai_runs_post_route(
-    const boost::beast::http::request<boost::beast::http::string_body>& req,
-    boost::beast::http::response<boost::beast::http::string_body>& res,
+// Starts a run from a JSON request body and streams its events on the socket. Until the
+// stream starts, a failure throws: std::invalid_argument for a bad request, or
+// AiRunUnavailable. The generated POST /ai/runs route calls it with the decoded body.
+RouteDispatchResult execute_ai_run(
+    const std::string& request_body,
     boost::asio::ip::tcp::socket& socket,
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
@@ -27,5 +37,7 @@ RouteDispatchResult handle_ai_runs_post_route(
     const std::function<std::string()>& uuid_v4,
     std::shared_ptr<holder::api::support::SseRegistry> streams = {}
 );
+
+
 
 } // namespace holder::api::routes::ai::runs

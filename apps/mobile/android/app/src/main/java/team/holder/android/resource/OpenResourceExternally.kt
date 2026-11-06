@@ -28,9 +28,9 @@ import team.holder.android.HolderNative
  * a clear message; ACTION_VIEW / createChooser already reports that case distinctly
  * from a genuine download/retrieve failure.
  */
-suspend fun openResourceExternally(context: Context, resourceId: String) {
+suspend fun openResourceExternally(context: Context, projectId: String, resourceId: String) {
     val (file, mediaType) = withContext(Dispatchers.IO) {
-        val resource = HolderNative.getResource(resourceId)
+        val resource = HolderNative.getResource(projectId, resourceId)
         val asset = resource.assets.firstOrNull() ?: error("resource has no asset")
         val placement = asset.placements.firstOrNull() ?: error("asset has no placement")
         val cacheDir = File(context.cacheDir, "resource-attachments").apply { mkdirs() }

@@ -31,6 +31,19 @@ public class CardSummary : Object {
     }
 }
 
+// A link, from a card or an AI message (from_card_id) to a card, AI message, AI thread or resource
+// (to_card_id, of to_type), each in its project.
+// One of the link kinds Holder knows, with how it reads from each end of a link.
+public class LinkKindLabels : Object {
+    public string kind { get; construct; }
+    public string forward_label { get; construct; }
+    public string reverse_label { get; construct; }
+
+    public LinkKindLabels(string kind, string forward_label, string reverse_label) {
+        Object(kind: kind, forward_label: forward_label, reverse_label: reverse_label);
+    }
+}
+
 public class CardLink : Object {
     public string from_card_id { get; construct; }
     public string to_card_id { get; construct; }
@@ -38,20 +51,26 @@ public class CardLink : Object {
     public string kind { get; construct; }
     public string? label { get; construct; }
     public int64 created_at { get; construct; }
+    public string source_project_id { get; construct; }
+    public string target_project_id { get; construct; }
 
     public CardLink(string from_card_id,
                     string to_card_id,
                     string to_type,
                     string kind,
                     string? label,
-                    int64 created_at) {
+                    int64 created_at,
+                    string source_project_id = "",
+                    string target_project_id = "") {
         Object(
             from_card_id: from_card_id,
             to_card_id: to_card_id,
             to_type: to_type,
             kind: kind,
             label: label,
-            created_at: created_at
+            created_at: created_at,
+            source_project_id: source_project_id,
+            target_project_id: target_project_id
         );
     }
 }
@@ -132,26 +151,25 @@ public class CardMoveResult : Object {
     public string card_id { get; construct; }
     public string? parent_card_id { get; construct; }
     public double sort_key { get; construct; }
-    public int64 revision { get; construct; }
-    public string moved_into_title { get; construct; }
 
     public CardMoveResult(string card_id,
                           string? parent_card_id,
-                          double sort_key,
-                          int64 revision,
-                          string moved_into_title) {
+                          double sort_key) {
         Object(
             card_id: card_id,
             parent_card_id: parent_card_id,
-            sort_key: sort_key,
-            revision: revision,
-            moved_into_title: moved_into_title
+            sort_key: sort_key
         );
     }
 }
 
+// A milestone as the calendar shows it: its start, and its end if it has one. Holder's
+// milestones have any number of labelled dates; dates_json keeps them all, as the API gave
+// them, so that an edit here changes only the start and end.
 public class Milestone : Object {
     public string milestone_id { get; construct; }
+    public string project_id { get; set; default = ""; }
+    public string? dates_json;
     public string card_id { get; construct; }
     public int64 start_at { get; construct; }
     public int64? end_at;

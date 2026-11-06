@@ -26,11 +26,11 @@ Feature: Core app run book
 
       This card includes runbook-search-token.
       """
-    Then I should see save state "Saved"
+    Then I should see save state "Autosaved"
     And I should see a card titled "Runbook Search Card"
-    When I search cards for "runbook-search-token"
+    When I search cards for "includes"
     Then I should see search result "Runbook Search Card"
-    When I open search result "Runbook Search Card"
+    When I open sidebar card "Runbook Search Card"
     Then the editor should contain "runbook-search-token"
 
   Scenario: Use find and replace in the editor
@@ -38,8 +38,8 @@ Feature: Core app run book
     When I replace all "runbook-search-token" with "runbook-replaced-token"
     Then the editor should contain "runbook-replaced-token"
     And the editor should not contain "runbook-search-token"
-    Then I should see save state "Saved"
-    When I search cards for "runbook-replaced-token"
+    Then I should see save state "Autosaved"
+    When I search cards for "replaced"
     Then I should see search result "Runbook Search Card"
 
   Scenario: Open History for a saved card
@@ -54,7 +54,7 @@ Feature: Core app run book
     Given the Holder frontend is running
     When I select project "History Fixture Project"
     And I search cards for "History Fixture Card"
-    And I open search result "History Fixture Card"
+    And I open sidebar card "History Fixture Card"
     And I open the toolbox panel
     And I switch to toolbox tool "History"
     Then I should see toolbox content "This change"
@@ -65,8 +65,8 @@ Feature: Core app run book
 
       Fixture saved while History is open.
       """
-    Then I should see save state "Saved"
-    And I should see History diff "Fixture saved while History is open"
+    Then I should see save state "Autosaved"
+    And I should see History diff "Fixture revised history body"
 
   Scenario: Toggle find and replace panel visibility
     Given the Holder frontend is running
@@ -101,7 +101,9 @@ Feature: Core app run book
 
   Scenario: Use Flowboard
     Given the Holder frontend is running
-    When I open the toolbox panel
+    When I select project "Runbook Project"
+    And I open sidebar card "Runbook Search Card"
+    And I open the toolbox panel
     And I switch to toolbox tool "Flowboard"
     Then I should see flowboard card "Runbook Search Card"
     When I create a child card from flowboard card "Runbook Search Card"
@@ -111,7 +113,7 @@ Feature: Core app run book
 
       This child was created from the Flowboard shortcut.
       """
-    Then I should see save state "Saved"
+    Then I should see save state "Autosaved"
     And I should see a card titled "Flowboard Child Card"
     And I should see flowboard card "Runbook Search Card"
     When I toggle the toolbox panel
@@ -119,7 +121,10 @@ Feature: Core app run book
 
   Scenario: Use Connections
     Given the Holder frontend is running
-    When I open the toolbox panel
+    When I select project "Runbook Project"
+    And I search cards for "Flowboard Child Card"
+    And I open sidebar card "Flowboard Child Card"
+    And I open the toolbox panel
     And I switch to toolbox tool "Connections"
     Then I should see Connections parent "Runbook Search Card"
     When I add a graph link from the selected card to "Runbook Search Card"
@@ -129,7 +134,7 @@ Feature: Core app run book
 
   Scenario: Toggle toolbox panel visibility
     Given the Holder frontend is running
-    When I toggle the toolbox panel
+    When I open the toolbox panel
     Then I should see the toolbox panel
     And I toggle the toolbox panel
     Then I should not see the toolbox panel
@@ -167,7 +172,10 @@ Feature: Core app run book
 
   Scenario: Move a card to Trash and restore it
     Given the Holder frontend is running
-    When I move card "Flowboard Child Card" to Trash
+    When I select project "Runbook Project"
+    And I search cards for "Flowboard Child Card"
+    And I open sidebar card "Flowboard Child Card"
+    And I move card "Flowboard Child Card" to Trash
     And I open the toolbox panel
     And I switch to toolbox tool "Trash"
     Then I should see trashed card "Flowboard Child Card"

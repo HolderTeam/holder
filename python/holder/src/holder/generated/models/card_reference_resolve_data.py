@@ -4,12 +4,8 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
-from ..models.card_reference_resolve_data_match_kind import (
-    CardReferenceResolveDataMatchKind,
-)
 from ..models.card_reference_resolve_data_status import CardReferenceResolveDataStatus
 from ..types import UNSET, Unset
 
@@ -22,26 +18,25 @@ T = TypeVar("T", bound="CardReferenceResolveData")
 
 @_attrs_define
 class CardReferenceResolveData:
-    """
+    """A resolved, ambiguous, or absent card reference.
+
     Attributes:
-        status (CardReferenceResolveDataStatus):
-        match_kind (CardReferenceResolveDataMatchKind | Unset): Present for resolved and ambiguous results.
-        card (CardReferenceCandidate | Unset):
-        candidates (list[CardReferenceCandidate] | Unset): Present for an ambiguous result and contains two candidates.
+        status (CardReferenceResolveDataStatus): The resolution outcome.
+        match_kind (str | Unset): How a reference matched: full_id, id_prefix or exact_title. Absent when no card
+            matched.
+        card (CardReferenceCandidate | Unset): A card that matches a reference.
+        candidates (list[CardReferenceCandidate] | Unset): Two candidate cards for an ambiguous reference.
     """
 
     status: CardReferenceResolveDataStatus
-    match_kind: CardReferenceResolveDataMatchKind | Unset = UNSET
+    match_kind: str | Unset = UNSET
     card: CardReferenceCandidate | Unset = UNSET
     candidates: list[CardReferenceCandidate] | Unset = UNSET
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         status = self.status.value
 
-        match_kind: str | Unset = UNSET
-        if not isinstance(self.match_kind, Unset):
-            match_kind = self.match_kind.value
+        match_kind = self.match_kind
 
         card: dict[str, Any] | Unset = UNSET
         if not isinstance(self.card, Unset):
@@ -55,7 +50,7 @@ class CardReferenceResolveData:
                 candidates.append(candidates_item)
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "status": status,
@@ -79,12 +74,7 @@ class CardReferenceResolveData:
         d = dict(src_dict)
         status = CardReferenceResolveDataStatus(d.pop("status"))
 
-        _match_kind = d.pop("match_kind", UNSET)
-        match_kind: CardReferenceResolveDataMatchKind | Unset
-        if isinstance(_match_kind, Unset):
-            match_kind = UNSET
-        else:
-            match_kind = CardReferenceResolveDataMatchKind(_match_kind)
+        match_kind = d.pop("match_kind", UNSET)
 
         _card = d.pop("card", UNSET)
         card: CardReferenceCandidate | Unset
@@ -109,21 +99,4 @@ class CardReferenceResolveData:
             candidates=candidates,
         )
 
-        card_reference_resolve_data.additional_properties = d
         return card_reference_resolve_data
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties

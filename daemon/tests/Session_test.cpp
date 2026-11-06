@@ -1,6 +1,5 @@
 #include "api/Session.h"
 
-#include "api/Router.h"
 #include "platform/Db.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -58,7 +57,6 @@ struct SocketPair {
 TEST_CASE("Session handles end_of_stream read and returns", "[session]") {
   SocketPair pair;
   holder::platform::Db db;
-  holder::api::Router router;
   const std::string token = "testtoken";
 
   pair.client.shutdown(tcp::socket::shutdown_send);
@@ -67,9 +65,7 @@ TEST_CASE("Session handles end_of_stream read and returns", "[session]") {
       std::move(pair.server),
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       nullptr
@@ -80,7 +76,6 @@ TEST_CASE("Session handles end_of_stream read and returns", "[session]") {
 TEST_CASE("Session handles generic read error and returns", "[session]") {
   SocketPair pair;
   holder::platform::Db db;
-  holder::api::Router router;
   const std::string token = "testtoken";
 
   // Send invalid HTTP bytes so beast reports a read error that is not end_of_stream.
@@ -92,9 +87,7 @@ TEST_CASE("Session handles generic read error and returns", "[session]") {
       std::move(pair.server),
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       nullptr
@@ -105,7 +98,6 @@ TEST_CASE("Session handles generic read error and returns", "[session]") {
 TEST_CASE("Session handles write error and returns", "[session]") {
   SocketPair pair;
   holder::platform::Db db;
-  holder::api::Router router;
   const std::string token = "testtoken";
 
   // Send a valid request, then force client-side RST so server write fails.
@@ -122,9 +114,7 @@ TEST_CASE("Session handles write error and returns", "[session]") {
       std::move(pair.server),
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       nullptr
@@ -135,7 +125,6 @@ TEST_CASE("Session handles write error and returns", "[session]") {
 TEST_CASE("Session handles normal request/response path", "[session]") {
   SocketPair pair;
   holder::platform::Db db;
-  holder::api::Router router;
   const std::string token = "testtoken";
 
   // No auth header: should produce a normal 401 response and hit final request log path.
@@ -149,9 +138,7 @@ TEST_CASE("Session handles normal request/response path", "[session]") {
       std::move(pair.server),
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       nullptr
@@ -175,7 +162,6 @@ TEST_CASE("Session handles normal request/response path", "[session]") {
 TEST_CASE("Session bypasses bearer auth for the Google Drive OAuth callback route", "[session]") {
   SocketPair pair;
   holder::platform::Db db;
-  holder::api::Router router;
   const std::string token = "testtoken";
 
   // No Authorization header at all -- this is the browser hitting Google's redirect
@@ -196,9 +182,7 @@ TEST_CASE("Session bypasses bearer auth for the Google Drive OAuth callback rout
       std::move(pair.server),
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       nullptr
@@ -223,7 +207,6 @@ TEST_CASE("Session bypasses bearer auth for the Google Drive OAuth callback rout
 TEST_CASE("Session still requires bearer auth for other /locations routes", "[session]") {
   SocketPair pair;
   holder::platform::Db db;
-  holder::api::Router router;
   const std::string token = "testtoken";
 
   // A path that merely starts with /locations/ but isn't the callback's exact
@@ -239,9 +222,7 @@ TEST_CASE("Session still requires bearer auth for other /locations routes", "[se
       std::move(pair.server),
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       nullptr
@@ -333,27 +314,32 @@ TEST_CASE("Session write_prepared_response cancel hook terminates in-flight writ
   }
 }
 
-TEST_CASE("Session prepare_request classifies card patch as save lane", "[session]") {
-  SocketPair pair;
+TEST_CASE("Session prepare_request classifies card writes as save lane", "[session]") {
+  for (const std::string target :
+       {"/projects/project-123/cards/card-123", "/projects/project-123/cards",
+        "/projects/project-123/cards/card-123/tags/work"}) {
+    CAPTURE(target);
+    SocketPair pair;
+    const std::string req = "PATCH " + target +
+                            " HTTP/1.1\r\n"
+                            "Host: localhost\r\n"
+                            "Content-Length: 2\r\n"
+                            "Connection: close\r\n"
+                            "\r\n"
+                            "{}";
+    boost::asio::write(pair.client, boost::asio::buffer(req));
 
-  const std::string req = "PATCH /cards/card-123 HTTP/1.1\r\n"
-                          "Host: localhost\r\n"
-                          "Content-Length: 2\r\n"
-                          "Connection: close\r\n"
-                          "\r\n"
-                          "{}";
-  boost::asio::write(pair.client, boost::asio::buffer(req));
-
-  auto prepared = holder::api::Session::prepare_request(std::move(pair.server));
-  REQUIRE(prepared.has_value());
-  REQUIRE(prepared->path == "/cards/card-123");
-  REQUIRE(prepared->lane == holder::api::Session::RequestLane::Save);
+    auto prepared = holder::api::Session::prepare_request(std::move(pair.server));
+    REQUIRE(prepared.has_value());
+    REQUIRE(prepared->path == target);
+    REQUIRE(prepared->lane == holder::api::Session::RequestLane::Save);
+  }
 }
 
 TEST_CASE("Session prepare_request classifies links reads as background lane", "[session]") {
   SocketPair pair;
 
-  const std::string req = "GET /cards/card-123/links HTTP/1.1\r\n"
+  const std::string req = "GET /projects/project-123/cards/card-123/links HTTP/1.1\r\n"
                           "Host: localhost\r\n"
                           "Connection: close\r\n"
                           "\r\n";
@@ -361,23 +347,24 @@ TEST_CASE("Session prepare_request classifies links reads as background lane", "
 
   auto prepared = holder::api::Session::prepare_request(std::move(pair.server));
   REQUIRE(prepared.has_value());
-  REQUIRE(prepared->path == "/cards/card-123/links");
+  REQUIRE(prepared->path == "/projects/project-123/cards/card-123/links");
   REQUIRE(prepared->lane == holder::api::Session::RequestLane::Background);
 }
 
 TEST_CASE("Session prepare_request classifies history reads as background lane", "[session]") {
-  SocketPair pair;
+  for (const auto& path : {"/projects/project-123/history", "/projects/project-123/history/cards/card-123"}) {
+    SocketPair pair;
+    const std::string req = "GET " + std::string(path) + " HTTP/1.1\r\n"
+                            "Host: localhost\r\n"
+                            "Connection: close\r\n"
+                            "\r\n";
+    boost::asio::write(pair.client, boost::asio::buffer(req));
 
-  const std::string req = "GET /projects/project-123/history/cards/card-123 HTTP/1.1\r\n"
-                          "Host: localhost\r\n"
-                          "Connection: close\r\n"
-                          "\r\n";
-  boost::asio::write(pair.client, boost::asio::buffer(req));
-
-  auto prepared = holder::api::Session::prepare_request(std::move(pair.server));
-  REQUIRE(prepared.has_value());
-  REQUIRE(prepared->path == "/projects/project-123/history/cards/card-123");
-  REQUIRE(prepared->lane == holder::api::Session::RequestLane::Background);
+    auto prepared = holder::api::Session::prepare_request(std::move(pair.server));
+    REQUIRE(prepared.has_value());
+    REQUIRE(prepared->path == path);
+    REQUIRE(prepared->lane == holder::api::Session::RequestLane::Background);
+  }
 }
 
 TEST_CASE("Session prepare_request classifies forced sync as background lane", "[session]") {
