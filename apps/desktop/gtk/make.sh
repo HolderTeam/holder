@@ -128,9 +128,11 @@ test_only() {
 
 run_app() {
   test_only
+  local system
+  system="$(uname -s)"
   local app_id="${HOLDER_DESKTOP_APPLICATION_ID:-team.holder.Holder.Devel}"
   local runtime_data_dirs="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-  if [[ "$(uname -s)" == Darwin ]] && command -v brew >/dev/null 2>&1; then
+  if [[ "${system}" == Darwin ]] && command -v brew >/dev/null 2>&1; then
     runtime_data_dirs="$(brew --prefix)/share:${runtime_data_dirs}"
   fi
   install_dev_desktop_assets "${app_id}"
@@ -146,13 +148,20 @@ run_app() {
     echo "Using ${HOLDER_CTL} to start the backend (set HOLDER_CTL to use another)."
   fi
   local -a launch=("./${BUILD_DIR}/holder-desktop")
-  if [[ "${MODE}" == access ]]; then
+  local accessible_launch=false
+  if [[ "${MODE}" == access || ( "${system}" == Darwin && "${MODE}" == run ) ]]; then
     launch=(python3 scripts/accessible_runtime.py run "${launch[@]}")
+    accessible_launch=true
   fi
+  local launch_status=0
   HOLDER_DESKTOP_APPLICATION_ID="${app_id}" \
     GSETTINGS_SCHEMA_DIR="${PWD}/${BUILD_DIR}/data" \
     XDG_DATA_DIRS="${PWD}/data:${runtime_data_dirs}" \
-    "${launch[@]}"
+    "${launch[@]}" || launch_status=$?
+  if [[ "${launch_status}" != 0 && "${system}" == Darwin && "${accessible_launch}" == true ]]; then
+    echo 'To launch with Homebrew GTK, run ./make.sh noaccess.' >&2
+  fi
+  return "${launch_status}"
 }
 
 coverage() {
@@ -212,17 +221,14 @@ case "${MODE}" in
   test)
     test_only
     ;;
-  run)
-    run_app
-    ;;
-  access)
+  run|access|noaccess)
     run_app
     ;;
   coverage)
     coverage
     ;;
   *)
-    echo "Usage: $0 [build|test|run|access|coverage]"
+    echo "Usage: $0 [build|test|run|access|noaccess|coverage]"
     exit 2
     ;;
 esac

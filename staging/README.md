@@ -184,6 +184,6 @@ https://github.com/HolderTeam/holder/actions/workflows/staging-macos-stage.yml
 ## Accessible GTK development runtime
 
 `scripts/build-macos-accessible-gtk.sh` preserves the isolated GTK/AccessKit build
-recipe from PR #26. The desktop's opt-in `./make.sh access` mode uses it through
+recipe from PR #26. The macOS desktop's default `./make.sh` launch uses it through
 the cache and runtime selector documented in `apps/desktop/gtk/README.md`.
 The same recipe serves macOS staging. Both paths leave Homebrew packages intact.

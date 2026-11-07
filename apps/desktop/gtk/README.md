@@ -61,6 +61,10 @@ brew install \
   vte3
 ```
 
+On macOS, `./make.sh` launches with [accessibility enabled](#accessible-source-runtime).
+Install Rust with `brew install rust` for that launch, or run `./make.sh noaccess`
+to use Homebrew GTK directly.
+
 Fresh Fedora setup:
 ```bash
 sudo dnf install xorg-x11-server-Xvfb
@@ -151,20 +155,21 @@ Override with:
 Optional maintainer fallback:
 - `./integration/make.sh install-dev`
 
-## Opt-in accessible source runtime
+## Accessible source runtime
 
-From this directory, run `./make.sh access` to build, test, and launch with
-accessibility enabled. The existing `build`, `test`, `run`, and `coverage` modes
-keep their current runtime. On Linux, `access` uses GTK's existing AT-SPI backend.
-Windows does not currently offer this mode.
+On macOS, `./make.sh` and `./make.sh run` build and test Holder with Homebrew
+GTK, then launch it with the AccessKit runtime. `./make.sh access` also selects
+that launch. Use `./make.sh noaccess` to build, test, and launch with Homebrew
+GTK. The standalone `build`, `test`, and `coverage` modes use Homebrew GTK.
+On Linux, `./make.sh access` selects GTK's existing AT-SPI backend.
 
 On macOS, install the development dependencies above plus Rust (`brew install
 rust`) and Xcode Command Line Tools (`xcode-select --install`). First use needs
 network access and builds an isolated copy of the Homebrew-selected GTK source
 with AccessKit C 0.18.0. Preparation can take several minutes. The shared recipe
 is `../../../staging/scripts/build-macos-accessible-gtk.sh`, taken from PR #26;
-source archives are checksum verified. It does not install into or alter any
-Homebrew keg, and does not enable accessibility in packaged releases.
+source archives are checksum verified. The recipe builds into a separate
+directory and macOS staging uses the same recipe for the packaged app.
 
 The selector caches under `build-access-runtime/` (override with
 `HOLDER_ACCESS_CACHE=/absolute/path`). Cache identity includes source provenance,
@@ -209,7 +214,7 @@ executing the native Holder binary. Do not put `/bin/sh`, `/usr/bin/env`, or
 those boundaries. `run` accepts a native executable and its arguments, for
 example `python3 scripts/accessible_runtime.py run ./build/holder-desktop`.
 When running directly, supply `GSETTINGS_SCHEMA_DIR="$PWD/build/data"` as needed;
-`./make.sh access` supplies the normal source-tree environment automatically.
+`./make.sh` supplies the normal source-tree environment automatically.
 
 GUI test drivers can import `scripts/accessible_runtime.py` and call
 `launch_environment(base_env)` directly at `subprocess.Popen([native_app],
