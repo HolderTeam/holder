@@ -16,6 +16,7 @@ internal interface IWorkspaceEventSource : Object {
     public abstract signal void find_next_requested();
     public abstract signal void replace_requested();
     public abstract signal void replace_all_requested();
+    public abstract signal void file_dropped(File file, Gtk.TextMark insertion_mark);
 }
 
 internal interface IWorkspaceEventSink : Object {
@@ -34,6 +35,7 @@ internal interface IWorkspaceEventSink : Object {
     public abstract void on_workspace_find_next_requested();
     public abstract void on_workspace_replace_requested();
     public abstract void on_workspace_replace_all_requested();
+    public abstract void on_workspace_file_dropped(File file, Gtk.TextMark insertion_mark);
 }
 
 internal class WindowWorkspaceEventBinder : Object {
@@ -90,6 +92,14 @@ internal class WindowWorkspaceEventBinder : Object {
         });
         workspace.replace_all_requested.connect(() => {
             sink.on_workspace_replace_all_requested();
+        });
+        workspace.file_dropped.connect((file, insertion_mark) => {
+            // On macOS GDK dispatches the drop in a temporary thread-default
+            // context. Start the async import on the application's main loop.
+            Idle.add(() => {
+                sink.on_workspace_file_dropped(file, insertion_mark);
+                return Source.REMOVE;
+            });
         });
     }
 }
