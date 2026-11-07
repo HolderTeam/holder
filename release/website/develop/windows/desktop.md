@@ -58,30 +58,34 @@ permalink: /develop/windows/desktop/
 <section class="section">
   <div class="section-head">
     <h2>Run Desktop and Daemon together</h2>
-    <p>Daemon is a local service: it keeps running in one command window while the desktop app talks to it in another. Keep both under the same Windows user account. First, start the backend using the instructions for the route you chose.</p>
+    <p>Daemon is a local service: it keeps running in one command window while the desktop app talks to it in another. Keep both under the same Windows user account. To start the backend, open <strong>x64 Native Tools Command Prompt for VS</strong> and follow the instructions for how you got it.</p>
     <p>If a backend is already running, you can use it and skip starting another copy. Close any open Desktop window before starting the app you just built.</p>
   </div>
   <div class="grid two">
     <article class="card">
       <h3>If you installed the backend</h3>
-      <p>Open PowerShell and run this command for the default installation folder:</p>
-      <pre><code>&amp; "$env:LOCALAPPDATA\Programs\Holder\bin\holderd.exe"</code></pre>
-      <p>If you chose another installation folder, replace the path with the location of <code>bin\holderd.exe</code> inside that folder. The <code>&amp;</code> tells PowerShell to run the program at the quoted path.</p>
+      <p>Use this command if you installed Holder with the Windows installer and kept the default installation folder.</p>
+      <pre><code>"%LOCALAPPDATA%\Programs\Holder\bin\holderd.exe"</code></pre>
+      <p>If Windows cannot find that path, check where you installed Holder. Replace the path inside the quotes with the full path to <code>bin\holderd.exe</code> in your installation.</p>
     </article>
     <article class="card">
       <h3>If you built the backend</h3>
-      <p>Open PowerShell and run:</p>
-      <pre><code>cd $HOME\projects\holderteam\holder\daemon
-.\out\build\windows-vcpkg-debug\holderd.exe</code></pre>
+      <p>Change to the <code>daemon</code> folder in your checkout. Adjust the path if you cloned Holder somewhere else.</p>
+      <pre><code>cd /d "%USERPROFILE%\projects\holderteam\holder\daemon"</code></pre>
+      <p>Start the backend.</p>
+      <pre><code>.\out\build\windows-vcpkg-debug\holderd.exe</code></pre>
     </article>
   </div>
   <div class="section-head following-copy">
     <p>Daemon should say that it is listening on <code>127.0.0.1:11499</code> and print a local documentation address. That address works only on your own PC. Leave the backend window open.</p>
     <h3>Start your Desktop build in UCRT64</h3>
-    <p>In an <strong>MSYS2 UCRT64</strong> window, run:</p>
+    <p>In an <strong>MSYS2 UCRT64</strong> window, change to the Desktop folder.</p>
   </div>
-  <pre><code>cd "$(cygpath -u "$USERPROFILE")/projects/holderteam/holder/apps/desktop/gtk"
-./make-win.sh run</code></pre>
+  <pre><code>cd "$(cygpath -u "$USERPROFILE")/projects/holderteam/holder/apps/desktop/gtk"</code></pre>
+  <div class="section-head following-copy">
+    <p>Start Desktop.</p>
+  </div>
+  <pre><code>./make-win.sh run</code></pre>
   <div class="section-head following-copy">
     <p>Holder should open with your projects, or a Home project if this is your first run. Create a test card. If it appears, Desktop and Daemon are talking to each other.</p>
     <p>For another check, open <a href="http://127.0.0.1:11499/docs">the local API documentation</a> while Daemon is running. An API is a way for programs to ask another program to do something; this page describes Holder's local API. Stop Daemon with <kbd>Ctrl</kbd>+<kbd>C</kbd> when you have finished.</p>
@@ -99,7 +103,7 @@ permalink: /develop/windows/desktop/
     </article>
     <article class="card">
       <h3>Desktop says Holder is not running</h3>
-      <p>Start <code>holderd.exe</code> first, from PowerShell under the same Windows account. Do not change <code>HOME</code> or <code>XDG_DATA_HOME</code> in either window; they are advanced settings that tell programs where to look for their files.</p>
+      <p>Start <code>holderd.exe</code> first using the instructions above and under the same Windows account as Desktop. Do not change <code>HOME</code> or <code>XDG_DATA_HOME</code> in either window; they are advanced settings that tell programs where to look for their files.</p>
     </article>
     <article class="card">
       <h3>A step fails</h3>
