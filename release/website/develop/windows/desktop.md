@@ -13,9 +13,9 @@ permalink: /develop/windows/desktop/
 <section class="section">
   <div class="section-head">
     <h2>Install the tools</h2>
-    <p>As explained in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>, you need to install Git and create <code>$HOME\projects\holderteam</code>.</p>
+    <p>Follow the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a> to install Git and get a local checkout of Holder. The desktop app lives in <code>apps\desktop\gtk</code> within that checkout.</p>
     <p>Holder Desktop needs Holder Daemon, the local backend, to read and save your data.</p>
-    <p>If you only want to change the desktop app, get the backend from the <a href="{{ '/windows/' | relative_url }}">Windows installer</a>. If you want to change the backend too, <a href="{{ '/develop/windows/daemon/' | relative_url }}">build your own Holder Daemon</a>. You do not need Visual Studio or a separate Core checkout just to build Desktop.</p>
+    <p>If you only want to change the desktop app, get the backend from the <a href="{{ '/windows/' | relative_url }}">Windows installer</a>. If you want to change the backend too, <a href="{{ '/develop/windows/daemon/' | relative_url }}">build your own Holder Daemon</a>.</p>
   </div>
 </section>
 
@@ -32,15 +32,6 @@ permalink: /develop/windows/desktop/
   <div class="section-head following-copy">
     <p>Copy that command into the UCRT64 window and press Enter. It updates MSYS2 itself. If it asks you to close the window, do so, reopen <strong>MSYS2 UCRT64</strong>, and run the same command again until it no longer asks for a core update.</p>
   </div>
-</section>
-
-<section class="section">
-  <div class="section-head">
-    <h2>Download Desktop</h2>
-    <p>The desktop app is in the holder repository, in <code>apps\desktop\gtk</code>. If you followed the Core or Daemon guide, you already have it. Otherwise, open PowerShell and run these commands to download Holder into the workspace you made in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>.</p>
-  </div>
-  <pre><code>cd $HOME\projects\holderteam
-git clone --recurse-submodules https://github.com/HolderTeam/holder.git</code></pre>
 </section>
 
 <section class="section">

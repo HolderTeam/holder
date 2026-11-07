@@ -13,24 +13,16 @@ permalink: /develop/windows/daemon/
 <section class="section">
   <div class="section-head">
     <h2>Install the tools</h2>
-    <p>As explained in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>, you need to install Git and create <code>$HOME\projects\holderteam</code>. You do not need to build Core separately: Daemon builds Core as part of its own build, from the <code>core</code> folder in the same download.</p>
+    <p>Follow the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a> to install Git and get a local checkout of Holder with its submodule.</p>
     <p>If you don't have it yet, install <a href="https://visualstudio.microsoft.com/vs/community/">Visual Studio Community</a> (2022 or later), the program with the purple logo. Visual Studio Code is a different program. The installer groups tools into “workloads”; select <strong>Desktop development with C++</strong>, and accept the pre-selected CMake tools and Windows SDK.</p>
   </div>
 </section>
 
 <section class="section" id="download-daemon">
   <div class="section-head">
-    <h2>Download the source code</h2>
-    <p>Open PowerShell and run these commands. The extra <code>--recurse-submodules</code> argument downloads fixed copies of smaller projects that Daemon needs to build.</p>
+    <h2>Daemon and Core</h2>
+    <p>The Daemon Windows debug build compiles Core from the neighbouring <code>core</code> folder in the same checkout, so changes you make in Core are used the next time you build Daemon. To build Core on its own and run its tests, follow the <a href="{{ '/develop/windows/core/' | relative_url }}">Core guide</a>.</p>
   </div>
-  <pre><code>cd $HOME\projects\holderteam
-git clone --recurse-submodules https://github.com/HolderTeam/holder.git</code></pre>
-  <div class="section-head following-copy">
-    <p>Daemon is the <code>daemon</code> folder inside <code>holder</code>. The Windows debug build compiles Core from the <code>core</code> folder next to it, so changes you make in Core are used the next time you build Daemon. To work on Core's logic and run its own tests, follow the <a href="{{ '/develop/windows/core/' | relative_url }}">Core guide</a>.</p>
-    <p>If you cloned <code>holder</code> without <code>--recurse-submodules</code>, use these commands before building:</p>
-  </div>
-  <pre><code>cd $HOME\projects\holderteam\holder
-git submodule update --init --recursive</code></pre>
 </section>
 
 <section class="section" id="build-daemon">
