@@ -2,6 +2,7 @@
 layout: default
 title: Develop Holder Daemon on Windows
 permalink: /develop/windows/daemon/
+copy_code: true
 ---
 
 <section class="page-panel">
@@ -14,7 +15,14 @@ permalink: /develop/windows/daemon/
   <div class="section-head">
     <h2>Install the tools</h2>
     <p>Follow the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a> to install Git and get a local checkout of Holder with its submodule.</p>
-    <p>If you don't have it yet, install <a href="https://visualstudio.microsoft.com/vs/community/">Visual Studio Community</a> (2022 or later), the program with the purple logo. Visual Studio Code is a different program. The installer groups tools into “workloads”; select <strong>Desktop development with C++</strong>, and accept the pre-selected CMake tools and Windows SDK.</p>
+    <p>Install <a href="https://visualstudio.microsoft.com/vs/community/">Visual Studio Community</a> (2022 or later) with the <strong>Desktop development with C++</strong> workload. Include the CMake tools, Windows SDK, and vcpkg. Both routes below use these tools.</p>
+    <p>Open the Windows Start menu, search for <strong>x64 Native Tools Command Prompt for VS</strong>, and open it. The window should say <strong>Environment initialized for: 'x64'</strong>. If your prompt starts with <code>PS</code>, switch to the Native Tools Command Prompt window you opened from Start.</p>
+    <p>The first configuration can take a while. vcpkg downloads and builds the libraries Daemon depends on.</p>
+    <p>Choose either route to build and test Daemon.</p>
+    <ul>
+      <li><a href="#vs-code">Visual Studio Code</a></li>
+      <li><a href="#command-line">Command line</a></li>
+    </ul>
   </div>
 </section>
 
@@ -27,17 +35,58 @@ permalink: /develop/windows/daemon/
 
 <section class="section" id="build-daemon">
   <div class="section-head">
-    <h2>Build and test</h2>
-    <p>In Visual Studio, choose <strong>Open a local folder</strong> and select <code>holder\daemon</code>. Visual Studio reads the project's saved build choices automatically.</p>
+    <h2 id="vs-code">Build and test in Visual Studio Code</h2>
+    <p>Install <a href="https://code.visualstudio.com/">Visual Studio Code</a> and Microsoft's <a href="https://marketplace.visualstudio.com/items?itemName=ms-vscode.cmake-tools">CMake Tools</a> extension. When installing VS Code, enable <strong>Add to PATH</strong> so the Command Prompt can open it.</p>
   </div>
   <ol class="steps">
-    <li>In the configuration drop-down, choose <code>windows-vcpkg-debug</code>. A configuration is a saved set of build choices; this one builds the programs for development. Wait for Visual Studio to finish preparing the project. The first preparation step uses vcpkg to download and build the libraries Daemon needs, so it can be slow.</li>
-    <li>Choose <strong>Build</strong> → <strong>Build All</strong>. When it finishes, look in <code>out\build\windows-vcpkg-debug</code> inside your Daemon folder for <code>holderd.exe</code>, the backend, and <code>holderctl.exe</code>, the command-line tool.</li>
-    <li>Change the configuration to <code>windows-vcpkg-tests-debug</code> and choose <strong>Build</strong> → <strong>Build All</strong>.</li>
-    <li>Choose <strong>Test</strong> → <strong>Run Test Preset for windows-vcpkg-tests-debug</strong> → <code>windows-vcpkg-tests-debug</code>.</li>
+    <li>
+      Close any open VS Code windows so it can pick up the build environment when it starts. If you just installed VS Code, reopen the Native Tools Command Prompt so it can find VS Code. Run the command below in that prompt. If you cloned Holder somewhere else, use the path to your <code>daemon</code> folder.
+      <pre><code>code "%USERPROFILE%\projects\holderteam\holder\daemon"</code></pre>
+    </li>
+    <li>Open the Command Palette with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>. Choose <strong>CMake: Select Configure Preset</strong>, select <strong>Windows vcpkg Debug</strong> (<code>windows-vcpkg-debug</code>), then choose <strong>CMake: Configure</strong> and wait for it to finish.</li>
+    <li>Choose <strong>CMake: Select Build Preset</strong> and select <code>windows-vcpkg-debug</code>. Choose <strong>CMake: Build</strong> to build <code>holderd.exe</code> and <code>holderctl.exe</code>.</li>
+    <li>To build the tests, select <strong>Windows vcpkg Debug Tests</strong> (<code>windows-vcpkg-tests-debug</code>) as the configure preset. Configure it, select <code>windows-vcpkg-tests-debug</code> as the build preset, and build again.</li>
+    <li>Choose <strong>CMake: Select Test Preset</strong> and select <code>windows-vcpkg-tests-debug</code>. Choose <strong>CMake: Run Tests</strong> to run the tests.</li>
   </ol>
-  <div class="section-head following-copy">
-    <p>You have succeeded when the test run completes without failures. A few tests are deliberately skipped on Windows because they check behaviour that only exists on Linux and similar systems.</p>
+</section>
+
+<section class="section" id="command-line">
+  <div class="section-head">
+    <h2>Build and test from the command line</h2>
+    <p>Run these commands one at a time in the Native Tools Command Prompt. If you cloned Holder somewhere else, replace the path in the first command with your <code>daemon</code> folder.</p>
+  </div>
+  <ol class="steps">
+    <li>
+      Change to the <code>daemon</code> folder.
+      <pre><code>cd /d "%USERPROFILE%\projects\holderteam\holder\daemon"</code></pre>
+    </li>
+    <li>
+      Configure the debug build. CMake uses the saved preset and calls vcpkg to install the dependencies.
+      <pre><code>cmake --preset windows-vcpkg-debug</code></pre>
+    </li>
+    <li>
+      Build the backend and command-line tool.
+      <pre><code>cmake --build --preset windows-vcpkg-debug --parallel</code></pre>
+    </li>
+    <li>
+      Configure a debug build with tests enabled.
+      <pre><code>cmake --preset windows-vcpkg-tests-debug</code></pre>
+    </li>
+    <li>
+      Build the programs and their tests.
+      <pre><code>cmake --build --preset windows-vcpkg-tests-debug --parallel</code></pre>
+    </li>
+    <li>
+      Run the tests. CTest shows the output of failed tests and reports an error if it finds no tests.
+      <pre><code>ctest --preset windows-vcpkg-tests-debug --no-tests=error</code></pre>
+    </li>
+  </ol>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Check the result</h2>
+    <p>The debug build puts <code>holderd.exe</code> and <code>holderctl.exe</code> in <code>daemon\out\build\windows-vcpkg-debug</code>. Confirm that tests ran without failures. A few tests are deliberately skipped on Windows because they check behaviour specific to other platforms.</p>
   </div>
 </section>
 
@@ -45,7 +94,7 @@ permalink: /develop/windows/daemon/
   <div class="section-head">
     <h2>If a build seems stuck</h2>
     <p>The first vcpkg build can be long and quiet. Open Task Manager and check for active compiler processes before deciding that it has stopped.</p>
-    <p>If Visual Studio reports an error, copy it from the Output window and <a href="{{ '/develop/windows/' | relative_url }}#getting-help">ask for help</a>.</p>
+    <p>If a step fails, copy the error from the VS Code Output panel or the Command Prompt and <a href="{{ '/develop/windows/' | relative_url }}#getting-help">ask for help</a>.</p>
   </div>
 </section>
 
