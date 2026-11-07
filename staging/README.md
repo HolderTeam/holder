@@ -181,24 +181,6 @@ https://github.com/HolderTeam/holder/actions/workflows/staging-macos-stage.yml
 
   open Holder.app
 
-### Finder JPG drop
-
-Run this manual regression check in the staged app on macOS.
-
-1. In a test project, use **Resources → Add Folder** to add a writable local
-   folder. Confirm the location is bound and marked **Preferred**.
-2. Open an editable test card with two paragraphs and place the caret in the
-   first paragraph. Drag a local JPG directly from Finder and release it at
-   the start of the second paragraph, just over the first character.
-3. Confirm Holder reports the import and displays the image between the
-   paragraphs. Wait for autosave, then close and reopen the card to confirm
-   the image is still there.
-4. Repeat in a test project without a preferred storage location. Confirm
-   Holder opens Resources and asks you to add and choose a preferred location.
-
-Record the staging run and macOS version with the result. The blue insertion
-line alone only shows that the editor reacted to the drag.
-
 ## Accessible GTK development runtime
 
 `scripts/build-macos-accessible-gtk.sh` preserves the isolated GTK/AccessKit build
