@@ -4902,6 +4902,7 @@ test('holder-gtk-flowboard-pane-tests', flowboard_pane_test_exe)
 sidebar_pane_test_exe = executable(
   'holder-gtk-sidebar-pane-tests',
   [
+    holder_config,
     'src/models/project.vala',
     'src/models/card.vala',
     'src/models/ai.vala',
