@@ -38,7 +38,7 @@ jobs:
           bundler-cache: true
           working-directory: release/website
       - id: pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
       - name: Build with Jekyll
         env:
           JEKYLL_ENV: production
