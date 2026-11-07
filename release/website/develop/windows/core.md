@@ -53,12 +53,15 @@ permalink: /develop/windows/core/
   <div class="section-head">
     <h2>Build and test from the command line</h2>
     <p>Open the Windows Start menu, search for <strong>x64 Native Tools Command Prompt for VS</strong>, and open it. The window should say <strong>Environment initialized for: 'x64'</strong>.</p>
-    <p>If your prompt starts with <code>PS</code>, switch to the Native Tools Command Prompt window you opened from Start.</p>
     <p>Run these commands one at a time in the Native Tools Command Prompt. If you cloned Holder somewhere else, replace the path on the first line with your Core folder.</p>
   </div>
+  <p>Change directory to core:</p>
   <pre><code>cd /d "%USERPROFILE%\projects\holderteam\holder\core"</code></pre>
+  <p>Describe this line:</p>  
   <pre><code>cmake --preset windows-vcpkg-debug</code></pre>
+  <p>Describe this line:</p>
   <pre><code>cmake --build out/build/windows-vcpkg-debug --parallel</code></pre>
+  <p>Describe this line:</p>
   <pre><code>ctest --test-dir out/build/windows-vcpkg-debug --output-on-failure --no-tests=error</code></pre>
   <div class="section-head following-copy">
     <p>Building the configured directory builds both the library and its tests. Confirm that CTest reports tests ran with no failures.</p>
