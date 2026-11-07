@@ -189,6 +189,7 @@ internal interface IWorkspaceEventSink : Object {
     public abstract void on_workspace_find_next_requested();
     public abstract void on_workspace_replace_requested();
     public abstract void on_workspace_replace_all_requested();
+    public abstract void on_workspace_file_dropped(File file, Gtk.TextMark insertion_mark);
 }
 
 internal interface IWorkspaceEventSource : Object {
@@ -207,6 +208,7 @@ internal interface IWorkspaceEventSource : Object {
     public abstract signal void find_next_requested();
     public abstract signal void replace_requested();
     public abstract signal void replace_all_requested();
+    public abstract signal void file_dropped(File file, Gtk.TextMark insertion_mark);
 }
 
 // from src/controllers/window_flowboard_event_binder.vala
@@ -357,6 +359,7 @@ public class WorkspacePane : Object {
     public signal void find_next_requested();
     public signal void replace_requested();
     public signal void replace_all_requested();
+    public signal void file_dropped(File file, Gtk.TextMark insertion_mark);
 }
 
 // Signal-only stand-in: WindowSidebarEventSource only connects to these signals.
@@ -938,6 +941,11 @@ public class MainWindow : Object {
         on_workspace_replace_all_requested_calls++;
         calls++;
         call_log.add("on_workspace_replace_all_requested");
+    }
+
+    public void on_workspace_file_dropped(File file, Gtk.TextMark insertion_mark) {
+        calls++;
+        call_log.add("on_workspace_file_dropped");
     }
 
     public void on_project_selection_changed() {
@@ -1630,6 +1638,9 @@ private void test_workspace_event_sink_forwards_every_event() {
 
     sink.on_workspace_replace_all_requested();
     assert(mw.on_workspace_replace_all_requested_calls == 1);
+
+    sink.on_workspace_file_dropped(File.new_for_path("/tmp/drop.jpg"), new Gtk.TextMark(null, false));
+    assert(mw.call_log[mw.call_log.size - 1] == "on_workspace_file_dropped");
 }
 
 private void test_workspace_event_source_forwards_every_signal() {
@@ -1710,6 +1721,17 @@ private void test_workspace_event_source_forwards_every_signal() {
     src.replace_all_requested.connect(() => { replace_all_calls++; });
     workspace.replace_all_requested();
     assert(replace_all_calls == 1);
+
+    var file = File.new_for_path("/tmp/drop.jpg");
+    var mark = new Gtk.TextMark(null, false);
+    int drop_calls = 0;
+    src.file_dropped.connect((received_file, received_mark) => {
+        assert(received_file == file);
+        assert(received_mark == mark);
+        drop_calls++;
+    });
+    workspace.file_dropped(file, mark);
+    assert(drop_calls == 1);
 }
 
 private void test_selection_editor_event_sink_forwards_every_event() {

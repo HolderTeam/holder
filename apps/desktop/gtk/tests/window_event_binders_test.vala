@@ -322,6 +322,15 @@ private class RecordingWorkspaceEventSink : Object, IWorkspaceEventSink {
     public void on_workspace_replace_all_requested() {
         replace_all_calls++;
     }
+
+    public File? dropped_file;
+    public Gtk.TextMark? drop_mark;
+
+    public void on_workspace_file_dropped(File file, Gtk.TextMark insertion_mark) {
+        assert(MainContext.get_thread_default() == null);
+        dropped_file = file;
+        drop_mark = insertion_mark;
+    }
 }
 
 private class FakeEditorControllerAttachTarget : Object, IEditorControllerAttachTarget {
@@ -583,6 +592,27 @@ private void test_sidebar_binder_forwards_sidebar_events() {
     assert(sink.create_child_card_id == "card-parent");
 }
 
+private void test_workspace_file_drop_leaves_temporary_context() {
+    var source = new HolderLinux.FakeWorkspaceEventSource();
+    var sink = new HolderLinux.RecordingWorkspaceEventSink();
+    var binder = new HolderLinux.WindowWorkspaceEventBinder(source, sink);
+    binder.bind();
+
+    var drop_context = new MainContext();
+    var file = File.new_for_path("/tmp/drop.jpg");
+    var mark = new Gtk.TextMark(null, false);
+    drop_context.push_thread_default();
+    source.file_dropped(file, mark);
+    while (drop_context.iteration(false)) {}
+    assert(sink.dropped_file == null);
+    drop_context.pop_thread_default();
+
+    var main_context = MainContext.default();
+    while (sink.dropped_file == null && main_context.iteration(false)) {}
+    assert(sink.dropped_file == file);
+    assert(sink.drop_mark == mark);
+}
+
 private void test_workspace_binder_forwards_workspace_events() {
     var source = new HolderLinux.FakeWorkspaceEventSource();
     var sink = new HolderLinux.RecordingWorkspaceEventSink();
@@ -768,6 +798,10 @@ public static int main(string[] args) {
     Test.add_func(
         "/holder/window-event-binders/sidebar-binder-forwards-sidebar-events",
         test_sidebar_binder_forwards_sidebar_events
+    );
+    Test.add_func(
+        "/holder/window-event-binders/workspace-file-drop-leaves-temporary-context",
+        test_workspace_file_drop_leaves_temporary_context
     );
     Test.add_func(
         "/holder/window-event-binders/workspace-binder-forwards-workspace-events",

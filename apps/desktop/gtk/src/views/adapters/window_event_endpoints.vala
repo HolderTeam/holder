@@ -504,6 +504,10 @@ internal class WindowWorkspaceEventSink : Object, IWorkspaceEventSink {
     public void on_workspace_replace_all_requested() {
         owner.on_workspace_replace_all_requested();
     }
+
+    public void on_workspace_file_dropped(File file, Gtk.TextMark insertion_mark) {
+        owner.on_workspace_file_dropped(file, insertion_mark);
+    }
 }
 
 internal class WindowWorkspaceEventSource : Object, IWorkspaceEventSource {
@@ -555,6 +559,9 @@ internal class WindowWorkspaceEventSource : Object, IWorkspaceEventSource {
         });
         workspace.replace_all_requested.connect(() => {
             replace_all_requested();
+        });
+        workspace.file_dropped.connect((file, insertion_mark) => {
+            file_dropped(file, insertion_mark);
         });
     }
 }
