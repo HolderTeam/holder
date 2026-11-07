@@ -55,16 +55,26 @@ permalink: /develop/windows/core/
     <p>Open the Windows Start menu, search for <strong>x64 Native Tools Command Prompt for VS</strong>, and open it. The window should say <strong>Environment initialized for: 'x64'</strong>.</p>
     <p>Run these commands one at a time in the Native Tools Command Prompt. If you cloned Holder somewhere else, replace the path on the first line with your Core folder.</p>
   </div>
-  <p>Change directory to core:</p>
-  <pre><code>cd /d "%USERPROFILE%\projects\holderteam\holder\core"</code></pre>
-  <p>Describe this line:</p>  
-  <pre><code>cmake --preset windows-vcpkg-debug</code></pre>
-  <p>Describe this line:</p>
-  <pre><code>cmake --build out/build/windows-vcpkg-debug --parallel</code></pre>
-  <p>Describe this line:</p>
-  <pre><code>ctest --test-dir out/build/windows-vcpkg-debug --output-on-failure --no-tests=error</code></pre>
+  <ol class="steps">
+    <li>
+      Change to the <code>core</code> folder.
+      <pre><code>cd /d "%USERPROFILE%\projects\holderteam\holder\core"</code></pre>
+    </li>
+    <li>
+      Configure the debug build. CMake uses the saved preset and calls vcpkg to install the dependencies.
+      <pre><code>cmake --preset windows-vcpkg-debug</code></pre>
+    </li>
+    <li>
+      Build the Core library and its tests. The <code>--parallel</code> option lets CMake run build jobs at the same time.
+      <pre><code>cmake --build out/build/windows-vcpkg-debug --parallel</code></pre>
+    </li>
+    <li>
+      Run the tests. CTest shows the output of any test that fails and reports an error if it finds no tests.
+      <pre><code>ctest --test-dir out/build/windows-vcpkg-debug --output-on-failure --no-tests=error</code></pre>
+    </li>
+  </ol>
   <div class="section-head following-copy">
-    <p>Building the configured directory builds both the library and its tests. Confirm that CTest reports tests ran with no failures.</p>
+    <p>Confirm that CTest reports tests ran with no failures.</p>
   </div>
 </section>
 
