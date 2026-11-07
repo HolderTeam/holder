@@ -13,9 +13,7 @@
   {% assign main_css = site.static_files | where: 'path', '/assets/css/main.css' | first %}
   <link rel="stylesheet" href="{{ '/assets/css/main.css' | relative_url }}?v={{ main_css.modified_time | date: '%s' }}">
   <script defer src="{{ '/assets/js/downloads.js' | relative_url }}"></script>
-  {% if page.copy_code %}
   <script defer src="{{ '/assets/js/copy-code.js' | relative_url }}"></script>
-  {% endif %}
 </head>
 
 <body>

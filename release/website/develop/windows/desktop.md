@@ -43,12 +43,15 @@ permalink: /develop/windows/desktop/
   <pre><code>cd "$(cygpath -u "$USERPROFILE")/projects/holderteam/holder/apps/desktop/gtk"</code></pre>
   <div class="section-head following-copy">
     <p>If you chose a different workspace, use its path instead. For example, a checkout at <code>D:\projects\holderteam\holder</code> would use <code>cd /d/projects/holderteam/holder/apps/desktop/gtk</code>. See <a href="https://www.msys2.org/docs/filesystem-paths/">MSYS2's path guide</a> for more examples.</p>
-    <p>Once you are in the Desktop folder, run these commands one at a time:</p>
+    <p>Once you are in the Desktop folder, run this command to install the MSYS2 tools and libraries the desktop needs:</p>
   </div>
-  <pre><code>./make-win.sh deps
-./make-win.sh test</code></pre>
+  <pre><code>./make-win.sh deps</code></pre>
   <div class="section-head following-copy">
-    <p>The first command installs the MSYS2 tools and libraries the desktop needs. The second uses Meson, the desktop's build tool, to prepare the <code>build-win</code> folder, build the app, and run its automated checks. Wait for it to finish and confirm that tests ran with no failures.</p>
+    <p>The next command uses Meson, the desktop's build tool, to prepare the <code>build-win</code> folder, build the app, and run its automated checks.</p>
+  </div>
+  <pre><code>./make-win.sh test</code></pre>
+  <div class="section-head following-copy">
+    <p>Wait for it to finish and confirm that tests ran with no failures.</p>
   </div>
 </section>
 

@@ -2,7 +2,6 @@
 layout: default
 title: Develop Holder Core on Windows
 permalink: /develop/windows/core/
-copy_code: true
 ---
 
 <section class="page-panel">

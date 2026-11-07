@@ -2,7 +2,6 @@
 layout: default
 title: Develop Holder Daemon on Windows
 permalink: /develop/windows/daemon/
-copy_code: true
 ---
 
 <section class="page-panel">
