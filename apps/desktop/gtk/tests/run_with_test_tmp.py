@@ -13,8 +13,21 @@ def main() -> int:
         print("usage: run_with_test_tmp.py PROGRAM [ARGS...]", file=sys.stderr)
         return 2
 
-    root = pathlib.Path(tempfile.mkdtemp(prefix="holder_gtk_test_"))
     env = os.environ.copy()
+    if sys.platform == "darwin":
+        runtime = env.get("HOLDER_DESKTOP_TEST_ACCESSIBLE_RUNTIME")
+        if not runtime or not (pathlib.Path(runtime) / "lib/libgtk-4.1.dylib").is_file():
+            print("macOS tests require a prepared AccessKit runtime. Run ./make.sh test "
+                  "or set HOLDER_DESKTOP_TEST_ACCESSIBLE_RUNTIME to the output of "
+                  "python3 scripts/accessible_runtime.py prepare.", file=sys.stderr)
+            return 2
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
+        from accessible_runtime import runtime_env
+
+        # Apply DYLD settings at the native executable boundary.
+        env = runtime_env(pathlib.Path(runtime), env)
+
+    root = pathlib.Path(tempfile.mkdtemp(prefix="holder_gtk_test_"))
     for key in ("TMPDIR", "TMP", "TEMP"):
         env[key] = str(root)
     for key, leaf in (

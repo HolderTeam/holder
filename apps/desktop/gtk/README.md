@@ -62,7 +62,7 @@ brew install \
 ```
 
 On macOS, `./make.sh` launches with [accessibility enabled](#accessible-source-runtime).
-Install Rust with `brew install rust` for that launch, or run `./make.sh noaccess`
+Install Rust with `brew install rust` for that workflow, or run `./make.sh noaccess`
 to use Homebrew GTK directly.
 
 Fresh Fedora setup:
@@ -70,12 +70,14 @@ Fresh Fedora setup:
 sudo dnf install xorg-x11-server-Xvfb
 ```
 
-Configure, build, and test:
+Configure, build, and test on macOS:
 
 ```bash
 meson setup build-macos --prefix=/
 meson compile -C build-macos
-meson test -C build-macos --print-errorlogs
+accessible_runtime="$(python3 scripts/accessible_runtime.py prepare)"
+HOLDER_DESKTOP_TEST_ACCESSIBLE_RUNTIME="$accessible_runtime" \
+  meson test -C build-macos --print-errorlogs
 ```
 
 Meson's default test setup runs each desktop test executable in its own
@@ -157,11 +159,12 @@ Optional maintainer fallback:
 
 ## Accessible source runtime
 
-On macOS, `./make.sh` and `./make.sh run` build and test Holder with Homebrew
-GTK, then launch it with the AccessKit runtime. `./make.sh access` also selects
-that launch. Use `./make.sh noaccess` to build, test, and launch with Homebrew
-GTK. The standalone `build`, `test`, and `coverage` modes use Homebrew GTK.
-On Linux, `./make.sh access` selects GTK's existing AT-SPI backend.
+On macOS, `./make.sh`, `./make.sh run`, and `./make.sh access` build Holder
+against Homebrew GTK and use the same prepared AccessKit runtime for the test
+suite and app launch. Standalone tests, coverage, and macOS Desktop CI also
+run the suite with AccessKit. Use `./make.sh noaccess` for a build and launch
+with Homebrew GTK that skips the test suite. On Linux, `./make.sh access`
+selects GTK's existing AT-SPI backend for the app launch.
 
 On macOS, install the development dependencies above plus Rust (`brew install
 rust`) and Xcode Command Line Tools (`xcode-select --install`). First use needs

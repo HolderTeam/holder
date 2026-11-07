@@ -3459,7 +3459,9 @@ markdown_resource_images_test_env.set(
   'HOLDER_MARKDOWN_LANGUAGE_DIR',
   meson.project_source_root() / 'data' / 'gtksourceview-5' / 'language-specs',
 )
-markdown_resource_images_test_env.set('GTK_A11Y', 'none')
+if host_machine.system() != 'darwin'
+  markdown_resource_images_test_env.set('GTK_A11Y', 'none')
+endif
 test(
   'holder-gtk-markdown-resource-images-tests',
   markdown_resource_images_test_exe,
@@ -3489,7 +3491,9 @@ inline_resource_image_renderer_test_exe = executable(
 )
 
 inline_resource_image_renderer_test_env = environment()
-inline_resource_image_renderer_test_env.set('GTK_A11Y', 'none')
+if host_machine.system() != 'darwin'
+  inline_resource_image_renderer_test_env.set('GTK_A11Y', 'none')
+endif
 test(
   'holder-gtk-inline-resource-image-renderer-tests',
   inline_resource_image_renderer_test_exe,

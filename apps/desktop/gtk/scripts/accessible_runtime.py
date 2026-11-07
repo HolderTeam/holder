@@ -164,7 +164,9 @@ def select_runtime() -> Path:
             env = os.environ.copy()
             env['HOLDER_GTK_FORMULA_JSON'] = str(formula_path)
             print(f'Preparing accessible GTK runtime: {runtime}', file=sys.stderr)
-            subprocess.run(['bash', str(RECIPE), str(target)], env=env, check=True)
+            # Keep prepare's stdout usable as a path even on the first build.
+            subprocess.run(['bash', str(RECIPE), str(target)], env=env, check=True,
+                           stdout=sys.stderr)
             probe_source = target / 'runtime-probe.c'
             probe_source.write_text(PROBE)
             flags = shlex.split(output('pkg-config', '--cflags', '--libs', *PACKAGES))
@@ -193,13 +195,18 @@ def launch_environment(base: dict[str, str] | None = None) -> dict[str, str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--prepared-runtime', type=Path,
+                        help='Reuse the macOS runtime already selected by prepare for this run.')
     parser.add_argument('mode', choices=('prepare', 'inspect', 'check-menus', 'run'))
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
+    if args.prepared_runtime and (sys.platform != 'darwin' or args.mode != 'run'):
+        parser.error('--prepared-runtime requires run on macOS')
     if args.mode == 'run':
         if not args.command:
             parser.error('run requires a native executable')
-        env = launch_environment()
+        env = (runtime_env(args.prepared_runtime) if args.prepared_runtime
+               else launch_environment())
         executable = Path(args.command[0]).resolve()
         if sys.platform == 'darwin' and executable.read_bytes()[:4] not in (
             b'\xcf\xfa\xed\xfe', b'\xfe\xed\xfa\xcf', b'\xca\xfe\xba\xbe'):
