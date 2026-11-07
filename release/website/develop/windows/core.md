@@ -28,7 +28,7 @@ permalink: /develop/windows/core/
     <p>Choose either route to build and test Core.</p>
     <ul>
       <li><a href="#visual-studio">Visual Studio</a></li>
-      <li><a href="#developer-powershell">Developer PowerShell</a></li>
+      <li><a href="#developer-powershell">Command line</a></li>
     </ul>
   </div>
 </section>
@@ -51,18 +51,15 @@ permalink: /develop/windows/core/
 
 <section class="section" id="developer-powershell">
   <div class="section-head">
-    <h2>Build and test in Developer PowerShell</h2>
-    <p>Open <strong>Developer PowerShell for VS</strong> from the Start menu. It loads the compiler and build tools. Run <code>$env:VSCMD_ARG_TGT_ARCH</code> to check that the target is <code>x64</code>. If it shows another architecture, open an x64 session using <a href="https://learn.microsoft.com/en-us/visualstudio/ide/reference/command-prompt-powershell#target-architecture-and-host-architecture">Microsoft's developer shell instructions</a>.</p>
-    <p>Run <code>$env:VCPKG_ROOT</code> to check the vcpkg location. If it is blank and you installed vcpkg with Visual Studio, set it for this session:</p>
+    <h2>Build and test from the command line</h2>
+    <p>Open the Windows Start menu, search for <strong>x64 Native Tools Command Prompt for VS</strong>, and open it. The window should say <strong>Environment initialized for: 'x64'</strong>.</p>
+    <p>If your prompt starts with <code>PS</code>, switch to the Native Tools Command Prompt window you opened from Start.</p>
+    <p>Run these commands one at a time in the Native Tools Command Prompt. If you cloned Holder somewhere else, replace the path on the first line with your Core folder.</p>
   </div>
-  <pre><code>$env:VCPKG_ROOT = Join-Path $env:VSINSTALLDIR 'VC\vcpkg'</code></pre>
-  <div class="section-head following-copy">
-    <p>Run these commands one at a time. If your checkout is elsewhere, replace the path on the first line with your Core folder.</p>
-  </div>
-  <pre><code>Set-Location "$HOME\projects\holderteam\holder\core"
-cmake --preset windows-vcpkg-debug
-cmake --build out/build/windows-vcpkg-debug --parallel
-ctest --test-dir out/build/windows-vcpkg-debug --output-on-failure --no-tests=error</code></pre>
+  <pre><code>cd /d "%USERPROFILE%\projects\holderteam\holder\core"</code></pre>
+  <pre><code>cmake --preset windows-vcpkg-debug</code></pre>
+  <pre><code>cmake --build out/build/windows-vcpkg-debug --parallel</code></pre>
+  <pre><code>ctest --test-dir out/build/windows-vcpkg-debug --output-on-failure --no-tests=error</code></pre>
   <div class="section-head following-copy">
     <p>Building the configured directory builds both the library and its tests. Confirm that CTest reports tests ran with no failures.</p>
   </div>
