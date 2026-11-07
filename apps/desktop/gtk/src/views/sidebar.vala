@@ -29,6 +29,10 @@ public class SidebarPane : Object {
         box.set_margin_end(8);
 
         var sidebar_header = new Adw.HeaderBar();
+        if (PLATFORM == "darwin") {
+            // The native window controls overlap the inset sidebar header.
+            sidebar_header.add_css_class("flat");
+        }
         sidebar_header.set_show_start_title_buttons(false);
         sidebar_header.set_show_end_title_buttons(false);
         sidebar_header.set_title_widget(new Gtk.Label("Holder"));
