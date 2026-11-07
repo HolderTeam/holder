@@ -18,6 +18,9 @@ if is_windows_shell; then
   exec "$(cd "$(dirname "$0")" && pwd)/make-win.sh" "$@"
 fi
 
+SYSTEM="$(uname -s)"
+ACCESSIBLE_RUNTIME=""
+
 setup_build() {
   local dir="$1"
   shift
@@ -110,13 +113,20 @@ build() {
 
 run_gui_tests() {
   local dir="$1"
-  if command -v xvfb-run >/dev/null 2>&1; then
+  if [[ "${SYSTEM}" == Darwin ]]; then
+    ACCESSIBLE_RUNTIME="$(python3 scripts/accessible_runtime.py prepare)" || {
+      local status=$?
+      echo 'To build and launch with Homebrew GTK, run ./make.sh noaccess.' >&2
+      return "${status}"
+    }
+    HOLDER_DESKTOP_TEST_ACCESSIBLE_RUNTIME="${ACCESSIBLE_RUNTIME}" \
+      meson test -C "${dir}" --print-errorlogs
+  elif command -v xvfb-run >/dev/null 2>&1; then
     # GTK popovers need a display with a stable monitor layout. Use an isolated
     # display so tests do not depend on the developer's desktop arrangement.
     GSETTINGS_BACKEND=memory \
       xvfb-run -a meson test -C "${dir}" --print-errorlogs
   else
-    # macOS provides its native display services but not Xvfb.
     GSETTINGS_BACKEND=memory meson test -C "${dir}" --print-errorlogs
   fi
 }
@@ -127,12 +137,14 @@ test_only() {
 }
 
 run_app() {
-  test_only
-  local system
-  system="$(uname -s)"
+  if [[ "${SYSTEM}" == Darwin && "${MODE}" == noaccess ]]; then
+    build
+  else
+    test_only
+  fi
   local app_id="${HOLDER_DESKTOP_APPLICATION_ID:-team.holder.Holder.Devel}"
   local runtime_data_dirs="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-  if [[ "${system}" == Darwin ]] && command -v brew >/dev/null 2>&1; then
+  if [[ "${SYSTEM}" == Darwin ]] && command -v brew >/dev/null 2>&1; then
     runtime_data_dirs="$(brew --prefix)/share:${runtime_data_dirs}"
   fi
   install_dev_desktop_assets "${app_id}"
@@ -148,17 +160,17 @@ run_app() {
     echo "Using ${HOLDER_CTL} to start the backend (set HOLDER_CTL to use another)."
   fi
   local -a launch=("./${BUILD_DIR}/holder-desktop")
-  local accessible_launch=false
-  if [[ "${MODE}" == access || ( "${system}" == Darwin && "${MODE}" == run ) ]]; then
+  if [[ -n "${ACCESSIBLE_RUNTIME}" ]]; then
+    launch=(python3 scripts/accessible_runtime.py --prepared-runtime "${ACCESSIBLE_RUNTIME}" run "${launch[@]}")
+  elif [[ "${MODE}" == access ]]; then
     launch=(python3 scripts/accessible_runtime.py run "${launch[@]}")
-    accessible_launch=true
   fi
   local launch_status=0
   HOLDER_DESKTOP_APPLICATION_ID="${app_id}" \
     GSETTINGS_SCHEMA_DIR="${PWD}/${BUILD_DIR}/data" \
     XDG_DATA_DIRS="${PWD}/data:${runtime_data_dirs}" \
     "${launch[@]}" || launch_status=$?
-  if [[ "${launch_status}" != 0 && "${system}" == Darwin && "${accessible_launch}" == true ]]; then
+  if [[ "${launch_status}" != 0 && -n "${ACCESSIBLE_RUNTIME}" ]]; then
     echo 'To launch with Homebrew GTK, run ./make.sh noaccess.' >&2
   fi
   return "${launch_status}"

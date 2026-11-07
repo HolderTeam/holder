@@ -435,6 +435,7 @@ jobs:
             libsoup \
             glib-networking \
             json-glib \
+            rust \
             vte3
 
       - name: Build and test
@@ -445,7 +446,9 @@ jobs:
             --buildtype="$MESON_BUILD_TYPE" \
             --prefix=/
           meson compile -C build-macos
-          meson test -C build-macos --print-errorlogs
+          accessible_runtime="$(python3 scripts/accessible_runtime.py prepare)"
+          HOLDER_DESKTOP_TEST_ACCESSIBLE_RUNTIME="$accessible_runtime" \
+            meson test -C build-macos --print-errorlogs
 
       - name: Stage desktop artifact
         run: |
