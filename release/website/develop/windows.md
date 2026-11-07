@@ -16,20 +16,24 @@ narrow: true
     <h2>Before you begin</h2>
     <p>This guide is for people who want to change Holder's code. If you just want to use Holder, go to the <a href="{{ '/windows/' | relative_url }}">Holder for Windows</a> page to get the installer.</p>
     <p>You need a PC running 64-bit Windows 11 or Windows 10*, and an internet connection. Allow tens of gigabytes of free disk space for the development tools, downloaded libraries, and builds. The Visual Studio installer will show how much space your selected tools need; see <a href="https://learn.microsoft.com/en-us/visualstudio/releases/2026/vs-system-requirements">Microsoft's system requirements</a> for details.</p>
-    <p>Install Git for Windows once: Git downloads project code and keeps track of the changes you make to it.</p>
+    <p>Git downloads the source code and keeps track of the changes you make to it.</p>
   </div>
   <ol class="steps">
     <li>Install <a href="https://git-scm.com/download/win">Git for Windows</a>. Accept the normal installer defaults.</li>
-    <li>Make a working directory.
-      <ul>
-        <li>We will keep the folders of Holder source code in one place.</li>
-        <li>On my computer it is <code>C:\Users\pigeonwrath\projects\holderteam</code> but you can choose your own location, just be consistent.</li>
-        <li>In PowerShell, <code>$HOME</code> means your Windows user folder. The commands below use your own folder automatically. If you choose a different workspace, use that location in each guide.</li>
-        <li>Open PowerShell, Windows’ built-in command window, and run these commands once:</li>
-      </ul>
-  <pre><code>mkdir $HOME\projects\holderteam
-cd $HOME\projects\holderteam</code></pre>
-  </li></ol>
+    <li>
+      <p>Clone the <a href="https://github.com/HolderTeam/holder">Holder monorepo</a> once. It contains Core, Daemon, and Desktop in one checkout. If you already have a checkout, skip to the next step.</p>
+      <p>Open PowerShell and run:</p>
+      <pre><code>New-Item -ItemType Directory -Force -Path "$HOME\projects\holderteam"
+Set-Location "$HOME\projects\holderteam"
+git clone --recurse-submodules https://github.com/HolderTeam/holder.git</code></pre>
+      <p><code>$HOME</code> is your Windows user folder. If you keep your checkout somewhere else, use its location in the steps below and in the component guides.</p>
+    </li>
+    <li>
+      <p>If you already cloned Holder without <code>--recurse-submodules</code>, run these commands to fetch the submodule that Daemon needs:</p>
+      <pre><code>Set-Location "$HOME\projects\holderteam\holder"
+git submodule update --init --recursive</code></pre>
+    </li>
+  </ol>
 
   <p class="footnote"><sup>*</sup> Windows 11 is 64-bit only. Windows 10 also has 32-bit editions. The Core and Daemon guides use 64-bit build tools, but advanced users may be able to adapt them to build Core and Daemon for x86, then use <code>holderctl</code> or the local HTTP API. There is no current 32-bit holder-desktop build path.</p>
 
@@ -37,8 +41,7 @@ cd $HOME\projects\holderteam</code></pre>
 
 <section class="section">
   <div class="section-head">
-    <h2>Three parts, three small guides</h2>
-    <p>Each Holder project has its own Git repository: its source files and the recorded history of changes. Source code is the text programmers change to alter how an app works.</p>
+    <h2>Choose a component</h2>
     <p>Choose the part you want to change. You do not need to complete all three guides.</p>
     <p>The core and backend use Visual Studio. The desktop app uses MSYS2 UCRT64 instead.</p>
   </div>
@@ -81,6 +84,6 @@ cd $HOME\projects\holderteam</code></pre>
     <li>Push your commits to your fork, then open a pull request to the original HolderTeam repository. A pull request asks the maintainers to review and include your changes. Explain what changed and how you tested it, and complete the repository's contribution checklist.</li>
   </ol>
   <div class="section-head following-copy">
-    <p>GitHub's <a href="https://docs.github.com/en/get-started/exploring-projects-on-github/contributing-to-a-project">step-by-step contribution guide</a> explains forks, branches, commits, and pull requests. Each Holder repository also has a <code>CLA.md</code> contributor agreement linked from its pull request checklist; read it before submitting your contribution.</p>
+    <p>GitHub's <a href="https://docs.github.com/en/get-started/exploring-projects-on-github/contributing-to-a-project">step-by-step contribution guide</a> explains forks, branches, commits, and pull requests. Read the <code>CLA.md</code> contributor agreement at the root of the Holder repository before submitting your contribution.</p>
   </div>
 </section>

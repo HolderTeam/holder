@@ -10,8 +10,10 @@
 
   <meta name="description" content="{{ site.description }}">
   <meta name="theme-color" content="#151515">
-  <link rel="stylesheet" href="{{ '/assets/css/main.css' | relative_url }}">
+  {% assign main_css = site.static_files | where: 'path', '/assets/css/main.css' | first %}
+  <link rel="stylesheet" href="{{ '/assets/css/main.css' | relative_url }}?v={{ main_css.modified_time | date: '%s' }}">
   <script defer src="{{ '/assets/js/downloads.js' | relative_url }}"></script>
+  <script defer src="{{ '/assets/js/copy-code.js' | relative_url }}"></script>
 </head>
 
 <body>

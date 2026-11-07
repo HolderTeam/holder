@@ -468,12 +468,59 @@ pre + .section-head {
   color: var(--muted);
 }
 
-pre {
-  overflow-x: auto;
-  padding: 1rem;
+pre,
+.copyable-code {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: #101012;
+}
+
+pre {
+  overflow-x: auto;
+  padding: 1rem;
+}
+
+.copyable-code {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin: 1em 0;
+}
+
+.copyable-code pre {
+  grid-area: 1 / 1;
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+
+.code-copy-button {
+  grid-area: 1 / 2;
+  display: grid;
+  place-items: center;
+  align-self: start;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.code-copy-button:hover,
+.code-copy-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.code-copy-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 
 code {
