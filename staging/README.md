@@ -145,6 +145,12 @@ provenance is retained in `Holder.app/Contents/Resources/core-build.json`,
 `release/holder-core-provenance.json` and the release-candidate metadata.
 Explicit component run overrides support reproducible staging.
 
+Staging builds GTK with AccessKit using the shared recipe and replaces GTK only
+inside the app bundle. The workflow verifies the relocated AccessKit dependency
+and retains its licences and the source provenance in
+`Holder.app/Contents/Resources`. Before release, verify the staged app with
+VoiceOver, including menus, focus, dialogs, and editor text and caret movement.
+
 How to manually test a prerelease development version of Holder, aka a "staged copy".
 
 1. Go to the Mac OS staged app action:
@@ -180,5 +186,4 @@ https://github.com/HolderTeam/holder/actions/workflows/staging-macos-stage.yml
 `scripts/build-macos-accessible-gtk.sh` preserves the isolated GTK/AccessKit build
 recipe from PR #26. The desktop's opt-in `./make.sh access` mode uses it through
 the cache and runtime selector documented in `apps/desktop/gtk/README.md`.
-This script does not modify Homebrew packages. Staging and release defaults are
-unchanged; packaged accessibility remains tracked in issue #124.
+The same recipe serves macOS staging. Both paths leave Homebrew packages intact.

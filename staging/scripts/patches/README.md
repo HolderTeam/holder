@@ -6,6 +6,10 @@ constructing their internal text with the normal `LABEL` role instead of
 accessible label, matching ordinary `GtkButton` behavior. This fixes GTK's own
 name calculation as well as the native AccessKit output.
 
+[GTK MR !10510](https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/10510)
+landed the same code change with a name regression test. The fix is in GTK's
+`gtk-4-24` stable branch and shipped GTK 4.24.1 predates it.
+
 This replaces Holder's earlier AccessKit bridge workaround, which preserved
 plain text on a presentation label only in the backend. The normal-role change
 handles mnemonic stripping, markup, explicit name overrides and text updates
