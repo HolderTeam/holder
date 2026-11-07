@@ -133,7 +133,12 @@ public class MainWindow : Adw.ApplicationWindow {
 
         workspace = new WorkspacePane(search_store);
         workspace.file_dropped.connect((file, insertion_mark) => {
-            import_dropped_file.begin(file, insertion_mark);
+            // GDK on macOS dispatches the drop in a temporary thread-default
+            // context. Start the async import on the application's main loop.
+            Idle.add(() => {
+                import_dropped_file.begin(file, insertion_mark);
+                return Source.REMOVE;
+            });
         });
         editor_buffer = workspace.editor_buffer;
         editor_view = workspace.editor_view;
