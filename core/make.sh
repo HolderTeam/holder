@@ -313,7 +313,10 @@ coverage_all() {
   lcov --capture --directory "${build_dir}" --output-file "${info_tests}" \
     --ignore-errors gcov,gcov \
     --rc geninfo_unexecuted_blocks=1
-  lcov --add-tracefile "${info_base}" --add-tracefile "${info_tests}" --output-file "${info_total}"
+  # GCC can report covered lambda lines with zero function hits. Let lcov
+  # reconcile those counters during the merge, retaining warnings for review.
+  lcov --add-tracefile "${info_base}" --add-tracefile "${info_tests}" --output-file "${info_total}" \
+    --ignore-errors inconsistent
   lcov --remove "${info_total}" \
     '/usr/*' \
     '*/tests/*' \
