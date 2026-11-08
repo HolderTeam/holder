@@ -1,6 +1,7 @@
 #include "ai/AiMessageRepo.h"
 #include "ai/AiThreadRepo.h"
 #include "capi/Context.h"
+#include "capi/StorageProviders.h"
 #include "card/CardRepo.h"
 #include "card/CardPaths.h"
 #include "card/LinkMutation.h"
@@ -781,4 +782,87 @@ TEST_CASE(
   );
   REQUIRE(std::string(result->card->card_id) == live);
   REQUIRE(result->card->deleted_at == nullptr);
+}
+
+TEST_CASE("Generated storage callbacks preserve typed download, lookup and removal failures", "[capi][storage-failures]") {
+  Host host;
+  struct Failure {
+    int code = 0;
+    bool message = false;
+    static int fail(void* data, int* code, char** error) {
+      const auto& state = *static_cast<Failure*>(data);
+      *code = state.code;
+      if (state.message) {
+        constexpr char text[] = "provider failure";
+        *error = static_cast<char*>(std::malloc(sizeof(text)));
+        std::memcpy(*error, text, sizeof(text));
+      }
+      return 1;
+    }
+  };
+  // Registration owns this heap state; it remains valid until the next provider
+  // replacement, even when a REQUIRE aborts the test early.
+  auto owned = std::make_unique<Failure>();
+  auto* state = owned.get();
+  SECTION("callback supplies a message") { state->message = true; }
+  SECTION("callback supplies no message") { state->message = false; }
+  const holder_storage_provider_callbacks callbacks{
+      +[](void*, const char*, const char*, int64_t, const char*, int*, char**) {
+        return 0;
+      },
+      +[](void* data, const char*, const char*, int* code, char** error) {
+        return Failure::fail(data, code, error);
+      },
+      +[](void* data, const char*, int*, int* code, char** error) {
+        return Failure::fail(data, code, error);
+      },
+      +[](void* data, const char*, int* code, char** error) {
+        return Failure::fail(data, code, error);
+      }
+  };
+  REQUIRE(
+      holder_register_storage_provider(
+          HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE,
+          &callbacks,
+          owned.release(),
+          +[](void* data) {
+            delete static_cast<Failure*>(data);
+          },
+          &host.error
+      ) == HOLDER_OK
+  );
+  const auto provider = holder::capi::storage_provider(host.context, "s3_compatible");
+  using Code = holder::resource::StorageErrorCode;
+  const std::pair<int, Code> cases[] = {
+      {0, Code::Unavailable},
+      {1, Code::Authentication},
+      {2, Code::Permission},
+      {3, Code::Capacity},
+      {4, Code::Integrity},
+      {5, Code::Conflict},
+      {6, Code::InvalidConfiguration},
+      {7, Code::Transient},
+      {-1, Code::Unavailable},
+      {99, Code::Unavailable}
+  };
+  for (const auto& [code, expected] : cases) {
+    state->code = code;
+    for (int operation = 0; operation < 3; ++operation) {
+      bool caught = false;
+      try {
+        if (operation == 0) provider->get("object", host.dir / "destination");
+        if (operation == 1) (void)provider->exists("object");
+        if (operation == 2) provider->remove("object");
+      } catch (const holder::resource::StorageError& error) {
+        caught = true;
+        REQUIRE(error.code() == expected);
+        const std::string fallback = operation == 0   ? "storage get failed"
+                                     : operation == 1 ? "storage exists failed"
+                                                      : "storage remove failed";
+        REQUIRE(std::string(error.what()) == (state->message ? "provider failure" : fallback));
+      }
+      REQUIRE(caught);
+    }
+  }
+  REQUIRE_FALSE(std::filesystem::exists(host.dir / "destination"));
 }

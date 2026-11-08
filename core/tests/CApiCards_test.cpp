@@ -1395,3 +1395,218 @@ TEST_CASE(
       )) == HOLDER_ERROR_INVALID_ARGUMENT
   );
 }
+
+TEST_CASE("Generated C API rejects unknown input enums before mutating cards or projects", "[capi][enum-validation]") {
+  Fixture f;
+  const std::string id = f.create("Original", "Keep this body")->card_id;
+  int status = HOLDER_OK;
+  SECTION("partial update change tag") {
+    holder_card_update request{};
+    request.title = "Must not be saved";
+    request.parent_card_id.change = static_cast<holder_change>(3);
+    const holder_card* result = nullptr;
+    status = holder_update_card(
+        f.context,
+        f.project_id.c_str(),
+        id.c_str(),
+        &request,
+        f.arena,
+        &result,
+        &f.error
+    );
+    REQUIRE(result == nullptr);
+  }
+  SECTION("card reference scope") {
+    holder_card_reference_resolve_request request{
+        f.project_id.c_str(),
+        id.c_str(),
+        HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_MAX_ENUM
+    };
+    const holder_card_reference_resolve_data* result = nullptr;
+    status = holder_resolve_card_reference(f.context, &request, f.arena, &result, &f.error);
+    REQUIRE(result == nullptr);
+  }
+  SECTION("parent filter tag") {
+    const holder_list_cards_parent parent{HOLDER_LIST_CARDS_PARENT_MAX_ENUM, nullptr};
+    const holder_card_list_item_page* result = nullptr;
+    status = holder_list_cards(
+        f.context,
+        f.project_id.c_str(),
+        parent,
+        nullptr,
+        HOLDER_LIST_CARDS_ORDER_DEFAULT,
+        nullptr,
+        nullptr,
+        false,
+        false,
+        f.arena,
+        &result,
+        &f.error
+    );
+  }
+  SECTION("card order") {
+    const holder_list_cards_parent parent{HOLDER_LIST_CARDS_PARENT_NONE, nullptr};
+    const holder_card_list_item_page* result = nullptr;
+    status = holder_list_cards(
+        f.context,
+        f.project_id.c_str(),
+        parent,
+        nullptr,
+        HOLDER_LIST_CARDS_ORDER_MAX_ENUM,
+        nullptr,
+        nullptr,
+        false,
+        false,
+        f.arena,
+        &result,
+        &f.error
+    );
+  }
+  SECTION("trash child policy") {
+    const holder_card* result = nullptr;
+    status = holder_trash_card(
+        f.context,
+        f.project_id.c_str(),
+        id.c_str(),
+        HOLDER_TRASH_CARD_CHILDREN_MAX_ENUM,
+        f.arena,
+        &result,
+        &f.error
+    );
+  }
+  SECTION("backlink scope") {
+    const holder_link_list* result = nullptr;
+    status = holder_list_card_backlinks(
+        f.context,
+        f.project_id.c_str(),
+        id.c_str(),
+        HOLDER_LIST_CARD_BACKLINKS_SCOPE_MAX_ENUM,
+        false,
+        f.arena,
+        &result,
+        &f.error
+    );
+  }
+  SECTION("new link target type") {
+    holder_new_link request{};
+    request.target_id = id.c_str();
+    request.target_type = HOLDER_NEW_LINK_TARGET_TYPE_MAX_ENUM;
+    const holder_link* result = nullptr;
+    status = holder_add_card_link(
+        f.context,
+        f.project_id.c_str(),
+        id.c_str(),
+        &request,
+        f.arena,
+        &result,
+        &f.error
+    );
+  }
+  SECTION("removed link target type") {
+    const holder_link_list* result = nullptr;
+    status = holder_remove_card_link(
+        f.context,
+        f.project_id.c_str(),
+        id.c_str(),
+        HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_MAX_ENUM,
+        id.c_str(),
+        "ref",
+        nullptr,
+        f.arena,
+        &result,
+        &f.error
+    );
+  }
+  SECTION("project order") {
+    const holder_project_list_item_list* result = nullptr;
+    status = holder_list_projects(
+        f.context,
+        nullptr,
+        nullptr,
+        nullptr,
+        HOLDER_LIST_PROJECTS_ORDER_MAX_ENUM,
+        nullptr,
+        0,
+        false,
+        f.arena,
+        &result,
+        &f.error
+    );
+  }
+  SECTION("empty Trash type") {
+    const holder_trash_empty_result* result = nullptr;
+    status = holder_empty_trash(
+        f.context,
+        f.project_id.c_str(),
+        HOLDER_EMPTY_TRASH_TYPE_MAX_ENUM,
+        f.arena,
+        &result,
+        &f.error
+    );
+  }
+  SECTION("global Trash deletion type") {
+    const holder_trash_delete_result* result = nullptr;
+    status = holder_delete_trash_item(
+        f.context,
+        HOLDER_DELETE_TRASH_ITEM_TYPE_MAX_ENUM,
+        id.c_str(),
+        f.arena,
+        &result,
+        &f.error
+    );
+  }
+  SECTION("project Trash deletion type") {
+    const holder_trash_delete_result* result = nullptr;
+    status = holder_delete_project_trash_item(
+        f.context,
+        f.project_id.c_str(),
+        HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_MAX_ENUM,
+        id.c_str(),
+        f.arena,
+        &result,
+        &f.error
+    );
+  }
+  SECTION("new project privacy mode") {
+    holder_new_project request{};
+    request.name = "Must not exist";
+    request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_MAX_ENUM;
+    const holder_project* result = nullptr;
+    status = holder_create_project(f.context, &request, f.arena, &result, &f.error);
+  }
+  SECTION("restore privacy mode") {
+    holder_recovery_snapshot_restore request{};
+    request.project_name = "Must not exist";
+    request.privacy_mode = HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_MAX_ENUM;
+    request.snapshot = "unused";
+    request.commit_message = "unused";
+    const holder_project* result = nullptr;
+    status = holder_restore_recovery_snapshot(f.context, &request, f.arena, &result, &f.error);
+  }
+  REQUIRE(f.failed(status) == HOLDER_ERROR_INVALID_ARGUMENT);
+  const holder_card* current = nullptr;
+  REQUIRE(
+      holder_get_card(f.context, f.project_id.c_str(), id.c_str(), f.arena, &current, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(std::string(current->title) == "Original");
+  REQUIRE(std::string(current->content) == "Keep this body");
+  REQUIRE(current->deleted_at == nullptr);
+  const holder_project_list_item_list* projects = nullptr;
+  REQUIRE(
+      holder_list_projects(
+          f.context,
+          nullptr,
+          nullptr,
+          nullptr,
+          HOLDER_LIST_PROJECTS_ORDER_NONE,
+          nullptr,
+          0,
+          false,
+          f.arena,
+          &projects,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(projects->count == 1);
+}
