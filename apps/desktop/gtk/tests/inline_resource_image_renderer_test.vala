@@ -522,7 +522,8 @@ private void test_decorations_take_the_views_width_and_follow_it_when_it_changes
     int height;
     h.buttons()[0].get_size_request(out width, out height);
     assert(width == HolderLinux.InlineImageDecorationPlan.decoration_width(h.view.get_width()));
-    assert(width != HolderLinux.InlineImageDecorationPlan.FALLBACK_WIDTH);
+    // A real view width can produce the same value as FALLBACK_WIDTH (e.g.
+    // 640 - 80 == 560). The resize below verifies that the width follows the view.
     var wide = h.view.get_width();
 
     ((!) h.window).set_default_size(500, 700);

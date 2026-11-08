@@ -48,7 +48,7 @@ jobs:
 
       - name: Test SDK provenance and artifact selection
         shell: bash
-        run: python3 -m unittest discover -s sources/holder-framework/staging/tests -v
+        run: python3 -m unittest discover -s sources/holder-framework/release/staging/tests -v
 
       - name: Select development inputs or framework release pins
         id: pins
@@ -61,9 +61,9 @@ jobs:
         run: |
           options=()
           if [[ -n "$RELEASE_MANIFEST" ]]; then
-            options=(--release-manifest "sources/holder-framework/staging/$RELEASE_MANIFEST")
+            options=(--release-manifest "sources/holder-framework/release/staging/$RELEASE_MANIFEST")
           fi
-          python3 sources/holder-framework/staging/scripts/core-provenance.py prepare \
+          python3 sources/holder-framework/release/staging/scripts/core-provenance.py prepare \
             --platform windows "${options[@]}"
 
       - name: Resolve artifact run IDs
@@ -74,7 +74,7 @@ jobs:
           DESKTOP_RUN_ID_INPUT: ${{ steps.pins.outputs.desktop_run_id }}
           BACKEND_RUN_ID_INPUT: ${{ steps.pins.outputs.backend_run_id }}
           BACKEND_REPOSITORY: ${{ steps.pins.outputs.backend_repository }}
-        run: python3 sources/holder-framework/staging/scripts/resolve-component-runs.py --platform windows --build-type "${{ steps.pins.outputs.build_type }}"
+        run: python3 sources/holder-framework/release/staging/scripts/resolve-component-runs.py --platform windows --build-type "${{ steps.pins.outputs.build_type }}"
 
       - name: Check out the desktop's commit for its version and packaging files
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -125,9 +125,9 @@ jobs:
         run: |
           options=()
           if [[ -n "$RELEASE_MANIFEST" ]]; then
-            options=(--release-manifest "sources/holder-framework/staging/$RELEASE_MANIFEST")
+            options=(--release-manifest "sources/holder-framework/release/staging/$RELEASE_MANIFEST")
           fi
-          python3 sources/holder-framework/staging/scripts/core-provenance.py verify \
+          python3 sources/holder-framework/release/staging/scripts/core-provenance.py verify \
             --selection out/core-selection.json --platform windows \
             --backend-root downloads/backend --desktop-root downloads/desktop \
             --desktop-commit "$DESKTOP_COMMIT" --build-type "$BUILD_TYPE" \
@@ -195,10 +195,10 @@ jobs:
           Copy-Item "$desktopSourceDir\packaging\windows\Holder.iss" -Destination $packagingDir -Force
           Copy-Item "$desktopSourceDir\packaging\windows\Holder.ico" -Destination $packagingDir -Force
 
-          $version = (Get-Content "$desktopSourceDir\VERSION" -Raw).Trim()
+          $version = (Get-Content "sources/desktop/VERSION" -Raw).Trim()
           if ($env:PRODUCT_VERSION) { $version = $env:PRODUCT_VERSION }
           if ($env:RELEASE_MANIFEST) {
-            Copy-Item "sources/holder-framework/staging/$env:RELEASE_MANIFEST" -Destination "$releaseDir/holder-framework-release.json"
+            Copy-Item "sources/holder-framework/release/staging/$env:RELEASE_MANIFEST" -Destination "$releaseDir/holder-framework-release.json"
           }
           $metadataPath = Join-Path $releaseDir "release-candidate.json"
           $metadata = [ordered]@{
@@ -408,7 +408,7 @@ jobs:
           }
 
           if ($env:RELEASE_MANIFEST) {
-            $expected = "sources/holder-framework/staging/$env:RELEASE_MANIFEST"
+            $expected = "sources/holder-framework/release/staging/$env:RELEASE_MANIFEST"
             $installed = Join-Path $installDir "release/holder-framework-release.json"
             if ((Get-FileHash $expected).Hash -ne (Get-FileHash $installed).Hash) {
               throw "Installed framework release manifest differs from selected pins"
@@ -665,7 +665,7 @@ jobs:
           }
 
           if ($env:RELEASE_MANIFEST) {
-            $expected = "sources/holder-framework/staging/$env:RELEASE_MANIFEST"
+            $expected = "sources/holder-framework/release/staging/$env:RELEASE_MANIFEST"
             $installed = Join-Path $installDir "release/holder-framework-release.json"
             if ((Get-FileHash $expected).Hash -ne (Get-FileHash $installed).Hash) {
               throw "Installed framework release manifest differs from selected pins"

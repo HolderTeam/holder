@@ -453,8 +453,11 @@ private void test_manual_runner_validation_failure_and_switch_update() {
     var switches = new Gee.ArrayList<Gtk.Switch>();
     collect_switches(view.widget, switches);
     assert(switches.size == 1);
+    api.slow_list_ai_runtime_providers_once = true;
     switches[0].set_active(false);
-    assert(wait_for_condition(() => api.update_ai_runner_calls == 1));
+    assert(wait_for_condition(() => api.update_ai_runner_calls == 1
+        && api.get_ai_local_model_config_calls == 2
+        && find_button_with_label(view.widget, "Delete") != null));
     assert(api.last_ai_runner_id == "r1");
     assert(!api.last_ai_runner_enabled);
 
@@ -482,9 +485,13 @@ private void test_manual_runner_create_update_delete() {
     assert(add_url_entry != null);
     ((!) add_name_entry).set_text(" New Runner ");
     ((!) add_url_entry).set_text(" http://new:11434 ");
+    // Force the mutation to finish before its refresh, as can happen on CI.
+    api.slow_list_ai_runtime_providers_once = true;
     ((!) find_button_with_label(view.widget, "Add Runner")).clicked();
 
-    assert(wait_for_condition(() => api.create_ai_runner_calls == 1));
+    assert(wait_for_condition(() => api.create_ai_runner_calls == 1
+        && api.get_ai_local_model_config_calls == 2
+        && find_entry_with_text(view.widget, "Runner One") != null));
     assert(api.last_ai_runner_name == "New Runner");
     assert(api.last_ai_runner_base_url == "http://new:11434");
     assert(api.last_ai_runner_enabled);
@@ -496,17 +503,23 @@ private void test_manual_runner_create_update_delete() {
     assert(edit_url_entry != null);
     ((!) edit_name_entry).set_text("Runner Two");
     ((!) edit_url_entry).set_text("http://updated:11434");
+    api.slow_list_ai_runtime_providers_once = true;
     ((!) find_button_with_label(view.widget, "Save")).clicked();
 
-    assert(wait_for_condition(() => api.update_ai_runner_calls == 1));
+    assert(wait_for_condition(() => api.update_ai_runner_calls == 1
+        && api.get_ai_local_model_config_calls == 3
+        && find_button_with_label(view.widget, "Delete") != null));
     assert(api.last_ai_runner_id == "r1");
     assert(api.last_ai_runner_name == "Runner Two");
     assert(api.last_ai_runner_base_url == "http://updated:11434");
     assert(api.last_ai_runner_enabled);
     assert(debug_line == "Updated AI runner: r1");
 
+    api.slow_list_ai_runtime_providers_once = true;
     ((!) find_button_with_label(view.widget, "Delete")).clicked();
-    assert(wait_for_condition(() => api.delete_ai_runner_calls == 1));
+    assert(wait_for_condition(() => api.delete_ai_runner_calls == 1
+        && api.get_ai_local_model_config_calls == 4
+        && find_entry_with_text(view.widget, "Runner One") != null));
     assert(api.last_ai_runner_id == "r1");
     assert(debug_line == "Deleted AI runner: r1");
 }

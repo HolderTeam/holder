@@ -1,10 +1,11 @@
 [build-system]
 requires = ["hatchling>=1.27"]
-build-backend = "hatchling.build"
+build-backend = "backend"
+backend-path = ["_build_backend"]
 
 [project]
 name = "holder-python"
-version = "0.2.5"
+dynamic = ["version"]
 description = "Control your knowledge using Python"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -24,6 +25,14 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/holder"]
+
+[tool.hatch.version]
+path = "VERSION"
+pattern = '(?P<version>\S+)'
+
+[tool.hatch.build.targets.sdist.force-include]
+VERSION = "VERSION"
+"_build_support.py" = "_build_support.py"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

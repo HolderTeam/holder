@@ -37,7 +37,8 @@ sudo apt install -y \
   meson ninja-build pkg-config valac \
   libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev \
   libspelling-1-dev \
-  libgee-0.8-dev libsoup-3.0-dev libjson-glib-dev libvte-2.91-gtk4-dev
+  libgee-0.8-dev libsoup-3.0-dev libjson-glib-dev libvte-2.91-gtk4-dev \
+  at-spi2-core dbus-x11 xvfb
 ```
 
 Fresh macOS setup:
@@ -67,8 +68,17 @@ to use Homebrew GTK directly.
 
 Fresh Fedora setup:
 ```bash
-sudo dnf install xorg-x11-server-Xvfb
+sudo dnf install xorg-x11-server-Xvfb at-spi2-core dbus-daemon
 ```
+
+On Linux, `./make.sh` launches with GTK's standard AT-SPI accessibility backend
+enabled. `./make.sh test` and `./make.sh coverage` also enable AT-SPI, using Xvfb
+and a private D-Bus session so the accessibility bus does not depend on the
+developer's desktop session. The distribution GTK package supplies the backend;
+no custom GTK build is needed. Direct `meson test` runs enable AT-SPI too and
+need a working accessibility bus. On a headless machine, use
+`GDK_BACKEND=x11 xvfb-run -a dbus-run-session -- python3 integration/run.py --headless-child meson test -C build`
+to start the AT-SPI services using the same runner as the Behave suite.
 
 Configure, build, and test on macOS:
 
@@ -170,7 +180,7 @@ On macOS, install the development dependencies above plus Rust (`brew install
 rust`) and Xcode Command Line Tools (`xcode-select --install`). First use needs
 network access and builds an isolated copy of the Homebrew-selected GTK source
 with AccessKit C 0.18.0. Preparation can take several minutes. The shared recipe
-is `../../../staging/scripts/build-macos-accessible-gtk.sh`, taken from PR #26;
+is `../../../release/staging/scripts/build-macos-accessible-gtk.sh`, taken from PR #26;
 source archives are checksum verified. The recipe builds into a separate
 directory and macOS staging uses the same recipe for the packaged app.
 
@@ -209,7 +219,7 @@ permissions. The shared recipe patches GTK's internal menu label to use its
 normal `LABEL` role, preserving the existing `labelled-by` relation and matching
 ordinary GTK buttons. This replaces the earlier AccessKit bridge workaround;
 the new patch name and checksum select a fresh runtime cache and are retained
-in source provenance. See `../../../staging/scripts/patches/README.md`.
+in source provenance. See `../../../release/staging/scripts/patches/README.md`.
 
 The launcher sets `GTK_A11Y=accesskit` and `DYLD_LIBRARY_PATH` immediately before
 executing the native Holder binary. Do not put `/bin/sh`, `/usr/bin/env`, or

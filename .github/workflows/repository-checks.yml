@@ -1,7 +1,7 @@
 name: Repository / Checks
 
-# Fast checks about the repository as a whole, on every pull request. Today: every component has
-# the version in the root VERSION (release/scripts/version.py), and nothing outside contract/ uses
+# Fast checks about the repository as a whole, on every pull request: version source/export tests,
+# Python package metadata, and nothing outside contract/ uses
 # the contract's tooling (.github/scripts/check-contract-boundary.py).
 
 on:
@@ -22,9 +22,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Test the version tool
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Install Python build backends for distribution checks
+        run: python3 -m pip install 'build>=1.2,<2' 'hatchling>=1.27' 'scikit-build-core>=0.11'
+      - name: Test version derivation and source distributions
         run: python3 -m unittest discover -s release/tests -v
-      - name: Check that every component has the root VERSION
+      - name: Check dynamic Python metadata and root VERSION
         run: python3 release/scripts/version.py --check
       - name: Check that only contract/ uses the contract's tooling
         run: python3 .github/scripts/check-contract-boundary.py

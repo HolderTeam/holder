@@ -63,7 +63,27 @@ def git_archive(directory, prefix, mtime=None):
     command = ["git", "archive", "--format=tar", f"--prefix={prefix}"]
     if mtime:
         command.append(f"--mtime={mtime}")
-    return subprocess.run(command + [f"HEAD:{directory}"], check=True, capture_output=True).stdout
+    data = subprocess.run(command + [f"HEAD:{directory}"], check=True, capture_output=True).stdout
+    if directory not in ('core', 'python/kit', 'python/holder'):
+        return data
+    # Standalone source archives receive the root version and any shared build
+    # helper from the same committed revision as their component source.
+    generated = {'VERSION': subprocess.run(['git', 'show', 'HEAD:VERSION'], check=True, capture_output=True).stdout}
+    if directory.startswith('python/'):
+        generated['_build_support.py'] = subprocess.run(
+            ['git', 'show', 'HEAD:python/_build_support.py'], check=True, capture_output=True).stdout
+    result = io.BytesIO()
+    with tarfile.open(fileobj=io.BytesIO(data)) as source, tarfile.open(fileobj=result, mode='w') as target:
+        timestamp = 0
+        for member in source:
+            timestamp = member.mtime
+            if member.name.rstrip('/') not in {prefix + name for name in generated}:
+                target.addfile(member, source.extractfile(member) if member.isfile() else None)
+        for name, content in generated.items():
+            member = tarfile.TarInfo(prefix + name)
+            member.size, member.mode, member.mtime = len(content), 0o644, timestamp
+            target.addfile(member, io.BytesIO(content))
+    return result.getvalue()
 
 
 def contents(tar_bytes):
@@ -82,9 +102,11 @@ def main(argv=None):
     parser.add_argument("--version", required=True)
     parser.add_argument("--directory", required=True, help="the package's directory in the repository")
     parser.add_argument("--output", required=True)
+    parser.add_argument('--local', action='store_true',
+                        help='build an unpublished archive without querying Launchpad (PR checks)')
     args = parser.parse_args(argv)
     prefix = f"{args.source}-{args.version}/"
-    url = published_orig_url(args.source, args.version)
+    url = None if args.local else published_orig_url(args.source, args.version)
     if url:
         published = fetch(url, timeout=300)
         expected = contents(git_archive(args.directory, prefix))

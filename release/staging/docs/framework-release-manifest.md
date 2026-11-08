@@ -2,7 +2,8 @@
 
 Development staging follows the latest Daemon CI run on main. For an RC or production release,
 commit one manifest and pass the same `release_manifest` path to all three
-staging workflows. Each reads its platform entry, uses the shared product
+staging workflows. The path is relative to `release/staging/` (for example,
+`release-manifests/0.2.5.json`). Each reads its platform entry, uses the shared product
 version/core pin, and bundles the original manifest in the package.
 
 `release-manifests/validation-0.2.1-rc.1.json` pins the branch artifacts used to
@@ -44,7 +45,7 @@ Replace placeholders with full lowercase commit SHAs and numeric run IDs.
 The same Daemon CI run supplies all three platform backends, and the same
 Desktop / CI run all three desktops. The desktop and the backend must come from
 the same repository, and the desktop run must be built from the same
-`apps/desktop/` source as the backend's commit; each entry is also checked
+`apps/desktop/` source and root `VERSION` as the backend's commit; each entry is also checked
 against its selected run and build metadata.
 
 A Release manifest selects artifact names ending in `-release` and rejects

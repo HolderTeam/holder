@@ -4,7 +4,7 @@
 The backend comes from a Daemon CI run. The desktop comes from a Desktop / CI run in the same
 repository, built from the same apps/desktop/ source as the backend's commit: the two commits
 may differ (Desktop / CI runs on main only when the desktop changes), but the desktop's Git tree
-must not. Without a desktop run ID, the newest such run is chosen."""
+must not; the root product version must match too. Without a desktop run ID, the newest such run is chosen."""
 import argparse
 import json
 import os
@@ -69,14 +69,27 @@ def backend_workflow(repository):
     return "daemon-integration.yml" if repository == "HolderTeam/holder-core" else "daemon-ci.yml"
 
 
+def version_blob(repository, commit, request=api):
+    tree = request(f"repos/{repository}/commits/{commit}")["commit"]["tree"]["sha"]
+    entries = request(f"repos/{repository}/git/trees/{tree}")["tree"]
+    version = next((entry['sha'] for entry in entries
+                    if entry['path'] == 'VERSION' and entry['type'] == 'blob'), None)
+    if version is None:
+        raise ValueError(f'{repository}@{commit} has no root VERSION')
+    return version
+
+
 def select(platform, build_type, repository, branch, desktop_run="", backend_run="", request=api):
     suffix = "-release" if build_type == "Release" else ""
     desktop_artifact, backend_artifact = (name + suffix for name in ARTIFACTS[platform])
     backend_id, backend_sha = resolve(repository, backend_workflow(repository), branch, backend_artifact,
                                       backend_run, request)
     tree = subtree(repository, backend_sha, DESKTOP_PATH, request)
+    version = version_blob(repository, backend_sha, request)
     desktop_id, desktop_sha = resolve(repository, "desktop-ci.yml", branch, desktop_artifact, desktop_run, request,
-                                      accept=lambda sha: sha == backend_sha or subtree(repository, sha, DESKTOP_PATH, request) == tree)
+                                      accept=lambda sha: sha == backend_sha or (
+                                          subtree(repository, sha, DESKTOP_PATH, request) == tree
+                                          and version_blob(repository, sha, request) == version))
     return {"backend_run_id": backend_id, "backend_commit": backend_sha, "backend_artifact": backend_artifact,
             "desktop_run_id": desktop_id, "desktop_commit": desktop_sha, "desktop_artifact": desktop_artifact,
             "desktop_tree": tree}

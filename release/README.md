@@ -1,10 +1,15 @@
 # Release
 
-Signing, promotion and publishing of Holder release assets.
+Candidate staging, signing, promotion and publishing of Holder release assets.
+
+Start with the [release runbook](docs/runbook.md) for the current end-to-end
+candidate, validation, publication and recovery procedure. It identifies the
+remaining manual handoffs, to be validated through the next release using this procedure.
 
 The workflows are in `.github/workflows/` (`sign-*` and `promote-*`), as GitHub requires. This directory holds what they use:
 
 - `docs/` - how release signing and verification work.
+- `staging/` - assembles and checks platform release candidates, including their pinned manifests and shared GTK accessibility build recipe. See its [README](staging/README.md).
 - `keys/` - the public signing key that releases are checked against.
 - `scripts/` - the helpers the workflows call to verify and sign artifacts.
 - `website/` - the website, [www.holder.team](https://www.holder.team/): downloads, guides and the desktop update feed. See its README.
@@ -15,7 +20,10 @@ The `Release / Promote Windows dev build` workflow can publish a self-signed Win
 
 This is for prerelease testing only. It does not replace the final Windows signing path.
 
-Given a `holder-v<version>` release tag, it adds the installer to that draft release, creating the draft if no other promotion has, as the Linux and core SDK promotions do. Without one, it publishes a tester prerelease under its own `holder-windows-dev-<staging run>` tag.
+Given a `holder-v<version>` release tag, it adds the installer to that draft,
+creating a draft if needed. Without an explicit tag, it publishes a development
+prerelease under its own `holder-windows-dev-<staging run>` tag. Core SDK promotion
+publishes separately to `HolderTeam/holder-sdk`.
 
 ## Linux AppImage release candidates
 
