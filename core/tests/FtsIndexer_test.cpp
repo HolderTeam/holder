@@ -471,3 +471,27 @@ TEST_CASE("FtsIndexer reports an invalid search query apart from storage failure
   CHECK_FALSE(query_error);
   REQUIRE_THROWS_AS(fts.search_messages("proj-1", "term", 10, 0), std::runtime_error);
 }
+
+TEST_CASE(
+    "FtsIndexer body lookup distinguishes missing rows from empty and Unicode bodies",
+    "[fts][body-lookup]"
+) {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  holder::index::FtsIndexer fts(db);
+  REQUIRE_FALSE(fts.get_body("missing"));
+  fts.upsert_card("body-card", "proj-1", "Title", "Résumé — 日本語\nSecond line");
+  REQUIRE(fts.get_body("body-card") == "Résumé — 日本語\nSecond line");
+  fts.upsert_card("body-card", "proj-1", "Title", "");
+  REQUIRE(fts.get_body("body-card").has_value());
+  REQUIRE(fts.get_body("body-card")->empty());
+  db.exec(
+      "INSERT INTO cards_fts(card_id, project_id, title, body) VALUES('null-body', 'proj-1', 'Title', NULL);"
+  );
+  REQUIRE(fts.get_body("null-body").has_value());
+  REQUIRE(fts.get_body("null-body")->empty());
+  fts.delete_card("body-card");
+  REQUIRE_FALSE(fts.get_body("body-card"));
+}
