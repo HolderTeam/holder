@@ -125,9 +125,11 @@ run_gui_tests() {
     # GTK popovers need a display with a stable monitor layout. Use an isolated
     # display so tests do not depend on the developer's desktop arrangement.
     # Force X11: GTK can otherwise discover the desktop's Wayland socket even
-    # when xvfb-run sets DISPLAY. Match CI's headless rendering settings too.
-    GDK_BACKEND=x11 GTK_A11Y=none GSK_RENDERER=cairo GSETTINGS_BACKEND=memory \
-      xvfb-run -a meson test -C "${dir}" --print-errorlogs
+    # when xvfb-run sets DISPLAY. A private D-Bus session lets AT-SPI activate
+    # without depending on the developer's desktop accessibility bus.
+    GDK_BACKEND=x11 GTK_A11Y=atspi NO_AT_BRIDGE=0 GSK_RENDERER=cairo GSETTINGS_BACKEND=memory \
+      xvfb-run -a dbus-run-session -- python3 integration/run.py --headless-child \
+        meson test -C "${dir}" --print-errorlogs
   else
     GSETTINGS_BACKEND=memory meson test -C "${dir}" --print-errorlogs
   fi
@@ -162,6 +164,9 @@ run_app() {
     echo "Using ${HOLDER_CTL} to start the backend (set HOLDER_CTL to use another)."
   fi
   local -a launch=("./${BUILD_DIR}/holder-desktop")
+  if [[ "${SYSTEM}" == Linux ]]; then
+    launch=(python3 scripts/accessible_runtime.py run "${launch[@]}")
+  fi
   if [[ -n "${ACCESSIBLE_RUNTIME}" ]]; then
     launch=(python3 scripts/accessible_runtime.py --prepared-runtime "${ACCESSIBLE_RUNTIME}" run "${launch[@]}")
   elif [[ "${MODE}" == access ]]; then

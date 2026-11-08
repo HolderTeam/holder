@@ -64,6 +64,10 @@ test_home_dir = meson.current_build_dir() / 'test-home'
 test_env.set('GSETTINGS_BACKEND', 'memory')
 test_env.set('GSETTINGS_SCHEMA_DIR', meson.current_build_dir() / 'data')
 test_env.set('HOLDER_DESKTOP_TEST_PLATFORM', host_machine.system())
+if host_machine.system() == 'linux'
+  test_env.set('GTK_A11Y', 'atspi')
+  test_env.set('NO_AT_BRIDGE', '0')
+endif
 test_env.set('XDG_CACHE_HOME', test_home_dir / 'cache')
 test_env.set('XDG_CONFIG_HOME', test_home_dir / 'config')
 test_env.set('XDG_DATA_HOME', test_home_dir / 'data')
@@ -3459,7 +3463,7 @@ markdown_resource_images_test_env.set(
   'HOLDER_MARKDOWN_LANGUAGE_DIR',
   meson.project_source_root() / 'data' / 'gtksourceview-5' / 'language-specs',
 )
-if host_machine.system() != 'darwin'
+if host_machine.system() not in ['darwin', 'linux']
   markdown_resource_images_test_env.set('GTK_A11Y', 'none')
 endif
 test(
@@ -3491,7 +3495,7 @@ inline_resource_image_renderer_test_exe = executable(
 )
 
 inline_resource_image_renderer_test_env = environment()
-if host_machine.system() != 'darwin'
+if host_machine.system() not in ['darwin', 'linux']
   inline_resource_image_renderer_test_env.set('GTK_A11Y', 'none')
 endif
 test(

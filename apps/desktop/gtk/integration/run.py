@@ -328,7 +328,10 @@ class Runner:
 
 
 def run_headless_child(behave_cmd: list[str]) -> int:
-    """Run dogtail with an accessibility bus inside the private D-Bus session."""
+    """Run tests with an accessibility bus inside the private D-Bus session.
+
+    Shared by the Meson widget tests and the dogtail/Behave suite.
+    """
     locations = (
         ("/usr/libexec/at-spi-bus-launcher", "/usr/libexec/at-spi2-registryd"),
         ("/usr/lib/at-spi2-core/at-spi-bus-launcher", "/usr/lib/at-spi2-core/at-spi2-registryd"),
