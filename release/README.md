@@ -1,10 +1,11 @@
 # Release
 
-Signing, promotion and publishing of Holder release assets.
+Candidate staging, signing, promotion and publishing of Holder release assets.
 
 The workflows are in `.github/workflows/` (`sign-*` and `promote-*`), as GitHub requires. This directory holds what they use:
 
 - `docs/` - how release signing and verification work.
+- `staging/` - assembles and checks platform release candidates, including their pinned manifests and shared GTK accessibility build recipe. See its [README](staging/README.md).
 - `keys/` - the public signing key that releases are checked against.
 - `scripts/` - the helpers the workflows call to verify and sign artifacts.
 - `website/` - the website, [www.holder.team](https://www.holder.team/): downloads, guides and the desktop update feed. See its README.
