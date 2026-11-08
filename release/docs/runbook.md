@@ -45,7 +45,7 @@ release notes and website instead of implying a complete stable platform set.
 ## 2. Prepare and freeze the source
 
 Merge the intended product changes and version update through normal review.
-The version setter updates only root `VERSION`. Native builds and both Python
+The version setter updates only root `VERSION`. Native builds, Android and both Python
 packages read it directly in a checkout. Python source distributions include
 generated version/build metadata; other exported source trees receive it during
 source preparation:
@@ -57,8 +57,12 @@ python3 release/scripts/version.py --check
 
 The setter currently accepts numeric `major.minor.patch` release versions.
 Use candidate numbers and branches while preparing a release; no separate RC
-version scheme is required. Root-only version derivation is tracked in
-[#130](https://github.com/HolderTeam/holder/issues/130).
+version scheme is required. Android derives `versionCode` as
+`major * 1000000 + minor * 1000 + patch` (major 0–2099, minor/patch 0–999,
+positive result); debug builds append `-debug` to the displayed version.
+Every published Android release needs a greater product version/code; rebuilding
+the same product version retains its code. See [#130](https://github.com/HolderTeam/holder/issues/130)
+for the full artifact version audit.
 
 Product version and HTTP compatibility are different contracts. Review
 `api/API_VERSION` and `apps/desktop/gtk/compatibility/daemon-api.json` separately;

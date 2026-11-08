@@ -10,6 +10,21 @@ For Android, the first goal is not desktop feature parity. The phone should make
 A persistent search bar can sit at the top of many primary views. Most other interactions can use full-screen phone views rather than trying to reproduce the desktop layout.
 
 
+## Version
+
+Gradle reads the repository-root `VERSION` for `versionName`; debug builds append
+`-debug`. The APK's `versionCode` is `major * 1000000 + minor * 1000 + patch`:
+0.2.6 produces 2006, above the previous code 2. Major must be 0–2099, minor and
+patch 0–999, and the result positive. These bounds preserve numeric release
+ordering and stay below [Google Play's version-code limit](https://developer.android.com/studio/publish/versioning#version-settings). Each published release
+must increase the product version; a rebuild of the same version retains its code.
+Missing, unsupported or out-of-range versions fail configuration.
+
+`python3 scripts/test-product-version.py` checks the production Gradle script,
+including root-only changes with the configuration cache enabled. CI also checks
+the version in the built APK's binary manifest with
+`release/scripts/check-android-apk.py`.
+
 ## Local Development
 
 The app embeds [core](../../../core/README.md) through its stable C API. Native

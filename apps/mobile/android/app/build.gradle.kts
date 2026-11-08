@@ -7,6 +7,10 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+apply(from = rootProject.file("gradle/product-version.gradle.kts"))
+val holderProductVersion = extra["holderProductVersion"] as String
+val holderProductVersionCode = extra["holderProductVersionCode"] as Int
+
 // Core is built from source from core/ in this repository, the same commit as the app. The app
 // uses only its generated C API (holder/holder_api.h); its schema is packaged as an asset.
 val holderCoreDir = rootProject.projectDir.resolve("../../../core").canonicalFile
@@ -52,8 +56,8 @@ android {
         applicationId = "team.holder.android"
         minSdk = 28
         targetSdk = 37
-        versionCode = 2
-        versionName = "0.2.0-dev"
+        versionCode = holderProductVersionCode
+        versionName = holderProductVersion
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
