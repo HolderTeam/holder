@@ -21,6 +21,11 @@ fi
 SYSTEM="$(uname -s)"
 ACCESSIBLE_RUNTIME=""
 
+if [[ "${SYSTEM}" == Linux ]]; then
+  # Keep GTK startup independent of broken desktop themes, including in tests.
+  export GTK_THEME="${GTK_THEME:-Adwaita}"
+fi
+
 setup_build() {
   local dir="$1"
   shift
