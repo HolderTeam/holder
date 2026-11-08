@@ -1,4 +1,5 @@
 #include "core_test_helpers.h"
+#include "git/GitRepo.h"
 
 #include <holder/holder_api.h>
 
@@ -448,4 +449,66 @@ TEST_CASE(
   );
   REQUIRE_FALSE(std::filesystem::exists(git_dir));
   REQUIRE(std::filesystem::is_directory(moved));
+}
+
+TEST_CASE(
+    "Generated project history filters each object kind even without display metadata",
+    "[capi][history-filters]"
+) {
+  HistoryFixture f;
+  const holder_project* project = nullptr;
+  REQUIRE(
+      holder_get_project(f.context, f.project.c_str(), f.arena, &project, &f.error) == HOLDER_OK
+  );
+  holder::git::GitRepo repo;
+  repo.open_existing(project->root_path);
+  // Historical files can predate the current format. Their paths must still be
+  // listed and filtered when optional display metadata cannot be decoded.
+  for (const auto* path :
+       {"resources/ab/cd/abcd-resource.json",
+        "locations/ab/cd/abcd-location.json",
+        "ai_threads/ab/cd/abcd-thread.json",
+        "unrecognised.txt"}) {
+    repo.write_file(path, "{}\n");
+    repo.stage_path(path);
+    repo.commit(std::string("Add historical object ") + path);
+  }
+  struct Kind {
+    holder_list_project_history_kind filter;
+    holder_history_affected_object_kind result;
+  };
+  const Kind kinds[] = {
+      {HOLDER_LIST_PROJECT_HISTORY_KIND_CARD, HOLDER_HISTORY_AFFECTED_OBJECT_KIND_CARD},
+      {HOLDER_LIST_PROJECT_HISTORY_KIND_RESOURCE, HOLDER_HISTORY_AFFECTED_OBJECT_KIND_RESOURCE},
+      {HOLDER_LIST_PROJECT_HISTORY_KIND_LOCATION, HOLDER_HISTORY_AFFECTED_OBJECT_KIND_LOCATION},
+      {HOLDER_LIST_PROJECT_HISTORY_KIND_AI_DATA, HOLDER_HISTORY_AFFECTED_OBJECT_KIND_AI_DATA},
+      {HOLDER_LIST_PROJECT_HISTORY_KIND_PROJECT_SETTINGS,
+       HOLDER_HISTORY_AFFECTED_OBJECT_KIND_PROJECT_SETTINGS},
+      {HOLDER_LIST_PROJECT_HISTORY_KIND_UNKNOWN, HOLDER_HISTORY_AFFECTED_OBJECT_KIND_UNKNOWN}
+  };
+  for (const auto& kind : kinds) {
+    const holder_project_history_page* page = nullptr;
+    REQUIRE(
+        holder_list_project_history(
+            f.context,
+            f.project.c_str(),
+            nullptr,
+            nullptr,
+            kind.filter,
+            f.arena,
+            &page,
+            &f.error
+        ) == HOLDER_OK
+    );
+    REQUIRE(page->activities.count > 0);
+    for (size_t i = 0; i < page->activities.count; ++i) {
+      const auto& objects = page->activities.items[i].affected_objects;
+      REQUIRE(objects.count > 0);
+      for (size_t j = 0; j < objects.count; ++j) {
+        REQUIRE(objects.items[j].kind == kind.result);
+        REQUIRE(objects.items[j].items.count > 0);
+        REQUIRE(objects.items[j].paths.count == objects.items[j].items.count);
+      }
+    }
+  }
 }

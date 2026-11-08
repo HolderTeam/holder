@@ -1320,3 +1320,78 @@ TEST_CASE(
   REQUIRE(next->items.count == 1);
   REQUIRE(std::string(next->items.items[0].card_id) != first->items.items[0].card_id);
 }
+
+TEST_CASE(
+    "Generated card move intents preserve sibling order and reject impossible moves",
+    "[capi][move-intents]"
+) {
+  Fixture f;
+  const std::string a = f.create("A")->card_id;
+  const std::string b = f.create("B")->card_id;
+  const std::string c = f.create("C")->card_id;
+  auto move =
+      [&](holder_card_move_intent intent, const std::string& id, const char* target = nullptr) {
+        holder_card_move request{};
+        request.intent = intent;
+        request.target_card_id = target;
+        const holder_card* result = nullptr;
+        REQUIRE(
+            holder_move_card(
+                f.context,
+                f.project_id.c_str(),
+                id.c_str(),
+                &request,
+                f.arena,
+                &result,
+                &f.error
+            ) == HOLDER_OK
+        );
+        REQUIRE(std::string(result->card_id) == id);
+        return result;
+      };
+  const holder_list_cards_parent roots{HOLDER_LIST_CARDS_PARENT_ROOTS, nullptr};
+  auto order = [&]() {
+    const auto* page =
+        f.list(roots, nullptr, nullptr, false, false, HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC);
+    std::vector<std::string> ids;
+    for (size_t i = 0; i < page->items.count; ++i)
+      ids.emplace_back(page->items.items[i].card_id);
+    return ids;
+  };
+  move(HOLDER_CARD_MOVE_INTENT_BEFORE, c, a.c_str());
+  REQUIRE(order() == std::vector<std::string>{c, a, b});
+  move(HOLDER_CARD_MOVE_INTENT_AFTER, c, b.c_str());
+  REQUIRE(order() == std::vector<std::string>{a, b, c});
+  move(HOLDER_CARD_MOVE_INTENT_LEFT, c);
+  REQUIRE(order() == std::vector<std::string>{a, c, b});
+  move(HOLDER_CARD_MOVE_INTENT_RIGHT, c);
+  REQUIRE(order() == std::vector<std::string>{a, b, c});
+  REQUIRE(std::string(move(HOLDER_CARD_MOVE_INTENT_INTO, c, a.c_str())->parent_card_id) == a);
+  REQUIRE(move(HOLDER_CARD_MOVE_INTENT_UP_LEVEL, c)->parent_card_id == nullptr);
+  holder_card_move invalid{};
+  invalid.intent = HOLDER_CARD_MOVE_INTENT_UP_LEVEL;
+  const holder_card* result = nullptr;
+  REQUIRE(
+      f.failed(holder_move_card(
+          f.context,
+          f.project_id.c_str(),
+          a.c_str(),
+          &invalid,
+          f.arena,
+          &result,
+          &f.error
+      )) == HOLDER_ERROR_INVALID_MOVE
+  );
+  invalid.intent = HOLDER_CARD_MOVE_INTENT_INTO;
+  REQUIRE(
+      f.failed(holder_move_card(
+          f.context,
+          f.project_id.c_str(),
+          a.c_str(),
+          &invalid,
+          f.arena,
+          &result,
+          &f.error
+      )) == HOLDER_ERROR_INVALID_ARGUMENT
+  );
+}

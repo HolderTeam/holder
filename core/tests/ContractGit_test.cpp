@@ -11,6 +11,8 @@
 #include "git/GitOps.h"
 
 #include <git2.h>
+#include <holder/holder_api.h>
+#include <memory>
 
 #include <filesystem>
 #include <string>
@@ -203,6 +205,43 @@ TEST_CASE(
     REQUIRE(state.last_sync_error == "remote refused the push");
     REQUIRE(state.last_push_at == std::nullopt);
   }
+  const holder_push_phase_status statuses[] = {
+      HOLDER_PUSH_PHASE_STATUS_AUTH_FAILED,
+      HOLDER_PUSH_PHASE_STATUS_NOT_FOUND,
+      HOLDER_PUSH_PHASE_STATUS_NETWORK_ERROR,
+      HOLDER_PUSH_PHASE_STATUS_NON_FAST_FORWARD,
+      HOLDER_PUSH_PHASE_STATUS_REMOTE_UNSET,
+      HOLDER_PUSH_PHASE_STATUS_UNKNOWN_ERROR
+  };
+  const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
+      holder_arena_new(),
+      holder_arena_free
+  );
+  size_t index = 0;
+  for (const auto& [core, api] : cases) {
+    remote.push_result = {core, 3, 2, "saved-head", "remote refused the push"};
+    const holder_sync_result* result = nullptr;
+    holder_push_options options{};
+    holder_error* error = nullptr;
+    const auto status = holder_push_project(
+        &host.context,
+        host.project_id.c_str(),
+        &options,
+        arena.get(),
+        &result,
+        &error
+    );
+    const std::unique_ptr<holder_error, decltype(&holder_error_destroy)> owned_error(
+        error,
+        holder_error_destroy
+    );
+    REQUIRE(status == HOLDER_OK);
+    REQUIRE(error == nullptr);
+    REQUIRE(result->push.status == statuses[index++]);
+    REQUIRE(result->status == HOLDER_SYNC_RESULT_STATUS_FAILED);
+    REQUIRE(std::string(result->push.error_message) == "remote refused the push");
+    REQUIRE(result->push.ahead_count == 3);
+  }
   host.context.git = &host.git;
 }
 
@@ -233,6 +272,42 @@ TEST_CASE(
     REQUIRE(result.remote_url == request.remote_url);
     REQUIRE(remote.probed_url == *request.remote_url);
     REQUIRE_FALSE(result.remote_has_head);
+  }
+  const holder_remote_test_result_status statuses[] = {
+      HOLDER_REMOTE_TEST_RESULT_STATUS_AUTH_FAILED,
+      HOLDER_REMOTE_TEST_RESULT_STATUS_NOT_FOUND,
+      HOLDER_REMOTE_TEST_RESULT_STATUS_NETWORK_ERROR,
+      HOLDER_REMOTE_TEST_RESULT_STATUS_INVALID_REMOTE_URL,
+      HOLDER_REMOTE_TEST_RESULT_STATUS_REMOTE_UNSET,
+      HOLDER_REMOTE_TEST_RESULT_STATUS_UNKNOWN_ERROR
+  };
+  const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
+      holder_arena_new(),
+      holder_arena_free
+  );
+  size_t index = 0;
+  for (const auto& [core, api] : cases) {
+    remote.probe_result = {core, false, "cannot reach remote"};
+    const holder_remote_test query{request.remote_url->c_str()};
+    const holder_remote_test_result* result = nullptr;
+    holder_error* error = nullptr;
+    const auto status = holder_test_project_remote(
+        &host.context,
+        host.project_id.c_str(),
+        &query,
+        arena.get(),
+        &result,
+        &error
+    );
+    const std::unique_ptr<holder_error, decltype(&holder_error_destroy)> owned_error(
+        error,
+        holder_error_destroy
+    );
+    REQUIRE(status == HOLDER_OK);
+    REQUIRE(error == nullptr);
+    REQUIRE(result->status == statuses[index++]);
+    REQUIRE(std::string(result->remote_url) == *request.remote_url);
+    REQUIRE(std::string(result->error_message) == "cannot reach remote");
   }
   REQUIRE(
       contract::get_project_sync_state(host.context, host.project_id).last_push_at == std::nullopt
