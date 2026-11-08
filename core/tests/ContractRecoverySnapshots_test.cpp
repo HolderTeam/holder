@@ -9,6 +9,9 @@
 #include "api/Contract.h"
 #include "capi/Context.h"
 #include "card/CardRepo.h"
+#include "ai/AiThreadRepo.h"
+#include "ai/AiMessageRepo.h"
+#include "card/CardPaths.h"
 #include "core_test_helpers.h"
 #include "git/GitOps.h"
 #include "resource/LocationStore.h"
@@ -672,4 +675,278 @@ TEST_CASE(
   REQUIRE(std::string(holder_error_message(error)).size() > 0);
   REQUIRE(restored == nullptr);
   REQUIRE(host.project_count() == before);
+}
+
+TEST_CASE(
+    "Generated encrypted recovery snapshots restore readable cards and drop unrestorable AI links",
+    "[capi][recovery-variants]"
+) {
+  Host host;
+  holder::test::EnvGuard keystore("HOLDER_TEST_KEYSTORE_DIR", (host.dir / "keystore").string());
+  contract::NewProject project_request;
+  project_request.name = "Encrypted source";
+  project_request.privacy_mode = contract::NewProjectPrivacyMode::EncryptedGit;
+  const auto source = contract::create_project(host.context, project_request);
+  host.project_id = source.project_id;
+  const auto card =
+      host.card("Private notes", std::nullopt, std::nullopt, "Private recovery body — café");
+  holder::model::AiThread thread;
+  thread.thread_id = "snapshot-thread";
+  thread.project_id = source.project_id;
+  thread.title = "Conversation";
+  thread.created_at = thread.updated_at = 10;
+  holder::ai::AiThreadRepo(host.db).create(thread);
+  holder::model::AiMessage message;
+  message.message_id = "snapshot-message";
+  message.thread_id = thread.thread_id;
+  message.role = "user";
+  message.source = "manual";
+  message.content = "Message";
+  message.created_at = 11;
+  holder::ai::AiMessageRepo(host.db, &host.fts).append(message);
+  host.link(card, contract::NewLinkTargetType::AiThread, thread.thread_id, "conversation");
+  host.link(card, contract::NewLinkTargetType::AiMessage, message.message_id, "citation");
+  const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
+      holder_arena_new(),
+      holder_arena_free
+  );
+  holder_error* error = nullptr;
+  const holder_recovery_snapshot_page* page = nullptr;
+  REQUIRE(
+      holder_read_recovery_snapshot(
+          &host.context,
+          source.project_id.c_str(),
+          nullptr,
+          nullptr,
+          arena.get(),
+          &page,
+          &error
+      ) == HOLDER_OK
+  );
+  REQUIRE(error == nullptr);
+  REQUIRE(page->cards.count == 1);
+  const auto& saved = page->cards.items[0];
+  REQUIRE(saved.privacy_mode == HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_ENCRYPTED_GIT);
+  REQUIRE(std::string(saved.content) == "Private recovery body — café");
+  REQUIRE(saved.links.count == 2);
+  std::set<holder_recovery_snapshot_link_target_type> kinds;
+  for (size_t i = 0; i < saved.links.count; ++i)
+    kinds.insert(saved.links.items[i].target_type);
+  REQUIRE(
+      kinds == std::set<holder_recovery_snapshot_link_target_type>{
+                   HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_THREAD,
+                   HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_MESSAGE
+               }
+  );
+  REQUIRE(page->lines.count == 1);
+  REQUIRE(json::parse(page->lines.items[0])["card"]["privacy_mode"] == "encrypted_git");
+  holder_recovery_snapshot_restore restore{};
+  restore.project_name = "Recovered encrypted notes";
+  restore.privacy_mode = HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_ENCRYPTED_GIT;
+  restore.snapshot = page->lines.items[0];
+  restore.commit_message = "Recover private notes";
+  const holder_project* restored = nullptr;
+  REQUIRE(
+      holder_restore_recovery_snapshot(&host.context, &restore, arena.get(), &restored, &error) ==
+      HOLDER_OK
+  );
+  REQUIRE(restored->privacy_mode == HOLDER_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT);
+  REQUIRE(std::string(restored->project_id) != source.project_id);
+  const auto cards = host.by_title(restored->project_id);
+  REQUIRE(cards.size() == 1);
+  const auto& copy = cards.at("Private notes");
+  REQUIRE(copy.card_id != card);
+  REQUIRE(copy.content == "Private recovery body — café");
+  REQUIRE(copy.links.empty());
+  const auto path = std::filesystem::path(restored->root_path) /
+                    holder::core::card_rel_path(copy.card_id);
+  std::ifstream file(path, std::ios::binary);
+  REQUIRE(file.is_open());
+  const std::string stored{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+  REQUIRE(stored.find("Private recovery body") == std::string::npos);
+  REQUIRE(stored.find("Private notes") == std::string::npos);
+}
+
+TEST_CASE(
+    "Generated recovery preserves cloud declarations and plain asset placements without network access",
+    "[capi][recovery-variants]"
+) {
+  Host host;
+  std::string provider;
+  holder_recovery_snapshot_location_provider expected{};
+  SECTION("S3 compatible") {
+    provider = "s3_compatible";
+    expected = HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_S3_COMPATIBLE;
+  }
+  SECTION("Google Drive") {
+    provider = "google-drive";
+    expected = HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_GOOGLE_DRIVE;
+  }
+  const auto card = host.card("Attachment");
+  holder::resource::LocationStore(host.db, nullptr, &host.git)
+      .put(
+          {"portable-location",
+           host.project_id,
+           "Cloud files",
+           provider,
+           {{"folder", "portable-folder"}},
+           10,
+           20}
+      );
+  holder::model::ResourceBundle bundle;
+  bundle.resource = {"portable-resource", host.project_id, "document", "Notes.txt", {}, 10, 20};
+  bundle.assets.push_back(
+      {"portable-asset",
+       "portable-resource",
+       "Notes.txt",
+       "text/plain",
+       4,
+       std::string(64, 'a'),
+       10,
+       20,
+       {{"portable-placement",
+         "portable-asset",
+         "portable-location",
+         "object/notes",
+         "plain",
+         4,
+         std::string(64, 'a'),
+         10}}}
+  );
+  holder::resource::ResourceStore(host.db, nullptr, &host.git).put(bundle);
+  host.link(card, contract::NewLinkTargetType::Resource, "portable-resource", "attachment");
+  contract::NewMilestone milestone;
+  milestone.dates = {{"due", std::nullopt, std::string("2026-11-02T12:30:00Z")}};
+  contract::add_card_milestone(host.context, host.project_id, card, milestone);
+  const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
+      holder_arena_new(),
+      holder_arena_free
+  );
+  holder_error* error = nullptr;
+  const holder_recovery_snapshot_page* page = nullptr;
+  REQUIRE(
+      holder_read_recovery_snapshot(
+          &host.context,
+          host.project_id.c_str(),
+          nullptr,
+          nullptr,
+          arena.get(),
+          &page,
+          &error
+      ) == HOLDER_OK
+  );
+  REQUIRE(error == nullptr);
+  REQUIRE(page->cards.count == 1);
+  const auto& saved = page->cards.items[0];
+  REQUIRE(saved.locations.count == 1);
+  REQUIRE(saved.locations.items[0].provider == expected);
+  REQUIRE(saved.resources.count == 1);
+  REQUIRE(saved.resources.items[0].assets.count == 1);
+  const auto& asset = saved.resources.items[0].assets.items[0];
+  REQUIRE(asset.placements.count == 1);
+  REQUIRE(asset.placements.items[0].encoding == HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_PLAIN);
+  REQUIRE(saved.milestones.count == 1);
+  REQUIRE(saved.milestones.items[0].dates.count == 1);
+  REQUIRE(saved.milestones.items[0].dates.items[0].date == nullptr);
+  REQUIRE(std::string(saved.milestones.items[0].dates.items[0].datetime) == "2026-11-02T12:30:00Z");
+  holder_recovery_snapshot_restore request{};
+  request.project_name = "Portable cloud restore";
+  request.privacy_mode = HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_PLAIN;
+  request.snapshot = page->lines.items[0];
+  request.commit_message = "Restore declarations";
+  const holder_project* restored = nullptr;
+  REQUIRE(
+      holder_restore_recovery_snapshot(&host.context, &request, arena.get(), &restored, &error) ==
+      HOLDER_OK
+  );
+  const auto cards = host.by_title(restored->project_id);
+  REQUIRE(cards.size() == 1);
+  const auto& copy = cards.at("Attachment");
+  REQUIRE(copy.locations.size() == 1);
+  REQUIRE(copy.locations[0].configuration.at("folder") == "portable-folder");
+  REQUIRE(
+      copy.resources[0].assets[0].placements[0].encoding ==
+      contract::RecoverySnapshotPlacementEncoding::Plain
+  );
+  REQUIRE(copy.milestones[0].dates[0].datetime == "2026-11-02T12:30:00Z");
+}
+
+TEST_CASE(
+    "Generated recovery refuses unknown persisted record types instead of dropping them",
+    "[capi][recovery-corruption]"
+) {
+  Host host;
+  const auto card = host.card("Attachment");
+  holder::resource::LocationStore(host.db, nullptr, &host.git)
+      .put(
+          {"location-1", host.project_id, "Files", "local_directory", {{"path", "/files"}}, 10, 10}
+      );
+  holder::model::ResourceBundle bundle;
+  bundle.resource = {"resource-1", host.project_id, "document", "Notes", {}, 10, 10};
+  bundle.assets.push_back(
+      {"asset-1",
+       "resource-1",
+       "Notes",
+       "text/plain",
+       1,
+       std::string(64, 'a'),
+       10,
+       10,
+       {{"placement-1", "asset-1", "location-1", "notes", "plain", 1, std::string(64, 'a'), 10}}}
+  );
+  holder::resource::ResourceStore(host.db, nullptr, &host.git).put(bundle);
+  host.link(card, contract::NewLinkTargetType::Resource, "resource-1", "attachment");
+  std::string repair;
+  SECTION("unknown storage provider") {
+    host.db.exec("UPDATE storage_locations SET provider='future-provider';");
+    repair = "UPDATE storage_locations SET provider='local_directory';";
+  }
+  SECTION("unknown asset encoding") {
+    host.db.exec("UPDATE asset_placements SET encoding='future-encoding';");
+    repair = "UPDATE asset_placements SET encoding='plain';";
+  }
+  SECTION("unknown link target type") {
+    host.db.exec("UPDATE card_links SET to_type='future-target';");
+    repair = "UPDATE card_links SET to_type='resource';";
+  }
+  const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
+      holder_arena_new(),
+      holder_arena_free
+  );
+  const holder_recovery_snapshot_page* page = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_read_recovery_snapshot(
+          &host.context,
+          host.project_id.c_str(),
+          nullptr,
+          nullptr,
+          arena.get(),
+          &page,
+          &error
+      ) == HOLDER_ERROR_RUNTIME
+  );
+  const std::unique_ptr<holder_error, decltype(&holder_error_destroy)> owned_error(
+      error,
+      holder_error_destroy
+  );
+  REQUIRE(error != nullptr);
+  REQUIRE(std::string(holder_error_message(error)).find("unknown") != std::string::npos);
+  REQUIRE(page == nullptr);
+  host.db.exec(repair);
+  error = nullptr;
+  REQUIRE(
+      holder_read_recovery_snapshot(
+          &host.context,
+          host.project_id.c_str(),
+          nullptr,
+          nullptr,
+          arena.get(),
+          &page,
+          &error
+      ) == HOLDER_OK
+  );
+  REQUIRE(error == nullptr);
+  REQUIRE(page->cards.count == 1);
+  REQUIRE(page->cards.items[0].resources.count == 1);
 }

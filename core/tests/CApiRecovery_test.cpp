@@ -253,3 +253,63 @@ TEST_CASE("Generated explicit sync pulls and pushes through a local remote", "[c
   );
   REQUIRE(std::string(card->content) == "Edited on the restored device");
 }
+
+TEST_CASE(
+    "Generated encrypted history distinguishes a missing key from an unavailable revision",
+    "[capi][history-key]"
+) {
+  Fixture f;
+  const auto id = f.add_card();
+  const holder_card_history_page* history = nullptr;
+  REQUIRE(
+      holder_list_card_history(
+          f.source,
+          f.project_id.c_str(),
+          id.c_str(),
+          nullptr,
+          nullptr,
+          f.arena,
+          &history,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(history->entries.count > 0);
+  const std::string revision = history->entries.items[0].last_oid;
+  {
+    holder::test::EnvGuard missing_key(
+        "HOLDER_TEST_KEYSTORE_DIR",
+        (f.data_dir / "empty-keystore").string()
+    );
+    const holder_card_history_snapshot* snapshot = nullptr;
+    REQUIRE(
+        holder_get_card_history_snapshot(
+            f.source,
+            f.project_id.c_str(),
+            id.c_str(),
+            revision.c_str(),
+            f.arena,
+            &snapshot,
+            &f.error
+        ) == HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE
+    );
+    REQUIRE(f.error != nullptr);
+    REQUIRE(snapshot == nullptr);
+    holder_error_destroy(f.error);
+    f.error = nullptr;
+  }
+  // Restoring access to the key makes the same committed revision readable.
+  const holder_card_history_snapshot* snapshot = nullptr;
+  REQUIRE(
+      holder_get_card_history_snapshot(
+          f.source,
+          f.project_id.c_str(),
+          id.c_str(),
+          revision.c_str(),
+          f.arena,
+          &snapshot,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(snapshot->snapshot.exists);
+  REQUIRE(std::string(snapshot->snapshot.body) == "hidden");
+}
