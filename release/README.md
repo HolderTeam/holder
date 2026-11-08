@@ -4,7 +4,7 @@ Candidate staging, signing, promotion and publishing of Holder release assets.
 
 Start with the [release runbook](docs/runbook.md) for the current end-to-end
 candidate, validation, publication and recovery procedure. It identifies the
-remaining manual handoffs and rehearsal gaps.
+remaining manual handoffs, to be validated through the first actual release.
 
 The workflows are in `.github/workflows/` (`sign-*` and `promote-*`), as GitHub requires. This directory holds what they use:
 

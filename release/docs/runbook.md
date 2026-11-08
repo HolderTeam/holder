@@ -5,9 +5,10 @@ publishing a Holder release from this monorepo. Run commands from the repository
 root; workflow names and inputs below refer to `HolderTeam/holder`.
 
 Last source check: 2026-11-08. Workflow inputs and manifest preparation have been
-checked against the repository. A complete end-to-end rehearsal of this runbook
-is still outstanding; existing successful component runs do not establish that
-the whole sequence has been rehearsed.
+checked against the repository. Use the first actual release to validate the
+complete sequence and record corrections. A separate full rehearsal, TestPyPI
+upload or deliberately failed release is not a prerequisite. Until that release,
+this is a source-checked procedure, not a claim of end-to-end execution.
 
 The maintainer makes the release decision. Preparation does not authorize a
 production upload. Signing and notarization are treated here as artifact
@@ -52,8 +53,8 @@ python3 release/scripts/version.py --check
 ```
 
 The setter currently accepts numeric `major.minor.patch` release versions.
-Do not invent an RC version syntax that it does not support: identify rehearsals
-with candidate numbers and branches. Root-only version derivation is tracked in
+Use candidate numbers and branches while preparing a release; no separate RC
+version scheme is required. Root-only version derivation is tracked in
 [#130](https://github.com/HolderTeam/holder/issues/130).
 
 Product version and HTTP compatibility are different contracts. Review
@@ -64,7 +65,7 @@ Choose the reviewed full source SHA and create a frozen remote build branch at
 that commit, for example `rc/<version>-candidate-1`. Leave it unchanged while
 building the candidate. Dispatch accepts a branch or tag name, so record the
 resolved SHA of every run, not merely its branch. Do not create a `holder-v*` tag
-for rehearsal: pushing that tag starts production Launchpad uploads, even if
+for an optional test: pushing that tag starts production Launchpad uploads, even if
 the corresponding GitHub release is a draft or prerelease.
 
 Confirm the applicable CI results on the selected source, including core/API
@@ -155,36 +156,40 @@ the signing/notarization step when preparing a distributable disk image. Record
 the resulting `Holder-macos-<version>.dmg`, checksum and verification outcome;
 the preview disk image is not evidence that this step has completed.
 
-## 5. Rehearse and validate before publication
+## 5. Run the essential checks
 
-Preparation/rehearsal consists of the pinned component builds, staging, checksum
-and provenance verification, and platform tests. It does not require a release
-tag or public package upload. For Python candidates, also dispatch on the frozen
-branch:
+Use the successful component builds, staging checks, checksums and provenance
+already produced for this release. Reuse recent platform/upgrade evidence where
+it still applies, and repeat manual checks affected by the changes. Do not run
+another complete build matrix just to call it a rehearsal. The normal Python
+publication workflows build and validate distributions before uploading them;
+an extra build-only dispatch is optional when a packaging change needs an
+earlier check:
 
 | Workflow | Build-only inputs | Outputs |
 | --- | --- | --- |
 | [Kit to PyPI](../../.github/workflows/release-kit-pypi.yml) | `destination=none` | `kit-release-distributions`, `kit-release-manifest` (18 platform/interpreter wheels plus sdist) |
 | [Holder Python to PyPI](../../.github/workflows/release-holder-python-pypi.yml) | `destination=none`, `preview_number=0` | `holder-python-distributions` (wheel and sdist) |
 
-Retain the distribution manifests/digests and validate installation outside a
-source checkout. To exercise Ubuntu source-package preparation without uploading,
-use the `Release / Launchpad` **pull-request path**, which builds unsigned source
-packages for relevant packaging/workflow changes. Its manual dispatch has no
-build-only switch. Do not use a manual Launchpad dispatch as a dry run.
+Retain distribution manifests/digests from whichever runs are used. For Ubuntu
+packaging changes, reuse `Release / Launchpad`'s pull-request checks: they build
+unsigned source packages without uploading. Its manual dispatch uploads to the
+PPA and has no build-only switch.
 
-TestPyPI is an actual upload to a separate index, not an upload-free rehearsal.
-The two Python workflows currently differ:
+Only use TestPyPI if a specific publishing change needs it. It is an actual
+upload to a separate index, and the workflows currently differ:
 
 - Holder Python accepts `destination=testpypi`, a fresh positive `preview_number`
   and `ref=main`; this uploads `<version>.post<number>`. That ref must still name
   the intended source. If `main` has advanced, a preview is evidence about that
   newer revision, not the frozen candidate.
 - Kit requires the matching `holder-v<version>` tag for both TestPyPI and PyPI;
-  there is no corresponding preview-number input. Do not create a rehearsal tag
+  there is no corresponding preview-number input. Do not create a test tag
   in that namespace just to reach TestPyPI, because of the Launchpad trigger.
 
-Record the exact tests and results on disposable profiles/machines:
+Choose the relevant checks below and record results on disposable profiles or
+machines. The first actual release supplies end-to-end publication evidence;
+do not invent a parallel release ceremony to obtain it:
 
 - Linux: normal desktop AppImage launch, selected backend, close/reopen/idle
   behaviour, and coexistence with an installed daemon. Track PPA install/upgrade
@@ -278,7 +283,7 @@ These Python dispatches build distributions again. There is currently no public
 input to promote an earlier build-only run's distribution artifact. Verify the
 publication run's source/core provenance and distribution manifest, retain its
 hashes, and inspect the actual published files. Do not claim byte-for-byte
-promotion of the rehearsed Python set; closing that gap belongs to
+promotion of an earlier build-only Python set; closing that gap belongs to
 [#120](https://github.com/HolderTeam/holder/issues/120).
 
 TestPyPI and PyPI file/version identities cannot be reused for changed uploads.
@@ -295,7 +300,7 @@ candidate. Record package versions/revisions and installed test results per
 series. A packaging-only repair can be dispatched on the intended source ref
 with `packages=<affected package>`, `series=<affected series>`,
 `version=<expected product version>` and a fresh positive `package_revision`.
-That manual dispatch uploads to the PPA; it is not a rehearsal switch. Core/Kit
+That manual dispatch uploads to the PPA; it is not a build-only switch. Core/Kit
 orig tarballs are shared across series/revisions for an upstream version:
 packaging revision changes do not permit replacing different upstream source.
 
@@ -307,7 +312,7 @@ Once the destinations being advertised are verified, update in one reviewed PR:
   versions, channels, actual asset names/URLs, and accurate PPA availability.
 - [`website/version.json`](../website/version.json): the stable update feed,
   retaining its URL and compatible schema. Do not advertise an incomplete or
-  rehearsal candidate to installed users.
+  test candidate to installed users.
 - [`website/assets/checksums/`](../website/assets/checksums/): checksum manifests
   copied from the verified release; update relevant platform/upgrade guidance.
 
@@ -339,8 +344,10 @@ verified, or after an explicit decision documents an incomplete/withdrawn releas
 ## Keeping this runbook current
 
 Update this document in the same PR that changes an operational input, artifact,
-gate or retry rule. Keep #193 open until the full rehearsal and recovery evidence
-has been recorded. The [roadmap](https://github.com/HolderTeam/holder/issues/122)
+gate or retry rule. During the first actual release, record which steps worked,
+correct the procedure where needed, and retain evidence for any recovery that
+was necessary. Do not manufacture failures or require a separate rehearsal to
+finish the documentation work. The [roadmap](https://github.com/HolderTeam/holder/issues/122)
 tracks manifest generation (#121), version derivation (#130), website generation
 (#110) and a future single entry point (#120). Replace manual steps when their
 automation is proven; monthly scheduling (#192) remains a separate decision.
