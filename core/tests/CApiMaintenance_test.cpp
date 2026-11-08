@@ -603,12 +603,25 @@ TEST_CASE(
       std::istreambuf_iterator<char>()
   };
   input.close();
-  {
-    std::ofstream damaged(path, std::ios::binary);
-    auto corrupt = original;
+  std::string corrupt;
+  SECTION("invalid card identity") {
+    corrupt = original;
     const auto id_at = corrupt.find(card);
     REQUIRE(id_at != std::string::npos);
     corrupt.replace(id_at, card.size(), "not-a-valid-card-id");
+  }
+  SECTION("invalid milestone date shape") {
+    corrupt = "---\ncard_id: " + card + "\nproject_id: " + project +
+              "\ntitle: Durable original\nmilestones:\n  - milestone_id: broken\n"
+              "    dates: not-a-list\n---\nOriginal body\n";
+  }
+  SECTION("invalid milestone date shape with CRLF") {
+    corrupt = "---\r\ncard_id: " + card + "\r\nproject_id: " + project +
+              "\r\ntitle: Durable original\r\nmilestones:\r\n  - milestone_id: broken\r\n"
+              "    dates: not-a-list\r\n---\r\nOriginal body\r\n";
+  }
+  {
+    std::ofstream damaged(path, std::ios::binary);
     damaged << corrupt;
   }
   holder_rebuild_request request{project.c_str()};

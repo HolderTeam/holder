@@ -396,3 +396,25 @@ TEST_CASE("parse_card_file falls back on yaml parse exception", "[card_front_mat
   REQUIRE_FALSE(parsed.has_front_matter);
   REQUIRE(parsed.body == raw);
 }
+
+TEST_CASE(
+    "Invalid milestone date shapes do not leave partially parsed card metadata",
+    "[card_front_matter][malformed-dates]"
+) {
+  std::string dates;
+  SECTION("dates is a map") { dates = "    dates: {role: due, date: 2026-11-02}\n"; }
+  SECTION("date entry is a scalar") { dates = "    dates: [not-a-date-map]\n"; }
+  const std::string raw =
+      "---\ncard_id: abcd1234\nproject_id: proj-1\ntitle: Must not be partially accepted\n"
+      "links:\n  - to: other-card\n    to_type: card\n"
+      "milestones:\n  - milestone_id: valid-first\n    dates: []\n"
+      "  - milestone_id: invalid-second\n" +
+      dates + "---\nOriginal body\n";
+  const auto parsed = holder::core::parse_card_file(raw);
+  REQUIRE_FALSE(parsed.has_front_matter);
+  REQUIRE(parsed.card.card_id.empty());
+  REQUIRE(parsed.card.title.empty());
+  REQUIRE(parsed.links.empty());
+  REQUIRE(parsed.milestones.empty());
+  REQUIRE(parsed.body == raw);
+}
