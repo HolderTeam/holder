@@ -8,6 +8,7 @@
 
 #include "core_test_helpers.h"
 #include "card/CardPaths.h"
+#include "api/CardCursor.h"
 
 #include <holder/holder_api.h>
 
@@ -1261,4 +1262,61 @@ TEST_CASE(
   );
   REQUIRE(result->parent_card_id == nullptr);
   REQUIRE(std::string(result->content) == "Keep this body");
+}
+
+TEST_CASE(
+    "Generated card pages reject malformed and out of range cursor data",
+    "[capi][cursor-validation]"
+) {
+  Fixture f;
+  f.create("First");
+  f.create("Second");
+  const holder_list_cards_parent all{HOLDER_LIST_CARDS_PARENT_NONE, nullptr};
+  const int32_t limit = 1;
+  const auto* first =
+      f.list(all, &limit, nullptr, false, false, HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC);
+  REQUIRE(first->next_cursor != nullptr);
+  const std::string valid = first->next_cursor;
+  std::string decoded;
+  for (size_t i = 0; i < valid.size(); i += 2)
+    decoded += static_cast<char>(std::stoul(valid.substr(i, 2), nullptr, 16));
+  auto data = nlohmann::json::parse(decoded);
+  std::string raw;
+  SECTION("odd hex length") { raw = "0"; }
+  SECTION("invalid hex digits") { raw = "gg"; }
+  SECTION("invalid JSON") { raw = "7b"; }
+  SECTION("unsupported version") { data["version"] = 2; }
+  SECTION("missing card id") { data.erase("card_id"); }
+  SECTION("empty card id") { data["card_id"] = ""; }
+  SECTION("nonstring card id") { data["card_id"] = 42; }
+  SECTION("fractional timestamp") { data["updated_at"] = 1.5; }
+  SECTION("unsigned timestamp overflow") {
+    data["updated_at"] = std::numeric_limits<unsigned long long>::max();
+  }
+  SECTION("nonnumeric sort key") { data["sort_key"] = "first"; }
+  SECTION("missing sort key") { data.erase("sort_key"); }
+  const auto cursor = raw.empty() ? holder::contract::encode_cursor(data) : raw;
+  const holder_card_list_item_page* page = nullptr;
+  REQUIRE(
+      f.failed(holder_list_cards(
+          f.context,
+          f.project_id.c_str(),
+          all,
+          nullptr,
+          HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC,
+          &limit,
+          cursor.c_str(),
+          false,
+          false,
+          f.arena,
+          &page,
+          &f.error
+      )) == HOLDER_ERROR_INVALID_ARGUMENT
+  );
+  REQUIRE(page == nullptr);
+  // A failed request must not damage the original continuation.
+  const auto* next =
+      f.list(all, &limit, valid.c_str(), false, false, HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC);
+  REQUIRE(next->items.count == 1);
+  REQUIRE(std::string(next->items.items[0].card_id) != first->items.items[0].card_id);
 }

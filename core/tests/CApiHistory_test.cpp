@@ -363,3 +363,89 @@ TEST_CASE(
       HOLDER_ERROR_NOT_FOUND
   );
 }
+
+TEST_CASE(
+    "Generated history refuses oversized snapshots without changing the saved card",
+    "[capi][history-errors]"
+) {
+  HistoryFixture f;
+  const std::string body(2 * 1024 * 1024, 'x');
+  holder_card_update update{};
+  update.content = body.c_str();
+  const holder_card* card = nullptr;
+  REQUIRE(
+      holder_update_card(
+          f.context,
+          f.project.c_str(),
+          f.card.c_str(),
+          &update,
+          f.arena,
+          &card,
+          &f.error
+      ) == HOLDER_OK
+  );
+  const std::string revision = f.history()->entries.items[0].last_oid;
+  const holder_card_history_snapshot* snapshot = nullptr;
+  f.failed(
+      holder_get_card_history_snapshot(
+          f.context,
+          f.project.c_str(),
+          f.card.c_str(),
+          revision.c_str(),
+          f.arena,
+          &snapshot,
+          &f.error
+      ),
+      HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE
+  );
+  REQUIRE(snapshot == nullptr);
+  REQUIRE(
+      holder_get_card(f.context, f.project.c_str(), f.card.c_str(), f.arena, &card, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(std::string(card->content) == body);
+}
+
+TEST_CASE(
+    "Generated history reports missing repositories without recreating them",
+    "[capi][history-errors]"
+) {
+  HistoryFixture f;
+  const std::string revision = f.history()->entries.items[0].last_oid;
+  const holder_project* project = nullptr;
+  REQUIRE(
+      holder_get_project(f.context, f.project.c_str(), f.arena, &project, &f.error) == HOLDER_OK
+  );
+  const auto git_dir = std::filesystem::path(project->root_path) / ".git";
+  const auto moved = std::filesystem::path(project->root_path) / ".git-hidden";
+  std::filesystem::rename(git_dir, moved);
+  const holder_project_history_page* history = nullptr;
+  f.failed(
+      holder_list_project_history(
+          f.context,
+          f.project.c_str(),
+          nullptr,
+          nullptr,
+          HOLDER_LIST_PROJECT_HISTORY_KIND_NONE,
+          f.arena,
+          &history,
+          &f.error
+      ),
+      HOLDER_ERROR_HISTORY_UNAVAILABLE
+  );
+  const holder_card_history_snapshot* snapshot = nullptr;
+  f.failed(
+      holder_get_card_history_snapshot(
+          f.context,
+          f.project.c_str(),
+          f.card.c_str(),
+          revision.c_str(),
+          f.arena,
+          &snapshot,
+          &f.error
+      ),
+      HOLDER_ERROR_HISTORY_UNAVAILABLE
+  );
+  REQUIRE_FALSE(std::filesystem::exists(git_dir));
+  REQUIRE(std::filesystem::is_directory(moved));
+}

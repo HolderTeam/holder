@@ -24,6 +24,7 @@
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <limits>
 #include <optional>
 #include <set>
 #include <string>
@@ -595,7 +596,63 @@ TEST_CASE(
   SECTION("wrong format") { record["format"] = "other"; }
   SECTION("missing required field") { record["card"].erase("sort_key"); }
   SECTION("unknown privacy mode") { record["card"]["privacy_mode"] = "unknown"; }
-  const auto text = record.dump();
+  SECTION("card is not an object") { record["card"] = json::array(); }
+  SECTION("nonstring title") { record["card"]["title"] = 12; }
+  SECTION("empty identity") { record["card"]["card_id"] = ""; }
+  SECTION("empty parent") { record["card"]["parent_card_id"] = ""; }
+  SECTION("fractional timestamp") { record["card"]["created_at"] = 1.5; }
+  SECTION("overflowed timestamp") {
+    record["card"]["updated_at"] = std::numeric_limits<unsigned long long>::max();
+  }
+  SECTION("invalid sort key") { record["card"]["sort_key"] = "first"; }
+  SECTION("links are not an array") { record["card"]["links"] = json::object(); }
+  SECTION("unsupported link type") {
+    record["card"]["links"] = json::array({{{"target_type", "unknown"}}});
+  }
+  SECTION("unsupported location provider") {
+    record["card"]["locations"] = json::array(
+        {{{"location_id", "location-1"}, {"name", "Files"}, {"provider", "unknown"}}}
+    );
+  }
+  SECTION("location configuration is not an object") {
+    record["card"]["locations"] = json::array(
+        {{{"location_id", "location-1"},
+          {"name", "Files"},
+          {"provider", "local_directory"},
+          {"configuration", 3}}}
+    );
+  }
+  SECTION("location configuration values are not strings") {
+    record["card"]["locations"] = json::array(
+        {{{"location_id", "location-1"},
+          {"name", "Files"},
+          {"provider", "local_directory"},
+          {"configuration", {{"path", 3}}}}}
+    );
+  }
+  SECTION("resource metadata is not an object") {
+    record["card"]["resources"] = json::array(
+        {{{"resource_id", "resource-1"}, {"type", "document"}, {"label", "Notes"}, {"metadata", 3}}}
+    );
+  }
+  SECTION("resource metadata values are not arrays") {
+    record["card"]["resources"] = json::array(
+        {{{"resource_id", "resource-1"},
+          {"type", "document"},
+          {"label", "Notes"},
+          {"metadata", {{"pages", "4"}}}}}
+    );
+  }
+  SECTION("resource metadata array contains a nonstring") {
+    record["card"]["resources"] = json::array(
+        {{{"resource_id", "resource-1"},
+          {"type", "document"},
+          {"label", "Notes"},
+          {"metadata", {{"pages", {4}}}}}}
+    );
+  }
+  // A valid first record must not be partially restored when a later record is corrupt.
+  const auto text = line_of(bare_card("valid-card", "Valid first record")) + "\n" + record.dump();
   holder_recovery_snapshot_restore request{};
   request.project_name = "Must not exist";
   request.privacy_mode = HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_PLAIN;

@@ -133,3 +133,109 @@ TEST_CASE("Scheduled contract sync respects remote and cadence", "[contract][git
   REQUIRE_FALSE(second.push.attempted);
   REQUIRE_THROWS_AS(contract::sync_project_if_due(host.context, "no-such-project", 0, 0), contract::NotFound);
 }
+
+namespace {
+// Real local file operations with deterministic remote outcomes; no network is used.
+class RemoteOutcomes final : public holder::git::GitOps {
+ public:
+  explicit RemoteOutcomes(holder::git::RealGitOps& real) : real_(real) {}
+  holder::git::PushResult push_result;
+  holder::git::RemoteProbeResult probe_result;
+  std::string probed_url;
+  void open_or_init(const std::filesystem::path& path) override { real_.open_or_init(path); }
+  void write_file(const std::filesystem::path& path, const std::string& body) override {
+    real_.write_file(path, body);
+  }
+  void stage_path(const std::filesystem::path& path) override { real_.stage_path(path); }
+  void remove_path(const std::filesystem::path& path) override { real_.remove_path(path); }
+  void commit(const std::string& message) override { real_.commit(message); }
+  void set_remote(const std::string& name, const std::string& url) override {
+    real_.set_remote(name, url);
+  }
+  void remove_remote(const std::string& name) override { real_.remove_remote(name); }
+  void pull_remote_ff_only(const std::string& name) override { real_.pull_remote_ff_only(name); }
+  holder::git::RemoteProbeResult probe_remote(const std::string&) override { return probe_result; }
+  holder::git::RemoteProbeResult probe_remote_url(const std::string& url) override {
+    probed_url = url;
+    return probe_result;
+  }
+  holder::git::PushResult push_branch(const std::string&, const std::string&, bool) override {
+    return push_result;
+  }
+  std::filesystem::path repo_dir() const override { return real_.repo_dir(); }
+
+ private:
+  holder::git::RealGitOps& real_;
+};
+} // namespace
+
+TEST_CASE(
+    "Contract push preserves remote failure reasons and records retry state",
+    "[contract][remote-errors]"
+) {
+  Host host;
+  host.remote();
+  RemoteOutcomes remote(host.git);
+  host.context.git = &remote;
+  using Core = holder::git::PushStatus;
+  using Api = contract::PushPhaseStatus;
+  const std::pair<Core, Api> cases[] = {
+      {Core::AuthFailed, Api::AuthFailed},
+      {Core::NotFound, Api::NotFound},
+      {Core::NetworkError, Api::NetworkError},
+      {Core::NonFastForward, Api::NonFastForward},
+      {Core::RemoteUnset, Api::RemoteUnset},
+      {Core::UnknownError, Api::UnknownError}
+  };
+  for (const auto& [core, api] : cases) {
+    remote.push_result = {core, 3, 2, "saved-head", "remote refused the push"};
+    const auto pushed = contract::push_project(host.context, host.project_id, {});
+    REQUIRE(pushed.status == contract::SyncResultStatus::Failed);
+    REQUIRE(pushed.push.status == api);
+    REQUIRE(pushed.push.attempted);
+    REQUIRE_FALSE(pushed.pull.attempted);
+    REQUIRE(pushed.push.ahead_count == 3);
+    REQUIRE(pushed.push.behind_count == 2);
+    REQUIRE(pushed.push.local_head_commit == "saved-head");
+    REQUIRE(pushed.push.error_message == "remote refused the push");
+    const auto state = contract::get_project_sync_state(host.context, host.project_id);
+    REQUIRE(state.last_push_status == holder::git::push_status_name(core));
+    REQUIRE(state.last_sync_error == "remote refused the push");
+    REQUIRE(state.last_push_at == std::nullopt);
+  }
+  host.context.git = &host.git;
+}
+
+TEST_CASE(
+    "Contract remote probes preserve failure categories and the explicit URL",
+    "[contract][remote-errors]"
+) {
+  Host host;
+  RemoteOutcomes remote(host.git);
+  host.context.git = &remote;
+  using Core = holder::git::RemoteProbeStatus;
+  using Api = contract::RemoteTestResultStatus;
+  const std::pair<Core, Api> cases[] = {
+      {Core::AuthFailed, Api::AuthFailed},
+      {Core::NotFound, Api::NotFound},
+      {Core::NetworkError, Api::NetworkError},
+      {Core::InvalidRemoteUrl, Api::InvalidRemoteUrl},
+      {Core::RemoteUnset, Api::RemoteUnset},
+      {Core::UnknownError, Api::UnknownError}
+  };
+  contract::RemoteTest request;
+  request.remote_url = "ssh://example.invalid/explicit.git";
+  for (const auto& [core, api] : cases) {
+    remote.probe_result = {core, false, "cannot reach remote"};
+    const auto result = contract::test_project_remote(host.context, host.project_id, request);
+    REQUIRE(result.status == api);
+    REQUIRE(result.error_message == "cannot reach remote");
+    REQUIRE(result.remote_url == request.remote_url);
+    REQUIRE(remote.probed_url == *request.remote_url);
+    REQUIRE_FALSE(result.remote_has_head);
+  }
+  REQUIRE(
+      contract::get_project_sync_state(host.context, host.project_id).last_push_at == std::nullopt
+  );
+  host.context.git = &host.git;
+}
