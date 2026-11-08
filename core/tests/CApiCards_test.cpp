@@ -8,6 +8,7 @@
 
 #include "core_test_helpers.h"
 #include "card/CardPaths.h"
+#include "api/CardCursor.h"
 
 #include <holder/holder_api.h>
 
@@ -1152,4 +1153,245 @@ TEST_CASE("Attaching resources to cards, their backlinks, and deleting a resourc
   // A resource that no longer exists can still be detached.
   REQUIRE(holder_detach_card_resource(f.context, project, card.c_str(), "res-2", f.arena, &attached, &f.error) ==
           HOLDER_OK);
+}
+
+TEST_CASE(
+    "Generated card updates validate a new parent before changing content",
+    "[capi][parent-update]"
+) {
+  Fixture f;
+  const std::string parent = f.create("Parent", "Original")->card_id;
+  const std::string child = f.create("Child", "Child body", parent.c_str())->card_id;
+  const std::string other_project = f.new_project("Other");
+  std::string target;
+  int expected = HOLDER_ERROR_NOT_FOUND;
+  SECTION("self parent") {
+    target = parent;
+    expected = HOLDER_ERROR_INVALID_MOVE;
+  }
+  SECTION("descendant parent") {
+    target = child;
+    expected = HOLDER_ERROR_INVALID_MOVE;
+  }
+  SECTION("missing parent") { target = "00000000-0000-4000-8000-000000000001"; }
+  SECTION("trashed parent") {
+    target = f.create("Trashed")->card_id;
+    f.trash(target.c_str());
+  }
+  SECTION("parent in another project") {
+    holder_new_card request{};
+    request.title = "Elsewhere";
+    const holder_card* elsewhere = nullptr;
+    REQUIRE(
+        holder_create_card(
+            f.context,
+            other_project.c_str(),
+            &request,
+            f.arena,
+            &elsewhere,
+            &f.error
+        ) == HOLDER_OK
+    );
+    target = elsewhere->card_id;
+  }
+  holder_card_update update{};
+  update.title = "Must not be written";
+  update.content = "Must not replace original";
+  update.parent_card_id = {HOLDER_SET, target.c_str()};
+  const holder_card* result = nullptr;
+  REQUIRE(
+      f.failed(holder_update_card(
+          f.context,
+          f.project_id.c_str(),
+          parent.c_str(),
+          &update,
+          f.arena,
+          &result,
+          &f.error
+      )) == expected
+  );
+  REQUIRE(
+      holder_get_card(
+          f.context,
+          f.project_id.c_str(),
+          parent.c_str(),
+          f.arena,
+          &result,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(std::string(result->title) == "Parent");
+  REQUIRE(std::string(result->content) == "Original");
+  REQUIRE(result->parent_card_id == nullptr);
+}
+
+TEST_CASE(
+    "Generated card updates can reparent and clear a parent without rewriting content",
+    "[capi][parent-update]"
+) {
+  Fixture f;
+  const std::string parent = f.create("Parent")->card_id;
+  const std::string child = f.create("Child", "Keep this body")->card_id;
+  holder_card_update update{};
+  update.parent_card_id = {HOLDER_SET, parent.c_str()};
+  const holder_card* result = nullptr;
+  REQUIRE(
+      holder_update_card(
+          f.context,
+          f.project_id.c_str(),
+          child.c_str(),
+          &update,
+          f.arena,
+          &result,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(std::string(result->parent_card_id) == parent);
+  REQUIRE(std::string(result->content) == "Keep this body");
+  update.parent_card_id = {HOLDER_CLEAR, nullptr};
+  REQUIRE(
+      holder_update_card(
+          f.context,
+          f.project_id.c_str(),
+          child.c_str(),
+          &update,
+          f.arena,
+          &result,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(result->parent_card_id == nullptr);
+  REQUIRE(std::string(result->content) == "Keep this body");
+}
+
+TEST_CASE(
+    "Generated card pages reject malformed and out of range cursor data",
+    "[capi][cursor-validation]"
+) {
+  Fixture f;
+  f.create("First");
+  f.create("Second");
+  const holder_list_cards_parent all{HOLDER_LIST_CARDS_PARENT_NONE, nullptr};
+  const int32_t limit = 1;
+  const auto* first =
+      f.list(all, &limit, nullptr, false, false, HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC);
+  REQUIRE(first->next_cursor != nullptr);
+  const std::string valid = first->next_cursor;
+  std::string decoded;
+  for (size_t i = 0; i < valid.size(); i += 2)
+    decoded += static_cast<char>(std::stoul(valid.substr(i, 2), nullptr, 16));
+  auto data = nlohmann::json::parse(decoded);
+  std::string raw;
+  SECTION("odd hex length") { raw = "0"; }
+  SECTION("invalid hex digits") { raw = "gg"; }
+  SECTION("invalid JSON") { raw = "7b"; }
+  SECTION("unsupported version") { data["version"] = 2; }
+  SECTION("missing card id") { data.erase("card_id"); }
+  SECTION("empty card id") { data["card_id"] = ""; }
+  SECTION("nonstring card id") { data["card_id"] = 42; }
+  SECTION("fractional timestamp") { data["updated_at"] = 1.5; }
+  SECTION("unsigned timestamp overflow") {
+    data["updated_at"] = std::numeric_limits<unsigned long long>::max();
+  }
+  SECTION("nonnumeric sort key") { data["sort_key"] = "first"; }
+  SECTION("missing sort key") { data.erase("sort_key"); }
+  const auto cursor = raw.empty() ? holder::contract::encode_cursor(data) : raw;
+  const holder_card_list_item_page* page = nullptr;
+  REQUIRE(
+      f.failed(holder_list_cards(
+          f.context,
+          f.project_id.c_str(),
+          all,
+          nullptr,
+          HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC,
+          &limit,
+          cursor.c_str(),
+          false,
+          false,
+          f.arena,
+          &page,
+          &f.error
+      )) == HOLDER_ERROR_INVALID_ARGUMENT
+  );
+  REQUIRE(page == nullptr);
+  // A failed request must not damage the original continuation.
+  const auto* next =
+      f.list(all, &limit, valid.c_str(), false, false, HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC);
+  REQUIRE(next->items.count == 1);
+  REQUIRE(std::string(next->items.items[0].card_id) != first->items.items[0].card_id);
+}
+
+TEST_CASE(
+    "Generated card move intents preserve sibling order and reject impossible moves",
+    "[capi][move-intents]"
+) {
+  Fixture f;
+  const std::string a = f.create("A")->card_id;
+  const std::string b = f.create("B")->card_id;
+  const std::string c = f.create("C")->card_id;
+  auto move =
+      [&](holder_card_move_intent intent, const std::string& id, const char* target = nullptr) {
+        holder_card_move request{};
+        request.intent = intent;
+        request.target_card_id = target;
+        const holder_card* result = nullptr;
+        REQUIRE(
+            holder_move_card(
+                f.context,
+                f.project_id.c_str(),
+                id.c_str(),
+                &request,
+                f.arena,
+                &result,
+                &f.error
+            ) == HOLDER_OK
+        );
+        REQUIRE(std::string(result->card_id) == id);
+        return result;
+      };
+  const holder_list_cards_parent roots{HOLDER_LIST_CARDS_PARENT_ROOTS, nullptr};
+  auto order = [&]() {
+    const auto* page =
+        f.list(roots, nullptr, nullptr, false, false, HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC);
+    std::vector<std::string> ids;
+    for (size_t i = 0; i < page->items.count; ++i)
+      ids.emplace_back(page->items.items[i].card_id);
+    return ids;
+  };
+  move(HOLDER_CARD_MOVE_INTENT_BEFORE, c, a.c_str());
+  REQUIRE(order() == std::vector<std::string>{c, a, b});
+  move(HOLDER_CARD_MOVE_INTENT_AFTER, c, b.c_str());
+  REQUIRE(order() == std::vector<std::string>{a, b, c});
+  move(HOLDER_CARD_MOVE_INTENT_LEFT, c);
+  REQUIRE(order() == std::vector<std::string>{a, c, b});
+  move(HOLDER_CARD_MOVE_INTENT_RIGHT, c);
+  REQUIRE(order() == std::vector<std::string>{a, b, c});
+  REQUIRE(std::string(move(HOLDER_CARD_MOVE_INTENT_INTO, c, a.c_str())->parent_card_id) == a);
+  REQUIRE(move(HOLDER_CARD_MOVE_INTENT_UP_LEVEL, c)->parent_card_id == nullptr);
+  holder_card_move invalid{};
+  invalid.intent = HOLDER_CARD_MOVE_INTENT_UP_LEVEL;
+  const holder_card* result = nullptr;
+  REQUIRE(
+      f.failed(holder_move_card(
+          f.context,
+          f.project_id.c_str(),
+          a.c_str(),
+          &invalid,
+          f.arena,
+          &result,
+          &f.error
+      )) == HOLDER_ERROR_INVALID_MOVE
+  );
+  invalid.intent = HOLDER_CARD_MOVE_INTENT_INTO;
+  REQUIRE(
+      f.failed(holder_move_card(
+          f.context,
+          f.project_id.c_str(),
+          a.c_str(),
+          &invalid,
+          f.arena,
+          &result,
+          &f.error
+      )) == HOLDER_ERROR_INVALID_ARGUMENT
+  );
 }

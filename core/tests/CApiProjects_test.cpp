@@ -5,12 +5,14 @@
 #endif
 
 #include "core_test_helpers.h"
+#include "capi/Context.h"
 
 #include <holder/holder_api.h>
 
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -198,4 +200,72 @@ TEST_CASE("The generated C API exports and restores an encrypted project's recov
   REQUIRE(imported->project_created);
   REQUIRE_FALSE(imported->remote_hint_present);
   holder_context_destroy(other);
+}
+
+TEST_CASE("Generated project ordering is applied before pagination", "[capi][project-order]") {
+  Fixture f;
+  const std::string a = f.create("Alpha")->project_id;
+  const std::string m = f.create("Middle")->project_id;
+  const std::string z = f.create("Zulu")->project_id;
+  // Deliberately disagreeing creation/update/name orders, without sleeps or clock assumptions.
+  f.context->db.exec(
+      "UPDATE projects SET created_at=10, updated_at=30 WHERE project_id='" + a + "';"
+  );
+  f.context->db.exec(
+      "UPDATE projects SET created_at=20, updated_at=10 WHERE project_id='" + m + "';"
+  );
+  f.context->db.exec(
+      "UPDATE projects SET created_at=30, updated_at=20 WHERE project_id='" + z + "';"
+  );
+  struct Case {
+    holder_list_projects_order order;
+    std::vector<std::string> ids;
+  };
+  const Case cases[] = {
+      {HOLDER_LIST_PROJECTS_ORDER_NAME_ASC, {a, m, z}},
+      {HOLDER_LIST_PROJECTS_ORDER_NAME_DESC, {z, m, a}},
+      {HOLDER_LIST_PROJECTS_ORDER_CREATED_AT_ASC, {a, m, z}},
+      {HOLDER_LIST_PROJECTS_ORDER_CREATED_AT_DESC, {z, m, a}},
+      {HOLDER_LIST_PROJECTS_ORDER_UPDATED_AT_ASC, {m, z, a}},
+      {HOLDER_LIST_PROJECTS_ORDER_UPDATED_AT_DESC, {a, z, m}}
+  };
+  for (const auto& entry : cases) {
+    const holder_project_list_item_list* listed = nullptr;
+    REQUIRE(
+        holder_list_projects(
+            f.context,
+            nullptr,
+            nullptr,
+            nullptr,
+            entry.order,
+            nullptr,
+            0,
+            false,
+            f.arena,
+            &listed,
+            &f.error
+        ) == HOLDER_OK
+    );
+    REQUIRE(listed->count == 3);
+    for (size_t i = 0; i < listed->count; ++i)
+      REQUIRE(std::string(listed->items[i].project_id) == entry.ids[i]);
+    const int32_t limit = 1;
+    REQUIRE(
+        holder_list_projects(
+            f.context,
+            nullptr,
+            nullptr,
+            nullptr,
+            entry.order,
+            &limit,
+            1,
+            false,
+            f.arena,
+            &listed,
+            &f.error
+        ) == HOLDER_OK
+    );
+    REQUIRE(listed->count == 1);
+    REQUIRE(std::string(listed->items[0].project_id) == entry.ids[1]);
+  }
 }

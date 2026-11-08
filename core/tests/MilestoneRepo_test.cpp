@@ -12,9 +12,11 @@
 #include "model/Milestone.h"
 #include "model/Project.h"
 #include "platform/Db.h"
+#include "platform/Tx.h"
 #include "project/ProjectRepo.h"
 
 #include <string>
+#include <set>
 #include <vector>
 
 namespace {
@@ -94,6 +96,18 @@ TEST_CASE(
       Catch::Matchers::ContainsSubstring(
           "prepare list milestones in range failed: unknown sqlite error"
       )
+  );
+  REQUIRE_THROWS_WITH(
+      repo.list_instants_in_range("proj-1", std::nullopt, 0, 10),
+      Catch::Matchers::ContainsSubstring("prepare list milestones in range failed")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.list_days_in_range("proj-1", std::nullopt, "2026-11-01", "2026-11-03"),
+      Catch::Matchers::ContainsSubstring("prepare list milestone days failed")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.list_days_in_range("proj-1", std::nullopt, "2026-1-01", "2026-11-03"),
+      Catch::Matchers::ContainsSubstring("milestone day range must use YYYY-MM-DD")
   );
 }
 
@@ -423,4 +437,125 @@ TEST_CASE(
 
   holder::card::MilestoneRepo repo(db);
   REQUIRE(repo.list_for_card("proj-1", "card-a").empty());
+}
+
+TEST_CASE(
+    "Milestone reads release their outer query when date loading fails",
+    "[milestonerepo][sqlite-errors]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  create_project(db, "proj-1");
+  create_card(db, "card-a", "proj-1");
+  holder::card::MilestoneRepo repo(db);
+  auto milestone = make_milestone("original", "proj-1", "card-a", 10);
+  milestone.dates.push_back({"due", std::string("2026-11-02"), std::nullopt});
+  repo.replace_for_card("proj-1", "card-a", {milestone});
+  std::set<sqlite3_stmt*> existing;
+  for (auto* statement = sqlite3_next_stmt(db.handle(), nullptr); statement;
+       statement = sqlite3_next_stmt(db.handle(), statement))
+    existing.insert(statement);
+  REQUIRE(
+      sqlite3_set_authorizer(
+          db.handle(),
+          +[](void*, int action, const char* table, const char* column, const char*, const char*) {
+            return action == SQLITE_READ && table && std::string(table) == "milestone_dates" &&
+                           column && std::string(column) == "datetime_value"
+                       ? SQLITE_DENY
+                       : SQLITE_OK;
+          },
+          nullptr
+      ) == SQLITE_OK
+  );
+  int reader = 0;
+  SECTION("card milestones") { reader = 0; }
+  SECTION("legacy epoch range") { reader = 1; }
+  SECTION("instant range") { reader = 2; }
+  SECTION("calendar day range") { reader = 3; }
+  const auto read = [&] {
+    if (reader == 0) return repo.list_for_card("proj-1", "card-a");
+    if (reader == 1) return repo.list_in_range("proj-1", 0, 100);
+    if (reader == 2) return repo.list_instants_in_range("proj-1", std::nullopt, 0, 100);
+    return repo.list_days_in_range("proj-1", std::nullopt, "2026-11-01", "2026-11-03");
+  };
+  REQUIRE_THROWS_WITH(read(), Catch::Matchers::ContainsSubstring("prepare milestone dates failed"));
+  REQUIRE(sqlite3_set_authorizer(db.handle(), nullptr, nullptr) == SQLITE_OK);
+  // Collect and release any leaked statements before asserting, so a regression
+  // does not leave a live SQLite connection behind in the test process.
+  int leaked = 0;
+  for (auto* statement = sqlite3_next_stmt(db.handle(), nullptr); statement;) {
+    auto* next = sqlite3_next_stmt(db.handle(), statement);
+    if (!existing.contains(statement)) {
+      ++leaked;
+      sqlite3_finalize(statement);
+    }
+    statement = next;
+  }
+  REQUIRE(leaked == 0);
+  REQUIRE(repo.list_for_card("proj-1", "card-a").size() == 1);
+}
+
+TEST_CASE(
+    "Milestone replacement failures roll back inside the caller's transaction",
+    "[milestonerepo][sqlite-errors]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  create_project(db, "proj-1");
+  create_card(db, "card-a", "proj-1");
+  holder::card::MilestoneRepo repo(db);
+  repo.replace_for_card("proj-1", "card-a", {make_milestone("original", "proj-1", "card-a", 10)});
+  std::string expected;
+  SECTION("milestone delete preparation is denied") {
+    expected = "prepare delete milestones failed";
+    REQUIRE(
+        sqlite3_set_authorizer(
+            db.handle(),
+            +[](void*, int action, const char* table, const char*, const char*, const char*) {
+              return action == SQLITE_DELETE && table && std::string(table) == "milestones"
+                         ? SQLITE_DENY
+                         : SQLITE_OK;
+            },
+            nullptr
+        ) == SQLITE_OK
+    );
+  }
+  SECTION("date insert preparation is denied") {
+    expected = "prepare insert milestone date failed";
+    REQUIRE(
+        sqlite3_set_authorizer(
+            db.handle(),
+            +[](void*, int action, const char* table, const char*, const char*, const char*) {
+              return action == SQLITE_INSERT && table && std::string(table) == "milestone_dates"
+                         ? SQLITE_DENY
+                         : SQLITE_OK;
+            },
+            nullptr
+        ) == SQLITE_OK
+    );
+  }
+  SECTION("date insert fails while executing") {
+    expected = "insert milestone date failed";
+    db.exec(
+        "CREATE TRIGGER reject_date BEFORE INSERT ON milestone_dates BEGIN SELECT RAISE(ABORT, 'date refused'); END;"
+    );
+  }
+  REQUIRE_THROWS_WITH(
+      [&] {
+        holder::platform::Tx transaction(db);
+        repo.replace_for_card(
+            "proj-1",
+            "card-a",
+            {make_milestone("replacement", "proj-1", "card-a", 20)}
+        );
+        transaction.commit();
+      }(),
+      Catch::Matchers::ContainsSubstring(expected)
+  );
+  REQUIRE(sqlite3_set_authorizer(db.handle(), nullptr, nullptr) == SQLITE_OK);
+  const auto remaining = repo.list_for_card("proj-1", "card-a");
+  REQUIRE(remaining.size() == 1);
+  REQUIRE(remaining[0].milestone_id == "original");
+  REQUIRE(remaining[0].dates.size() == 1);
+  REQUIRE(remaining[0].dates[0].datetime == holder::model::milestone_datetime_utc(10));
 }

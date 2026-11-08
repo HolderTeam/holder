@@ -5,6 +5,9 @@
 #endif
 
 #include "core_test_helpers.h"
+#include "capi/Context.h"
+#include "privacy/SecretStore.h"
+#include "resource/LocationBindingStore.h"
 
 #include <holder/holder_api.h>
 
@@ -139,4 +142,66 @@ TEST_CASE("Generated C API storage locations live in the project repository and 
   REQUIRE(holder_rebuild_project(f.context, &rebuild, f.arena, &rebuilt, &f.error) == HOLDER_OK);
   REQUIRE(holder_get_storage_location(f.context, "location-5678", f.arena, &location, &f.error) ==
           HOLDER_ERROR_NOT_FOUND);
+}
+
+TEST_CASE(
+    "Generated location deletion removes only its private binding and clears its preference",
+    "[capi][location-bindings]"
+) {
+  Fixture f;
+  auto secrets = holder::privacy::make_encrypted_file_secret_store_for_tests(
+      f.data_dir / "private-bindings"
+  );
+  f.context->secret_store = secrets.get();
+  holder::resource::LocationBindingStore bindings(*secrets);
+  for (const char* id : {"location-first", "location-other"}) {
+    holder_new_storage_location request{};
+    request.location_id = id;
+    request.project_id = f.project_id.c_str();
+    request.name = id;
+    request.provider = HOLDER_NEW_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY;
+    const holder_project_storage_location* result = nullptr;
+    REQUIRE(
+        holder_create_storage_location(f.context, &request, f.arena, &result, &f.error) == HOLDER_OK
+    );
+    holder::resource::LocationBinding binding;
+    binding.provider = "local_directory";
+    binding.values = {{"path", std::string("/private/") + id}};
+    bindings.bind(f.project_id, id, binding, "Safe folder preview", 10);
+  }
+  bindings.set_preferred(f.project_id, "location-first", 11);
+  const holder_project_storage_location* bound = nullptr;
+  REQUIRE(
+      holder_get_storage_location(f.context, "location-first", f.arena, &bound, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(bound->bound);
+  REQUIRE(std::string(bound->binding_preview) == "Safe folder preview");
+  REQUIRE(bound->configuration.count == 0);
+  const holder_storage_location_list* before = nullptr;
+  REQUIRE(
+      holder_list_storage_locations(f.context, f.project_id.c_str(), f.arena, &before, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(std::string(before->preferred_location_id) == "location-first");
+  const holder_location_delete_result* removed = nullptr;
+  REQUIRE(
+      holder_delete_storage_location(f.context, "location-first", f.arena, &removed, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(std::string(removed->location_id) == "location-first");
+  REQUIRE_FALSE(bindings.get(f.project_id, "location-first"));
+  REQUIRE_FALSE(bindings.preview(f.project_id, "location-first"));
+  REQUIRE_FALSE(bindings.preferred(f.project_id));
+  REQUIRE(bindings.get(f.project_id, "location-other").has_value());
+  const holder_storage_location_list* after = nullptr;
+  REQUIRE(
+      holder_list_storage_locations(f.context, f.project_id.c_str(), f.arena, &after, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(after->data.count == 1);
+  REQUIRE(std::string(after->data.items[0].location_id) == "location-other");
+  REQUIRE(after->data.items[0].bound);
+  REQUIRE(after->preferred_location_id == nullptr);
+  f.context->secret_store = nullptr;
 }

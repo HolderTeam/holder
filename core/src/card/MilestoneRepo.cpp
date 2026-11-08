@@ -2,6 +2,7 @@
 
 #include <sqlite3.h>
 
+#include <memory>
 #include <stdexcept>
 
 namespace holder::card {
@@ -226,6 +227,10 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_for_card(
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK) {
     throw_sqlite(db_.handle(), "prepare list milestones for card failed");
   }
+  const std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> statement(
+      stmt,
+      sqlite3_finalize
+  );
   bind_text(stmt, 1, project_id);
   bind_text(stmt, 2, card_id);
 
@@ -239,10 +244,8 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_for_card(
       continue;
     }
     if (rc == SQLITE_DONE) break;
-    sqlite3_finalize(stmt); // LCOV_EXCL_LINE
     throw_sqlite(db_.handle(), "list milestones for card failed"); // LCOV_EXCL_LINE
   }
-  sqlite3_finalize(stmt);
   return out;
 } // LCOV_EXCL_LINE
 
@@ -266,6 +269,10 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_in_range(
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK)
     throw_sqlite(db_.handle(), "prepare list milestones in range failed");
+  const std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> statement(
+      stmt,
+      sqlite3_finalize
+  );
   bind_text(stmt, 1, project_id);
   bind_int64(stmt, 2, from);
   bind_int64(stmt, 3, to);
@@ -274,7 +281,6 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_in_range(
     const int rc = sqlite3_step(stmt);
     if (rc == SQLITE_DONE) break;
     if (rc != SQLITE_ROW) {
-      sqlite3_finalize(stmt);
       throw_sqlite(db_.handle(), "list milestones in range failed");
     }
     auto milestone = read_milestone(stmt);
@@ -287,7 +293,6 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_in_range(
         (!has_end || holder::model::milestone_unique_date_for_role(milestone, "end")))
       out.push_back(std::move(milestone));
   }
-  sqlite3_finalize(stmt);
   return out;
 }
 
@@ -311,6 +316,10 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_instants_in_range(
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK) {
     throw_sqlite(db_.handle(), "prepare list milestones in range failed");
   }
+  const std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> statement(
+      stmt,
+      sqlite3_finalize
+  );
   bind_text(stmt, 1, project_id);
   if (role)
     bind_text(stmt, 2, *role);
@@ -329,10 +338,8 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_instants_in_range(
       continue;
     }
     if (rc == SQLITE_DONE) break;
-    sqlite3_finalize(stmt); // LCOV_EXCL_LINE
     throw_sqlite(db_.handle(), "list milestones in range failed"); // LCOV_EXCL_LINE
   }
-  sqlite3_finalize(stmt);
   return out;
 } // LCOV_EXCL_LINE
 
@@ -359,6 +366,10 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_days_in_range(
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK)
     throw_sqlite(db_.handle(), "prepare list milestone days failed");
+  const std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> statement(
+      stmt,
+      sqlite3_finalize
+  );
   bind_text(stmt, 1, project_id);
   if (role)
     bind_text(stmt, 2, *role);
@@ -371,14 +382,12 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_days_in_range(
     const int rc = sqlite3_step(stmt);
     if (rc == SQLITE_DONE) break;
     if (rc != SQLITE_ROW) {
-      sqlite3_finalize(stmt);
       throw_sqlite(db_.handle(), "list milestone days failed");
     }
     auto milestone = read_milestone(stmt);
     load_dates(db_.handle(), milestone);
     out.push_back(std::move(milestone));
   }
-  sqlite3_finalize(stmt);
   return out;
 }
 
