@@ -1153,3 +1153,112 @@ TEST_CASE("Attaching resources to cards, their backlinks, and deleting a resourc
   REQUIRE(holder_detach_card_resource(f.context, project, card.c_str(), "res-2", f.arena, &attached, &f.error) ==
           HOLDER_OK);
 }
+
+TEST_CASE(
+    "Generated card updates validate a new parent before changing content",
+    "[capi][parent-update]"
+) {
+  Fixture f;
+  const std::string parent = f.create("Parent", "Original")->card_id;
+  const std::string child = f.create("Child", "Child body", parent.c_str())->card_id;
+  const std::string other_project = f.new_project("Other");
+  std::string target;
+  int expected = HOLDER_ERROR_NOT_FOUND;
+  SECTION("self parent") {
+    target = parent;
+    expected = HOLDER_ERROR_INVALID_MOVE;
+  }
+  SECTION("descendant parent") {
+    target = child;
+    expected = HOLDER_ERROR_INVALID_MOVE;
+  }
+  SECTION("missing parent") { target = "00000000-0000-4000-8000-000000000001"; }
+  SECTION("trashed parent") {
+    target = f.create("Trashed")->card_id;
+    f.trash(target.c_str());
+  }
+  SECTION("parent in another project") {
+    holder_new_card request{};
+    request.title = "Elsewhere";
+    const holder_card* elsewhere = nullptr;
+    REQUIRE(
+        holder_create_card(
+            f.context,
+            other_project.c_str(),
+            &request,
+            f.arena,
+            &elsewhere,
+            &f.error
+        ) == HOLDER_OK
+    );
+    target = elsewhere->card_id;
+  }
+  holder_card_update update{};
+  update.title = "Must not be written";
+  update.content = "Must not replace original";
+  update.parent_card_id = {HOLDER_SET, target.c_str()};
+  const holder_card* result = nullptr;
+  REQUIRE(
+      f.failed(holder_update_card(
+          f.context,
+          f.project_id.c_str(),
+          parent.c_str(),
+          &update,
+          f.arena,
+          &result,
+          &f.error
+      )) == expected
+  );
+  REQUIRE(
+      holder_get_card(
+          f.context,
+          f.project_id.c_str(),
+          parent.c_str(),
+          f.arena,
+          &result,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(std::string(result->title) == "Parent");
+  REQUIRE(std::string(result->content) == "Original");
+  REQUIRE(result->parent_card_id == nullptr);
+}
+
+TEST_CASE(
+    "Generated card updates can reparent and clear a parent without rewriting content",
+    "[capi][parent-update]"
+) {
+  Fixture f;
+  const std::string parent = f.create("Parent")->card_id;
+  const std::string child = f.create("Child", "Keep this body")->card_id;
+  holder_card_update update{};
+  update.parent_card_id = {HOLDER_SET, parent.c_str()};
+  const holder_card* result = nullptr;
+  REQUIRE(
+      holder_update_card(
+          f.context,
+          f.project_id.c_str(),
+          child.c_str(),
+          &update,
+          f.arena,
+          &result,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(std::string(result->parent_card_id) == parent);
+  REQUIRE(std::string(result->content) == "Keep this body");
+  update.parent_card_id = {HOLDER_CLEAR, nullptr};
+  REQUIRE(
+      holder_update_card(
+          f.context,
+          f.project_id.c_str(),
+          child.c_str(),
+          &update,
+          f.arena,
+          &result,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(result->parent_card_id == nullptr);
+  REQUIRE(std::string(result->content) == "Keep this body");
+}

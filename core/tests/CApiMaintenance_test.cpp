@@ -2,13 +2,19 @@
 #include "ai/AiThreadRepo.h"
 #include "capi/Context.h"
 #include "card/CardRepo.h"
+#include "card/LinkMutation.h"
 #include "core_test_helpers.h"
 #include "git/GitOps.h"
+#include "git/EcdsaDerSigningCredentialProvider.h"
 #include "project/ProjectRepo.h"
+#include "resource/ResourceRepo.h"
 
 #include <holder/holder_api.h>
 #include <memory>
+#include <cstdlib>
+#include <cstring>
 #include <string>
+#include <vector>
 
 namespace {
 struct Host {
@@ -384,4 +390,137 @@ TEST_CASE(
   REQUIRE(std::string(deleted->card_id) == other_card);
   REQUIRE(deleted->message_id == nullptr);
   REQUIRE_FALSE(holder::card::CardRepo(host.db).get(other_card));
+}
+
+TEST_CASE(
+    "Generated SSH signer callbacks preserve binary challenges and reject invalid results",
+    "[capi][signer]"
+) {
+  struct Signer {
+    int mode = 0;
+    int calls = 0;
+    int destroys = 0;
+    std::vector<unsigned char> challenge;
+  } signer;
+  Host host;
+  SECTION("valid DER signature") { signer.mode = 0; }
+  SECTION("empty signature") { signer.mode = 1; }
+  SECTION("null bytes with nonzero length") { signer.mode = 2; }
+  SECTION("error with message") { signer.mode = 3; }
+  SECTION("error without message") { signer.mode = 4; }
+  const holder_ssh_signer_callbacks callbacks{
+      +[](void* data,
+          const unsigned char* bytes,
+          size_t length,
+          unsigned char** result,
+          size_t* result_length,
+          char** error) -> int {
+        auto& state = *static_cast<Signer*>(data);
+        ++state.calls;
+        state.challenge.assign(bytes, bytes + length);
+        if (state.mode == 3) {
+          *error = static_cast<char*>(std::malloc(16));
+          std::memcpy(*error, "signing refused", 16);
+          return 1;
+        }
+        if (state.mode == 4) return 1;
+        if (state.mode == 1) return 0;
+        if (state.mode == 2) {
+          *result_length = 8;
+          return 0;
+        }
+        const unsigned char der[] = {0x30, 6, 2, 1, 1, 2, 1, 2};
+        *result = static_cast<unsigned char*>(std::malloc(sizeof(der)));
+        std::memcpy(*result, der, sizeof(der));
+        *result_length = sizeof(der);
+        return 0;
+      }
+  };
+  const unsigned char public_key[] = {1, 2, 3};
+  REQUIRE(
+      holder_register_ssh_signer(
+          &host.context,
+          "git",
+          public_key,
+          sizeof(public_key),
+          &callbacks,
+          &signer,
+          +[](void* data) {
+            ++static_cast<Signer*>(data)->destroys;
+          },
+          &host.error
+      ) == HOLDER_OK
+  );
+  using Provider = holder::git::EcdsaDerSigningCredentialProvider;
+  auto* provider = dynamic_cast<Provider*>(host.context.credential_provider.get());
+  REQUIRE(provider != nullptr);
+  void* payload = provider;
+  const unsigned char challenge[] = {0, 1, 255, 0, 17};
+  unsigned char* signature = nullptr;
+  size_t length = 0;
+  const auto status = Provider::sign_trampoline_for_tests(
+      &signature,
+      &length,
+      challenge,
+      sizeof(challenge),
+      &payload
+  );
+  const std::unique_ptr<unsigned char, decltype(&std::free)> owned_signature(signature, std::free);
+  REQUIRE(signer.calls == 1);
+  REQUIRE(signer.challenge == std::vector<unsigned char>{0, 1, 255, 0, 17});
+  if (signer.mode == 0) {
+    REQUIRE(status == 0);
+    // SSH mpint(r=1), mpint(s=2), each prefixed by its four-byte length.
+    REQUIRE(
+        std::vector<unsigned char>(signature, signature + length) ==
+        std::vector<unsigned char>{0, 0, 0, 1, 1, 0, 0, 0, 1, 2}
+    );
+  } else {
+    REQUIRE(status != 0);
+    REQUIRE(signature == nullptr);
+  }
+  REQUIRE(signer.destroys == 0);
+  host.context.credential_provider.reset();
+  REQUIRE(signer.destroys == 1);
+}
+
+TEST_CASE("Link target validation distinguishes local, external, missing and trashed targets", "[links][validation]") {
+  Host host;
+  const auto project = host.project();
+  const auto other = host.project();
+  const auto card = host.card(project, "Target");
+  const auto foreign = host.card(other, "Foreign");
+  auto validate = [&](const std::string& id,
+                      const std::string& type,
+                      std::optional<std::string> target_project = std::nullopt) {
+    holder::card::validate_link_target(host.db, project, id, type, target_project);
+  };
+  REQUIRE_NOTHROW(validate(card, "card"));
+  REQUIRE_NOTHROW(validate(card, "card", project));
+  REQUIRE_NOTHROW(validate(foreign, "card", other));
+  REQUIRE_NOTHROW(validate("offline-card", "card", other));
+  REQUIRE_THROWS_AS(validate("", "card"), std::invalid_argument);
+  REQUIRE_THROWS_AS(validate(card, "card", ""), std::invalid_argument);
+  REQUIRE_THROWS_AS(validate("missing", "card"), std::invalid_argument);
+  REQUIRE_THROWS_AS(validate(foreign, "card"), std::invalid_argument);
+  REQUIRE_THROWS_AS(validate(card, "resource", other), std::invalid_argument);
+  REQUIRE_THROWS_AS(validate("missing", "resource"), std::invalid_argument);
+  REQUIRE_THROWS_AS(validate("missing", "ai_thread"), std::invalid_argument);
+  REQUIRE_THROWS_AS(validate("missing", "ai_message"), std::invalid_argument);
+  REQUIRE_THROWS_AS(validate(card, "unsupported"), std::invalid_argument);
+  holder::resource::ResourceRepo resources(host.db);
+  resources.add({"resource-local", project, "document", "Local", {}, 10, 10});
+  resources.add({"resource-foreign", other, "document", "Foreign", {}, 10, 10});
+  REQUIRE_NOTHROW(validate("resource-local", "resource"));
+  REQUIRE_THROWS_AS(validate("resource-foreign", "resource"), std::invalid_argument);
+  holder::card::CardRepo(host.db).soft_delete(card, 50, 50);
+  REQUIRE_THROWS_AS(validate(card, "card"), std::invalid_argument);
+  host.message(project, "local-message", "Local body");
+  host.message(other, "foreign-message", "Foreign body");
+  REQUIRE_NOTHROW(validate("thread-local-message", "ai_thread"));
+  REQUIRE_NOTHROW(validate("local-message", "ai_message"));
+  REQUIRE_THROWS_AS(validate("thread-foreign-message", "ai_thread"), std::invalid_argument);
+  REQUIRE_THROWS_AS(validate("foreign-message", "ai_message"), std::invalid_argument);
+  holder::ai::AiMessageRepo(host.db, &host.fts).trash("local-message", 50);
+  REQUIRE_THROWS_AS(validate("local-message", "ai_message"), std::invalid_argument);
 }

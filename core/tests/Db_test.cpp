@@ -622,3 +622,54 @@ TEST_CASE("Tx destructor swallows rollback failure", "[db][tx]") {
     db.close();
   }());
 }
+
+TEST_CASE("Database rebuild JSON distinguishes preview from a completed backup", "[db][rebuild-report]") {
+  const auto dir = make_temp_dir();
+  const auto database = dir / "holder.db";
+  {
+    holder::platform::Db db;
+    db.open(database);
+    db.exec(schema_sql());
+  }
+  holder::platform::DatabaseRebuildRequest request;
+  request.database_path = database;
+  request.backup_root = dir / "backups";
+  request.schema_sql = schema_sql();
+  SECTION("preview") { request.dry_run = true; }
+  SECTION("apply") { request.dry_run = false; }
+  const auto report = holder::platform::rebuild_database_projection(request);
+  const auto json = nlohmann::json::parse(report.to_json());
+  REQUIRE(json.at("ok") == true);
+  REQUIRE(json.at("dry_run") == request.dry_run);
+  REQUIRE(json.at("previous_health") == "healthy");
+  REQUIRE(json.at("projects") == 0);
+  REQUIRE(json.at("cards") == 0);
+  REQUIRE(json.at("quarantined_cards") == 0);
+  REQUIRE(json.at("warnings").is_array());
+  REQUIRE(json.at("warnings").empty());
+  REQUIRE(
+      json.at("regenerated").get<std::vector<std::string>>() ==
+      std::vector<std::string>{"card_tags", "full_text_search", "git_sync_status"}
+  );
+  REQUIRE(
+      json.at("reset").get<std::vector<std::string>>() ==
+      std::vector<std::string>{"ai_run_history", "model_cooldowns", "transient_retry_state"}
+  );
+  REQUIRE(
+      holder::platform::inspect_database_health(database).health ==
+      holder::platform::DatabaseHealth::Healthy
+  );
+  REQUIRE_FALSE(std::filesystem::exists(database.string() + ".rebuild.tmp"));
+  if (request.dry_run) {
+    REQUIRE(json.at("backup_path").is_null());
+    REQUIRE_FALSE(std::filesystem::exists(request.backup_root));
+  } else {
+    REQUIRE(json.at("backup_path").is_string());
+    const auto backup = std::filesystem::path(json.at("backup_path").get<std::string>());
+    REQUIRE(backup == report.backup_path);
+    REQUIRE(
+        holder::platform::inspect_database_health(backup / "holder.db").health ==
+        holder::platform::DatabaseHealth::Healthy
+    );
+  }
+}
