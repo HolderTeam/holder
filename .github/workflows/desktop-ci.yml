@@ -94,6 +94,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             appstream \
+            at-spi2-core \
             dbus-x11 \
             desktop-file-utils \
             libadwaita-1-dev \
@@ -124,13 +125,14 @@ jobs:
 
       - name: Run tests
         env:
-          # The GitHub runner has no accessibility bus or usable DRI device.
-          # GTK warnings are fatal under GLib's test harness, so use GTK's
-          # documented headless settings for widget tests.
-          GTK_A11Y: none
+          # The shared runner starts AT-SPI in a private D-Bus session. Force X11
+          # for Xvfb and use software rendering without a DRI device.
+          GTK_A11Y: atspi
+          NO_AT_BRIDGE: "0"
+          GDK_BACKEND: x11
           GSK_RENDERER: cairo
         run: |
-          xvfb-run -a dbus-run-session -- \
+          xvfb-run -a dbus-run-session -- python3 integration/run.py --headless-child \
             meson test \
               -C build-linux \
               --print-errorlogs \
@@ -257,6 +259,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             appstream \
+            at-spi2-core \
             dbus-x11 \
             desktop-file-utils \
             libadwaita-1-dev \
@@ -287,13 +290,14 @@ jobs:
 
       - name: Run tests
         env:
-          # The GitHub runner has no accessibility bus or usable DRI device.
-          # GTK warnings are fatal under GLib's test harness, so use GTK's
-          # documented headless settings for widget tests.
-          GTK_A11Y: none
+          # The shared runner starts AT-SPI in a private D-Bus session. Force X11
+          # for Xvfb and use software rendering without a DRI device.
+          GTK_A11Y: atspi
+          NO_AT_BRIDGE: "0"
+          GDK_BACKEND: x11
           GSK_RENDERER: cairo
         run: |
-          xvfb-run -a dbus-run-session -- \
+          xvfb-run -a dbus-run-session -- python3 integration/run.py --headless-child \
             meson test \
               -C build-resolute \
               --print-errorlogs \
