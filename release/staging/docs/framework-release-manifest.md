@@ -45,7 +45,7 @@ Replace placeholders with full lowercase commit SHAs and numeric run IDs.
 The same Daemon CI run supplies all three platform backends, and the same
 Desktop / CI run all three desktops. The desktop and the backend must come from
 the same repository, and the desktop run must be built from the same
-`apps/desktop/` source as the backend's commit; each entry is also checked
+`apps/desktop/` source and root `VERSION` as the backend's commit; each entry is also checked
 against its selected run and build metadata.
 
 A Release manifest selects artifact names ending in `-release` and rejects

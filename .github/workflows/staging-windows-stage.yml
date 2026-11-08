@@ -195,7 +195,7 @@ jobs:
           Copy-Item "$desktopSourceDir\packaging\windows\Holder.iss" -Destination $packagingDir -Force
           Copy-Item "$desktopSourceDir\packaging\windows\Holder.ico" -Destination $packagingDir -Force
 
-          $version = (Get-Content "$desktopSourceDir\VERSION" -Raw).Trim()
+          $version = (Get-Content "sources/desktop/VERSION" -Raw).Trim()
           if ($env:PRODUCT_VERSION) { $version = $env:PRODUCT_VERSION }
           if ($env:RELEASE_MANIFEST) {
             Copy-Item "sources/holder-framework/release/staging/$env:RELEASE_MANIFEST" -Destination "$releaseDir/holder-framework-release.json"

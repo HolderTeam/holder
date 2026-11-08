@@ -2,8 +2,8 @@ name: Core / SDK
 
 # Provides the libholder SDK for core/ in the calling commit, for the daemon and anything else that
 # uses core through its installed interface: from the Actions cache, else from holder-sdk's
-# core-<tree> release (main's green builds), else by building it. Built SDKs are cached by core/'s
-# Git tree, so a change outside core/ reuses them. The archives are uploaded as core-sdk-<platform>-<build type>, and the
+# core-<tree>-<version> release (main's green builds), else by building it. Built SDKs are cached by core/'s
+# Git tree and product version, so unrelated changes reuse them. The archives are uploaded as core-sdk-<platform>-<build type>, and the
 # core-selection artifact describes them for the core-sdk action, which fetches and verifies them.
 # Nothing is published: SDKs reach users only with a Holder release.
 
@@ -63,7 +63,9 @@ jobs:
       - id: tree
         name: Identify core/'s tree
         shell: bash
-        run: echo "tree=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "tree=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
+          echo "version=$(cat ../VERSION)" >> "$GITHUB_OUTPUT"
 
       - id: cache
         if: ${{ !inputs.measure_cache }}
@@ -71,9 +73,9 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: core/out/sdk-assets
-          key: core-sdk-${{ matrix.platform }}-${{ inputs.build_type }}-${{ steps.tree.outputs.tree }}-v1
+          key: core-sdk-${{ matrix.platform }}-${{ inputs.build_type }}-${{ steps.tree.outputs.tree }}-${{ steps.tree.outputs.version }}-v2
 
-      # main's green builds are published to holder-sdk as core-<tree>; a tree that's there needn't
+      # main's green builds are published to holder-sdk as core-<tree>-<version>; a tree that's there needn't
       # be built. Only when neither the cache nor holder-sdk has it (core changed) is core built.
       - id: shelf
         name: Download the SDK for this tree from holder-sdk
@@ -82,7 +84,7 @@ jobs:
         env:
           BUILD_TYPE: ${{ inputs.build_type }}
           TREE: ${{ steps.tree.outputs.tree }}
-        run: python scripts/core-sdk.py shelf --tree "$TREE" --build-type "$BUILD_TYPE" --output out/sdk-assets
+        run: python scripts/core-sdk.py shelf --tree "$TREE" --version "$(cat ../VERSION)" --build-type "$BUILD_TYPE" --output out/sdk-assets
 
       - name: Install Linux dependencies
         if: (steps.shelf.outputs.found == 'false' || inputs.measure_cache) && runner.os == 'Linux'

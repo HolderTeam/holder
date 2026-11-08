@@ -170,7 +170,7 @@ jobs:
 
           desktop_source_dir="sources/desktop/apps/desktop/gtk"
           staging_source_dir="sources/holder-framework"
-          version="${PRODUCT_VERSION:-$(tr -d '[:space:]' < "${desktop_source_dir}/VERSION")}"
+          version="${PRODUCT_VERSION:-$(tr -d '[:space:]' < sources/desktop/VERSION)}"
           homebrew_prefix="$(brew --prefix)"
           homebrew_enchant_prefix="$(brew --prefix enchant)"
           homebrew_gdk_pixbuf_prefix="$(brew --prefix gdk-pixbuf)"

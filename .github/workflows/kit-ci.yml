@@ -9,6 +9,7 @@ on:
     branches:
       - main
     paths:
+      - VERSION
       - python/kit/**
       - core/**
       - .github/workflows/kit-ci.yml
@@ -52,7 +53,7 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          if grep -qE '^(python/kit/|core/|\.github/workflows/(kit-ci|core-sdk)\.yml$|\.github/actions/core-ubuntu-packages/|\.github/scripts/fetch-core-debs\.sh$|\.github/actions/core-sdk/|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
+          if grep -qE '^(VERSION$|python/kit/|core/|\.github/workflows/(kit-ci|core-sdk)\.yml$|\.github/actions/core-ubuntu-packages/|\.github/scripts/fetch-core-debs\.sh$|\.github/actions/core-sdk/|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
             echo "kit=true" >> "$GITHUB_OUTPUT"
           else
             echo "kit=false" >> "$GITHUB_OUTPUT"

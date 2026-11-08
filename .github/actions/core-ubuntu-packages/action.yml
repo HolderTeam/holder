@@ -1,7 +1,7 @@
 name: Core Ubuntu packages
 description: >-
   Provide core's libholder0 and libholder-dev packages for one Ubuntu series, for core/ in the
-  checked-out commit: from holder-sdk's core-<tree> release (main's green builds) when it has them,
+  checked-out commit: from holder-sdk's core-<tree>-<version> release (main's green builds) when it has them,
   otherwise built from core/ as the Launchpad upload builds them. Installs them and leaves them,
   with a libholder-<series>.sha256, in out/core-debs. Runs as root in an Ubuntu container with
   the packaging tools installed.
@@ -27,7 +27,7 @@ runs:
         # The checkout belongs to another user than the container's root.
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
         command -v curl >/dev/null || apt-get install -y --no-install-recommends curl
-        .github/scripts/fetch-core-debs.sh "$(git rev-parse HEAD:core)" "$SERIES" out/core-debs
+        .github/scripts/fetch-core-debs.sh "$(git rev-parse HEAD:core)" "$SERIES" out/core-debs "$(cat VERSION)"
 
     - name: Build core packages from core/ in this commit
       if: steps.shelf.outputs.found != 'true'
@@ -38,6 +38,7 @@ runs:
       working-directory: core
       run: |
         set -euo pipefail
+        python3 "$GITHUB_WORKSPACE/release/scripts/version.py" --prepare-source core
         version="$(tr -d '[:space:]' < VERSION)"
         cp -a packaging/linux/debian debian
         # Version the packages from VERSION as the Launchpad upload does, so consumers'
@@ -63,4 +64,6 @@ runs:
       shell: bash
       env:
         DEBIAN_FRONTEND: noninteractive
-      run: apt-get install -y --no-install-recommends ./out/core-debs/libholder0_*.deb ./out/core-debs/libholder-dev_*.deb
+      run: |
+        apt-get install -y --no-install-recommends ./out/core-debs/libholder0_*.deb ./out/core-debs/libholder-dev_*.deb
+        test "$(dpkg-query -W -f='${source:Upstream-Version}' libholder0)" = "$(cat VERSION)"

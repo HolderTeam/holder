@@ -5,7 +5,7 @@ on:
     paths:
       - .github/workflows/core-ubuntu-packages.yml
       - core/CMakeLists.txt
-      - core/VERSION
+      - VERSION
       - core/cmake/**
       - core/packaging/linux/debian/**
       - core/tests/installed-consumer/**
@@ -36,6 +36,7 @@ jobs:
 
       - name: Build Ubuntu binary packages from source
         run: |
+          python3 ../release/scripts/version.py --prepare-source core
           cp -a packaging/linux/debian debian
           dpkg-buildpackage -b -us -uc -j2
 

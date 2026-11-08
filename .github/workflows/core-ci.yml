@@ -8,6 +8,7 @@ on:
     branches:
       - main
     paths:
+      - VERSION
       - core/**
       # The contract's conformance tests run against core here.
       - contract/**
@@ -54,7 +55,7 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          if grep -qE '^(core/|contract/|\.github/workflows/core-(ci|sdk)\.yml$|\.github/actions/core-sdk/)' <<< "$changed"; then
+          if grep -qE '^(VERSION$|core/|contract/|\.github/workflows/core-(ci|sdk)\.yml$|\.github/actions/core-sdk/)' <<< "$changed"; then
             echo "core=true" >> "$GITHUB_OUTPUT"
           else
             echo "core=false" >> "$GITHUB_OUTPUT"
@@ -454,7 +455,7 @@ jobs:
 
   ubuntu-packages:
     # Core's libholder0 and libholder-dev packages for both Ubuntu series, built on main for
-    # publish-sdk to add to the core-<tree> release, so Daemon / CI's and Kit / CI's package jobs
+    # publish-sdk to add to the core-<tree>-<version> release, so Daemon / CI's and Kit / CI's package jobs
     # take them instead of building core (they build them themselves when core/ changes).
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: changes
@@ -493,7 +494,7 @@ jobs:
           retention-days: 7
 
   publish-sdk:
-    # Publishes main's core SDKs to HolderTeam/holder-sdk as the prerelease core-<tree> once core's
+    # Publishes main's core SDKs to HolderTeam/holder-sdk as the prerelease core-<tree>-<version> once core's
     # tests and SDKs have passed, so pull requests and people building on Holder can take them
     # instead of building core, and keeps the newest 32 such releases. Only main may use the
     # holder-sdk-publish environment, which holds the publishing app's key; pull requests never
@@ -544,7 +545,7 @@ jobs:
           repositories: holder-sdk
           permission-contents: write
 
-      - name: Publish core-<tree>
+      - name: Publish core-<tree>-<version>
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
           SDK_PACKAGES: out/core-debs
@@ -553,7 +554,7 @@ jobs:
           .github/scripts/publish-core-sdk.sh out/core-sdk-assets out/core-selection.json
           "${{ steps.tree.outputs.tree }}"
 
-      - name: Keep the newest 32 core-<tree> releases
+      - name: Keep the newest 32 core-<tree>-<version> releases
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: .github/scripts/prune-sdk-releases.sh core- 32

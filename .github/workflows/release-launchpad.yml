@@ -87,8 +87,12 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          # Every package has Holder's one version: the root VERSION, which the parts built on their
-          # own also carry in their own directories (release/scripts/version.py).
+          # Generate native source-package metadata from the root version.
+          if [ "$SOURCE" = holder-core ]; then
+            python3 "$GITHUB_WORKSPACE/release/scripts/version.py" --prepare-source core
+          elif [ "$SOURCE" = holder-desktop ]; then
+            python3 "$GITHUB_WORKSPACE/release/scripts/version.py" --prepare-source desktop
+          fi
           python3 "$GITHUB_WORKSPACE/release/scripts/version.py" --check
           version="$(python3 "$GITHUB_WORKSPACE/release/scripts/version.py")"
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then

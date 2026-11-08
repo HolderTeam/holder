@@ -1,6 +1,8 @@
 
 # Copied here only while building the Debian source package (see release-launchpad.yml).
 /daemon/VERSION
+/core/VERSION
+/apps/desktop/gtk/VERSION
 __pycache__/
 *.pyc
 

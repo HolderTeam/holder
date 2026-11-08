@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Publishes core SDK archives to HolderTeam/holder-sdk, with an sdk-index.json describing them.
-# By default the release is the development snapshot core-<tree>, a prerelease. With
+# By default the release is the development snapshot core-<tree>-<version>, a prerelease. With
 # SDK_RELEASE=holder-v<version> it is instead the SDK shipped with that Holder release: a full
 # release (a prerelease only for a pre-release version), marked latest. Does nothing when the
 # release already exists: published SDKs are never replaced. The release is created as a draft and
@@ -16,7 +16,8 @@ assets="$1"
 selection="$2"
 tree="$3"
 repo=HolderTeam/holder-sdk
-tag="${SDK_RELEASE:-core-$tree}"
+product_version=$(jq -r .version "$selection")
+tag="${SDK_RELEASE:-core-$tree-$product_version}"
 if [[ "$tag" == holder-v* ]]; then
   version="${tag#holder-v}"
   [[ "$(jq -r .version "$selection")" == "$version" ]] || { echo "Core is not at version $version" >&2; exit 1; }
