@@ -87,8 +87,12 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          # Every package has Holder's one version: the root VERSION, which the parts built on their
-          # own also carry in their own directories (release/scripts/version.py).
+          # Generate native source-package metadata from the root version.
+          if [ "$SOURCE" = holder-core ]; then
+            python3 "$GITHUB_WORKSPACE/release/scripts/version.py" --prepare-source core
+          elif [ "$SOURCE" = holder-desktop ]; then
+            python3 "$GITHUB_WORKSPACE/release/scripts/version.py" --prepare-source desktop
+          fi
           python3 "$GITHUB_WORKSPACE/release/scripts/version.py" --check
           version="$(python3 "$GITHUB_WORKSPACE/release/scripts/version.py")"
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -141,8 +145,14 @@ jobs:
             # build it reproducibly, so that every series' job builds the same file.
             directory="${{ fromJSON('{"core":"core","daemon":"daemon","kit":"python/kit","desktop":"apps/desktop/gtk"}')[matrix.package] }}"
             orig_path="$(cd .. && pwd)/${SOURCE}_${version}.orig.tar.gz"
+            orig_options=()
+            if [ "$EVENT_NAME" = pull_request ]; then
+              # Check the proposed source, without pretending to replace an
+              # already-published upstream version. PRs never upload packages.
+              orig_options=(--local)
+            fi
             orig="$(cd "$GITHUB_WORKSPACE" && python3 release/scripts/launchpad-orig.py --source "$SOURCE" \
-              --version "$version" --directory "$directory" --output "$orig_path" | tail -n 1)"
+              --version "$version" --directory "$directory" --output "$orig_path" "${orig_options[@]}" | tail -n 1)"
             if [ "$orig" = reused ]; then
               # Launchpad already has the tarball; the upload must not include it again.
               echo "DEBUILD_SOURCE_OPTION=-sd" >> "$GITHUB_ENV"

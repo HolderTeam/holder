@@ -13,6 +13,7 @@ on:
     branches:
       - main
     paths:
+      - VERSION
       - apps/desktop/**
       - .github/workflows/desktop-ci.yml
       - .github/workflows/daemon-ubuntu-packages.yml
@@ -68,7 +69,7 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          if grep -qE '^(apps/desktop/|\.github/workflows/(desktop-ci|daemon-ubuntu-packages)\.yml$|\.github/scripts/(fetch-daemon-debs|publish-daemon-debs|ubuntu-daemon-package-key)\.sh$|\.github/scripts/tests/test_ubuntu_daemon_packages\.py$)' <<< "$changed"; then
+          if grep -qE '^(VERSION$|apps/desktop/|\.github/workflows/(desktop-ci|daemon-ubuntu-packages)\.yml$|\.github/scripts/(fetch-daemon-debs|publish-daemon-debs|ubuntu-daemon-package-key)\.sh$|\.github/scripts/tests/test_ubuntu_daemon_packages\.py$)' <<< "$changed"; then
             echo "desktop=true" >> "$GITHUB_OUTPUT"
           else
             echo "desktop=false" >> "$GITHUB_OUTPUT"
@@ -156,7 +157,7 @@ jobs:
           glib-compile-schemas \
             "${stage_dir}/usr/share/glib-2.0/schemas"
 
-          tr -d '[:space:]' < VERSION \
+          python3 scripts/product_version.py \
             > "${stage_dir}/release/holder-desktop-version.txt"
           install -m 0644 compatibility/daemon-api.json \
             "${stage_dir}/release/holder-desktop-daemon-api.json"
@@ -165,7 +166,7 @@ jobs:
 
           mkdir -p "${stage_dir}/release"
           printf '{"commit":"%s","build_type":"%s","version":"%s"}\n' \
-            "$(git rev-parse HEAD)" "$MESON_BUILD_TYPE" "$(tr -d '[:space:]' < VERSION)" \
+            "$(git rev-parse HEAD)" "$MESON_BUILD_TYPE" "$(python3 scripts/product_version.py)" \
             > "${stage_dir}/release/holder-desktop-build.json"
 
           (
@@ -185,7 +186,7 @@ jobs:
 
           stage_dir="${PWD}/out/artifacts/linux-desktop"
           schema_dir="${stage_dir}/usr/share/glib-2.0/schemas"
-          expected_version="$(tr -d '[:space:]' < VERSION)"
+          expected_version="$(python3 scripts/product_version.py)"
 
           test -x "${stage_dir}/usr/bin/holder-desktop"
           test -f "${schema_dir}/team.holder.Holder.gschema.xml"
@@ -466,7 +467,7 @@ jobs:
 
           mkdir -p "${stage_dir}/release"
           printf '{"commit":"%s","build_type":"%s","version":"%s"}\n' \
-            "$(git rev-parse HEAD)" "$MESON_BUILD_TYPE" "$(tr -d '[:space:]' < VERSION)" \
+            "$(git rev-parse HEAD)" "$MESON_BUILD_TYPE" "$(python3 scripts/product_version.py)" \
             > "${stage_dir}/release/holder-desktop-build.json"
 
           (
@@ -657,7 +658,7 @@ jobs:
 
           mkdir -p "${stage_dir}/release"
           printf '{"commit":"%s","build_type":"%s","version":"%s"}\n' \
-            "$(git rev-parse HEAD)" "$MESON_BUILD_TYPE" "$(tr -d '[:space:]' < VERSION)" \
+            "$(git rev-parse HEAD)" "$MESON_BUILD_TYPE" "$(python3 scripts/product_version.py)" \
             > "${stage_dir}/release/holder-desktop-build.json"
 
           (

@@ -63,7 +63,23 @@ def git_archive(directory, prefix, mtime=None):
     command = ["git", "archive", "--format=tar", f"--prefix={prefix}"]
     if mtime:
         command.append(f"--mtime={mtime}")
-    return subprocess.run(command + [f"HEAD:{directory}"], check=True, capture_output=True).stdout
+    data = subprocess.run(command + [f"HEAD:{directory}"], check=True, capture_output=True).stdout
+    if directory != 'core':
+        return data
+    # core/ has no committed product-version copy. Its standalone source archive
+    # receives the exact root version from the same exported revision.
+    version = subprocess.run(['git', 'show', 'HEAD:VERSION'], check=True, capture_output=True).stdout
+    result = io.BytesIO()
+    with tarfile.open(fileobj=io.BytesIO(data)) as source, tarfile.open(fileobj=result, mode='w') as target:
+        timestamp = 0
+        for member in source:
+            timestamp = member.mtime
+            if member.name.rstrip('/') != prefix + 'VERSION':
+                target.addfile(member, source.extractfile(member) if member.isfile() else None)
+        member = tarfile.TarInfo(prefix + 'VERSION')
+        member.size, member.mode, member.mtime = len(version), 0o644, timestamp
+        target.addfile(member, io.BytesIO(version))
+    return result.getvalue()
 
 
 def contents(tar_bytes):
@@ -82,9 +98,11 @@ def main(argv=None):
     parser.add_argument("--version", required=True)
     parser.add_argument("--directory", required=True, help="the package's directory in the repository")
     parser.add_argument("--output", required=True)
+    parser.add_argument('--local', action='store_true',
+                        help='build an unpublished archive without querying Launchpad (PR checks)')
     args = parser.parse_args(argv)
     prefix = f"{args.source}-{args.version}/"
-    url = published_orig_url(args.source, args.version)
+    url = None if args.local else published_orig_url(args.source, args.version)
     if url:
         published = fetch(url, timeout=300)
         expected = contents(git_archive(args.directory, prefix))

@@ -300,12 +300,12 @@ embedders use those, or build from source.
 
 After core's tests and SDKs pass on `main`, Core / CI publishes that commit's
 `RelWithDebInfo` SDKs to [HolderTeam/holder-sdk](https://github.com/HolderTeam/holder-sdk)
-as the prerelease `core-<tree>`, named after core/'s Git tree, with an
+as the prerelease `core-<tree>-<version>`, named after core/'s Git tree and product version, with an
 `sdk-index.json` of sizes, checksums and download URLs. A tree that already has
-a release is not published again. Every archive includes core's `LICENSE`.
+a release at that version is not published again. Every archive includes core's `LICENSE`.
 Core / SDK takes an SDK from there (`scripts/core-sdk.py shelf`) when core/'s tree
-matches and the Actions cache doesn't have it, so a change that leaves core/
-alone doesn't build core.
+and the product version match and the Actions cache doesn't have it. Changes
+outside core/ and root VERSION can therefore reuse the finished SDK.
 
 ### SDK tool
 

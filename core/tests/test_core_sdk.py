@@ -74,15 +74,17 @@ class SDKTests(unittest.TestCase):
         self.assertEqual(json.loads((target / "libholder-manifest.json").read_text()), self.manifest)
         self.assertNotIn(COMMIT, installed.as_posix())
 
-    def shelved(self, assets: list[dict[str, Any]] | None = None, **index: Any) -> dict[str, Any]:
+    def shelved(self, assets: list[dict[str, Any]] | None = None, product_version=None, **index: Any) -> dict[str, Any]:
         tree = "b" * 40
         data = self.archive()
         name = "libholder-0.2.0-linux-x86_64-relwithdebinfo.tar.gz"
-        base = f"https://github.com/{sdk.SHELF}/releases/download/core-{tree}/"
+        tag = f'core-{tree}' + (f'-{product_version}' if product_version else '')
+        base = f"https://github.com/{sdk.SHELF}/releases/download/{tag}/"
         asset = {"name": name, "platform": "linux", "architecture": "x86_64", "build_type": "RelWithDebInfo",
                  "commit": COMMIT, "size": len(data), "sha256": hashlib.sha256(data).hexdigest(),
                  "url": base + name}
-        published = {"schema_version": 1, "repository": sdk.SHELF, "release_tag": f"core-{tree}",
+        published = {"schema_version": 1, "repository": sdk.SHELF, "release_tag": tag,
+                     "version": self.manifest['version'],
                      "core_tree": tree, "commit": COMMIT, "assets": [asset] if assets is None else assets, **index}
         files = {base + "sdk-index.json": json.dumps(published).encode(), base + name: data}
 
@@ -105,6 +107,18 @@ class SDKTests(unittest.TestCase):
             self.assertIsNone(sdk.shelf("c" * 40, "RelWithDebInfo", self.root / "out", "linux", "x86_64"))
             self.assertIsNone(sdk.shelf(shelved["tree"], "Release", self.root / "out", "linux", "x86_64"))
             self.assertIsNone(sdk.shelf(shelved["tree"], "RelWithDebInfo", self.root / "out", "windows", "x86_64"))
+
+    def test_versioned_shelf_does_not_reuse_an_old_version_of_the_same_core_tree(self):
+        shelved = self.shelved(product_version='0.2.0')
+        with patch.object(sdk, 'read_url', side_effect=shelved['read']):
+            self.assertIsNotNone(sdk.shelf(shelved['tree'], 'RelWithDebInfo', self.root / 'out', 'linux', 'x86_64', version='0.2.0'))
+            self.assertIsNone(sdk.shelf(shelved['tree'], 'RelWithDebInfo', self.root / 'out', 'linux', 'x86_64', version='0.2.1'))
+
+    def test_versioned_shelf_rejects_wrong_version_inside_an_archive(self):
+        shelved = self.shelved(product_version='0.2.1', version='0.2.1')
+        with patch.object(sdk, 'read_url', side_effect=shelved['read']):
+            with self.assertRaisesRegex(ValueError, 'manifest version mismatch'):
+                sdk.shelf(shelved['tree'], 'RelWithDebInfo', self.root / 'out', 'linux', 'x86_64', version='0.2.1')
 
     def test_shelf_unreachable_returns_none(self) -> None:
         with patch.object(sdk, "read_url", side_effect=sdk.urllib.error.URLError("offline")):

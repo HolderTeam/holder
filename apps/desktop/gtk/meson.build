@@ -1,4 +1,9 @@
-project('holder-gtk', ['vala', 'c'], version: run_command('cat', 'VERSION', check: true).stdout().strip())
+project('holder-gtk', ['vala', 'c'], version: run_command('python3', 'scripts/product_version.py', check: true).stdout().strip())
+
+fs = import('fs')
+version_source = fs.is_file('../../../VERSION') ? '../../../VERSION' : 'VERSION'
+# Register the version input so a version-only change reconfigures Meson too.
+configure_file(input: version_source, output: 'product-version.txt', copy: true)
 
 gnome = import('gnome')
 datadir = get_option('datadir')

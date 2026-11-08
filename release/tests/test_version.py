@@ -2,6 +2,8 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+import shutil
+import subprocess
 
 spec = importlib.util.spec_from_file_location("version", Path(__file__).parents[1] / "scripts/version.py")
 tool = importlib.util.module_from_spec(spec)
@@ -9,7 +11,7 @@ spec.loader.exec_module(tool)
 
 
 class VersionTests(unittest.TestCase):
-    def tree(self, directory, versions=("0.2.5",) * 5):
+    def tree(self, directory, versions=("0.2.5",) * 3):
         root = Path(directory)
         for name, version in zip(tool.VERSION_FILES, versions):
             (root / name).parent.mkdir(parents=True, exist_ok=True)
@@ -25,12 +27,12 @@ class VersionTests(unittest.TestCase):
 
     def test_a_differing_copy_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = self.tree(directory, ("0.2.5", "0.2.4", "0.2.5", "0.2.5", "0.0.2"))
-            self.assertEqual(tool.mismatches(root), {"core/VERSION": "0.2.4", "python/holder/pyproject.toml": "0.0.2"})
+            root = self.tree(directory, ("0.2.5", "0.2.4", "0.0.2"))
+            self.assertEqual(tool.mismatches(root), {"python/kit/pyproject.toml": "0.2.4", "python/holder/pyproject.toml": "0.0.2"})
 
     def test_write_sets_every_copy_and_only_the_project_version(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = self.tree(directory, ("0.2.1", "0.2.4", "0.2.1", "0.0.2", "0.1.0"))
+            root = self.tree(directory, ("0.2.1", "0.0.2", "0.1.0"))
             tool.write("0.2.6", root)
             self.assertEqual(set(tool.read(root).values()), {"0.2.6"})
             self.assertIn('target-version = "py310"', (root / tool.PYPROJECTS[0]).read_text())
@@ -39,6 +41,94 @@ class VersionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(ValueError):
                 tool.write("0.2.5-rc.1", self.tree(directory))
+
+    def test_exported_native_sources_get_the_root_version(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self.tree(directory)
+            for component in tool.SOURCE_COMPONENTS:
+                exported = root / ('export-' + component)
+                exported.mkdir()
+                marker = 'meson.build' if component == 'desktop' else 'CMakeLists.txt'
+                (exported / marker).touch()
+                (exported / 'VERSION').write_text('0.1.0\n')
+                tool.prepare_source(component, exported, root)
+                self.assertEqual((exported / 'VERSION').read_text(), '0.2.5\n')
+
+
+class NativeVersionTests(unittest.TestCase):
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_desktop_root_version_wins_and_export_requires_prepared_metadata(self):
+        spec = importlib.util.spec_from_file_location('product_version', self.ROOT / 'apps/desktop/gtk/scripts/product_version.py')
+        reader = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(reader)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'apps/desktop/gtk'
+            source.mkdir(parents=True)
+            (source / 'VERSION').write_text('0.1.0\n')
+            (root / 'VERSION').write_text('0.2.5\n')
+            self.assertEqual(reader.read(source), '0.2.5')
+            (root / 'VERSION').write_text('0.2.6\n')
+            self.assertEqual(reader.read(source), '0.2.6')
+            (root / 'VERSION').unlink()
+            self.assertEqual(reader.read(source), '0.1.0')
+            (root / '.git').mkdir()
+            with self.assertRaisesRegex(ValueError, 'repository-root VERSION'):
+                reader.read(source)
+            (root / '.git').rmdir()
+            (source / 'VERSION').unlink()
+            with self.assertRaisesRegex(ValueError, 'Missing VERSION'):
+                reader.read(source)
+
+    @unittest.skipUnless(shutil.which('cmake'), 'CMake is needed for the native version check')
+    def test_core_reconfigures_after_a_root_only_version_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'core'
+            (source / 'cmake').mkdir(parents=True)
+            shutil.copyfile(self.ROOT / 'core/cmake/HolderVersion.cmake', source / 'cmake/HolderVersion.cmake')
+            (root / 'VERSION').write_text('0.2.5\n')
+            (source / 'VERSION').write_text('0.1.0\n')
+            (source / 'CMakeLists.txt').write_text(
+                'cmake_minimum_required(VERSION 3.22)\ninclude(cmake/HolderVersion.cmake)\n'
+                'project(VersionProbe VERSION ${HOLDER_CORE_CMAKE_VERSION} LANGUAGES NONE)\n'
+                'file(WRITE "${CMAKE_BINARY_DIR}/version.txt" "${HOLDER_CORE_VERSION}")\n')
+            build = root / 'build'
+            def run(*args):
+                subprocess.run(['cmake', *map(str, args)], check=True, capture_output=True)
+            run('-S', source, '-B', build)
+            self.assertEqual((build / 'version.txt').read_text(), '0.2.5')
+            (root / 'VERSION').write_text('0.2.6\n')
+            run('--build', build)
+            self.assertEqual((build / 'version.txt').read_text(), '0.2.6')
+            (root / 'VERSION').unlink()
+            run('-S', source, '-B', build)
+            self.assertEqual((build / 'version.txt').read_text(), '0.1.0')
+            (root / '.git').mkdir()
+            with self.assertRaises(subprocess.CalledProcessError):
+                run('-S', source, '-B', build)
+
+    @unittest.skipUnless(shutil.which('meson') and shutil.which('valac'), 'Meson/Vala are needed for the desktop version check')
+    def test_meson_reconfigures_after_a_root_only_version_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'apps/desktop/gtk'
+            (source / 'scripts').mkdir(parents=True)
+            shutil.copyfile(self.ROOT / 'apps/desktop/gtk/scripts/product_version.py', source / 'scripts/product_version.py')
+            # Exercise the real project-version declaration and tracked input, without
+            # requiring all of the GUI dependencies in the repository-check job.
+            lines = (self.ROOT / 'apps/desktop/gtk/meson.build').read_text().split("gnome = import('gnome')")[0]
+            (source / 'meson.build').write_text(lines)
+            (root / 'VERSION').write_text('1.2.3\n')
+            build = root / 'build'
+            subprocess.run(['meson', 'setup', str(build), str(source)], check=True, capture_output=True)
+            self.assertEqual((build / 'product-version.txt').read_text(), '1.2.3\n')
+            (root / 'VERSION').write_text('1.2.4\n')
+            subprocess.run(['meson', 'compile', '-C', str(build)], check=True, capture_output=True)
+            import json
+            info = json.loads(subprocess.check_output(['meson', 'introspect', '--projectinfo', str(build)]))
+            self.assertEqual(info['version'], '1.2.4')
 
 
 if __name__ == "__main__":

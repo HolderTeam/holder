@@ -5,7 +5,7 @@ publishing a Holder release from this monorepo. Run commands from the repository
 root; workflow names and inputs below refer to `HolderTeam/holder`.
 
 Last source check: 2026-11-08. Workflow inputs and manifest preparation have been
-checked against the repository. Use the first actual release to validate the
+checked against the repository. Use the next release using this procedure to validate the
 complete sequence and record corrections. A separate full rehearsal, TestPyPI
 upload or deliberately failed release is not a prerequisite. Until that release,
 this is a source-checked procedure, not a claim of end-to-end execution.
@@ -45,7 +45,9 @@ release notes and website instead of implying a complete stable platform set.
 ## 2. Prepare and freeze the source
 
 Merge the intended product changes and version update through normal review.
-Today, the version setter updates the root and committed component copies:
+Today, the version setter updates root VERSION and the remaining Python metadata
+copies. Native checkout builds read root VERSION directly; exported native source
+trees receive generated version files during source preparation:
 
 ```sh
 python3 release/scripts/version.py <next-version>
@@ -188,7 +190,7 @@ upload to a separate index, and the workflows currently differ:
   in that namespace just to reach TestPyPI, because of the Launchpad trigger.
 
 Choose the relevant checks below and record results on disposable profiles or
-machines. The first actual release supplies end-to-end publication evidence;
+machines. The next release using this procedure supplies end-to-end publication evidence;
 do not invent a parallel release ceremony to obtain it:
 
 - Linux: normal desktop AppImage launch, selected backend, close/reopen/idle
@@ -344,7 +346,7 @@ verified, or after an explicit decision documents an incomplete/withdrawn releas
 ## Keeping this runbook current
 
 Update this document in the same PR that changes an operational input, artifact,
-gate or retry rule. During the first actual release, record which steps worked,
+gate or retry rule. During the next release using this procedure, record which steps worked,
 correct the procedure where needed, and retain evidence for any recovery that
 was necessary. Do not manufacture failures or require a separate rehearsal to
 finish the documentation work. The [roadmap](https://github.com/HolderTeam/holder/issues/122)

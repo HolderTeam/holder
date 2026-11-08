@@ -44,8 +44,9 @@ class RunSelectionTests(unittest.TestCase):
 class FakeRepository:
     """Daemon CI and Desktop / CI runs over commits whose apps/desktop trees are given."""
 
-    def __init__(self, desktop_trees, daemon_runs, desktop_runs):
+    def __init__(self, desktop_trees, daemon_runs, desktop_runs, versions=None):
         self.desktop_trees = desktop_trees
+        self.versions = versions or {}
         self.runs = {"daemon-ci.yml": daemon_runs, "desktop-ci.yml": desktop_runs}
 
     def __call__(self, path, **query):
@@ -64,13 +65,20 @@ class FakeRepository:
             return {"commit": {"tree": {"sha": "root-" + parts[-1]}}}
         tree = parts[-1]
         if tree.startswith("root-"):
-            return {"tree": [{"path": "apps", "type": "tree", "sha": "apps-" + tree[5:]}]}
+            return {"tree": [{"path": "apps", "type": "tree", "sha": "apps-" + tree[5:]},
+                             {"path": "VERSION", "type": "blob", "sha": self.versions.get(tree[5:], 'same-version')}]}
         if tree.startswith("apps-"):
             return {"tree": [{"path": "desktop", "type": "tree", "sha": self.desktop_trees[tree[5:]]}]}
         raise AssertionError(path)
 
 
 class DesktopSelectionTests(unittest.TestCase):
+    def test_same_desktop_tree_with_an_old_product_version_is_rejected(self):
+        repo = FakeRepository({B: 't1', C: 't1'}, daemon_runs=[(10, B)],
+                              desktop_runs=[(21, C)], versions={B: 'new', C: 'old'})
+        with self.assertRaisesRegex(ValueError, 'No successful desktop-ci.yml run'):
+            tool.select('linux', 'RelWithDebInfo', 'HolderTeam/holder', 'main', request=repo)
+
     def test_newest_desktop_run_with_the_backends_desktop_tree(self):
         # The desktop changed in C after the backend's commit B; A has the same desktop as B.
         repo = FakeRepository({A: "t1", B: "t1", C: "t2"}, daemon_runs=[(10, B)], desktop_runs=[(21, C), (20, A)])

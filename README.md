@@ -48,13 +48,18 @@ For component-specific work, start with its guide:
 
 Everything in this repository (core, the daemon, `holderctl`, the desktop app, Holder Kit, the
 Python client, and the staging and release tooling) has one version: the [`VERSION`](VERSION) file
-at the root. Parts that are built on their own from their own directory also carry it there, because
-their source package holds only that directory: [`core/VERSION`](core/VERSION),
-[`apps/desktop/gtk/VERSION`](apps/desktop/gtk/VERSION) and the Python packages' `pyproject.toml`.
-Change the version with `release/scripts/version.py <version>`, which sets every copy;
-`Repository / Checks` fails a pull request in which they differ. The daemon's
+at the root. Core, the daemon and desktop read it directly in a full checkout.
+Exported native source packages receive a generated local `VERSION` using
+`release/scripts/version.py --prepare-source <core|daemon|desktop> --destination <source-directory>`;
+the core Launchpad archive generator includes that metadata automatically.
+Change the version with `release/scripts/version.py <version>`, which updates the
+root and the remaining Python `pyproject.toml` copies during their migration.
+`Repository / Checks` checks those copies and the native version/export paths. The daemon's
 [`API_VERSION`](api/API_VERSION) is separate: it versions the HTTP contract that clients check, not
 the release. Core's library SONAME is separate too.
+
+Android's package-version metadata is still independent while
+[#130](https://github.com/HolderTeam/holder/issues/130) is completed.
 
 ## Licence
 

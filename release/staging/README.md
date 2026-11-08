@@ -29,7 +29,7 @@ By default, staging selects the newest successful Daemon CI run on main, then th
 newest successful Desktop / CI run built from the same desktop source: its
 `apps/desktop/` Git tree must equal the one at the backend's commit. The two
 commits can differ, because Desktop / CI runs on main only when the desktop
-changes, but the desktop source cannot. All selected artifacts must be
+changes, but the desktop source and root product version cannot. All selected artifacts must be
 unexpired. Explicit component run IDs support reproducible staging and are held
 to the same rule. Desktop installer metadata is checked out at the selected
 desktop run's commit.

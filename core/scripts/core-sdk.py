@@ -217,14 +217,16 @@ def fetch(selection, cache, system, architecture, build_type, assets_dir=None, i
     return target.resolve()
 
 
-def shelf(tree, build_type, output, system, architecture):
-    """Download this host's SDK for core/'s tree from holder-sdk's core-<tree> release.
+def shelf(tree, build_type, output, system, architecture, version=None):
+    """Download this host's SDK from the tree/version shelf (or a legacy tree shelf).
 
     Returns the verified archive's path, or None when holder-sdk has no such release or archive
     (core changed since main's last green build) or can't be reached, so the caller builds core
     instead. An index or archive that doesn't match what it claims is an error, never a fallback."""
     require(re.fullmatch(r"[0-9a-f]{40}", tree), "Invalid core tree")
-    tag = f"core-{tree}"
+    if version is not None:
+        require(re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?', version), 'Invalid product version')
+    tag = f"core-{tree}" + (f"-{version}" if version is not None else '')
     base = f"https://github.com/{SHELF}/releases/download/{tag}/"
     try:
         index = json.loads(read_url(base + "sdk-index.json"))
@@ -238,6 +240,8 @@ def shelf(tree, build_type, output, system, architecture):
     require(index.get("schema_version") == 1 and index.get("repository") == SHELF
             and index.get("release_tag") == tag and index.get("core_tree") == tree,
             "holder-sdk index does not match the requested core tree")
+    if version is not None:
+        require(index.get('version') == version, 'holder-sdk index version mismatch')
     matches = [a for a in index["assets"] if (a["platform"], a["architecture"], a["build_type"])
                == (system, architecture, build_type)]
     require(len(matches) <= 1, "Duplicate SDKs in the holder-sdk index")
@@ -254,6 +258,8 @@ def shelf(tree, build_type, output, system, architecture):
     archive = output / asset["name"]
     archive.write_bytes(data)
     manifest = archive_manifest(archive)
+    if version is not None:
+        require(manifest['version'] == version, 'SDK manifest version mismatch')
     for key in ("commit", "platform", "architecture", "build_type"):
         require(manifest[key] == asset[key], f"SDK manifest {key} mismatch")
     return archive
@@ -272,6 +278,7 @@ def main():
     indexing.add_argument("--tree", help="core/'s Git tree in that commit")
     shelved = commands.add_parser("shelf")
     shelved.add_argument("--tree", required=True, help="core/'s Git tree")
+    shelved.add_argument('--version', help='product version for the versioned SDK shelf')
     shelved.add_argument("--build-type", choices=["Release", "RelWithDebInfo"], default="RelWithDebInfo")
     shelved.add_argument("--output", type=Path, required=True, help="Where to put the archive")
     download = commands.add_parser("fetch")
@@ -285,7 +292,7 @@ def main():
                           help="Unpack the SDK here instead of beside its cached archive")
     args = parser.parse_args()
     if args.command == "shelf":
-        archive = shelf(args.tree, args.build_type, args.output, *host())
+        archive = shelf(args.tree, args.build_type, args.output, *host(), version=args.version)
         print(archive if archive else f"holder-sdk has no {args.build_type} SDK for core tree {args.tree}")
         if os.environ.get("GITHUB_OUTPUT"):
             with open(os.environ["GITHUB_OUTPUT"], "a") as output:
