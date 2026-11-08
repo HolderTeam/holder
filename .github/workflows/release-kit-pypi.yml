@@ -9,6 +9,9 @@ name: Release / Kit to PyPI
 on:
   pull_request:
     paths:
+      - VERSION
+      - python/_build_support.py
+      - python/kit/_build_backend/**
       - .github/workflows/release-kit-pypi.yml
       - .github/workflows/core-sdk.yml
       - .github/actions/core-sdk/**
@@ -53,15 +56,11 @@ jobs:
           DESTINATION: ${{ inputs.destination || 'none' }}
         run: |
           python - <<'PY'
-          import os, tomllib
+          import os
           from pathlib import Path
-          version = tomllib.loads(Path('pyproject.toml').read_text())['project']['version']
-          holder_version = Path('../../VERSION').read_text().strip()
+          version = Path('../../VERSION').read_text().strip()
           if os.environ['DESTINATION'] != 'none':
-              assert version == holder_version, f'Kit is at {version}, not the Holder version {holder_version}'
               assert os.environ['GITHUB_REF'] == f'refs/tags/holder-v{version}', 'Publishing requires the holder-v<version> tag'
-          elif version != holder_version:
-              print(f'::warning::Kit is at {version}, not the Holder version {holder_version}; it cannot be published')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write(f'version={version}\n')
           PY
@@ -255,7 +254,7 @@ jobs:
             echo "Core is at $core_version, not the release version $KIT_VERSION." >&2
             exit 1
           fi
-          python scripts/check-release-distributions.py dist --selection out/core-selection.json --manifest out/release-manifest.json
+          python scripts/check-release-distributions.py dist --version "$KIT_VERSION" --selection out/core-selection.json --manifest out/release-manifest.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kit-release-distributions

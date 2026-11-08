@@ -11,44 +11,47 @@ spec.loader.exec_module(tool)
 
 
 class VersionTests(unittest.TestCase):
-    def tree(self, directory, versions=("0.2.5",) * 3):
+    def tree(self, directory, version="0.2.5"):
         root = Path(directory)
-        for name, version in zip(tool.VERSION_FILES, versions):
+        (root / 'VERSION').write_text(version + '\n')
+        for name in tool.PYPROJECTS:
             (root / name).parent.mkdir(parents=True, exist_ok=True)
-            (root / name).write_text(version + "\n")
-        for name, version in zip(tool.PYPROJECTS, versions[len(tool.VERSION_FILES):]):
-            (root / name).parent.mkdir(parents=True, exist_ok=True)
-            (root / name).write_text(f'[project]\nname = "x"\nversion = "{version}"\n\n[tool.x]\ntarget-version = "py310"\n')
+            (root / name).write_text('[project]\nname = "x"\ndynamic = ["version"]\n\n[tool.x]\ntarget-version = "py310"\n')
+        shutil.copyfile(Path(__file__).resolve().parents[2] / 'python/_build_support.py', root / 'python/_build_support.py')
         return root
 
-    def test_matching_copies_pass(self):
+    def test_dynamic_metadata_passes(self):
         with tempfile.TemporaryDirectory() as directory:
-            self.assertEqual(tool.mismatches(self.tree(directory)), {})
+            tool.check(self.tree(directory))
 
-    def test_a_differing_copy_is_reported(self):
+    def test_static_package_version_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = self.tree(directory, ("0.2.5", "0.2.4", "0.0.2"))
-            self.assertEqual(tool.mismatches(root), {"python/kit/pyproject.toml": "0.2.4", "python/holder/pyproject.toml": "0.0.2"})
+            root = self.tree(directory)
+            (root / tool.PYPROJECTS[0]).write_text('[project]\nversion = "0.1.0"\n')
+            with self.assertRaisesRegex(ValueError, 'derive its version dynamically'):
+                tool.check(root)
 
-    def test_write_sets_every_copy_and_only_the_project_version(self):
+    def test_write_changes_only_root_version(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = self.tree(directory, ("0.2.1", "0.0.2", "0.1.0"))
+            root = self.tree(directory, '0.2.1')
+            before = {name: (root / name).read_bytes() for name in tool.PYPROJECTS}
             tool.write("0.2.6", root)
-            self.assertEqual(set(tool.read(root).values()), {"0.2.6"})
-            self.assertIn('target-version = "py310"', (root / tool.PYPROJECTS[0]).read_text())
+            self.assertEqual(tool.read(root), {'VERSION': '0.2.6'})
+            self.assertEqual(before, {name: (root / name).read_bytes() for name in tool.PYPROJECTS})
 
     def test_write_rejects_other_version_forms(self):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(ValueError):
                 tool.write("0.2.5-rc.1", self.tree(directory))
 
-    def test_exported_native_sources_get_the_root_version(self):
+    def test_exported_sources_get_the_root_version(self):
         with tempfile.TemporaryDirectory() as directory:
             root = self.tree(directory)
             for component in tool.SOURCE_COMPONENTS:
                 exported = root / ('export-' + component)
                 exported.mkdir()
-                marker = 'meson.build' if component == 'desktop' else 'CMakeLists.txt'
+                marker = ('meson.build' if component == 'desktop' else
+                          'pyproject.toml' if component in ('kit', 'holder-python') else 'CMakeLists.txt')
                 (exported / marker).touch()
                 (exported / 'VERSION').write_text('0.1.0\n')
                 tool.prepare_source(component, exported, root)

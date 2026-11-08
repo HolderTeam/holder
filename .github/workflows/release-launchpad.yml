@@ -15,6 +15,9 @@ on:
       - "holder-v*"
   pull_request:
     paths:
+      - release/scripts/launchpad-orig.py
+      - release/scripts/version.py
+      - python/_build_support.py
       - .github/workflows/release-launchpad.yml
       - core/packaging/linux/debian/**
       - daemon/packaging/linux/**
@@ -87,11 +90,13 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          # Generate native source-package metadata from the root version.
+          # Generate source-package metadata from the root version.
           if [ "$SOURCE" = holder-core ]; then
             python3 "$GITHUB_WORKSPACE/release/scripts/version.py" --prepare-source core
           elif [ "$SOURCE" = holder-desktop ]; then
             python3 "$GITHUB_WORKSPACE/release/scripts/version.py" --prepare-source desktop
+          elif [ "$SOURCE" = holder-kit ]; then
+            python3 "$GITHUB_WORKSPACE/release/scripts/version.py" --prepare-source kit
           fi
           python3 "$GITHUB_WORKSPACE/release/scripts/version.py" --check
           version="$(python3 "$GITHUB_WORKSPACE/release/scripts/version.py")"

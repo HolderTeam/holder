@@ -1,8 +1,8 @@
 # Packaging Holder Kit
 
 The Python distribution is `holder-kit`; its import package is `holderkit`.
-Release versions in `pyproject.toml`, core and the repository's root `VERSION`
-must agree. The base package has no data-science dependencies; `pandas` and
+Package metadata derives its version from root `VERSION` in a checkout; source
+distributions retain that version for standalone rebuilds. The base package has no data-science dependencies; `pandas` and
 `graph` are optional extras.
 
 See [Building](building.md) for prerequisites and core selection, and
@@ -106,7 +106,7 @@ candidates. `pypi` or `testpypi` publishes only after all distribution checks
 pass, using the corresponding GitHub environment and Trusted Publishing.
 Holder Kit is released with the rest of Holder, at the same version: publishing
 must run from the release's `holder-v<version>` tag, and requires the version in
-`pyproject.toml`, the repository's `VERSION` and core's version to equal it. Pull requests build candidates without
+the repository's `VERSION` and core's version to equal it. Pull requests build candidates without
 publishing.
 
 ## Ubuntu packages
@@ -164,5 +164,6 @@ uploads to `ppa:holderteam/holder`, with `holder-core`, `holder-daemon` and
 `package_revision` uploads only Kit, for a packaging-only fix. Kit's version
 must equal core's: its source package builds against `libholder-dev` of that
 version, so on Launchpad it waits for the core packages from the same upload.
-The upstream tarball is `python/kit/` as committed. Pull requests that change
+The upstream tarball contains committed `python/kit/` source plus generated
+`VERSION` and the shared Python build helper from the same commit. Pull requests that change
 the packaging build the source package unsigned without uploading.

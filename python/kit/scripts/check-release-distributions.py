@@ -6,7 +6,6 @@ import hashlib
 import json
 from pathlib import Path
 import tarfile
-import tomllib
 import zipfile
 import subprocess
 
@@ -16,10 +15,11 @@ from pypi_readme import render_readme
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
+    parser.add_argument('--version', required=True, help='expected root product version')
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--selection", type=Path, required=True, help="core-selection.json of the SDKs the wheels used")
     args = parser.parse_args()
-    version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+    version = args.version
     selection = json.loads(args.selection.read_text())
     # Each platform's SDK records the commit that built it, which may be an earlier commit with
     # the same core/ tree when the SDK came from the cache.

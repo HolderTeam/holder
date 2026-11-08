@@ -62,6 +62,31 @@ class FetchTests(unittest.TestCase):
 
 
 class SourceArchiveTests(unittest.TestCase):
+    def test_python_export_includes_committed_build_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def git(*args):
+                return subprocess.run(['git', '-C', str(root), *args], check=True, capture_output=True)
+            git('init')
+            git('config', 'user.name', 'Archive test')
+            git('config', 'user.email', 'test@example.invalid')
+            (root / 'python/kit').mkdir(parents=True)
+            (root / 'python/kit/pyproject.toml').write_text('[project]\n')
+            (root / 'python/_build_support.py').write_text('# committed helper\n')
+            (root / 'VERSION').write_text('1.2.3\n')
+            git('add', '.')
+            git('commit', '-m', 'Fixture')
+            (root / 'python/_build_support.py').write_text('# dirty helper\n')
+            original_run = subprocess.run
+            def run(args, **kwargs):
+                return original_run(args, cwd=root, **kwargs)
+            with mock.patch.object(tool.subprocess, 'run', side_effect=run):
+                data = tool.git_archive('python/kit', 'holder-kit-1.2.3/')
+                self.assertEqual(data, tool.git_archive('python/kit', 'holder-kit-1.2.3/'))
+            members = tool.contents(data)
+            self.assertEqual(members['holder-kit-1.2.3/VERSION'][2], b'1.2.3\n')
+            self.assertEqual(members['holder-kit-1.2.3/_build_support.py'][2], b'# committed helper\n')
+
     def test_core_export_injects_the_committed_root_version_deterministically(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
