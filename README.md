@@ -48,13 +48,13 @@ For component-specific work, start with its guide:
 
 Everything in this repository (core, the daemon, `holderctl`, the desktop app, Holder Kit, the
 Python client, and the staging and release tooling) has one version: the [`VERSION`](VERSION) file
-at the root. Core, the daemon and desktop read it directly in a full checkout.
-Exported native source packages receive a generated local `VERSION` using
-`release/scripts/version.py --prepare-source <core|daemon|desktop> --destination <source-directory>`;
-the core Launchpad archive generator includes that metadata automatically.
-Change the version with `release/scripts/version.py <version>`, which updates the
-root and the remaining Python `pyproject.toml` copies during their migration.
-`Repository / Checks` checks those copies and the native version/export paths. The daemon's
+at the root. Native builds and both Python packages read it directly in a full checkout.
+Python source distributions include generated version/build metadata automatically.
+For other source exports, prepare the local metadata using
+`release/scripts/version.py --prepare-source <core|daemon|desktop|kit|holder-python> --destination <source-directory>`;
+the Launchpad archive generator includes it automatically for core and Kit.
+Change the version with `release/scripts/version.py <version>`, which updates only
+the root file. `Repository / Checks` checks version derivation and source exports. The daemon's
 [`API_VERSION`](api/API_VERSION) is separate: it versions the HTTP contract that clients check, not
 the release. Core's library SONAME is separate too.
 

@@ -45,9 +45,10 @@ release notes and website instead of implying a complete stable platform set.
 ## 2. Prepare and freeze the source
 
 Merge the intended product changes and version update through normal review.
-Today, the version setter updates root VERSION and the remaining Python metadata
-copies. Native checkout builds read root VERSION directly; exported native source
-trees receive generated version files during source preparation:
+The version setter updates only root `VERSION`. Native builds and both Python
+packages read it directly in a checkout. Python source distributions include
+generated version/build metadata; other exported source trees receive it during
+source preparation:
 
 ```sh
 python3 release/scripts/version.py <next-version>

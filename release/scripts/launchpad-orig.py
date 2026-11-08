@@ -64,21 +64,25 @@ def git_archive(directory, prefix, mtime=None):
     if mtime:
         command.append(f"--mtime={mtime}")
     data = subprocess.run(command + [f"HEAD:{directory}"], check=True, capture_output=True).stdout
-    if directory != 'core':
+    if directory not in ('core', 'python/kit', 'python/holder'):
         return data
-    # core/ has no committed product-version copy. Its standalone source archive
-    # receives the exact root version from the same exported revision.
-    version = subprocess.run(['git', 'show', 'HEAD:VERSION'], check=True, capture_output=True).stdout
+    # Standalone source archives receive the root version and any shared build
+    # helper from the same committed revision as their component source.
+    generated = {'VERSION': subprocess.run(['git', 'show', 'HEAD:VERSION'], check=True, capture_output=True).stdout}
+    if directory.startswith('python/'):
+        generated['_build_support.py'] = subprocess.run(
+            ['git', 'show', 'HEAD:python/_build_support.py'], check=True, capture_output=True).stdout
     result = io.BytesIO()
     with tarfile.open(fileobj=io.BytesIO(data)) as source, tarfile.open(fileobj=result, mode='w') as target:
         timestamp = 0
         for member in source:
             timestamp = member.mtime
-            if member.name.rstrip('/') != prefix + 'VERSION':
+            if member.name.rstrip('/') not in {prefix + name for name in generated}:
                 target.addfile(member, source.extractfile(member) if member.isfile() else None)
-        member = tarfile.TarInfo(prefix + 'VERSION')
-        member.size, member.mode, member.mtime = len(version), 0o644, timestamp
-        target.addfile(member, io.BytesIO(version))
+        for name, content in generated.items():
+            member = tarfile.TarInfo(prefix + name)
+            member.size, member.mode, member.mtime = len(content), 0o644, timestamp
+            target.addfile(member, io.BytesIO(content))
     return result.getvalue()
 
 

@@ -3,6 +3,10 @@
 /daemon/VERSION
 /core/VERSION
 /apps/desktop/gtk/VERSION
+/python/holder/VERSION
+/python/kit/VERSION
+/python/holder/_build_support.py
+/python/kit/_build_support.py
 __pycache__/
 *.pyc
 

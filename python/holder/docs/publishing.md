@@ -9,7 +9,8 @@ builds both files, checks their metadata, installs each in a fresh virtual
 environment, and saves them as the `holder-python-distributions` artifact. A
 pull request or a manual run with `destination=none` only builds. Publishing
 uses Trusted Publishing. PyPI requires a manual run from the
-`holder-v<version>` tag with a matching `python/holder/pyproject.toml` version.
+`holder-v<version>` tag matching root `VERSION`. Package metadata derives its
+version from that file; source archives retain the generated version for rebuilding.
 The initial package-only `0.2.5` release also accepts
 `holder-python-v0.2.5-r2`; this tag does not start a Holder-wide release.
 
@@ -46,11 +47,11 @@ and use a new preview number for each revised build:
 
 1. Merge the changes to `main`. In GitHub Actions, run **Release / Holder
    Python to PyPI** on `main` with `destination=testpypi` and
-   `preview_number=1`. The build temporarily changes the package version to
-   `0.2.5.post1`; the committed `pyproject.toml` and root `VERSION` stay at
-   `0.2.5`.
+   `preview_number=1`. The build derives `<root-version>.post1` using
+   `HOLDER_PYTHON_PREVIEW_NUMBER`; root `VERSION` stays unchanged. Both the
+   wheel and source archive retain that preview version.
 2. Wait for the TestPyPI upload and published-wheel install check to pass.
-   Review the `0.2.5.post1` page on TestPyPI.
+   Review the resulting preview page on TestPyPI.
 3. If the description needs another edit, merge that edit and repeat from
    `main` with `preview_number=2`, then `3`, and so on. Each number creates
    new wheel and source filenames. A preview number can only publish to
