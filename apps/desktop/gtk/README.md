@@ -180,7 +180,7 @@ On macOS, install the development dependencies above plus Rust (`brew install
 rust`) and Xcode Command Line Tools (`xcode-select --install`). First use needs
 network access and builds an isolated copy of the Homebrew-selected GTK source
 with AccessKit C 0.18.0. Preparation can take several minutes. The shared recipe
-is `../../../staging/scripts/build-macos-accessible-gtk.sh`, taken from PR #26;
+is `../../../release/staging/scripts/build-macos-accessible-gtk.sh`, taken from PR #26;
 source archives are checksum verified. The recipe builds into a separate
 directory and macOS staging uses the same recipe for the packaged app.
 
@@ -219,7 +219,7 @@ permissions. The shared recipe patches GTK's internal menu label to use its
 normal `LABEL` role, preserving the existing `labelled-by` relation and matching
 ordinary GTK buttons. This replaces the earlier AccessKit bridge workaround;
 the new patch name and checksum select a fresh runtime cache and are retained
-in source provenance. See `../../../staging/scripts/patches/README.md`.
+in source provenance. See `../../../release/staging/scripts/patches/README.md`.
 
 The launcher sets `GTK_A11Y=accesskit` and `DYLD_LIBRARY_PATH` immediately before
 executing the native Holder binary. Do not put `/bin/sh`, `/usr/bin/env`, or

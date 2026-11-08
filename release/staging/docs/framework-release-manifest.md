@@ -2,7 +2,8 @@
 
 Development staging follows the latest Daemon CI run on main. For an RC or production release,
 commit one manifest and pass the same `release_manifest` path to all three
-staging workflows. Each reads its platform entry, uses the shared product
+staging workflows. The path is relative to `release/staging/` (for example,
+`release-manifests/0.2.5.json`). Each reads its platform entry, uses the shared product
 version/core pin, and bundles the original manifest in the package.
 
 `release-manifests/validation-0.2.1-rc.1.json` pins the branch artifacts used to

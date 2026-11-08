@@ -15,7 +15,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKED = {".c", ".cc", ".cpp", ".h", ".hpp", ".cmake", ".in", ".sh", ".py", ".json"}
-CORE_NEIGHBOURS = ("daemon", "cli", "common", "api", "python", "staging", "release", "apps")
+CORE_NEIGHBOURS = ("daemon", "cli", "common", "api", "python", "release", "apps")
 CORE_USERS = ("daemon", "cli", "common", "python/kit", "apps/mobile/android")
 C_API_USERS = ("python/kit", "apps/mobile/android")
 C_SOURCES = {".c", ".cc", ".cpp", ".h", ".hpp"}
