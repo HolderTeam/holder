@@ -16,6 +16,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <string>
 
 namespace {
@@ -146,4 +147,109 @@ TEST_CASE("Generated recovery token import retries after an empty remote gains c
   const holder_card* card = nullptr;
   REQUIRE(holder_get_card(f.target, f.project_id.c_str(), card_id.c_str(), f.arena, &card, &f.error) == HOLDER_OK);
   REQUIRE(std::string(card->content) == "hidden");
+}
+
+TEST_CASE(
+    "Generated project token import restores its key and rejects a wrong PIN",
+    "[capi][privacy]"
+) {
+  Fixture f;
+  const auto id = f.add_card();
+  holder_recovery_token_import_request request{"1234", f.token.c_str()};
+  const holder_project_recovery_token_import_result* result = nullptr;
+  REQUIRE(
+      holder_import_project_recovery_token(
+          f.source,
+          f.project_id.c_str(),
+          &request,
+          f.arena,
+          &result,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(std::string(result->project_id) == f.project_id);
+  request.pin = "wrong-pin";
+  REQUIRE(
+      holder_import_project_recovery_token(
+          f.source,
+          f.project_id.c_str(),
+          &request,
+          f.arena,
+          &result,
+          &f.error
+      ) == HOLDER_ERROR_RECOVERY_TOKEN_INVALID
+  );
+  REQUIRE(f.error != nullptr);
+  holder_error_destroy(f.error);
+  f.error = nullptr;
+  // A rejected import leaves the existing key usable.
+  const holder_card* card = nullptr;
+  REQUIRE(
+      holder_get_card(f.source, f.project_id.c_str(), id.c_str(), f.arena, &card, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(std::string(card->content) == "hidden");
+}
+
+TEST_CASE("Generated explicit sync pulls and pushes through a local remote", "[capi][privacy]") {
+  Fixture f;
+  const auto id = f.add_card();
+  f.push();
+  f.restore();
+  holder_card_update update{};
+  update.content = "Edited on the restored device";
+  const holder_card* card = nullptr;
+  REQUIRE(
+      holder_update_card(
+          f.target,
+          f.project_id.c_str(),
+          id.c_str(),
+          &update,
+          f.arena,
+          &card,
+          &f.error
+      ) == HOLDER_OK
+  );
+  holder_push_options options{};
+  const holder_sync_result* synced = nullptr;
+  REQUIRE(
+      holder_sync_project(f.target, f.project_id.c_str(), &options, f.arena, &synced, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(std::string(synced->project_id) == f.project_id);
+  REQUIRE(std::string(synced->remote_url) == f.remote.string());
+  REQUIRE(synced->pull.status == HOLDER_PULL_PHASE_STATUS_SUCCEEDED);
+  REQUIRE(synced->push.status == HOLDER_PUSH_PHASE_STATUS_PUSHED);
+  // A third device must recover the pushed edit from the remote, independently
+  // of either writer's working tree or database.
+  holder_context* opened = nullptr;
+  const auto observer_dir = holder::test::make_temp_dir();
+  const auto schema = schema_sql();
+  REQUIRE(
+      holder_context_open(observer_dir.string().c_str(), schema.c_str(), &opened, &f.error) ==
+      HOLDER_OK
+  );
+  const std::unique_ptr<holder_context, decltype(&holder_context_destroy)> observer(
+      opened,
+      holder_context_destroy
+  );
+  holder_recovery_token_import_request request{"1234", f.token.c_str()};
+  const holder_recovery_token_global_import_result* recovered = nullptr;
+  REQUIRE(
+      holder_import_recovery_token_global(
+          observer.get(),
+          &request,
+          f.arena,
+          &recovered,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(
+      recovered->pull_status == HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED
+  );
+  REQUIRE(
+      holder_get_card(observer.get(), f.project_id.c_str(), id.c_str(), f.arena, &card, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(std::string(card->content) == "Edited on the restored device");
 }

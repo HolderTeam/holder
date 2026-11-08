@@ -43,6 +43,7 @@ add_executable(holder_core_tests
   CApiHistory_test.cpp
   CApiImport_test.cpp
   CApiLocations_test.cpp
+  CApiMaintenance_test.cpp
   CApiProjects_test.cpp
   CApiRecovery_test.cpp
   CApiRuntime_test.cpp
