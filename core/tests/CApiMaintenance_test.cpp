@@ -2,6 +2,7 @@
 #include "ai/AiThreadRepo.h"
 #include "capi/Context.h"
 #include "card/CardRepo.h"
+#include "card/CardPaths.h"
 #include "card/LinkMutation.h"
 #include "core_test_helpers.h"
 #include "git/GitOps.h"
@@ -11,6 +12,7 @@
 
 #include <holder/holder_api.h>
 #include <memory>
+#include <fstream>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -523,4 +525,260 @@ TEST_CASE("Link target validation distinguishes local, external, missing and tra
   REQUIRE_THROWS_AS(validate("foreign-message", "ai_message"), std::invalid_argument);
   holder::ai::AiMessageRepo(host.db, &host.fts).trash("local-message", 50);
   REQUIRE_THROWS_AS(validate("local-message", "ai_message"), std::invalid_argument);
+}
+
+TEST_CASE(
+    "Generated nested hierarchy repair returns hidden children to their live ancestor",
+    "[capi][remaining-maintenance]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto ancestor = host.card(project, "Ancestor");
+  const auto parent = host.card(project, "Hidden parent", ancestor.c_str());
+  const auto child = host.card(project, "Hidden child", parent.c_str());
+  holder::card::CardRepo cards(host.db);
+  cards.soft_delete(parent, 50, 50);
+  holder_hierarchy_repair_request request{};
+  const holder_hierarchy_repair* repair = nullptr;
+  REQUIRE(
+      holder_repair_project_hierarchy(
+          &host.context,
+          project.c_str(),
+          &request,
+          host.arena.get(),
+          &repair,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE_FALSE(repair->applied);
+  REQUIRE(repair->moved.count == 1);
+  REQUIRE(std::string(repair->moved.items[0].card_id) == child);
+  REQUIRE(repair->moved.items[0].parent_card_id != nullptr);
+  REQUIRE(std::string(repair->moved.items[0].parent_card_id) == ancestor);
+  REQUIRE(cards.get(child)->parent_card_id == parent);
+  const bool apply = true;
+  request.apply = &apply;
+  REQUIRE(
+      holder_repair_project_hierarchy(
+          &host.context,
+          project.c_str(),
+          &request,
+          host.arena.get(),
+          &repair,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(repair->applied);
+  REQUIRE(cards.get(child)->parent_card_id == ancestor);
+  const holder_card_breadcrumb_list* path = nullptr;
+  REQUIRE(
+      holder_get_card_breadcrumbs(
+          &host.context,
+          project.c_str(),
+          child.c_str(),
+          host.arena.get(),
+          &path,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(path->count == 3);
+  REQUIRE(std::string(path->items[1].id) == ancestor);
+  REQUIRE(std::string(path->items[2].id) == child);
+}
+
+TEST_CASE(
+    "Generated rebuild reports corrupt durable cards and preserves the existing projection",
+    "[capi][remaining-maintenance]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto card = host.card(project, "Durable original");
+  const auto root = holder::project::ProjectRepo(host.db).get(project)->root_path;
+  const auto path = std::filesystem::path(root) / holder::core::card_rel_path(card);
+  std::ifstream input(path, std::ios::binary);
+  REQUIRE(input.is_open());
+  const std::string original{
+      std::istreambuf_iterator<char>(input),
+      std::istreambuf_iterator<char>()
+  };
+  input.close();
+  {
+    std::ofstream damaged(path, std::ios::binary);
+    auto corrupt = original;
+    const auto id_at = corrupt.find(card);
+    REQUIRE(id_at != std::string::npos);
+    corrupt.replace(id_at, card.size(), "not-a-valid-card-id");
+    damaged << corrupt;
+  }
+  holder_rebuild_request request{project.c_str()};
+  const holder_rebuild_result* result = nullptr;
+  host.failed(
+      holder_rebuild_project(&host.context, &request, host.arena.get(), &result, &host.error),
+      HOLDER_ERROR_REBUILD_FAILED
+  );
+  REQUIRE(result == nullptr);
+  REQUIRE(holder::card::CardRepo(host.db).get(card)->title == "Durable original");
+  {
+    std::ofstream restored(path, std::ios::binary);
+    restored << original;
+  }
+  REQUIRE(
+      holder_rebuild_project(&host.context, &request, host.arena.get(), &result, &host.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(result->cards == 1);
+  REQUIRE(std::string(result->project_id) == project);
+  const holder_card* read = nullptr;
+  REQUIRE(
+      holder_get_card(
+          &host.context,
+          project.c_str(),
+          card.c_str(),
+          host.arena.get(),
+          &read,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(std::string(read->title) == "Durable original");
+}
+
+TEST_CASE(
+    "Generated message Trash returns metadata and enforces project scope on deletion",
+    "[capi][remaining-maintenance]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto other = host.project();
+  host.message(project, "trashed-message", "Discarded body");
+  host.message(project, "live-message", "Keep this body");
+  holder::ai::AiMessageRepo messages(host.db, &host.fts);
+  messages.trash("trashed-message", 50);
+  const holder_trash_item_list* items = nullptr;
+  REQUIRE(
+      holder_list_trash(
+          &host.context,
+          project.c_str(),
+          "ai_message",
+          host.arena.get(),
+          &items,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(items->count == 1);
+  const auto& item = items->items[0];
+  REQUIRE(item.type == HOLDER_TRASH_ITEM_TYPE_AI_MESSAGE);
+  REQUIRE(std::string(item.project_id) == project);
+  REQUIRE(item.card_id == nullptr);
+  REQUIRE(std::string(item.message_id) == "trashed-message");
+  REQUIRE(std::string(item.thread_id) == "thread-trashed-message");
+  REQUIRE(std::string(item.role) == "user");
+  REQUIRE(item.deleted_at == 50);
+  REQUIRE(item.created_at != nullptr);
+  REQUIRE(*item.created_at == 11);
+  const holder_trash_delete_result* result = nullptr;
+  host.failed(
+      holder_delete_project_trash_item(
+          &host.context,
+          other.c_str(),
+          HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_AI_MESSAGE,
+          "trashed-message",
+          host.arena.get(),
+          &result,
+          &host.error
+      ),
+      HOLDER_ERROR_NOT_FOUND
+  );
+  host.failed(
+      holder_delete_trash_item(
+          &host.context,
+          HOLDER_DELETE_TRASH_ITEM_TYPE_AI_MESSAGE,
+          "missing-message",
+          host.arena.get(),
+          &result,
+          &host.error
+      ),
+      HOLDER_ERROR_NOT_FOUND
+  );
+  REQUIRE(messages.get("trashed-message").has_value());
+  REQUIRE(
+      holder_delete_project_trash_item(
+          &host.context,
+          project.c_str(),
+          HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_AI_MESSAGE,
+          "trashed-message",
+          host.arena.get(),
+          &result,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(std::string(result->message_id) == "trashed-message");
+  REQUIRE(result->card_id == nullptr);
+  REQUIRE_FALSE(messages.get("trashed-message"));
+  REQUIRE(messages.get("live-message").has_value());
+}
+
+TEST_CASE(
+    "Generated card references separate live, trashed and ambiguous exact titles",
+    "[capi][remaining-maintenance]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto live = host.card(project, "Same title");
+  const auto trash = host.card(project, "Same title");
+  const holder_card* ignored = nullptr;
+  REQUIRE(
+      holder_trash_card(
+          &host.context,
+          project.c_str(),
+          trash.c_str(),
+          HOLDER_TRASH_CARD_CHILDREN_DEFAULT,
+          host.arena.get(),
+          &ignored,
+          &host.error
+      ) == HOLDER_OK
+  );
+  holder_card_reference_resolve_request request{
+      project.c_str(),
+      "Same title",
+      HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_EITHER
+  };
+  const holder_card_reference_resolve_data* result = nullptr;
+  REQUIRE(
+      holder_resolve_card_reference(
+          &host.context,
+          &request,
+          host.arena.get(),
+          &result,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(result->status == HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_AMBIGUOUS);
+  REQUIRE(result->candidates != nullptr);
+  REQUIRE(result->candidates->count == 2);
+  REQUIRE(result->card == nullptr);
+  request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_TRASHED;
+  REQUIRE(
+      holder_resolve_card_reference(
+          &host.context,
+          &request,
+          host.arena.get(),
+          &result,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(result->status == HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_RESOLVED);
+  REQUIRE(std::string(result->card->card_id) == trash);
+  REQUIRE(result->card->deleted_at != nullptr);
+  request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_LIVE;
+  REQUIRE(
+      holder_resolve_card_reference(
+          &host.context,
+          &request,
+          host.arena.get(),
+          &result,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(std::string(result->card->card_id) == live);
+  REQUIRE(result->card->deleted_at == nullptr);
 }
