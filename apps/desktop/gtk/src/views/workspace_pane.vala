@@ -579,6 +579,7 @@ public class WorkspacePane : Object {
         });
 
         editor_view = new GtkSource.View.with_buffer(editor_buffer);
+        editor_view.set_top_margin(2);
         WindowsMonospace.apply(editor_view);
         editor_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
         editor_view.set_show_line_numbers(true);
