@@ -98,9 +98,11 @@ def main(argv=None):
     parser.add_argument("--version", required=True)
     parser.add_argument("--directory", required=True, help="the package's directory in the repository")
     parser.add_argument("--output", required=True)
+    parser.add_argument('--local', action='store_true',
+                        help='build an unpublished archive without querying Launchpad (PR checks)')
     args = parser.parse_args(argv)
     prefix = f"{args.source}-{args.version}/"
-    url = published_orig_url(args.source, args.version)
+    url = None if args.local else published_orig_url(args.source, args.version)
     if url:
         published = fetch(url, timeout=300)
         expected = contents(git_archive(args.directory, prefix))

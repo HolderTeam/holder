@@ -145,8 +145,14 @@ jobs:
             # build it reproducibly, so that every series' job builds the same file.
             directory="${{ fromJSON('{"core":"core","daemon":"daemon","kit":"python/kit","desktop":"apps/desktop/gtk"}')[matrix.package] }}"
             orig_path="$(cd .. && pwd)/${SOURCE}_${version}.orig.tar.gz"
+            orig_options=()
+            if [ "$EVENT_NAME" = pull_request ]; then
+              # Check the proposed source, without pretending to replace an
+              # already-published upstream version. PRs never upload packages.
+              orig_options=(--local)
+            fi
             orig="$(cd "$GITHUB_WORKSPACE" && python3 release/scripts/launchpad-orig.py --source "$SOURCE" \
-              --version "$version" --directory "$directory" --output "$orig_path" | tail -n 1)"
+              --version "$version" --directory "$directory" --output "$orig_path" "${orig_options[@]}" | tail -n 1)"
             if [ "$orig" = reused ]; then
               # Launchpad already has the tarball; the upload must not include it again.
               echo "DEBUILD_SOURCE_OPTION=-sd" >> "$GITHUB_ENV"

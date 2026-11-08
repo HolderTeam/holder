@@ -1,6 +1,9 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import contextlib
+import gzip
+import io
 from unittest import mock
 import urllib.error
 from pathlib import Path
@@ -83,6 +86,14 @@ class SourceArchiveTests(unittest.TestCase):
             members = tool.contents(data)
             self.assertEqual(members['holder-core-1.2.3/VERSION'][2], b'1.2.3\n')
             self.assertIn('holder-core-1.2.3/CMakeLists.txt', members)
+            archive = root / 'local.orig.tar.gz'
+            with mock.patch.object(tool.subprocess, 'run', side_effect=run), \
+                    mock.patch.object(tool, 'published_orig_url') as published, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                tool.main(['--source', 'holder-core', '--version', '1.2.3', '--directory', 'core',
+                           '--output', str(archive), '--local'])
+            published.assert_not_called()
+            self.assertEqual(tool.contents(gzip.decompress(archive.read_bytes()))['holder-core-1.2.3/VERSION'][2], b'1.2.3\n')
 
 
 if __name__ == "__main__":
