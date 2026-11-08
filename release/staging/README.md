@@ -1,6 +1,9 @@
 # Staging
 Builds and stages Holder release candidates
 
+See the [release runbook](../docs/runbook.md) for the complete manual procedure,
+including publication gates and recovery after partial completion.
+
 For a whole-framework RC or production release, use one
 [framework release manifest](docs/framework-release-manifest.md) across Linux,
 Windows and macOS. It pins one core SDK revision/configuration, product version

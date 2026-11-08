@@ -1,8 +1,8 @@
 # Packaging Holder Kit
 
 The Python distribution is `holder-kit`; its import package is `holderkit`.
-The version in `pyproject.toml` is independent of libholder and the Holder
-Framework. The base package has no data-science dependencies; `pandas` and
+Release versions in `pyproject.toml`, core and the repository's root `VERSION`
+must agree. The base package has no data-science dependencies; `pandas` and
 `graph` are optional extras.
 
 See [Building](building.md) for prerequisites and core selection, and
@@ -159,8 +159,8 @@ installs optional adapters and runs integration tests.
 
 `holder-kit` is one of the source packages that `Release / Launchpad`
 ([`release-launchpad.yml`](../../../.github/workflows/release-launchpad.yml))
-uploads to `ppa:holderteam/holder`, with `holder-core` and `holder-daemon`. The
-release tag uploads all three. A manual run with `packages=kit` and a new
+uploads to `ppa:holderteam/holder`, with `holder-core`, `holder-daemon` and
+`holder-desktop`. The release tag uploads all four. A manual run with `packages=kit` and a new
 `package_revision` uploads only Kit, for a packaging-only fix. Kit's version
 must equal core's: its source package builds against `libholder-dev` of that
 version, so on Launchpad it waits for the core packages from the same upload.
