@@ -15,6 +15,7 @@
 #include "resource/ResourceStore.h"
 
 #include <git2.h>
+#include <holder/holder_api.h>
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -22,7 +23,9 @@
 #include <stdexcept>
 #include <filesystem>
 #include <map>
+#include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -416,4 +419,200 @@ TEST_CASE("Restore writes a large snapshot as one commit", "[recovery]") {
   const auto restored = host.restore(lines);
   REQUIRE(host.lines(restored.project_id).size() == 2000);
   REQUIRE(count_commits(restored.root_path) == 2);
+}
+
+TEST_CASE(
+    "Generated recovery snapshots preserve nested records through paging and restore",
+    "[capi][recovery]"
+) {
+  Host host;
+  const auto root = host.card("Parent");
+  const auto child = host.card("Child", root, 7.0, "![notes](holder://resource/resource-original)");
+  const auto trashed = host.card("Trashed");
+  contract::trash_card(
+      host.context,
+      host.project_id,
+      trashed,
+      contract::TrashCardChildren::Promote
+  );
+  holder::resource::LocationStore(host.db, nullptr, &host.git)
+      .put(
+          {"location-original",
+           host.project_id,
+           "Files",
+           "local_directory",
+           {{"path", "/files"}},
+           10,
+           20}
+      );
+  holder::model::ResourceBundle bundle;
+  bundle.resource = {
+      "resource-original",
+      host.project_id,
+      "document",
+      "Notes.pdf",
+      {{"pages", {"4", "5"}}},
+      10,
+      20
+  };
+  bundle.assets.push_back(
+      {"asset-original",
+       "resource-original",
+       "Notes.pdf",
+       "application/pdf",
+       4,
+       std::string(64, 'a'),
+       10,
+       20,
+       {{"placement-original",
+         "asset-original",
+         "location-original",
+         "remote/notes",
+         "holder_asset_v1",
+         40,
+         std::string(64, 'b'),
+         10}}}
+  );
+  holder::resource::ResourceStore(host.db, nullptr, &host.git).put(bundle);
+  host.link(child, contract::NewLinkTargetType::Resource, "resource-original", "attachment");
+  host.link(child, contract::NewLinkTargetType::Card, root, "related");
+  contract::NewMilestone milestone;
+  milestone.dates = {{"due", "2026-11-02", std::nullopt}};
+  milestone.kind = "Deadline";
+  milestone.description = "ship it";
+  contract::add_card_milestone(host.context, host.project_id, child, milestone);
+
+  const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
+      holder_arena_new(),
+      holder_arena_free
+  );
+  holder_error* error = nullptr;
+  std::string cursor;
+  std::string snapshot;
+  const int32_t limit = 1;
+  const holder_recovery_snapshot_card* read_child = nullptr;
+  std::set<std::string> seen;
+  do {
+    const holder_recovery_snapshot_page* page = nullptr;
+    REQUIRE(
+        holder_read_recovery_snapshot(
+            &host.context,
+            host.project_id.c_str(),
+            cursor.empty() ? nullptr : cursor.c_str(),
+            &limit,
+            arena.get(),
+            &page,
+            &error
+        ) == HOLDER_OK
+    );
+    REQUIRE(error == nullptr);
+    REQUIRE(page->cards.count == 1);
+    REQUIRE(page->lines.count == 1);
+    const auto& card = page->cards.items[0];
+    REQUIRE(seen.insert(card.card_id).second);
+    REQUIRE(std::string(card.project_id) == host.project_id);
+    REQUIRE(std::string(card.project_name) == "Source");
+    REQUIRE(card.privacy_mode == HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_PLAIN);
+    REQUIRE(json::parse(page->lines.items[0])["card"]["card_id"] == card.card_id);
+    snapshot += std::string(page->lines.items[0]) + "\n";
+    if (card.card_id == child) read_child = &card;
+    cursor = page->next_cursor ? page->next_cursor : "";
+    REQUIRE(seen.size() <= 2);
+  } while (!cursor.empty());
+  REQUIRE(seen == std::set<std::string>{root, child});
+  REQUIRE(read_child != nullptr);
+  REQUIRE(std::string(read_child->parent_card_id) == root);
+  REQUIRE(read_child->sort_key == 7.0);
+  REQUIRE(read_child->links.count == 2);
+  REQUIRE(read_child->milestones.count == 1);
+  const auto& due = read_child->milestones.items[0];
+  REQUIRE(std::string(due.kind) == "Deadline");
+  REQUIRE(std::string(due.description) == "ship it");
+  REQUIRE(due.dates.count == 1);
+  REQUIRE(std::string(due.dates.items[0].date) == "2026-11-02");
+  REQUIRE(read_child->locations.count == 1);
+  const auto& location = read_child->locations.items[0];
+  REQUIRE(location.provider == HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_LOCAL_DIRECTORY);
+  REQUIRE(location.configuration.count == 1);
+  REQUIRE(std::string(location.configuration.items[0].key) == "path");
+  REQUIRE(std::string(location.configuration.items[0].values) == "/files");
+  REQUIRE(read_child->resources.count == 1);
+  const auto& resource = read_child->resources.items[0];
+  REQUIRE(std::string(resource.resource_id) == "resource-original");
+  REQUIRE(resource.metadata.count == 1);
+  REQUIRE(resource.metadata.items[0].values.count == 2);
+  REQUIRE(std::string(resource.metadata.items[0].values.items[1]) == "5");
+  REQUIRE(resource.assets.count == 1);
+  const auto& asset = resource.assets.items[0];
+  REQUIRE(std::string(asset.original_filename) == "Notes.pdf");
+  REQUIRE(asset.byte_size == 4);
+  REQUIRE(asset.placements.count == 1);
+  REQUIRE(
+      asset.placements.items[0].encoding ==
+      HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_HOLDER_ASSET_V1
+  );
+  REQUIRE(asset.placements.items[0].stored_byte_size == 40);
+  REQUIRE(std::string(asset.placements.items[0].stored_sha256) == std::string(64, 'b'));
+
+  holder_recovery_snapshot_restore request{};
+  request.project_name = "Restored through C";
+  request.privacy_mode = HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_PLAIN;
+  request.snapshot = snapshot.c_str();
+  request.commit_message = "Recover saved cards";
+  const holder_project* restored = nullptr;
+  REQUIRE(
+      holder_restore_recovery_snapshot(&host.context, &request, arena.get(), &restored, &error) ==
+      HOLDER_OK
+  );
+  REQUIRE(error == nullptr);
+  REQUIRE(std::string(restored->project_id) != host.project_id);
+  REQUIRE(std::string(restored->name) == "Restored through C");
+  const auto cards = host.by_title(restored->project_id);
+  REQUIRE(cards.size() == 2);
+  const auto& copy = cards.at("Child");
+  REQUIRE(copy.card_id != child);
+  REQUIRE(copy.parent_card_id == cards.at("Parent").card_id);
+  REQUIRE(copy.resources.size() == 1);
+  REQUIRE(copy.resources[0].resource_id != "resource-original");
+  REQUIRE(copy.content == "![notes](holder://resource/" + copy.resources[0].resource_id + ")");
+  REQUIRE(copy.resources[0].assets[0].placements[0].location_id == copy.locations[0].location_id);
+  REQUIRE(copy.milestones[0].description == "ship it");
+  // Original arena-backed nested records survive subsequent calls.
+  REQUIRE(std::string(asset.original_filename) == "Notes.pdf");
+}
+
+TEST_CASE(
+    "Generated recovery rejects corrupt snapshots without creating projects",
+    "[capi][recovery]"
+) {
+  Host host;
+  const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
+      holder_arena_new(),
+      holder_arena_free
+  );
+  auto record = json::parse(line_of(bare_card("card-1", "Card")));
+  SECTION("future version") { record["version"] = 2; }
+  SECTION("wrong format") { record["format"] = "other"; }
+  SECTION("missing required field") { record["card"].erase("sort_key"); }
+  SECTION("unknown privacy mode") { record["card"]["privacy_mode"] = "unknown"; }
+  const auto text = record.dump();
+  holder_recovery_snapshot_restore request{};
+  request.project_name = "Must not exist";
+  request.privacy_mode = HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_PLAIN;
+  request.snapshot = text.c_str();
+  request.commit_message = "Rejected restore";
+  const auto before = host.project_count();
+  const holder_project* restored = nullptr;
+  holder_error* error = nullptr;
+  const auto status =
+      holder_restore_recovery_snapshot(&host.context, &request, arena.get(), &restored, &error);
+  const std::unique_ptr<holder_error, decltype(&holder_error_destroy)> owned_error(
+      error,
+      holder_error_destroy
+  );
+  REQUIRE(status == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(error != nullptr);
+  REQUIRE(std::string(holder_error_message(error)).size() > 0);
+  REQUIRE(restored == nullptr);
+  REQUIRE(host.project_count() == before);
 }
