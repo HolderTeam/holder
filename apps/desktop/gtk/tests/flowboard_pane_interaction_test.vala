@@ -358,6 +358,7 @@ private void fpi_test_right_clicking_a_card_opens_its_menu() {
         fv_button_labeled((!) popover, label).clicked();
     }
     assert(h.log() == "open:c2|child:c2|up-level:c2|trash:c2|left:c2|right:c2|start:c2|end:c2");
+    h.destroy_window();
 }
 
 private void fpi_test_the_card_menu_disables_moves_that_are_not_possible() {
@@ -396,6 +397,7 @@ private void fpi_test_the_card_menu_disables_moves_that_are_not_possible() {
     assert(fv_button_labeled(menu, "Open").get_sensitive());
     assert(fv_button_labeled(menu, "Create Child Card").get_sensitive());
     assert(fv_button_labeled(menu, "Move to Trash").get_sensitive());
+    h.destroy_window();
 }
 
 private void fpi_test_right_clicking_a_card_again_does_not_stack_menus() {
@@ -404,6 +406,8 @@ private void fpi_test_right_clicking_a_card_again_does_not_stack_menus() {
     }
     var h = new FlowboardPaneHarness();
     h.add(fv_tile("c1", "One", false, null, 2, 0));
+    // Reopening a native popover needs a mapped parent, just like a real click.
+    h.present_and_centre_of("c1");
     var row = h.row("c1");
     var context = fv_click(row, Gdk.BUTTON_SECONDARY);
 
@@ -414,6 +418,7 @@ private void fpi_test_right_clicking_a_card_again_does_not_stack_menus() {
 
     // Each right-click used to leave another popover parented to the tile.
     assert(fv_popover_count(row) == 1);
+    h.destroy_window();
 }
 
 private void fpi_test_only_a_single_right_click_on_a_card_opens_a_menu() {

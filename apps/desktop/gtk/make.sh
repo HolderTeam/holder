@@ -124,7 +124,9 @@ run_gui_tests() {
   elif command -v xvfb-run >/dev/null 2>&1; then
     # GTK popovers need a display with a stable monitor layout. Use an isolated
     # display so tests do not depend on the developer's desktop arrangement.
-    GSETTINGS_BACKEND=memory \
+    # Force X11: GTK can otherwise discover the desktop's Wayland socket even
+    # when xvfb-run sets DISPLAY. Match CI's headless rendering settings too.
+    GDK_BACKEND=x11 GTK_A11Y=none GSK_RENDERER=cairo GSETTINGS_BACKEND=memory \
       xvfb-run -a meson test -C "${dir}" --print-errorlogs
   else
     GSETTINGS_BACKEND=memory meson test -C "${dir}" --print-errorlogs
