@@ -107,16 +107,27 @@ Behave tests likewise do not replace the release package validation below.
 
 ## 4. Pin and stage the candidate
 
-Download the daemon run's `core-selection` and review its `commit`, `core_tree`,
-version and per-platform assets. Create a framework manifest using the
-[consumed schema](../staging/docs/framework-release-manifest.md), with:
+Generate the framework manifest from the successful runs and frozen candidate SHA:
+
+```sh
+python3 release/staging/scripts/generate-release-manifest.py \
+  --candidate <full-candidate-SHA> --version <version> \
+  --desktop-run <Desktop-CI-run-ID> --backend-run <Daemon-CI-run-ID> \
+  --output release/staging/release-manifests/<version>-candidate-1.json
+```
+
+Review the manifest and companion `.evidence.json` using the
+[manifest contract](../staging/docs/framework-release-manifest.md). Generation
+checks the Release staging artifacts and core provenance and records:
 
 - The product `version` and `core.build_type=Release`.
 - `core.commit` from that daemon run's selection.
 - The recorded Desktop and Daemon repository, run ID and source SHA for each of
   `linux`, `windows` and `macos`.
+- Immutable artifact IDs, archive digests, run attempts and the earliest staging
+  input expiry; SDK producer commits/digests remain separate from candidate identity.
 
-Commit it as `release/staging/release-manifests/<version>-candidate-1.json` and
+Commit both files under `release/staging/release-manifests/` and
 merge it to `main` before staging. The manifest commit can differ from the
 candidate source commit: it records already-built inputs, rather than changing
 them. Record the staging workflow revision as well as those component revisions.

@@ -43,6 +43,17 @@ def load_pin(path, platform="linux"):
         require(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", component["repository"]),
                 f"Invalid {name} repository")
         require(re.fullmatch(r"[0-9]+", str(component["run_id"])), f"Invalid {name} run ID")
+    # Generated candidates pin immutable artifact IDs as well as component runs.
+    # Older manually written manifests remain valid without any artifact pins.
+    artifact_pins = [(pin[name].get('artifact_id'), pin[name].get('artifact_sha256'))
+                     for name in ('desktop', 'backend')]
+    artifact_pins.append((pin['core'].get('selection_artifact_id'),
+                          pin['core'].get('selection_artifact_sha256')))
+    if any(identifier or checksum for identifier, checksum in artifact_pins):
+        require(all(re.fullmatch(r'[0-9]+', str(identifier or '')) and
+                    isinstance(checksum, str) and re.fullmatch(r'[0-9a-f]{64}', checksum)
+                    for identifier, checksum in artifact_pins),
+                'Artifact pins require desktop/backend/core-selection IDs and SHA256 checksums')
     return pin
 
 
@@ -104,6 +115,7 @@ def main():
         values = {name: os.environ.get(name.upper() + "_INPUT", "") for name in
                   ("desktop_run_id", "backend_run_id", "appimage_version")}
         values["build_type"] = "RelWithDebInfo"
+        values.update(desktop_artifact_id='', backend_artifact_id='', core_selection_artifact_id='')
         values["backend_repository"] = os.environ["BACKEND_REPOSITORY_INPUT"]
         # Desktop / CI and Daemon CI run in the same repository.
         values["desktop_repository"] = values["backend_repository"]
@@ -116,6 +128,8 @@ def main():
             for name in components:
                 values[name + "_run_id"] = str(pin[name]["run_id"])
                 values[name + "_repository"] = pin[name]["repository"]
+                values[name + '_artifact_id'] = str(pin[name].get('artifact_id', ''))
+            values['core_selection_artifact_id'] = str(pin['core'].get('selection_artifact_id', ''))
         with open(os.environ["GITHUB_OUTPUT"], "a") as output:
             for key, value in values.items():
                 require("\n" not in value and "\r" not in value, "Inputs must be single lines")
