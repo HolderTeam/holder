@@ -305,13 +305,13 @@ let tag creation select the then-current tip of `main` instead. Never move a
 published tag. Pushing the tag starts `Release / Launchpad`; GitHub draft state
 does not postpone that upload. Record the resulting run immediately.
 
-The signing handoff is coordinated; the remaining promotion operations still
-have independent manual entry points:
+Linux signing and promotion are coordinated. Other destinations retain their
+independent manual entry points:
 
 | Operation | Public workflow/ref and inputs | Handoff/result |
 | --- | --- | --- |
 | Linux signing step | `release.py sign-linux --record <candidate.json> --wait`; or the existing [manual workflow](../../.github/workflows/sign-linux-appimage.yml) on `main` | After approval and verification: accepted `Holder-linux-appimage-signed-<version>`, pinned staging identity, signatures, metadata and attestation |
-| Linux promotion | [promote-linux-appimage.yml](../../.github/workflows/promote-linux-appimage.yml), `main`; `expected_version=<version>`, `signing_run_id=<verified signing run>`, `release_tag=holder-v<version>`, `allow_published_prerelease=false` | Verifies the signed candidate, then creates/updates the matching **draft** in this repository |
+| Linux promotion | `release.py promote-linux --record <candidate.json> --wait`; the [manual workflow](../../.github/workflows/promote-linux-appimage.yml) remains available on `main` | Verifies pinned signed bytes and the existing candidate tag; creates/reuses the matching draft and delivers only missing Linux files; records exact destination IDs/hashes |
 | Core SDK publication | [promote-core-sdk.yml](../../.github/workflows/promote-core-sdk.yml), `main`; `expected_version=<version>`, `daemon_ci_run_id=<selected Release daemon run>`, `release_tag=holder-v<version>` | Publishes the exact daemon run's three SDKs and `sdk-index.json` in `HolderTeam/holder-sdk`; this is a public SDK release, not an asset upload into Holder's draft |
 | Windows development installer, if chosen | [promote-windows-dev-build.yml](../../.github/workflows/promote-windows-dev-build.yml), `main`; `staging_run_id=<tester-signed Windows staging run>`, `release_tag=holder-v<version>`; keep repository/artifact defaults | Adds `Holder-windows-<version>-dev-Setup.exe`, checksum and test-certificate information to the existing draft |
 | macOS disk image | Complete the signing/notarization handoff from the selected `Holder-macos-staged` artifact | Add the verified `Holder-macos-<version>.dmg` and matching `.sha256` to the same draft, preserving candidate identity |
@@ -321,9 +321,13 @@ explicit `holder-v*` tag and no matching release, that workflow creates a draft
 marked as a prerelease; review that flag before publishing a stable release.
 With no explicit `release_tag` it instead uses a separate
 `holder-windows-dev-<run>` tag and creates a published development prerelease.
-Linux promotion refuses an existing
-published stable release; keep its published-prerelease exception disabled for
-the normal release path.
+Linux promotion leaves matching existing assets intact and rejects conflicts.
+It can verify a complete published stable release, but cannot modify one. Keep
+its published-prerelease exception disabled for the normal release path.
+Intentional Linux draft replacement is now an explicit manual-only input,
+`replace_draft_assets=true`, unavailable with pinned inputs. See
+[Linux promotion](linux-promotion.md) for receipts, partial upload recovery,
+expiry handling and that separate mutable-draft operation.
 
 Signing can change artifact bytes. Verify and record the final signed outputs
 and test those outputs; do not compare them to an unsigned checksum as if they
