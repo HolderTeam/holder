@@ -114,13 +114,13 @@ std::size_t response_size(const ProjectHistoryPage& page) {
       }
       affected.push_back({{"kind", kind_name(object.kind)},
                           {"paths", object.paths}, {"items", std::move(items)}});
-    }
+    } // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
     activities.push_back({{"oid", activity.oid}, {"parent_oids", activity.parent_oids},
                           {"author", {{"name", activity.author.name}, {"email", activity.author.email}}},
                           {"authored_at", activity.authored_at}, {"committed_at", activity.committed_at},
                           {"message", activity.message}, {"affected_objects", std::move(affected)},
                           {"is_merge", activity.is_merge}});
-  }
+  } // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
   return nlohmann::json({{"ok", true}, {"data", {{"head_oid", nullable(page.head_oid)},
                                                   {"activities", std::move(activities)},
                                                   {"next_cursor", nullable(page.next_cursor)},
@@ -274,7 +274,7 @@ CardHistoryComparison compare_card_history(holder_context& context, std::string 
       lines.push_back({{"origin", origin}, {"text", line.text},
                        {"old_line", old_line ? nlohmann::json(*old_line) : nlohmann::json(nullptr)},
                        {"new_line", new_line ? nlohmann::json(*new_line) : nlohmann::json(nullptr)}});
-    }
+    } // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
     bound_card_history({{"before", history_json(out.before)}, {"after", history_json(out.after)},
                         {"summary", out.summary}, {"lines", std::move(lines)}, {"truncated", out.truncated}});
     return out;

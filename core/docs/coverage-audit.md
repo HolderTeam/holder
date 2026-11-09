@@ -6,7 +6,20 @@ refer to that baseline; generated output may move when regenerated. gcovr classi
 72 of these records as executable. An unhit source record alone does not establish
 an untested behavior, and a difficult failure path is not automatically an artifact.
 
-## Result of this batch
+## Latest result
+
+After the compiler-cleanup review: **15,034 / 15,087 lines (99.6%)**, with
+**1,881 / 1,881 functions (100%)**. There are **53 missed lcov records** left,
+including **48 executable misses in gcovr**. This batch changes reporting only;
+it does not claim new behavioral coverage. A trace comparison verified that the
+only removed records are the 29 annotated braces and that every other line keeps
+its previous covered/uncovered status.
+
+All 886 core tests, five coverage-filter tests and 21 generator tests pass. The
+strengthened exclusion-policy test, generated-file freshness, Ruff and
+`git diff --check` also pass. One complete core coverage run validates this batch.
+
+## Result of the initial audit
 
 On 2026-11-09, all 886 core tests, five coverage-filter tests and 21 generator
 tests passed. Generated-file freshness, Ruff and shell syntax checks passed.
@@ -60,7 +73,7 @@ exclusion permission:
 | Legacy milestone | `CardStore.cpp:807` | An existing end value without a legacy epoch conflicts with earlier front-matter date validation. Keep the defensive guard. |
 | Private path invariant | `CardStore.cpp:891` | Callers validate the snapshot path before applying changes. Public bad-path rejection remains tested. |
 
-## Compiler attribution candidates
+## Compiler attribution candidates from the initial audit
 
 The remaining records include function-end braces, loop-end braces, aggregate
 initializers, a default argument declaration, and a SQL literal. Most are absent
@@ -89,8 +102,9 @@ that option to zero and allows the inconsistency warning, preserving the origina
 gcov count instead of manufacturing a miss. It is not evidence
 that the entire return statement should be omitted.
 
-This audit intentionally does not suppress those records yet. Preserve real
-safeguards and add a precise witness before changing reporting policy.
+The initial audit left these records visible. The follow-up below records which
+closing-brace counters now have enough evidence for a source-only exclusion.
+Preserve real safeguards and require a precise witness before changing reporting policy.
 
 ## Baseline inventory
 
@@ -124,7 +138,7 @@ safeguards and add a precise witness before changing reporting policy.
 | [core/src/project/ProjectRegistry.cpp](../src/project/ProjectRegistry.cpp) | 1 | 181 |
 
 
-## Current missed lcov records
+## Missed lcov records after the initial audit
 
 | File under `src/` | Line records |
 |---|---|
@@ -148,3 +162,83 @@ safeguards and add a precise witness before changing reporting policy.
 | `card/CardStore.cpp` | 807, 891 |
 | `model/MilestoneDate.h` | 129 |
 | `project/ProjectRegistry.cpp` | 181 |
+
+## Follow-up: compiler-generated cleanup counters
+
+The follow-up reviews the 82 records above. GCC 15's JSON and block output identify
+29 zero-hit records on otherwise empty closing braces. Their enclosing functions
+execute; the disassembly attributes destruction of local C++ values and exception
+unwinding to those brace lines. In particular, generated conversion endings call
+the result's destructor followed by `_Unwind_Resume`, while ordinary successful
+returns have their own executed counters. The loop endings destroy JSON/string
+locals on an exception path. No application statement is present on these lines.
+
+Each exclusion is `LCOV_EXCL_LINE` on the reviewed brace alone. Allocation errors,
+input validation, explicit catches/throws, return expressions and loop bodies
+remain measured. This policy treats compiler-synthesized cleanup attribution as
+non-statement coverage; it does not claim that all possible allocation-failure
+points have been exercised. The shared allocation-failure boundary tests continue
+to run. Other compilers may attribute these blocks differently.
+
+Generated changes live in `contract/generators/core/glue.py`. The generator uses an
+exact set of reviewed conversion names, plus the location-configuration map and
+milestone-date list. The regression test rejects exclusions on return expressions
+or input validation and checks that the only other exclusions are the previously
+reviewed 19 output-enum fallback throws.
+
+The raw evidence can be reproduced from `core/` after a coverage run (the source
+annotations affect report generation, not GCC's raw counters):
+
+```sh
+gcov -j -t -b build-coverage/CMakeFiles/holder.dir/src/api/ContractCApi.cpp.gcno
+gcov-dump -l build-coverage/CMakeFiles/holder.dir/src/api/ContractCApi.cpp.gcno
+objdump -drl --section=.text --disassemble=_ZN12_GLOBAL__N_1L6from_cERK30holder_storage_location_update build-coverage/CMakeFiles/holder.dir/src/api/ContractCApi.cpp.o
+```
+
+### Block evidence and existing test witnesses
+
+Line and block numbers below are from the pre-annotation GCC 15.2 profiles; they
+identify the zero-hit record rather than an entire function. Positive function
+counts establish execution, with the listed test files supplying behavioral
+assertions. For inline headers, use the selected implementation's test object:
+`CApiCards_test.cpp.o` for cursor encoding and `CardFrontMatter_test.cpp.o` for
+legacy dates. Other copies of those inline functions have zero hits because the
+linker selects a single implementation.
+
+| Source | Line → block; enclosing function calls | Behavioral witnesses under `tests/` |
+|---|---|---|
+| `api/ContractCApi.cpp` | 226 → 99; 6 calls; 1470 → 24; 1 calls; 1547 → 17; 18 calls; 1555 → 35; 17 calls; 1571 → 25; 4 calls; 1580 → 21; 16 calls; 1591 → 36; 8 calls; 1626 → 16; 2 calls; 1638 → 9; 8 calls; 1657 → 9; 12 calls; 1664 → 13; 20 calls; 1671 → 12; 19 calls; 1677 → 8; 7 calls | `CApiLocations_test.cpp`, `CApiCards_test.cpp`, `CApiProjects_test.cpp`, `CApiHistory_test.cpp`, `CApiMaintenance_test.cpp` |
+| `api/History.cpp` | 117 → 326; 14 calls; 123 → 461; 14 calls; 277 → 312; 11 calls | `ContractHistory_test.cpp`, `CApiHistory_test.cpp` |
+| `api/Links.cpp` | 73 → 38; 19 calls; 95 → 40; 11 calls; 249 → 38; 1 calls | `ContractLinks_test.cpp`, `CApiCards_test.cpp` |
+| `api/Milestones.cpp` | 39 → 27; 10 calls | `CApiCards_test.cpp`, `MilestoneUpdate_test.cpp` |
+| `api/Projects.cpp` | 57 → 10; 154 calls | `ContractProjects_test.cpp`, `CApiProjects_test.cpp` |
+| `api/RecoverySnapshots.cpp` | 250 → 701; 2039 calls; 273 → 892; 2039 calls; 281 → 983; 2039 calls | `ContractRecoverySnapshots_test.cpp` (nested round trip) |
+| `api/Resources.cpp` | 70 → 35; 12 calls | `CApiCards_test.cpp`, `CApiMaintenance_test.cpp` (resource paging) |
+| `card/CardHierarchy.cpp` | 30 → 27; 127 calls | `CardPlacementResolver_test.cpp` (deleted/tied siblings) |
+| `project/ProjectRegistry.cpp` | 181 → 36; 13 calls | `ProjectRegistry_test.cpp` (identity, removals, recovery) |
+| `api/CardCursor.h` | 28 → 26; 29 calls | `CApiCards_test.cpp` (pagination and cursor validation) |
+| `model/MilestoneDate.h` | 129 → 19; 147 calls | `CardFrontMatter_test.cpp`, `MilestoneUpdate_test.cpp` (legacy dates) |
+
+The following candidates remain measured: `Git.cpp:192`,
+`ProjectMaintenance.cpp:42`, `RuntimeHosts.cpp:111`, `CardRepo.cpp:383`, and the
+remaining aggregate-construction records in `RecoverySnapshots.cpp`. Those lines
+contain application expressions, so this brace-only policy does not apply even
+where compiler cleanup contributes to their counters. Dependency failures and
+invariant guards also remain measured.
+
+## Current missed lcov records
+
+| File under `src/` | Line records |
+|---|---|
+| `api/Cards.cpp` | 198, 200 |
+| `api/Git.cpp` | 192 |
+| `api/History.cpp` | 52, 64, 145, 146, 147, 194 |
+| `api/HostCApi.cpp` | 188, 189, 190, 191, 192, 193, 214, 215, 216, 217, 218, 219, 246, 247, 248, 249, 250, 251, 279, 280, 281, 282, 283, 284 |
+| `api/ProjectMaintenance.cpp` | 42 |
+| `api/Rebuild.cpp` | 36 |
+| `api/RecoverySnapshots.cpp` | 56, 72, 87, 102, 232, 260, 286, 294, 479, 493 |
+| `api/RecoveryTokens.cpp` | 37, 38, 39 |
+| `api/RuntimeHosts.cpp` | 111 |
+| `card/CardHierarchy.cpp` | 83 |
+| `card/CardRepo.cpp` | 383 |
+| `card/CardStore.cpp` | 807, 891 |

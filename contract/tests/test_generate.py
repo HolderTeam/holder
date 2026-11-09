@@ -35,15 +35,20 @@ def test_cores_generated_files_are_up_to_date():
         assert text == (CONTRACT.parent / CORE_PATHS[name]).read_text(encoding="utf-8"), CORE_PATHS[name]
 
 
-def test_only_internal_output_enum_guards_are_excluded_from_line_coverage():
+def test_generated_coverage_exclusions_preserve_validation_and_returns():
     glue = generate(holder_ir())["ContractCApi.cpp"]
     excluded = [line for line in glue.splitlines() if "LCOV_EXCL" in line]
-    assert len(excluded) == 19
-    assert all('throw std::logic_error("not a contract::' in line for line in excluded)
+    guards = [line for line in excluded if 'throw std::logic_error("not a contract::' in line]
+    unwind_ends = [line for line in excluded if line.startswith("} // LCOV_EXCL_LINE - GCC unwind")]
+    assert len(guards) == 19
+    assert len(unwind_ends) == 13
+    assert len(excluded) == len(guards) + len(unwind_ends)
     assert all("LCOV_EXCL_LINE" in line for line in excluded)
+    assert not any("LCOV_EXCL" in line for line in glue.splitlines()
+                   if line.lstrip().startswith("return "))
     # Caller-supplied C enum validation must remain measured.
     assert not any("LCOV_EXCL" in line for line in glue.splitlines()
-                   if "throw InvalidArgument" in line)
+                   if "throw ArgumentError" in line or line.lstrip().startswith("require("))
 
 
 def test_every_generated_file_names_its_source():

@@ -247,7 +247,7 @@ json to_json(const RecoverySnapshotCard& card) {
     }
     milestones.push_back(
         {{"dates", std::move(dates)}, {"kind", optional(milestone.kind)}, {"description", optional(milestone.description)}});
-  }
+  } // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
   json resources = json::array();
   for (const auto& resource : card.resources) {
     json assets = json::array();
@@ -270,7 +270,7 @@ json to_json(const RecoverySnapshotCard& card) {
                         {"placements", std::move(placements)},
                         {"created_at", asset.created_at},
                         {"updated_at", asset.updated_at}});
-    }
+    } // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
     resources.push_back({{"resource_id", resource.resource_id},
                          {"type", resource.type},
                          {"label", resource.label},
@@ -278,7 +278,7 @@ json to_json(const RecoverySnapshotCard& card) {
                          {"assets", std::move(assets)},
                          {"created_at", resource.created_at},
                          {"updated_at", resource.updated_at}});
-  }
+  } // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
   json locations = json::array();
   for (const auto& location : card.locations) {
     locations.push_back({{"location_id", location.location_id},

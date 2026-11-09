@@ -27,7 +27,7 @@ std::vector<Card> siblings(CardRepo& repo, const Card& card) {
   );
   std::sort(result.begin(), result.end(), card_tree_less);
   return result;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
 
 // Evenly spaced keys for `count` cards strictly between two neighbours. An open end
 // steps by 1.0 from the other bound; with both ends open, keys are 1..count.

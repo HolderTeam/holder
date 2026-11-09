@@ -223,7 +223,7 @@ std::map<std::string, std::string> from_c_location_configuration(const holder_lo
     require(out.emplace(std::move(key), std::move(value_text)).second, std::string(name) + " repeats a key");
   }
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured.
 
 holder_resource_metadata to_c_resource_metadata(holder_arena* arena, const std::map<std::string, std::vector<std::string>>& value) {
   auto* items = make<holder_resource_metadata_entry>(arena, value.size());
@@ -1467,7 +1467,7 @@ contract::StorageLocationUpdate from_c(const holder_storage_location_update& val
   out.configuration = (value.configuration ? std::optional<std::map<std::string, std::string>>(from_c_location_configuration(*value.configuration, "storage_location_update.configuration")) : std::nullopt);
   out.updated_at = (value.updated_at ? std::optional<long long>(*value.updated_at) : std::nullopt);
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured.
 
 contract::CardReferenceResolveRequest from_c(const holder_card_reference_resolve_request& value) {
   contract::CardReferenceResolveRequest out;
@@ -1544,7 +1544,7 @@ contract::MilestoneDate from_c(const holder_milestone_date& value) {
   out.date = optional_text(value.date, "milestone_date.date", 10, 10);
   out.datetime = optional_text(value.datetime, "milestone_date.datetime", 20, 25);
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured.
 
 std::vector<contract::MilestoneDate> from_c_list(const holder_milestone_date_list& values, const char* name) {
   require(values.items != nullptr || values.count == 0, std::string(name) + ".items must not be null");
@@ -1552,7 +1552,7 @@ std::vector<contract::MilestoneDate> from_c_list(const holder_milestone_date_lis
   out.reserve(values.count);
   for (std::size_t i = 0; i < values.count; ++i) out.push_back(from_c(values.items[i]));
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured.
 
 contract::NewMilestone from_c(const holder_new_milestone& value) {
   contract::NewMilestone out;
@@ -1568,7 +1568,7 @@ contract::MilestoneUpdate from_c(const holder_milestone_update& value) {
   out.kind = changed_text(value.kind, "milestone_update.kind", 1, SIZE_MAX);
   out.description = changed_text(value.description, "milestone_update.description", 1, SIZE_MAX);
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured.
 
 contract::AssetImportRequest from_c(const holder_asset_import_request& value) {
   contract::AssetImportRequest out;
@@ -1577,7 +1577,7 @@ contract::AssetImportRequest from_c(const holder_asset_import_request& value) {
   out.location_id = text(value.location_id, "asset_import_request.location_id", 0, SIZE_MAX);
   out.source_path = text(value.source_path, "asset_import_request.source_path", 0, SIZE_MAX);
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured.
 
 contract::NewResource from_c(const holder_new_resource& value) {
   contract::NewResource out;
@@ -1588,7 +1588,7 @@ contract::NewResource from_c(const holder_new_resource& value) {
   out.created_at = (value.created_at ? std::optional<long long>(*value.created_at) : std::nullopt);
   out.updated_at = (value.updated_at ? std::optional<long long>(*value.updated_at) : std::nullopt);
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured.
 
 contract::ResourceUpdate from_c(const holder_resource_update& value) {
   contract::ResourceUpdate out;
@@ -1623,7 +1623,7 @@ contract::ProjectUpdate from_c(const holder_project_update& value) {
   out.git_remote_url = changed_text(value.git_remote_url, "project_update.git_remote_url", 1, SIZE_MAX);
   out.git_provider = changed_text(value.git_provider, "project_update.git_provider", 0, SIZE_MAX);
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured.
 
 contract::HierarchyRepairRequest from_c(const holder_hierarchy_repair_request& value) {
   contract::HierarchyRepairRequest out;
@@ -1635,7 +1635,7 @@ contract::RebuildRequest from_c(const holder_rebuild_request& value) {
   contract::RebuildRequest out;
   out.project_id = text(value.project_id, "rebuild_request.project_id", 1, SIZE_MAX);
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured.
 
 contract::RecoverySnapshotRestore from_c(const holder_recovery_snapshot_restore& value) {
   contract::RecoverySnapshotRestore out;
@@ -1654,27 +1654,27 @@ contract::RecoveryTokenExportRequest from_c(const holder_recovery_token_export_r
   contract::RecoveryTokenExportRequest out;
   out.pin = text(value.pin, "recovery_token_export_request.pin", 1, SIZE_MAX);
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured.
 
 contract::RecoveryTokenImportRequest from_c(const holder_recovery_token_import_request& value) {
   contract::RecoveryTokenImportRequest out;
   out.pin = text(value.pin, "recovery_token_import_request.pin", 1, SIZE_MAX);
   out.recovery_token = text(value.recovery_token, "recovery_token_import_request.recovery_token", 1, SIZE_MAX);
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured.
 
 contract::PushOptions from_c(const holder_push_options& value) {
   contract::PushOptions out;
   out.branch = optional_text(value.branch, "push_options.branch", 1, SIZE_MAX);
   out.set_upstream = (value.set_upstream ? *value.set_upstream : bool{true});
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured.
 
 contract::RemoteTest from_c(const holder_remote_test& value) {
   contract::RemoteTest out;
   out.remote_url = optional_text(value.remote_url, "remote_test.remote_url", 1, SIZE_MAX);
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured.
 
 }  // namespace
 
