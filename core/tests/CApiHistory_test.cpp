@@ -1,5 +1,6 @@
 #include "core_test_helpers.h"
 #include "git/GitRepo.h"
+#include "git_revision_test_helpers.h"
 
 #include <holder/holder_api.h>
 
@@ -93,6 +94,64 @@ struct HistoryFixture {
 };
 
 } // namespace
+
+TEST_CASE(
+    "Generated history rejects ambiguous revisions without changing the saved card",
+    "[capi][history-errors][ambiguous-revision]"
+) {
+  HistoryFixture f;
+  const holder_project* project = nullptr;
+  REQUIRE(holder_get_project(f.context, f.project.c_str(), f.arena, &project, &f.error) == HOLDER_OK);
+  holder::git::GitRepo repo;
+  repo.open_existing(project->root_path);
+  const auto head = repo.head_oid();
+  REQUIRE(head.has_value());
+  const auto [first, second] = holder::test::write_ambiguous_commit_prefix(project->root_path);
+  const auto prefix = first.substr(0, 8);
+  REQUIRE(second.substr(0, 8) == prefix);
+  const holder_card_history_snapshot* snapshot = nullptr;
+  const holder_card_history_comparison* comparison = nullptr;
+  const holder_card_history_restore_result* restored = nullptr;
+  int status = HOLDER_OK;
+  SECTION("snapshot") {
+    status = holder_get_card_history_snapshot(f.context, f.project.c_str(), f.card.c_str(),
+                                              prefix.c_str(), f.arena, &snapshot, &f.error);
+  }
+  SECTION("comparison target") {
+    status = holder_compare_card_history(f.context, f.project.c_str(), f.card.c_str(),
+        prefix.c_str(), nullptr, HOLDER_COMPARE_CARD_HISTORY_MODE_CHANGE,
+        f.arena, &comparison, &f.error);
+  }
+  SECTION("comparison source") {
+    status = holder_compare_card_history(f.context, f.project.c_str(), f.card.c_str(),
+        head->c_str(), prefix.c_str(), HOLDER_COMPARE_CARD_HISTORY_MODE_SINCE,
+        f.arena, &comparison, &f.error);
+  }
+  SECTION("restore") {
+    status = holder_restore_card_history_snapshot(f.context, f.project.c_str(), f.card.c_str(),
+        prefix.c_str(), f.arena, &restored, &f.error);
+  }
+  REQUIRE(f.error != nullptr);
+  CHECK(std::string(holder_error_message(f.error)).find("ambiguous") != std::string::npos);
+  f.failed(status, HOLDER_ERROR_REVISION_AMBIGUOUS);
+  CHECK(snapshot == nullptr);
+  CHECK(comparison == nullptr);
+  CHECK(restored == nullptr);
+  CHECK(repo.head_oid() == head);
+  const holder_card* current = nullptr;
+  REQUIRE(holder_get_card(f.context, f.project.c_str(), f.card.c_str(), f.arena, &current, &f.error) == HOLDER_OK);
+  CHECK(std::string(current->title) == "Original title");
+  CHECK(std::string(current->content) == "Original body\n");
+  // A full object ID still resolves even when its shorter prefix is ambiguous.
+  REQUIRE(holder_get_card_history_snapshot(f.context, f.project.c_str(), f.card.c_str(),
+      first.c_str(), f.arena, &snapshot, &f.error) == HOLDER_OK);
+  REQUIRE(snapshot != nullptr);
+  CHECK_FALSE(snapshot->snapshot.exists);
+  REQUIRE(holder_get_card_history_snapshot(f.context, f.project.c_str(), f.card.c_str(),
+      head->c_str(), f.arena, &snapshot, &f.error) == HOLDER_OK);
+  REQUIRE(snapshot != nullptr);
+  CHECK(std::string(snapshot->snapshot.body) == "Original body\n");
+}
 
 TEST_CASE(
     "Generated card history preserves snapshots, diff line numbers, and restored content",
