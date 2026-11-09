@@ -15,6 +15,7 @@
 #include "platform/Fs.h"
 #include "platform/Tx.h"
 #include "privacy/ProjectPrivacy.h"
+#include "privacy/PrivacyError.h"
 #include "project/Rebuilder.h"
 
 #include <yaml-cpp/yaml.h>
@@ -37,7 +38,10 @@ holder::core::Fs& resolve_fs(holder::core::Fs* fs) {
 
 const std::string& require_project_key_id(const holder::model::Project& project) {
   if (!project.project_key_id.has_value() || project.project_key_id->empty()) {
-    throw std::runtime_error("encrypted project missing project_key_id");
+    throw holder::privacy::PrivacyError(
+        holder::privacy::PrivacyErrorCode::KeyMaterialMissing,
+        "encrypted project missing project_key_id"
+    );
   }
   return *project.project_key_id;
 }
