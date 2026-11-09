@@ -15,10 +15,56 @@ expired, and staging no longer accepts its separate desktop repository.
    builds core from `core/` in that commit and records the SDK in its `core-selection`
    artifact; the core commit to pin is the `commit` in that selection.
 2. Dispatch Desktop / CI (`desktop-ci.yml`) on the same commit with `build_type=release`.
-3. After the selected runs pass, record their run IDs and source commits below.
-4. Commit the manifest and run staging with its relative path. Leave run
+3. After the selected runs pass, generate the manifest from their explicit run IDs.
+4. Commit the manifest and its evidence record and run staging with the manifest's relative path. Leave run
    overrides at defaults. Windows branch validation can additionally use
    `sign_test_installer=false`; normal main staging retains protected signing.
+
+## Generate a candidate manifest
+
+Use Python 3.9+ and an authenticated GitHub CLI with permission to read repository
+contents and Actions artifacts. Both selected runs must be successful Release builds
+of the **same full candidate commit**. The generator does not pick the latest run or
+start builds. Run it from the repository root:
+
+```sh
+python3 release/staging/scripts/generate-release-manifest.py \
+  --candidate <full-candidate-SHA> --version 0.2.6 \
+  --desktop-run <Desktop-CI-run-ID> --backend-run <Daemon-CI-run-ID> \
+  --output release/staging/release-manifests/0.2.6-candidate-1.json
+```
+
+It checks root VERSION at that commit, run repository/workflow/source identity,
+all six unexpired Release staging artifacts, payload metadata and binary presence,
+the Linux tarball checksums, and the daemon run's core selection. Core provenance
+uses the same verifier as staging. Cached SDK producer commits may differ from
+the candidate only when their core tree and root version match it. A retried run
+during generation, duplicate artifact name, missing platform or incompatible
+metadata stops generation without emitting a candidate.
+
+The output retains the schema below, adding `artifact_id` and `artifact_sha256`
+to each component and `selection_artifact_id` / `selection_artifact_sha256` to
+`core`. All three staging workflows download these immutable artifact IDs;
+rerunning a component workflow cannot silently substitute artifacts with the same
+names. Older manual manifests without artifact pins retain their existing behaviour.
+Partial artifact pins are rejected.
+
+The companion `0.2.6-candidate-1.evidence.json` records candidate identity, run
+attempts, artifact IDs, downloaded ZIP SHA256 values, GitHub digests, expiry
+times, and the core selection with each SDK producer and archive digest. These
+ZIP hashes identify the archives inspected by the generator; staging's download
+action checks GitHub's digest when retrieving the pinned IDs. Retain both files
+in review. Existing output files are never overwritten; select a new candidate
+filename when inputs change.
+
+The evidence record's `inputs_expire_at` is the earliest expiry of the staging
+inputs, not a retention extension. Stage all three platforms before that time.
+If inputs expire or are deleted, rebuild/select the candidate components and
+generate a new record; never silently fall back to newer runs. SDK publication
+still performs its own SDK download/digest checks. The next actual release will
+validate the complete staging procedure with a generated candidate.
+
+## Existing manifest shape
 
 ```json
 {
