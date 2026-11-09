@@ -879,3 +879,24 @@ TEST_CASE("Generated storage callbacks preserve typed download, lookup and remov
   }
   REQUIRE_FALSE(std::filesystem::exists(host.dir / "destination"));
 }
+
+TEST_CASE(
+    "Scoped message purge refuses live messages and other projects",
+    "[privacy][message-purge-guards]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto other = host.project();
+  host.message(project, "guarded-message", "Preserve this message");
+  holder::ai::AiMessageRepo messages(host.db, &host.fts);
+  REQUIRE_THROWS_AS(messages.remove_trashed(other, "guarded-message"), std::runtime_error);
+  REQUIRE_THROWS_AS(messages.remove_trashed(project, "guarded-message"), std::runtime_error);
+  REQUIRE(messages.get("guarded-message")->content == "Preserve this message");
+  REQUIRE_FALSE(messages.get("guarded-message")->deleted_at);
+  REQUIRE(host.fts.search_messages(project, "Preserve", 10, 0).size() == 1);
+  messages.trash("guarded-message", 50);
+  REQUIRE_THROWS_AS(messages.remove_trashed(other, "guarded-message"), std::runtime_error);
+  REQUIRE(messages.get("guarded-message")->deleted_at == 50);
+  REQUIRE_NOTHROW(messages.remove_trashed(project, "guarded-message"));
+  REQUIRE_FALSE(messages.get("guarded-message"));
+}
