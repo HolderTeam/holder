@@ -254,7 +254,7 @@ holder_project_storage_location_provider to_c_enum(contract::ProjectStorageLocat
   case contract::ProjectStorageLocationProvider::S3Compatible: return HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE;
   case contract::ProjectStorageLocationProvider::GoogleDrive: return HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_GOOGLE_DRIVE;
   }
-  throw std::logic_error("not a contract::ProjectStorageLocationProvider value");
+  throw std::logic_error("not a contract::ProjectStorageLocationProvider value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_card_breadcrumb_kind to_c_enum(contract::CardBreadcrumbKind value) {
@@ -262,7 +262,7 @@ holder_card_breadcrumb_kind to_c_enum(contract::CardBreadcrumbKind value) {
   case contract::CardBreadcrumbKind::Project: return HOLDER_CARD_BREADCRUMB_KIND_PROJECT;
   case contract::CardBreadcrumbKind::Card: return HOLDER_CARD_BREADCRUMB_KIND_CARD;
   }
-  throw std::logic_error("not a contract::CardBreadcrumbKind value");
+  throw std::logic_error("not a contract::CardBreadcrumbKind value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_card_reference_resolve_data_status to_c_enum(contract::CardReferenceResolveDataStatus value) {
@@ -271,7 +271,7 @@ holder_card_reference_resolve_data_status to_c_enum(contract::CardReferenceResol
   case contract::CardReferenceResolveDataStatus::Ambiguous: return HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_AMBIGUOUS;
   case contract::CardReferenceResolveDataStatus::NotFound: return HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_NOT_FOUND;
   }
-  throw std::logic_error("not a contract::CardReferenceResolveDataStatus value");
+  throw std::logic_error("not a contract::CardReferenceResolveDataStatus value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_link_source_type to_c_enum(contract::LinkSourceType value) {
@@ -279,7 +279,7 @@ holder_link_source_type to_c_enum(contract::LinkSourceType value) {
   case contract::LinkSourceType::Card: return HOLDER_LINK_SOURCE_TYPE_CARD;
   case contract::LinkSourceType::AiMessage: return HOLDER_LINK_SOURCE_TYPE_AI_MESSAGE;
   }
-  throw std::logic_error("not a contract::LinkSourceType value");
+  throw std::logic_error("not a contract::LinkSourceType value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_link_target_type to_c_enum(contract::LinkTargetType value) {
@@ -289,7 +289,7 @@ holder_link_target_type to_c_enum(contract::LinkTargetType value) {
   case contract::LinkTargetType::AiThread: return HOLDER_LINK_TARGET_TYPE_AI_THREAD;
   case contract::LinkTargetType::Resource: return HOLDER_LINK_TARGET_TYPE_RESOURCE;
   }
-  throw std::logic_error("not a contract::LinkTargetType value");
+  throw std::logic_error("not a contract::LinkTargetType value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_asset_placement_encoding to_c_enum(contract::AssetPlacementEncoding value) {
@@ -297,7 +297,7 @@ holder_asset_placement_encoding to_c_enum(contract::AssetPlacementEncoding value
   case contract::AssetPlacementEncoding::Plain: return HOLDER_ASSET_PLACEMENT_ENCODING_PLAIN;
   case contract::AssetPlacementEncoding::HolderAssetV1: return HOLDER_ASSET_PLACEMENT_ENCODING_HOLDER_ASSET_V1;
   }
-  throw std::logic_error("not a contract::AssetPlacementEncoding value");
+  throw std::logic_error("not a contract::AssetPlacementEncoding value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_project_privacy_mode to_c_enum(contract::ProjectPrivacyMode value) {
@@ -305,7 +305,7 @@ holder_project_privacy_mode to_c_enum(contract::ProjectPrivacyMode value) {
   case contract::ProjectPrivacyMode::EncryptedGit: return HOLDER_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT;
   case contract::ProjectPrivacyMode::Plain: return HOLDER_PROJECT_PRIVACY_MODE_PLAIN;
   }
-  throw std::logic_error("not a contract::ProjectPrivacyMode value");
+  throw std::logic_error("not a contract::ProjectPrivacyMode value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_project_encryption_check_privacy_mode to_c_enum(contract::ProjectEncryptionCheckPrivacyMode value) {
@@ -313,7 +313,7 @@ holder_project_encryption_check_privacy_mode to_c_enum(contract::ProjectEncrypti
   case contract::ProjectEncryptionCheckPrivacyMode::EncryptedGit: return HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_ENCRYPTED_GIT;
   case contract::ProjectEncryptionCheckPrivacyMode::Plain: return HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_PLAIN;
   }
-  throw std::logic_error("not a contract::ProjectEncryptionCheckPrivacyMode value");
+  throw std::logic_error("not a contract::ProjectEncryptionCheckPrivacyMode value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_recovery_snapshot_link_target_type to_c_enum(contract::RecoverySnapshotLinkTargetType value) {
@@ -323,7 +323,7 @@ holder_recovery_snapshot_link_target_type to_c_enum(contract::RecoverySnapshotLi
   case contract::RecoverySnapshotLinkTargetType::AiThread: return HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_THREAD;
   case contract::RecoverySnapshotLinkTargetType::Resource: return HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_RESOURCE;
   }
-  throw std::logic_error("not a contract::RecoverySnapshotLinkTargetType value");
+  throw std::logic_error("not a contract::RecoverySnapshotLinkTargetType value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_recovery_snapshot_placement_encoding to_c_enum(contract::RecoverySnapshotPlacementEncoding value) {
@@ -331,7 +331,7 @@ holder_recovery_snapshot_placement_encoding to_c_enum(contract::RecoverySnapshot
   case contract::RecoverySnapshotPlacementEncoding::Plain: return HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_PLAIN;
   case contract::RecoverySnapshotPlacementEncoding::HolderAssetV1: return HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_HOLDER_ASSET_V1;
   }
-  throw std::logic_error("not a contract::RecoverySnapshotPlacementEncoding value");
+  throw std::logic_error("not a contract::RecoverySnapshotPlacementEncoding value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_recovery_snapshot_location_provider to_c_enum(contract::RecoverySnapshotLocationProvider value) {
@@ -340,7 +340,7 @@ holder_recovery_snapshot_location_provider to_c_enum(contract::RecoverySnapshotL
   case contract::RecoverySnapshotLocationProvider::S3Compatible: return HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_S3_COMPATIBLE;
   case contract::RecoverySnapshotLocationProvider::GoogleDrive: return HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_GOOGLE_DRIVE;
   }
-  throw std::logic_error("not a contract::RecoverySnapshotLocationProvider value");
+  throw std::logic_error("not a contract::RecoverySnapshotLocationProvider value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_recovery_snapshot_card_privacy_mode to_c_enum(contract::RecoverySnapshotCardPrivacyMode value) {
@@ -348,7 +348,7 @@ holder_recovery_snapshot_card_privacy_mode to_c_enum(contract::RecoverySnapshotC
   case contract::RecoverySnapshotCardPrivacyMode::EncryptedGit: return HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_ENCRYPTED_GIT;
   case contract::RecoverySnapshotCardPrivacyMode::Plain: return HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_PLAIN;
   }
-  throw std::logic_error("not a contract::RecoverySnapshotCardPrivacyMode value");
+  throw std::logic_error("not a contract::RecoverySnapshotCardPrivacyMode value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_recovery_token_global_import_result_pull_status to_c_enum(contract::RecoveryTokenGlobalImportResultPullStatus value) {
@@ -357,7 +357,7 @@ holder_recovery_token_global_import_result_pull_status to_c_enum(contract::Recov
   case contract::RecoveryTokenGlobalImportResultPullStatus::Succeeded: return HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED;
   case contract::RecoveryTokenGlobalImportResultPullStatus::Failed: return HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_FAILED;
   }
-  throw std::logic_error("not a contract::RecoveryTokenGlobalImportResultPullStatus value");
+  throw std::logic_error("not a contract::RecoveryTokenGlobalImportResultPullStatus value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_pull_phase_status to_c_enum(contract::PullPhaseStatus value) {
@@ -367,7 +367,7 @@ holder_pull_phase_status to_c_enum(contract::PullPhaseStatus value) {
   case contract::PullPhaseStatus::RemoteUnset: return HOLDER_PULL_PHASE_STATUS_REMOTE_UNSET;
   case contract::PullPhaseStatus::Failed: return HOLDER_PULL_PHASE_STATUS_FAILED;
   }
-  throw std::logic_error("not a contract::PullPhaseStatus value");
+  throw std::logic_error("not a contract::PullPhaseStatus value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_push_phase_status to_c_enum(contract::PushPhaseStatus value) {
@@ -382,7 +382,7 @@ holder_push_phase_status to_c_enum(contract::PushPhaseStatus value) {
   case contract::PushPhaseStatus::RemoteUnset: return HOLDER_PUSH_PHASE_STATUS_REMOTE_UNSET;
   case contract::PushPhaseStatus::UnknownError: return HOLDER_PUSH_PHASE_STATUS_UNKNOWN_ERROR;
   }
-  throw std::logic_error("not a contract::PushPhaseStatus value");
+  throw std::logic_error("not a contract::PushPhaseStatus value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_sync_result_status to_c_enum(contract::SyncResultStatus value) {
@@ -390,7 +390,7 @@ holder_sync_result_status to_c_enum(contract::SyncResultStatus value) {
   case contract::SyncResultStatus::Succeeded: return HOLDER_SYNC_RESULT_STATUS_SUCCEEDED;
   case contract::SyncResultStatus::Failed: return HOLDER_SYNC_RESULT_STATUS_FAILED;
   }
-  throw std::logic_error("not a contract::SyncResultStatus value");
+  throw std::logic_error("not a contract::SyncResultStatus value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_remote_test_result_status to_c_enum(contract::RemoteTestResultStatus value) {
@@ -403,7 +403,7 @@ holder_remote_test_result_status to_c_enum(contract::RemoteTestResultStatus valu
   case contract::RemoteTestResultStatus::RemoteUnset: return HOLDER_REMOTE_TEST_RESULT_STATUS_REMOTE_UNSET;
   case contract::RemoteTestResultStatus::UnknownError: return HOLDER_REMOTE_TEST_RESULT_STATUS_UNKNOWN_ERROR;
   }
-  throw std::logic_error("not a contract::RemoteTestResultStatus value");
+  throw std::logic_error("not a contract::RemoteTestResultStatus value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_history_affected_object_kind to_c_enum(contract::HistoryAffectedObjectKind value) {
@@ -415,7 +415,7 @@ holder_history_affected_object_kind to_c_enum(contract::HistoryAffectedObjectKin
   case contract::HistoryAffectedObjectKind::ProjectSettings: return HOLDER_HISTORY_AFFECTED_OBJECT_KIND_PROJECT_SETTINGS;
   case contract::HistoryAffectedObjectKind::Unknown: return HOLDER_HISTORY_AFFECTED_OBJECT_KIND_UNKNOWN;
   }
-  throw std::logic_error("not a contract::HistoryAffectedObjectKind value");
+  throw std::logic_error("not a contract::HistoryAffectedObjectKind value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_trash_item_type to_c_enum(contract::TrashItemType value) {
@@ -423,7 +423,7 @@ holder_trash_item_type to_c_enum(contract::TrashItemType value) {
   case contract::TrashItemType::Card: return HOLDER_TRASH_ITEM_TYPE_CARD;
   case contract::TrashItemType::AiMessage: return HOLDER_TRASH_ITEM_TYPE_AI_MESSAGE;
   }
-  throw std::logic_error("not a contract::TrashItemType value");
+  throw std::logic_error("not a contract::TrashItemType value"); // LCOV_EXCL_LINE - internal output enum: all declared values handled above.
 }
 
 holder_core_version to_c(holder_arena* arena, const contract::CoreVersion& value);

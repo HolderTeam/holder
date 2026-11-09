@@ -276,7 +276,8 @@ def generate_glue(types: CoreTypes) -> str:
             out += [f"{enum} to_c_enum(contract::{slot.enum} value) {{", "  switch (value) {"]
             out += [f"  case contract::{slot.enum}::{camel(v)}: return {enum.upper()}_{literal_member(v)};"
                     for v in slot.type.values]
-            out += ["  }", f'  throw std::logic_error("not a contract::{slot.enum} value");', "}", ""]
+            out += ["  }", (f'  throw std::logic_error("not a contract::{slot.enum} value"); '
+                            '// LCOV_EXCL_LINE - internal output enum: all declared values handled above.'), "}", ""]
     for instance in outputs:
         out.append(f"{instance.c_name} to_c(holder_arena* arena, const {instance.qualified('contract::')}& value);")
         if instance in types.listed:
