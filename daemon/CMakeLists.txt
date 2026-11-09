@@ -2,11 +2,16 @@ cmake_minimum_required(VERSION 3.22)
 
 # The whole framework has one version, in VERSION at the repository root. A source tree exported
 # from daemon/ alone (the Debian source package) cannot see the root, so it carries a copy beside
-# this file instead; the root file wins when both exist.
+# this file instead; the root file wins when both exist. A Git checkout must keep
+# its root VERSION rather than falling back to potentially stale exported metadata.
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION")
   set(HOLDER_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION")
-else()
+elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../.git")
+  message(FATAL_ERROR "Missing repository-root VERSION; refusing a stale exported version")
+elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
   set(HOLDER_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
+else()
+  message(FATAL_ERROR "Missing VERSION; prepare the standalone daemon source before building")
 endif()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${HOLDER_VERSION_FILE}")
 file(READ "${HOLDER_VERSION_FILE}" HOLDER_DAEMON_VERSION)
