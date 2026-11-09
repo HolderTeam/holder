@@ -3,6 +3,12 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 
 const script = fs.readFileSync("_site/assets/js/downloads.js", "utf8");
+const feed = JSON.parse(fs.readFileSync("_site/version.json", "utf8"));
+const catalog = JSON.parse(fs.readFileSync("_data/downloads.json", "utf8"));
+assert.equal(feed.schema, 1);
+assert.equal(feed.channel, "stable");
+assert.match(feed.version, /^\d+\.\d+\.\d+$/);
+const assetVersion = feed.version.replaceAll(".", "\\.");
 
 function classList() {
   const classes = new Set();
@@ -67,7 +73,7 @@ const ubuntu = renderFor({
 assert.equal(ubuntu.current, "ubuntu");
 assert.equal(ubuntu.platformLabel.textContent, "Ubuntu");
 assert.equal(ubuntu.primary.href, "/preview/ubuntu/");
-assert.equal(ubuntu.primary.textContent, "Install on Ubuntu");
+assert.equal(ubuntu.primary.textContent, catalog.platforms.ubuntu.button_label);
 
 const linux = renderFor({
   platform: "Linux x86_64",
@@ -75,29 +81,31 @@ const linux = renderFor({
 });
 assert.equal(linux.current, "linux");
 assert.equal(linux.platformLabel.textContent, "Linux");
-assert.match(linux.primary.href, /Holder-0\.2\.5-x86_64\.AppImage$/);
-assert.match(linux.detail.textContent, /0\.2\.5 AppImage/);
+assert.match(linux.primary.href, new RegExp(`Holder-${assetVersion}-x86_64\\.AppImage$`));
+assert.ok(linux.detail.textContent.includes(`${feed.version} AppImage`));
 
 const windows = renderFor({
   platform: "Win32",
   userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 });
 assert.equal(windows.current, "windows");
-assert.match(windows.primary.href, /Holder-windows-0\.2\.5-dev-Setup\.exe$/);
+assert.match(windows.primary.href, new RegExp(`Holder-windows-${assetVersion}(-dev)?-Setup\\.exe$`));
+assert.equal(windows.primary.href, feed.downloads.windows);
 
 const macos = renderFor({
   platform: "MacIntel",
   userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
 });
 assert.equal(macos.current, "macos");
-assert.match(macos.primary.href, /Holder-macos-0\.2\.5\.dmg$/);
+assert.match(macos.primary.href, new RegExp(`Holder-macos-${assetVersion}\\.dmg$`));
+assert.equal(macos.primary.href, feed.downloads.macos);
 
 const unknown = renderFor({ userAgent: "Holder test browser" });
 assert.equal(unknown.current, undefined);
 assert.equal(unknown.platformLabel.textContent, "your platform");
 assert.equal(
   unknown.primary.href,
-  "https://github.com/HolderTeam/holder/releases/tag/holder-v0.2.5"
+  feed.release_url
 );
 
 console.log("Download detection smoke tests passed.");

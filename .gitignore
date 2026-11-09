@@ -10,5 +10,11 @@
 __pycache__/
 *.pyc
 
+# Generated from the published stable release during the website build.
+/release/website/_data/downloads.json
+/release/website/version.json
+/release/website/assets/checksums/Holder-*-SHA256SUMS
+/release/website/assets/checksums/*.sha256
+
 # vcpkg installed trees from the core and daemon CMake presets (${sourceDir}/../.vcpkg-holder-*).
 /.vcpkg-holder-*/

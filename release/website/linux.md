@@ -9,11 +9,12 @@ narrow: true
   <p class="eyebrow">Linux</p>
   <h1>Holder for Linux</h1>
   <p class="lead">
-    Download the signed Holder 0.2.5 AppImage for x86_64 Linux. It runs without installing Holder system-wide.
+    Download the signed Holder {{ site.data.downloads.platforms.linux.version }} AppImage for x86_64 Linux. It runs without installing Holder system-wide.
   </p>
   <div class="actions">
     <a class="button primary" data-download-asset="linux" href="{{ site.data.downloads.platforms.linux.url }}">Download the AppImage</a>
     <a class="button secondary" href="{{ site.data.downloads.platforms.linux.checksum_url | relative_url }}">Download SHA256 checksum</a>
+    <a class="button secondary" href="{{ site.data.downloads.platforms.linux.signature_url }}">Checksum signature</a>
   </div>
 </section>
 
@@ -23,9 +24,9 @@ narrow: true
     <p>Download both files into the same directory, make the AppImage executable, verify it and run it.</p>
   </div>
   <pre><code>cd ~/Downloads
-chmod +x Holder-0.2.5-x86_64.AppImage
-sha256sum -c Holder-0.2.5-SHA256SUMS
-./Holder-0.2.5-x86_64.AppImage</code></pre>
+chmod +x {{ site.data.downloads.platforms.linux.asset_name }}
+sha256sum -c {{ site.data.downloads.platforms.linux.checksum_url | split: '/' | last }}
+./{{ site.data.downloads.platforms.linux.asset_name }}</code></pre>
   <div class="section-head following-copy">
     <p>
       The AppImage contains the complete Holder Framework (the desktop app, backend and command line tool).

@@ -12,7 +12,12 @@ on:
       - main
     paths:
       - release/website/**
+      - release/scripts/website-release.py
+      - release/tests/test_website_release.py
+      - release/tests/fixtures/website/**
+      - release/keys/holder-linux-release.asc
       - .github/workflows/website-ci.yml
+      - .github/workflows/release-website.yml
   workflow_dispatch:
 
 permissions:
@@ -48,7 +53,7 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          if grep -qE '^(release/website/|\.github/workflows/website-ci\.yml$)' <<< "$changed"; then
+          if grep -qE '^(release/website/|release/scripts/website-release\.py$|release/tests/test_website_release\.py$|release/tests/fixtures/website/|release/keys/holder-linux-release\.asc$|\.github/workflows/(website-ci|release-website)\.yml$)' <<< "$changed"; then
             echo "website=true" >> "$GITHUB_OUTPUT"
           else
             echo "website=false" >> "$GITHUB_OUTPUT"
@@ -62,6 +67,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Test release data generation
+        working-directory: .
+        run: python3 -m unittest discover -s release/tests -p test_website_release.py -v
+      - name: Generate published downloads and desktop update feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 ../scripts/website-release.py
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"
