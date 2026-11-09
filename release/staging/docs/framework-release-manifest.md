@@ -64,6 +64,13 @@ generate a new record; never silently fall back to newer runs. SDK publication
 still performs its own SDK download/digest checks. The next actual release will
 validate the complete staging procedure with a generated candidate.
 
+The [candidate-preparation coordinator](../../docs/candidate-preparation.md) uses
+this same generator and places the manifest/evidence in a candidate metadata
+commit. Staging's optional `release_manifest_ref` accepts that full commit SHA
+while the workflows run on `main`. Only the selected JSON under `release-manifests/`
+is fetched; all three platform selections are validated before it replaces the
+local manifest. A blank ref retains checked-in-manifest behaviour.
+
 ## Existing manifest shape
 
 ```json

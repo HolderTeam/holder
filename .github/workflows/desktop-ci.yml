@@ -1,4 +1,5 @@
 name: Desktop / CI
+run-name: ${{ inputs.release_request || github.event.pull_request.title || github.event.head_commit.message || github.workflow }}
 
 # Builds and tests the GTK desktop app in apps/desktop/gtk/ on Linux (Ubuntu 24.04, with the
 # staged artifact, and Ubuntu 26.04), macOS and Windows. The artifacts keep the names staging
@@ -22,6 +23,10 @@ on:
       - .github/scripts/tests/test_ubuntu_daemon_packages.py
   workflow_dispatch:
     inputs:
+      release_request:
+        description: Optional coordinator request identifier
+        type: string
+        default: ""
       build_type:
         description: Meson configuration for the artifacts (debug, debugoptimized or release); blank uses debugoptimized on Linux and debug on macOS and Windows
         type: string

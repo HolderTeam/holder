@@ -1,4 +1,5 @@
 name: Daemon / CI
+run-name: ${{ inputs.release_request || github.event.pull_request.title || github.event.head_commit.message || github.workflow }}
 
 on:
   # Pull requests always start this workflow so that its required result check is reported;
@@ -32,6 +33,10 @@ on:
       - '.github/scripts/check-core-boundary.py'
   workflow_dispatch:
     inputs:
+      release_request:
+        description: Optional coordinator request identifier
+        type: string
+        default: ""
       core_build_type:
         description: SDK and daemon configuration
         type: choice
