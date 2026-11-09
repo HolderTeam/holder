@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resume candidate preparation and Python publication using one local release record."""
+"""Resume candidate preparation, Linux signing and Python publication with one release record."""
 import argparse
 import base64
 from contextlib import contextmanager
@@ -29,6 +29,9 @@ PACKAGE_SPEC.loader.exec_module(package_tool)
 PUBLISH_SPEC = importlib.util.spec_from_file_location('release_publish', Path(__file__).with_name('publish-python.py'))
 publisher_tool = importlib.util.module_from_spec(PUBLISH_SPEC)
 PUBLISH_SPEC.loader.exec_module(publisher_tool)
+LINUX_SPEC = importlib.util.spec_from_file_location('release_linux', Path(__file__).with_name('linux-candidate.py'))
+linux_tool = importlib.util.module_from_spec(LINUX_SPEC)
+LINUX_SPEC.loader.exec_module(linux_tool)
 require = manifest_tool.require
 WORKFLOWS = {'backend': 'daemon-ci.yml', 'desktop': 'desktop-ci.yml',
              'linux': 'staging-linux-appimage-stage.yml', 'windows': 'staging-windows-stage.yml',
@@ -39,6 +42,7 @@ PACKAGES = ('kit', 'python')
 PUBLICATIONS = {f'{package}_{destination}': (package, destination)
                 for package in PACKAGES for destination in ('pypi', 'testpypi')}
 WORKFLOWS.update({name: WORKFLOWS[package] for name, (package, _) in PUBLICATIONS.items()})
+WORKFLOWS['linux_signing'] = 'sign-linux-appimage.yml'
 PLATFORMS = ('linux', 'windows', 'macos')
 STAGED = {'linux': ['Holder-linux-appimage-staged'], 'windows': ['Holder-windows-staged'],
           'macos': ['Holder-macos-staged']}
@@ -102,6 +106,18 @@ class GitHub:
     def publication_status(self, receipt):
         publisher_tool.verify(receipt, attempts=1)
 
+    def linux_bundle(self, record, name):
+        step = record['steps'][name]
+        artifact = step['artifacts'][0]
+        with tempfile.TemporaryDirectory(prefix='holder-linux-evidence-') as directory:
+            bundle = linux_tool.read(record['repository'], step['run_id'], artifact['name'], record['version'],
+                manifest_tool.GitHub(directory), signed=name == 'linux_signing', artifact_id=artifact['id'],
+                workflow_commit=step['workflow_commit'])
+        require(bundle['attempt'] == step['attempt'] and bundle['artifact'] == artifact,
+                'Accepted Linux run/artifact changed during verification')
+        linux_tool.bind(record, bundle)
+        return bundle
+
 
 def save(path, record):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -152,6 +168,11 @@ class Coordinator:
             require(current['object']['sha'] == commit, f'Branch {name} moved; choose a new candidate number')
 
     def expected(self, name):
+        if name == 'linux_signing':
+            bundle = self.record['linux_signing_input']
+            return 'main', {'expected_version': self.record['version'], 'staging_repository': self.record['repository'],
+                'staging_run_id': bundle['run_id'], 'staging_artifact_name': bundle['artifact']['name'],
+                'staging_artifact_id': str(bundle['artifact']['id']), 'staging_artifact_sha256': bundle['archive_sha256']}
         if name == 'backend':
             return self.record['build_ref'], {'core_build_type': 'Release', 'core_packages': 'source'}
         if name == 'desktop':
@@ -228,6 +249,8 @@ class Coordinator:
             self.persist()
 
     def required_artifacts(self, name):
+        if name == 'linux_signing':
+            return ['Holder-linux-appimage-signed-' + self.record['version']]
         if name == 'backend':
             return ['core-selection'] + [f'core-sdk-{platform}-Release' for platform in PLATFORMS] + [
                 pair[1] + '-release' for pair in manifest_tool.components.ARTIFACTS.values()]
@@ -292,6 +315,16 @@ class Coordinator:
     def retry(self, name):
         require(name in self.record['steps'], f'{name} has not been started')
         step = self.record['steps'][name]
+        require(not (name == 'linux' and self.record.get('linux_signing_input')),
+                'Linux staging is pinned for signing; select a new candidate instead of replacing inputs')
+        require(not (name == 'linux_signing' and self.record.get('linux_signed')),
+                'Signed Linux bytes are already accepted; select a new candidate instead of signing again')
+        if name == 'linux_signing':
+            require(digest(self.record['linux_signing_input']) == self.record['linux_signing_input_sha256'],
+                    'Saved Linux signing input changed')
+            linux_tool.bind(self.record, self.record['linux_signing_input'])
+            require(datetime.fromisoformat(self.record['linux_signing_input']['artifact']['expires_at'].replace('Z', '+00:00')) > now(),
+                    'Pinned Linux staging artifact expired before signing completed')
         require(not (name in BUILDS and self.record.get('manifest')),
                 'Builds already belong to a verified manifest; select a new candidate instead of replacing inputs')
         require(not (name in PACKAGES and self.record.get('python_packages')),
@@ -512,6 +545,48 @@ class Coordinator:
         self.record['status'] = 'python_publication_completed'
         self.persist()
 
+    def advance_signing(self):
+        validate_record(self.record)
+        require(self.record.get('manifest') and self.record['manifest'].get('commit') and
+                digest(self.record['manifest']['document']) == self.record['manifest']['sha256'],
+                'Linux signing requires the unchanged candidate manifest')
+        self.validate_manifest(self.record['manifest']['document'], self.record['manifest']['evidence'])
+        if 'linux_signing_input' not in self.record:
+            require('linux' in self.record['steps'], 'Prepare Linux staging before requesting signing')
+            require(self.inspect('linux'), 'Linux staging is not ready for signing')
+            bundle = self.github.linux_bundle(self.record, 'linux')
+            self.record.update(linux_signing_input=bundle, linux_signing_input_sha256=digest(bundle))
+            self.persist()
+        bundle = self.record['linux_signing_input']
+        require(digest(bundle) == self.record['linux_signing_input_sha256'], 'Saved Linux signing input changed')
+        linux_tool.bind(self.record, bundle)
+        input_available = datetime.fromisoformat(bundle['artifact']['expires_at'].replace('Z', '+00:00')) > now()
+        if 'linux_signing' not in self.record['steps']:
+            require(input_available, 'Pinned Linux staging artifact expired before signing completed')
+            self.start('linux_signing')
+        if not self.inspect('linux_signing'):
+            require(input_available, 'Pinned Linux staging artifact expired before signing completed')
+            step = self.record['steps']['linux_signing']
+            pending = self.api('actions/runs/' + step['run_id'] + '/pending_deployments') if step.get('run_id') else []
+            waiting = any(item['environment']['name'] == 'linux-release-signing' for item in pending)
+            self.record['status'] = 'awaiting_linux_signing_approval' if waiting else 'signing_linux'
+            self.persist()
+            return
+        if 'linux_signed' not in self.record:
+            signed = self.github.linux_bundle(self.record, 'linux_signing')
+            require(signed['provenance'] == bundle['provenance'], 'Signed Linux provenance differs from staged input')
+            metadata = signed['signing_metadata']
+            require(metadata['appimage_version'] == self.record['version'] and
+                    metadata['staging'] == {'repository': self.record['repository'], 'run_id': bundle['run_id'],
+                        'artifact_id': str(bundle['artifact']['id']), 'archive_sha256': bundle['archive_sha256']} and
+                    metadata['signing_workflow'] == {'repository': self.record['repository'],
+                        'run_id': self.record['steps']['linux_signing']['run_id']}, 'Signed Linux metadata differs from the selected handoff')
+            self.record.update(linux_signed=signed, linux_signed_sha256=digest(signed))
+            self.persist()
+        require(digest(self.record['linux_signed']) == self.record['linux_signed_sha256'], 'Saved signed Linux evidence changed')
+        self.record['status'] = 'linux_signed'
+        self.persist()
+
 
 def summary(record):
     lines = [f'# Holder {record["version"]} candidate {record["number"]}', '',
@@ -544,13 +619,20 @@ def summary(record):
     for name, item in record.get('publications', {}).items():
         lines += ['', f'{name}: published files verified at {item["receipt"]["verified_at"]}; '
                   f'receipt SHA256 `{item["sha256"]}`']
+    if record.get('linux_signed'):
+        lines += ['', f'Signed Linux evidence SHA256: `{record["linux_signed_sha256"]}`',
+                  '| Signed file | SHA256 |', '| --- | --- |']
+        lines += [f'| {file["name"]} | {file["sha256"]} |' for file in record['linux_signed']['files']]
+    if record['status'] == 'awaiting_linux_signing_approval':
+        lines += ['', 'Waiting for review in linux-release-signing. Inspect the workflow verification summary before approval.']
     package_work = ('Python distributions prepared; publish-python selects one package and destination explicitly.'
                     if record.get('python_packages') else 'Python distribution preparation: run packages with this record.')
     lines += ['', package_work,
               'Remaining release work: platform/upgrade validation and signing handoffs;',
               'the maintainer publication decision; per-destination promotion/publication',
               'and package availability checks; website completion. Follow release/docs/runbook.md.',
-              'prepare/packages dispatch preparation workflows; publish-python uploads to the explicit destination.']
+              'prepare/packages dispatch preparation workflows; sign-linux requests the protected signing workflow;',
+              'publish-python uploads to the explicit destination.']
     return '\n'.join(lines) + '\n'
 
 
@@ -600,7 +682,7 @@ def validate_record(record):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('prepare', 'packages', 'publish-python', 'status'))
+    parser.add_argument('command', choices=('prepare', 'packages', 'publish-python', 'sign-linux', 'status'))
     parser.add_argument('--record', type=Path, required=True)
     parser.add_argument('--repository', default=None)
     parser.add_argument('--candidate')
@@ -622,12 +704,14 @@ def main():
             parser.error('--retry must match the selected package and destination')
     elif args.package or args.destination or args.retry in PUBLICATIONS:
         parser.error('Publication options require publish-python')
+    if (args.retry == 'linux_signing' and args.command != 'sign-linux') or (args.command == 'sign-linux' and args.retry not in (None, 'linux_signing')):
+        parser.error('Linux signing retries require sign-linux --retry linux_signing')
     if args.retry and args.command == 'status':
-        parser.error('--retry requires prepare, packages or publish-python')
+        parser.error('--retry requires prepare, packages, sign-linux or publish-python')
     if args.retry in PACKAGES and args.command != 'packages':
         parser.error('Python package retries require packages')
     if args.wait and args.command == 'status':
-        parser.error('--wait requires prepare, packages or publish-python')
+        parser.error('--wait requires prepare, packages, sign-linux or publish-python')
     if not 1 <= args.poll_seconds <= 60:
         parser.error('--poll-seconds must be between 1 and 60')
     github = GitHub()
@@ -654,7 +738,7 @@ def main():
                 record = initialize(github, args.repository or 'HolderTeam/holder', args.candidate,
                                     args.version, args.number, args.windows_sign_test_installer != 'false')
                 save(args.record, record)
-            if args.command in ('prepare', 'packages', 'publish-python'):
+            if args.command in ('prepare', 'packages', 'publish-python', 'sign-linux'):
                 coordinator = Coordinator(args.record, record, github)
                 try:
                     record.pop('error', None)
@@ -664,7 +748,9 @@ def main():
                         coordinator.retry(args.retry)
                     last_report = None
                     while True:
-                        if args.command == 'publish-python':
+                        if args.command == 'sign-linux':
+                            coordinator.advance_signing()
+                        elif args.command == 'publish-python':
                             coordinator.advance_publication(args.package, args.destination)
                         elif args.command == 'packages':
                             coordinator.advance_packages()
@@ -676,7 +762,7 @@ def main():
                             print(report, flush=True)
                             last_report = report
                         target = {'packages': 'packages_prepared', 'prepare': 'candidate_staged',
-                                  'publish-python': 'python_publication_completed'}[args.command]
+                                  'publish-python': 'python_publication_completed', 'sign-linux': 'linux_signed'}[args.command]
                         if not args.wait or record['status'] == target:
                             break
                         time.sleep(args.poll_seconds)

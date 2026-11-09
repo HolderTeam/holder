@@ -154,8 +154,9 @@ Commit both files under `release/staging/release-manifests/` and
 merge it to `main` before staging. The manifest commit can differ from the
 candidate source commit: it records already-built inputs, rather than changing
 them. Record the staging workflow revision as well as those component revisions.
-Manifest generation is not automatic yet; see
-[#121](https://github.com/HolderTeam/holder/issues/121).
+The coordinator generates and retains this metadata automatically; these are
+the independent manual steps. #121 retains the next actual release's staging
+validation evidence.
 
 Dispatch the three staging workflows on `main`, using the same manifest input:
 
@@ -260,6 +261,19 @@ candidate with new pins and repeated affected checks, not an edited old record.
 
 ## 6. Review the publication decision and approvals
 
+Request the Linux signed candidate once its staging output is ready:
+
+```sh
+python3 release/scripts/release.py sign-linux \
+  --record release/records/0.2.6-candidate-1.json --wait
+```
+
+This pins the exact staged artifact and waits at the existing Linux reviewer
+gate. Review its verification summary before approving. It records signed
+outputs without publishing or creating a tag, so it can run before the tag
+boundary below. See [Linux signing](linux-signing.md) for retained evidence,
+approval states, targeted retries and expiry recovery.
+
 Before making a production tag or upload, review this go/no-go list:
 
 - [ ] Version and candidate SHA are fixed; component/staging runs and core
@@ -291,11 +305,12 @@ let tag creation select the then-current tip of `main` instead. Never move a
 published tag. Pushing the tag starts `Release / Launchpad`; GitHub draft state
 does not postpone that upload. Record the resulting run immediately.
 
-The remaining operations are still separate dispatches:
+The signing handoff is coordinated; the remaining promotion operations still
+have independent manual entry points:
 
 | Operation | Public workflow/ref and inputs | Handoff/result |
 | --- | --- | --- |
-| Linux signing step | [sign-linux-appimage.yml](../../.github/workflows/sign-linux-appimage.yml), `main`; `expected_version=<version>`, `staging_run_id=<Linux staging run>`; keep repository/artifact defaults | After approval and verification: `Holder-linux-appimage-signed-<version>`, including signatures, metadata and attestation |
+| Linux signing step | `release.py sign-linux --record <candidate.json> --wait`; or the existing [manual workflow](../../.github/workflows/sign-linux-appimage.yml) on `main` | After approval and verification: accepted `Holder-linux-appimage-signed-<version>`, pinned staging identity, signatures, metadata and attestation |
 | Linux promotion | [promote-linux-appimage.yml](../../.github/workflows/promote-linux-appimage.yml), `main`; `expected_version=<version>`, `signing_run_id=<verified signing run>`, `release_tag=holder-v<version>`, `allow_published_prerelease=false` | Verifies the signed candidate, then creates/updates the matching **draft** in this repository |
 | Core SDK publication | [promote-core-sdk.yml](../../.github/workflows/promote-core-sdk.yml), `main`; `expected_version=<version>`, `daemon_ci_run_id=<selected Release daemon run>`, `release_tag=holder-v<version>` | Publishes the exact daemon run's three SDKs and `sdk-index.json` in `HolderTeam/holder-sdk`; this is a public SDK release, not an asset upload into Holder's draft |
 | Windows development installer, if chosen | [promote-windows-dev-build.yml](../../.github/workflows/promote-windows-dev-build.yml), `main`; `staging_run_id=<tester-signed Windows staging run>`, `release_tag=holder-v<version>`; keep repository/artifact defaults | Adds `Holder-windows-<version>-dev-Setup.exe`, checksum and test-certificate information to the existing draft |

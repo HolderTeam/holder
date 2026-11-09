@@ -24,6 +24,13 @@ if ! [[ "${staging_run_id}" =~ ^[0-9]+$ ]] || ! [[ "${release_run_id}" =~ ^[0-9]
   echo "Staging and release run IDs must be numeric." >&2
   exit 1
 fi
+if [[ -n "${HOLDER_STAGING_ARTIFACT_ID:-}${HOLDER_STAGING_ARTIFACT_SHA256:-}" ]]; then
+  if ! [[ "${HOLDER_STAGING_ARTIFACT_ID:-}" =~ ^[0-9]+$ ]] ||
+     ! [[ "${HOLDER_STAGING_ARTIFACT_SHA256:-}" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "Staging artifact pins require a numeric ID and a ZIP SHA256." >&2
+    exit 1
+  fi
+fi
 if [ ! -x "${appimagetool}" ]; then
   echo "appimagetool is not executable: ${appimagetool}" >&2
   exit 1
@@ -132,6 +139,8 @@ jq -n \
   --arg fingerprint "${fingerprint}" \
   --arg staging_repository "${staging_repository}" \
   --arg staging_run_id "${staging_run_id}" \
+  --arg staging_artifact_id "${HOLDER_STAGING_ARTIFACT_ID:-}" \
+  --arg staging_artifact_sha256 "${HOLDER_STAGING_ARTIFACT_SHA256:-}" \
   --arg release_repository "${release_repository}" \
   --arg release_run_id "${release_run_id}" \
   --arg signed_at "$(date --utc +'%Y-%m-%dT%H:%M:%SZ')" \
@@ -147,7 +156,9 @@ jq -n \
       run_id: $release_run_id
     },
     signed_at: $signed_at
-  }' > "${output_dir}/${metadata_name}"
+  } | if $staging_artifact_id != "" then
+    .staging += {artifact_id: $staging_artifact_id, archive_sha256: $staging_artifact_sha256}
+  else . end' > "${output_dir}/${metadata_name}"
 
 (
   cd "${output_dir}"
