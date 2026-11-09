@@ -5,6 +5,8 @@
 #endif
 
 #include "core_test_helpers.h"
+#include "capi/Context.h"
+#include "card/CardRepo.h"
 #include "git/GitOps.h"
 #include "model/Project.h"
 #include "platform/Db.h"
@@ -115,6 +117,97 @@ struct Fixture {
 };
 
 } // namespace
+
+TEST_CASE("Recovery token import reports a locked remote config while keeping the restored key usable",
+          "[capi][recovery-import-failures]") {
+  Fixture f;
+  const auto id = f.add_card();
+  f.push();
+  f.restore();
+  const auto project = holder::project::ProjectRepo(f.target->db).get(f.project_id);
+  REQUIRE(project.has_value());
+  holder::git::GitRepo git;
+  git.open_existing(project->root_path);
+  // Force a config update: an already-correct remote needs no write or lock.
+  git.set_remote("origin", (f.data_dir / "old-remote.git").string());
+  const auto head = git.head_oid();
+  const auto lock_path = std::filesystem::path(project->root_path) / ".git/config.lock";
+  {
+    std::ofstream lock(lock_path);
+    REQUIRE(lock.is_open());
+    lock << "another Git writer\n";
+  }
+  const auto* result = f.restore();
+  CHECK_FALSE(result->project_created);
+  CHECK(result->remote_hint_present);
+  CHECK_FALSE(result->remote_configured);
+  REQUIRE(result->remote_error != nullptr);
+  CHECK(std::string(result->remote_error).size() > 0);
+  CHECK(result->pull_status == HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_NOT_ATTEMPTED);
+  CHECK(result->pull_error == nullptr);
+  CHECK(git.head_oid() == head);
+  const holder_card* card = nullptr;
+  REQUIRE(holder_get_card(f.target, f.project_id.c_str(), id.c_str(), f.arena, &card, &f.error) == HOLDER_OK);
+  CHECK(std::string(card->content) == "hidden");
+  REQUIRE(std::filesystem::remove(lock_path));
+  const auto* retried = f.restore();
+  CHECK_FALSE(retried->project_created);
+  CHECK(retried->remote_configured);
+  CHECK(retried->remote_error == nullptr);
+  CHECK(retried->pull_status == HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED);
+}
+
+TEST_CASE("Recovery token import preserves a divergent local encrypted edit as a conflicted copy",
+          "[capi][recovery-import-failures]") {
+  Fixture f;
+  const auto id = f.add_card();
+  f.push();
+  f.restore();
+  const auto edit = [&](holder_context* context, const char* content) {
+    holder_card_update update{};
+    update.content = content;
+    const holder_card* result = nullptr;
+    REQUIRE(holder_update_card(context, f.project_id.c_str(), id.c_str(), &update,
+                                f.arena, &result, &f.error) == HOLDER_OK);
+    REQUIRE(std::string(result->content) == content);
+  };
+  edit(f.target, "Local edit to preserve");
+  edit(f.source, "Remote edit to retain");
+  f.push();
+  const auto* imported = f.restore();
+  INFO((imported->pull_error ? imported->pull_error : "no pull error"));
+  CHECK_FALSE(imported->project_created);
+  CHECK(imported->remote_configured);
+  REQUIRE(imported->pull_status == HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED);
+  const auto cards = holder::card::CardRepo(f.target->db).list_all(f.project_id);
+  REQUIRE(cards.size() == 2);
+  bool original = false;
+  bool copy = false;
+  for (const auto& record : cards) {
+    const holder_card* card = nullptr;
+    REQUIRE(holder_get_card(f.target, f.project_id.c_str(), record.card_id.c_str(),
+                            f.arena, &card, &f.error) == HOLDER_OK);
+    if (record.card_id == id) {
+      CHECK(std::string(card->content) == "Remote edit to retain");
+      CHECK(std::string(card->title) == "Secret");
+      original = true;
+    } else {
+      CHECK(std::string(card->content) == "Local edit to preserve");
+      CHECK(std::string(card->title) == "Secret (conflicted copy)");
+      copy = true;
+    }
+  }
+  CHECK(original);
+  CHECK(copy);
+  const holder_project_encryption_check* safety = nullptr;
+  REQUIRE(holder_check_project_encryption(f.target, f.project_id.c_str(), f.arena,
+                                           &safety, &f.error) == HOLDER_OK);
+  REQUIRE(safety != nullptr);
+  CHECK(safety->check.ok);
+  // Importing again does not create a second copy of the already-resolved edit.
+  REQUIRE(f.restore()->pull_status == HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED);
+  CHECK(holder::card::CardRepo(f.target->db).list_all(f.project_id).size() == 2);
+}
 
 TEST_CASE("Generated recovery token import configures and pulls its remote hint", "[capi][privacy]") {
   Fixture f;
