@@ -71,7 +71,7 @@ expiry without downloading accepted bundles again.
 This command can run before the release tag exists. It requests no publication
 and creates no tag or release. Continue the runbook's platform checks and
 publication decision, then [promotion of the accepted signed output](linux-promotion.md).
-Core publication and final destination reporting remain subsequent #120 work. Validate
+[Core SDK publication](sdk-publication.md) also uses that record; final destination reporting remains subsequent #120 work. Validate
 this remote handoff through the next actual release; no extra signing rehearsal
 is required.
 

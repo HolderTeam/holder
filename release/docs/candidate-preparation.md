@@ -92,7 +92,8 @@ decision. Continue the [runbook](runbook.md) with platform/install/upgrade check
 signing handoffs and [Python distribution preparation](python-preparation.md), then the maintainer's
 publication decision. [Linux signing](linux-signing.md) and [prepared Python publication](python-publication.md) use
 the same record. [Linux promotion](linux-promotion.md) delivers the accepted signed
-files using that record. Other desktop/core publication, PPA
+files using that record; [core SDK publication](sdk-publication.md) publishes its
+accepted SDK set. Other desktop delivery, PPA
 completion and website completion remain subsequent coordinator slices in #120.
 The first end-to-end validation is the next actual release using this entry
 point; a separate rehearsal or extra build matrix is not required.

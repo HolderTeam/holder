@@ -10,6 +10,18 @@ name: Release / Promote core SDK
 on:
   workflow_dispatch:
     inputs:
+      release_request:
+        description: Optional coordinator request identifier
+        type: string
+        default: ''
+      prepared_sdk_path:
+        description: Optional sdk-manifests/<candidate>.json pinned SDK input record
+        type: string
+        default: ''
+      prepared_sdk_ref:
+        description: Immutable commit holding the pinned SDK input record
+        type: string
+        default: ''
       expected_version:
         description: Exact release version, for example 0.2.5
         required: true
@@ -24,7 +36,7 @@ on:
         default: ""
         type: string
 
-run-name: Promote core SDK ${{ inputs.expected_version }} to release
+run-name: ${{ inputs.release_request || format('Promote core SDK {0} to release', inputs.expected_version) }}
 
 permissions:
   actions: read
@@ -47,80 +59,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - id: run
-        name: Check the Daemon CI run
+      - name: Fetch and verify the exact Release SDK inputs
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ inputs.daemon_ci_run_id }}
           EXPECTED_VERSION: ${{ inputs.expected_version }}
           RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
+          PREPARED_SDK_PATH: ${{ inputs.prepared_sdk_path }}
+          PREPARED_SDK_REF: ${{ inputs.prepared_sdk_ref }}
         run: |
           set -euo pipefail
-          if ! [[ "$RUN_ID" =~ ^[0-9]+$ ]]; then
-            echo "daemon_ci_run_id must be numeric; got '$RUN_ID'" >&2
-            exit 1
-          fi
-          if ! [[ "$EXPECTED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "expected_version must be a version like 0.2.5; got '$EXPECTED_VERSION'" >&2
-            exit 1
-          fi
-          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}")"
-          path="$(jq -r '.path' <<< "$run")"
-          conclusion="$(jq -r '.conclusion' <<< "$run")"
-          if [ "${path}" != .github/workflows/daemon-ci.yml ] || [ "${conclusion}" != success ]; then
-            echo "Run ${RUN_ID} is ${path} with conclusion ${conclusion}; a successful Daemon CI run is required." >&2
-            exit 1
-          fi
-          echo "commit=$(jq -r '.head_sha' <<< "$run")" >> "$GITHUB_OUTPUT"
-          release_tag="${RELEASE_TAG_INPUT:-holder-v${EXPECTED_VERSION}}"
-          if [ "${release_tag}" != "holder-v${EXPECTED_VERSION}" ]; then
-            echo "The release tag must be holder-v${EXPECTED_VERSION}; got '${release_tag}'" >&2
-            exit 1
-          fi
-          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
-
-      - name: Download the run's core selection
-        uses: actions/download-artifact@v8
-        with:
-          name: core-selection
-          path: out
-          github-token: ${{ github.token }}
-          run-id: ${{ inputs.daemon_ci_run_id }}
-
-      - name: Download the run's Release SDKs
-        uses: actions/download-artifact@v8
-        with:
-          pattern: core-sdk-*-Release
-          path: out/core-sdk
-          merge-multiple: true
-          github-token: ${{ github.token }}
-          run-id: ${{ inputs.daemon_ci_run_id }}
-
-      - name: Verify the SDKs against the selection and the release version
-        env:
-          EXPECTED_VERSION: ${{ inputs.expected_version }}
-        run: |
-          set -euo pipefail
-          # Re-index the downloaded archives and require the same description the run recorded:
-          # the same run commit and core/ tree, version, configurations, per-archive commits, sizes
-          # and checksums.
-          python3 core/scripts/core-sdk.py index --assets out/core-sdk --output out/downloaded-selection.json \
-            --commit "$(jq -r .commit out/core-selection.json)" --tree "$(jq -r .core_tree out/core-selection.json)"
-          python3 - <<'EOF'
-          import json, os, sys
-          recorded = json.load(open("out/core-selection.json"))
-          downloaded = json.load(open("out/downloaded-selection.json"))
-          key = lambda asset: asset["name"]
-          if sorted(recorded["assets"], key=key) != sorted(downloaded["assets"], key=key) or \
-             any(recorded.get(k) != downloaded.get(k) for k in ("commit", "core_tree", "version")):
-              sys.exit("The downloaded SDKs differ from the run's core selection")
-          configurations = {(a["platform"], a["build_type"]) for a in recorded["assets"]}
-          if configurations != {("linux", "Release"), ("macos", "Release"), ("windows", "Release")}:
-              sys.exit(f"Expected Release SDKs for linux, macos and windows; got {sorted(configurations)}")
-          if recorded["version"] != os.environ["EXPECTED_VERSION"]:
-              sys.exit(f"Core is at {recorded['version']}, not the release version {os.environ['EXPECTED_VERSION']}")
-          print(f"Core {recorded['version']} from {recorded['commit']}: {len(recorded['assets'])} Release SDKs")
-          EOF
+          test -z "$RELEASE_TAG_INPUT" || test "$RELEASE_TAG_INPUT" = "holder-v$EXPECTED_VERSION"
+          python3 release/scripts/publish-core-sdk.py fetch --repository "$GITHUB_REPOSITORY" \
+            --run-id "$RUN_ID" --version "$EXPECTED_VERSION" --directory out/sdk-release \
+            --prepared-path "$PREPARED_SDK_PATH" --prepared-ref "$PREPARED_SDK_REF"
 
       - id: token
         name: Get a token for holder-sdk
@@ -132,11 +84,18 @@ jobs:
           repositories: holder-sdk
           permission-contents: write
 
-      - name: Publish to holder-sdk
+      - name: Publish the verified SDK set without replacing existing assets
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
-          SDK_RELEASE: ${{ steps.run.outputs.release_tag }}
-          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ inputs.daemon_ci_run_id }}
-        run: >-
-          .github/scripts/publish-core-sdk.sh out/core-sdk out/core-selection.json
-          "$(jq -r .core_tree out/core-selection.json)"
+          SOURCE_GH_TOKEN: ${{ github.token }}
+        run: python3 release/scripts/publish-core-sdk.py publish --directory out/sdk-release
+
+      - name: Retain SDK publication evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: core-sdk-publication
+          path: |
+            out/sdk-release/sdk-publication-input.json
+            out/sdk-release/sdk-publication.json
+          if-no-files-found: error
+          overwrite: true
