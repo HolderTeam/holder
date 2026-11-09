@@ -324,22 +324,31 @@ packaging revision changes do not permit replacing different upstream source.
 
 ## 9. Update the website and installed-app feed
 
-Once the destinations being advertised are verified, update in one reviewed PR:
+Publishing a stable `holder-v<version>` release starts a small dispatcher in
+`release-website.yml`, which starts that workflow on `main` to satisfy the Pages
+environment's branch rule. The main run checks out website/tooling source and runs
+`release/scripts/website-release.py` before building. The highest published
+numeric Holder version supplies the compatible schema-1 `/version.json` feed,
+download catalog and checksum copies. Root development VERSION is not the public
+release selector.
 
-- [`website/_data/downloads.yml`](../website/_data/downloads.yml): platform
-  versions, channels, actual asset names/URLs, and accurate PPA availability.
-- [`website/version.json`](../website/version.json): the stable update feed,
-  retaining its URL and compatible schema. Do not advertise an incomplete or
-  test candidate to installed users.
-- [`website/assets/checksums/`](../website/assets/checksums/): checksum manifests
-  copied from the verified release; update relevant platform/upgrade guidance.
+Generation requires the complete, unique supported platform asset set and verifies
+checksums and the Linux checksum signature. See the [website data contract](../website/README.md#published-release-data).
+Incomplete releases stop deployment and leave the previous site/feed in place;
+there is no fallback to an older release to hide an incomplete newer one. Correct
+the release assets/metadata, then manually dispatch `release-website.yml` on `main`
+to retry. Do not edit generated feed or download files.
 
-Website CI builds and checks the PR. After merge, `release-website.yml` deploys
-the site through `github-pages`; it can also be dispatched manually on `main`
-with no inputs. It does not generate release data or run automatically just
-because a GitHub release was published. Check the deployed feed, download links,
-checksums and Ubuntu instructions, then mark website completion in the record.
-[#110](https://github.com/HolderTeam/holder/issues/110) will automate this handoff.
+PPA availability is separate: after verifying the intended packages, update
+[`website/_data/ubuntu.json`](../website/_data/ubuntu.json) in a reviewed PR.
+Use an explicitly declared version or mark availability unconfirmed. GitHub
+publication never advances this record automatically. Update platform/upgrade
+guidance when behaviour changes; release-specific version labels come from the
+generated catalog.
+
+Website CI builds/checks reviewed changes, and website changes on `main` still
+deploy through `github-pages`. Check the deployed feed, platform channels,
+download links, checksums and Ubuntu instructions, then record website completion.
 
 ## 10. Recover from a failed or partial release
 

@@ -37,18 +37,18 @@ title: Holder
       <div>
         <div class="platform-heading">
           <h3>Ubuntu</h3>
-          <span class="tag">0.2.5 release</span>
+          <span class="tag">{{ site.data.downloads.platforms.ubuntu.badge }}</span>
         </div>
-        <p>Install from the official HolderTeam PPA. <a class="muted-link" href="{{ '/ubuntu/' | relative_url }}">Ubuntu notes</a></p>
+        <p>{{ site.data.downloads.platforms.ubuntu.detail }} <a class="muted-link" href="{{ '/ubuntu/' | relative_url }}">Ubuntu notes</a></p>
       </div>
-      <a class="button secondary" href="{{ '/ubuntu/' | relative_url }}" data-download-asset="ubuntu">Install on Ubuntu</a>
+      <a class="button secondary" href="{{ '/ubuntu/' | relative_url }}" data-download-asset="ubuntu">{{ site.data.downloads.platforms.ubuntu.button_label }}</a>
     </article>
 
     <article class="platform-card" data-platform-card="linux">
       <div>
         <div class="platform-heading">
           <h3>Linux</h3>
-          <span class="tag">0.2.5 release</span>
+          <span class="tag">{{ site.data.downloads.platforms.linux.badge }}</span>
         </div>
         <p>Signed AppImage for x86_64 Linux. <a class="muted-link" href="{{ '/linux/' | relative_url }}">Linux notes</a></p>
       </div>
@@ -59,9 +59,9 @@ title: Holder
       <div>
         <div class="platform-heading">
           <h3>macOS</h3>
-          <span class="tag">0.2.5 release</span>
+          <span class="tag">{{ site.data.downloads.platforms.macos.badge }}</span>
         </div>
-        <p>Signed and notarised disk image. <a class="muted-link" href="{{ '/macos/' | relative_url }}">macOS notes</a></p>
+        <p>Disk image for macOS. <a class="muted-link" href="{{ '/macos/' | relative_url }}">macOS notes</a></p>
       </div>
       <a class="button secondary" href="{{ site.data.downloads.platforms.macos.url }}" data-download-asset="macos">Download DMG</a>
     </article>
@@ -70,9 +70,9 @@ title: Holder
       <div>
         <div class="platform-heading">
           <h3>Windows</h3>
-          <span class="tag preview">0.2.5 development</span>
+          <span class="tag{% if site.data.downloads.platforms.windows.channel == "development" %} preview{% endif %}">{{ site.data.downloads.platforms.windows.badge }}</span>
         </div>
-        <p>Self-signed installer for Windows 10 and Windows 11. Please really do read the <a class="muted-link" href="{{ '/windows/' | relative_url }}">Windows notes</a></p>
+        <p>Installer for Windows 10 and Windows 11. Please really do read the <a class="muted-link" href="{{ '/windows/' | relative_url }}">Windows notes</a></p>
       </div>
       <a class="button secondary" href="{{ site.data.downloads.platforms.windows.url }}" data-download-asset="windows">Download installer</a>
     </article>

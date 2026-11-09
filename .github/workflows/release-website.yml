@@ -1,14 +1,19 @@
 name: Release / Website
 
 # Deploys the website in release/website/ to GitHub Pages (www.holder.team) when it changes on
-# main, or when run by hand. Website / CI builds and checks the same site on pull requests.
+# main, when a stable Holder release is published, or when run by hand.
+# Website / CI builds and checks the same generated site on pull requests.
 
 on:
   push:
     branches: [main]
     paths:
       - release/website/**
+      - release/scripts/website-release.py
+      - release/keys/holder-linux-release.asc
       - .github/workflows/release-website.yml
+  release:
+    types: [published]
   workflow_dispatch:
 
 # As GitHub's Pages starter workflow: configure-pages reads the Pages site, deploy-pages publishes.
@@ -26,12 +31,36 @@ defaults:
     working-directory: release/website
 
 jobs:
+  dispatch-main:
+    if: github.event_name == 'release' && !github.event.release.prerelease && !github.event.release.draft && startsWith(github.event.release.tag_name, 'holder-v')
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+      contents: read
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      # Pages accepts deployments from main. Release events run in a tag context,
+      # so dispatch the normal main workflow instead of deploying from that tag.
+      - name: Start website generation and deployment on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: gh workflow run release-website.yml --repo "$REPOSITORY" --ref main
+
   build:
+    if: github.event_name != 'release'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           persist-credentials: false
+      - name: Generate published downloads and desktop update feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 ../scripts/website-release.py
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"

@@ -8,12 +8,13 @@ narrow: true
 <section class="page-panel">
   <p class="eyebrow">Windows</p>
   <h1>Holder for Windows</h1>
-  <p class="lead">Download the Windows installer, or build Holder yourself while the Windows signing pipeline is being finished.</p>
+  <p class="lead">Download the Windows installer, or build Holder yourself.</p>
   <div class="actions">
     <a class="button primary" data-download-asset="windows" href="{{ site.data.downloads.platforms.windows.url }}">Download for Windows</a>
   </div>
 </section>
 
+{% if site.data.downloads.platforms.windows.channel == "development" %}
 <section class="section">
   <div class="section-head">
     <h2>Signed Release Builds Are Coming Soon</h2>
@@ -40,6 +41,8 @@ narrow: true
     </figure>
   </div>
 </section>
+
+{% endif %}
 
 <section class="section">
   <div class="section-head">
