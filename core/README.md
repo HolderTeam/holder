@@ -129,6 +129,11 @@ sudo apt install -y ccache lcov gcovr
 
 `make.sh` automatically uses ccache when installed (`HOLDER_CCACHE=0` disables
 it). `./make.sh coverage` uses GCC/gcov, lcov and genhtml; gcovr adds a JSON report.
+The lcov report omits a narrow list of unused GCC deleting-destructor aliases
+only when their matching destructor bodies have executed. This changes function
+records only; destructor bodies, source lines and branch counters remain measured.
+The allowlist and its rationale live in `scripts/coverage_filters.py`.
+Coverage requires Python 3 and runs the filter's unit tests before building.
 
 ### macOS (Homebrew)
 

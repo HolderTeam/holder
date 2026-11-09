@@ -295,6 +295,8 @@ coverage_all() {
   local coverage_json="${report_dir}/coverage.json"
   local gcov_executable="gcov"
 
+  python3 -m unittest discover -s scripts/tests -p test_coverage_filters.py
+
   if command -v gcov-13 >/dev/null 2>&1; then
     gcov_executable="gcov-13"
   fi
@@ -323,6 +325,7 @@ coverage_all() {
     '*/CMakeFiles/*/CompilerIdCXX/*' \
     --output-file "${info_total}"
 
+  python3 scripts/coverage_filters.py "${info_total}"
   genhtml "${info_total}" --output-directory "${report_dir}" --title "holder core coverage"
 
   if command -v gcovr >/dev/null 2>&1; then
