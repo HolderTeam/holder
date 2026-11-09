@@ -559,3 +559,36 @@ TEST_CASE(
   REQUIRE(remaining[0].dates.size() == 1);
   REQUIRE(remaining[0].dates[0].datetime == holder::model::milestone_datetime_utc(10));
 }
+
+TEST_CASE(
+    "Milestone date conversion validates offsets and the RFC 3339 year boundaries",
+    "[milestonerepo][date-boundaries]"
+) {
+  using namespace holder::model;
+  for (const auto* invalid : {"202x-11-02", "2026-1x-02", "2026-11-0x", "2023-02-29"})
+    REQUIRE_THROWS_AS(milestone_calendar_day(invalid), std::invalid_argument);
+  for (const auto* invalid :
+       {"2026-11-02T12:30:00*01:00",
+        "2026-11-02T12:30:00+01/00",
+        "2026-11-02T12:30:00+24:00",
+        "2026-11-02T12:30:00+01:60"})
+    REQUIRE_THROWS_AS(milestone_datetime_epoch(invalid), std::invalid_argument);
+  REQUIRE(
+      milestone_datetime_epoch("2026-11-02T12:30:00+01:30") ==
+      milestone_datetime_epoch("2026-11-02T11:00:00Z")
+  );
+  REQUIRE(
+      milestone_datetime_epoch("2026-11-02T12:30:00-01:30") ==
+      milestone_datetime_epoch("2026-11-02T14:00:00Z")
+  );
+  constexpr long long first = -62135596800LL;
+  constexpr long long last = 253402300799LL;
+  REQUIRE(milestone_datetime_utc(first) == "0001-01-01T00:00:00Z");
+  REQUIRE(milestone_datetime_utc(last) == "9999-12-31T23:59:59Z");
+  REQUIRE_THROWS_AS(milestone_datetime_utc(first - 1), std::invalid_argument);
+  REQUIRE_THROWS_AS(milestone_datetime_utc(last + 1), std::invalid_argument);
+  const MilestoneDate calendar{"due", std::string("2024-02-29"), std::nullopt};
+  REQUIRE_NOTHROW(validate_milestone_date(calendar));
+  REQUIRE_FALSE(milestone_date_epoch(calendar));
+  REQUIRE(milestone_legacy_epoch(calendar) == milestone_day_utc_epoch("2024-02-29"));
+}

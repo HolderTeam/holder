@@ -61,6 +61,62 @@ class VersionTests(unittest.TestCase):
 class NativeVersionTests(unittest.TestCase):
     ROOT = Path(__file__).resolve().parents[2]
 
+    @unittest.skipUnless(shutil.which('cmake'), 'CMake is needed for the daemon version check')
+    def test_daemon_root_version_and_standalone_fallback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'daemon'
+            source.mkdir()
+            # Exercise the production version-selection/validation block without
+            # configuring the daemon's unrelated native dependencies.
+            prelude = (self.ROOT / 'daemon/CMakeLists.txt').read_text().split('# api/')[0]
+            (source / 'CMakeLists.txt').write_text(prelude +
+                'project(VersionProbe VERSION ${HOLDER_DAEMON_CMAKE_VERSION} LANGUAGES NONE)\n'
+                'file(WRITE "${CMAKE_BINARY_DIR}/version.txt" "${HOLDER_DAEMON_VERSION}")\n')
+            (root / 'VERSION').write_text('1.2.3\n')
+            (source / 'VERSION').write_text('0.1.0\n')
+            build = root / 'build'
+
+            def configure():
+                return subprocess.run(['cmake', '-S', str(source), '-B', str(build)],
+                                      capture_output=True, text=True)
+
+            result = configure()
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual((build / 'version.txt').read_text(), '1.2.3')
+            (root / 'VERSION').write_text('1.2.4\n')
+            subprocess.run(['cmake', '--build', str(build)], check=True, capture_output=True)
+            self.assertEqual((build / 'version.txt').read_text(), '1.2.4')
+            (root / 'VERSION').write_text('invalid\n')
+            result = configure()
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('must contain a semantic version', result.stderr)
+            (root / 'VERSION').unlink()
+            for worktree in (False, True):
+                with self.subTest(worktree=worktree):
+                    marker = root / '.git'
+                    if worktree:
+                        marker.write_text('gitdir: /unused/worktree-metadata\n')
+                    else:
+                        marker.mkdir()
+                    try:
+                        result = configure()
+                        self.assertNotEqual(result.returncode, 0, result.stdout)
+                        self.assertIn('Missing repository-root VERSION', result.stderr)
+                    finally:
+                        if worktree:
+                            marker.unlink()
+                        else:
+                            marker.rmdir()
+            # Exported sources without Git metadata still use their generated input.
+            result = configure()
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual((build / 'version.txt').read_text(), '0.1.0')
+            (source / 'VERSION').unlink()
+            result = configure()
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('prepare the standalone daemon source', result.stderr)
+
     def test_desktop_root_version_wins_and_export_requires_prepared_metadata(self):
         spec = importlib.util.spec_from_file_location('product_version', self.ROOT / 'apps/desktop/gtk/scripts/product_version.py')
         reader = importlib.util.module_from_spec(spec)

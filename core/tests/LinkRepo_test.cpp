@@ -449,6 +449,14 @@ TEST_CASE("LinkRepo methods throw sqlite errors when DB is closed", "[linkrepo]"
       repo.delete_links_from("proj-1", "card-a"),
       Catch::Matchers::ContainsSubstring("prepare delete links failed: unknown sqlite error")
   );
+  REQUIRE_THROWS_WITH(
+      repo.list_external_backlinks_typed("target", "card-b", "card", {"proj-1"}),
+      Catch::Matchers::ContainsSubstring("prepare list external backlinks failed")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.delete_link_exact("proj-1", "card-a", "card-b", "card", "ref", "target"),
+      Catch::Matchers::ContainsSubstring("prepare delete exact link failed")
+  );
 }
 
 TEST_CASE("LinkRepo upsert throws when sqlite step fails", "[linkrepo]") {
@@ -621,4 +629,64 @@ TEST_CASE("Link visibility hides missing or trashed local endpoints", "[linkrepo
   CHECK(backlink_source_visible(db, link("msg-live", "y", "ai_message")));
   CHECK_FALSE(backlink_source_visible(db, link("msg-trashed", "y", "ai_message")));
   CHECK_FALSE(backlink_source_visible(db, link("missing", "y", "card")));
+}
+
+TEST_CASE(
+    "External backlinks break timestamp ties by project, source and kind without duplicates",
+    "[linkrepo][backlink-order]"
+) {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  for (const char* project : {"target", "source-a", "source-b"})
+    create_project(db, project);
+  create_card(db, "target-card", "target");
+  create_card(db, "a", "source-a");
+  create_card(db, "b", "source-a");
+  create_card(db, "c", "source-b");
+  holder::card::LinkRepo repo(db);
+  auto link = [](const std::string& project,
+                 const std::string& source,
+                 const std::string& kind,
+                 long long at) {
+    return holder::model::CardLink{
+        project,
+        source,
+        "target-card",
+        "card",
+        kind,
+        std::nullopt,
+        at,
+        std::string("target")
+    };
+  };
+  repo.upsert_links("source-b", "c", {link("source-b", "c", "ref", 10)});
+  repo.upsert_links("source-a", "b", {link("source-a", "b", "ref", 10)});
+  repo.upsert_links(
+      "source-a",
+      "a",
+      {link("source-a", "a", "z", 10),
+       link("source-a", "a", "a", 10),
+       link("source-a", "a", "newest", 20)}
+  );
+  const auto rows = repo.list_external_backlinks_typed(
+      "target",
+      "target-card",
+      "card",
+      {"source-b", "source-a", "source-b", "target"}
+  );
+  REQUIRE(rows.size() == 5);
+  std::vector<std::string> order;
+  for (const auto& row : rows)
+    order.push_back(row.project_id + "/" + row.from_card_id + "/" + row.kind);
+  REQUIRE(
+      order == std::vector<std::string>{
+                   "source-a/a/newest",
+                   "source-a/a/a",
+                   "source-a/a/z",
+                   "source-a/b/ref",
+                   "source-b/c/ref"
+               }
+  );
 }

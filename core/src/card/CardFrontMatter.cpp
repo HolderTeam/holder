@@ -216,7 +216,11 @@ ParsedCardFile parse_card_file(const std::string& raw) {
     parsed.body = raw.substr(end + closing_delimiter.size());
     return parsed;
   } catch (const std::exception&) {
-    return parsed;
+    // A later field can fail after identity, links or milestones were read.
+    // Report no metadata rather than returning a partially accepted record.
+    ParsedCardFile fallback;
+    fallback.body = raw;
+    return fallback;
   }
 }
 

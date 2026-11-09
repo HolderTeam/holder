@@ -6,6 +6,7 @@
 
 #include "core_test_helpers.h"
 #include "capi/Context.h"
+#include "privacy/PlatformKeyring.h"
 
 #include <holder/holder_api.h>
 
@@ -13,6 +14,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <limits>
 
 namespace {
 
@@ -268,4 +270,109 @@ TEST_CASE("Generated project ordering is applied before pagination", "[capi][pro
     REQUIRE(listed->count == 1);
     REQUIRE(std::string(listed->items[0].project_id) == entry.ids[1]);
   }
+}
+
+TEST_CASE(
+    "Generated project creation preserves explicit timestamps and rejects nonpositive imports",
+    "[capi][project-timestamps]"
+) {
+  Fixture f;
+  int64_t created = 12345;
+  int64_t updated = 67890;
+  bool omit_updated = false;
+  bool valid = true;
+  const char* invalid_field = nullptr;
+  SECTION("distinct creation and update times") {}
+  SECTION("omitted update time defaults to creation") { omit_updated = true; }
+  SECTION("full positive timestamp range") {
+    created = 1;
+    updated = std::numeric_limits<int64_t>::max();
+  }
+  SECTION("zero creation time") {
+    created = 0;
+    valid = false;
+    invalid_field = "created_at";
+  }
+  SECTION("negative creation time") {
+    created = -1;
+    valid = false;
+    invalid_field = "created_at";
+  }
+  SECTION("zero update time") {
+    updated = 0;
+    valid = false;
+    invalid_field = "updated_at";
+  }
+  SECTION("negative update time") {
+    updated = -1;
+    valid = false;
+    invalid_field = "updated_at";
+  }
+  holder_new_project request{};
+  request.name = "Timestamp import";
+  request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN;
+  request.created_at = &created;
+  request.updated_at = omit_updated ? nullptr : &updated;
+  const holder_project* project = nullptr;
+  const auto status = holder_create_project(f.context, &request, f.arena, &project, &f.error);
+  if (!valid) {
+    REQUIRE(status == HOLDER_ERROR_INVALID_ARGUMENT);
+    REQUIRE(project == nullptr);
+    REQUIRE(f.error != nullptr);
+    REQUIRE(std::string(holder_error_message(f.error)).find(invalid_field) != std::string::npos);
+    holder_error_destroy(f.error);
+    f.error = nullptr;
+    REQUIRE(f.list()->count == 0);
+  } else {
+    REQUIRE(status == HOLDER_OK);
+    REQUIRE(f.error == nullptr);
+    REQUIRE(project != nullptr);
+    REQUIRE(project->created_at == created);
+    REQUIRE(project->updated_at == (omit_updated ? created : updated));
+    const std::string id = project->project_id;
+    const holder_project* reread = nullptr;
+    REQUIRE(holder_get_project(f.context, id.c_str(), f.arena, &reread, &f.error) == HOLDER_OK);
+    REQUIRE(reread->created_at == created);
+    REQUIRE(reread->updated_at == (omit_updated ? created : updated));
+    REQUIRE(f.list()->count == 1);
+  }
+}
+
+TEST_CASE(
+    "Generated encrypted project creation reports a locked keyring without registering a project",
+    "[capi][project-keyring]"
+) {
+  Fixture f;
+  {
+    holder::test::EnvUnsetGuard no_test_keystore("HOLDER_TEST_KEYSTORE_DIR");
+    struct ResetHook {
+      ~ResetHook() { holder::privacy::platform_keyring_set_store_hook_for_tests(nullptr); }
+    } reset;
+    holder::privacy::platform_keyring_set_store_hook_for_tests(
+        +[](const holder::privacy::PlatformKeyringSecretRef&,
+            const std::string&) -> std::optional<std::string> {
+          return "device keyring is locked";
+        }
+    );
+    holder_new_project request{};
+    request.name = "Locked keyring";
+    // The default privacy mode is encrypted Git.
+    const holder_project* result = nullptr;
+    REQUIRE(
+        holder_create_project(f.context, &request, f.arena, &result, &f.error) ==
+        HOLDER_ERROR_KEYRING_UNAVAILABLE
+    );
+    REQUIRE(result == nullptr);
+    REQUIRE(f.error != nullptr);
+    REQUIRE(
+        std::string(holder_error_message(f.error)).find("device keyring is locked") !=
+        std::string::npos
+    );
+    holder_error_destroy(f.error);
+    f.error = nullptr;
+    REQUIRE(f.list()->count == 0);
+  }
+  const auto* project = f.create("Still usable");
+  REQUIRE(std::string(project->name) == "Still usable");
+  REQUIRE(f.list()->count == 1);
 }

@@ -1,20 +1,27 @@
 #include "ai/AiMessageRepo.h"
 #include "ai/AiThreadRepo.h"
 #include "capi/Context.h"
+#include "capi/StorageProviders.h"
 #include "card/CardRepo.h"
+#include "card/CardPaths.h"
 #include "card/LinkMutation.h"
 #include "core_test_helpers.h"
 #include "git/GitOps.h"
 #include "git/EcdsaDerSigningCredentialProvider.h"
 #include "project/ProjectRepo.h"
 #include "resource/ResourceRepo.h"
+#include "resource/LocationRepo.h"
+#include "card/LinkRepo.h"
+#include "platform/Tx.h"
 
 #include <holder/holder_api.h>
 #include <memory>
+#include <fstream>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
+#include <set>
 
 namespace {
 struct Host {
@@ -523,4 +530,629 @@ TEST_CASE("Link target validation distinguishes local, external, missing and tra
   REQUIRE_THROWS_AS(validate("foreign-message", "ai_message"), std::invalid_argument);
   holder::ai::AiMessageRepo(host.db, &host.fts).trash("local-message", 50);
   REQUIRE_THROWS_AS(validate("local-message", "ai_message"), std::invalid_argument);
+}
+
+TEST_CASE(
+    "Generated nested hierarchy repair returns hidden children to their live ancestor",
+    "[capi][remaining-maintenance]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto ancestor = host.card(project, "Ancestor");
+  const auto parent = host.card(project, "Hidden parent", ancestor.c_str());
+  const auto child = host.card(project, "Hidden child", parent.c_str());
+  holder::card::CardRepo cards(host.db);
+  cards.soft_delete(parent, 50, 50);
+  holder_hierarchy_repair_request request{};
+  const holder_hierarchy_repair* repair = nullptr;
+  REQUIRE(
+      holder_repair_project_hierarchy(
+          &host.context,
+          project.c_str(),
+          &request,
+          host.arena.get(),
+          &repair,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE_FALSE(repair->applied);
+  REQUIRE(repair->moved.count == 1);
+  REQUIRE(std::string(repair->moved.items[0].card_id) == child);
+  REQUIRE(repair->moved.items[0].parent_card_id != nullptr);
+  REQUIRE(std::string(repair->moved.items[0].parent_card_id) == ancestor);
+  REQUIRE(cards.get(child)->parent_card_id == parent);
+  const bool apply = true;
+  request.apply = &apply;
+  REQUIRE(
+      holder_repair_project_hierarchy(
+          &host.context,
+          project.c_str(),
+          &request,
+          host.arena.get(),
+          &repair,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(repair->applied);
+  REQUIRE(cards.get(child)->parent_card_id == ancestor);
+  const holder_card_breadcrumb_list* path = nullptr;
+  REQUIRE(
+      holder_get_card_breadcrumbs(
+          &host.context,
+          project.c_str(),
+          child.c_str(),
+          host.arena.get(),
+          &path,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(path->count == 3);
+  REQUIRE(std::string(path->items[1].id) == ancestor);
+  REQUIRE(std::string(path->items[2].id) == child);
+}
+
+TEST_CASE(
+    "Generated rebuild reports corrupt durable cards and preserves the existing projection",
+    "[capi][remaining-maintenance]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto card = host.card(project, "Durable original");
+  const auto root = holder::project::ProjectRepo(host.db).get(project)->root_path;
+  const auto path = std::filesystem::path(root) / holder::core::card_rel_path(card);
+  std::ifstream input(path, std::ios::binary);
+  REQUIRE(input.is_open());
+  const std::string original{
+      std::istreambuf_iterator<char>(input),
+      std::istreambuf_iterator<char>()
+  };
+  input.close();
+  std::string corrupt;
+  SECTION("invalid card identity") {
+    corrupt = original;
+    const auto id_at = corrupt.find(card);
+    REQUIRE(id_at != std::string::npos);
+    corrupt.replace(id_at, card.size(), "not-a-valid-card-id");
+  }
+  SECTION("invalid milestone date shape") {
+    corrupt = "---\ncard_id: " + card + "\nproject_id: " + project +
+              "\ntitle: Durable original\nmilestones:\n  - milestone_id: broken\n"
+              "    dates: not-a-list\n---\nOriginal body\n";
+  }
+  SECTION("invalid milestone date shape with CRLF") {
+    corrupt = "---\r\ncard_id: " + card + "\r\nproject_id: " + project +
+              "\r\ntitle: Durable original\r\nmilestones:\r\n  - milestone_id: broken\r\n"
+              "    dates: not-a-list\r\n---\r\nOriginal body\r\n";
+  }
+  {
+    std::ofstream damaged(path, std::ios::binary);
+    damaged << corrupt;
+  }
+  holder_rebuild_request request{project.c_str()};
+  const holder_rebuild_result* result = nullptr;
+  host.failed(
+      holder_rebuild_project(&host.context, &request, host.arena.get(), &result, &host.error),
+      HOLDER_ERROR_REBUILD_FAILED
+  );
+  REQUIRE(result == nullptr);
+  REQUIRE(holder::card::CardRepo(host.db).get(card)->title == "Durable original");
+  {
+    std::ofstream restored(path, std::ios::binary);
+    restored << original;
+  }
+  REQUIRE(
+      holder_rebuild_project(&host.context, &request, host.arena.get(), &result, &host.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(result->cards == 1);
+  REQUIRE(std::string(result->project_id) == project);
+  const holder_card* read = nullptr;
+  REQUIRE(
+      holder_get_card(
+          &host.context,
+          project.c_str(),
+          card.c_str(),
+          host.arena.get(),
+          &read,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(std::string(read->title) == "Durable original");
+}
+
+TEST_CASE(
+    "Generated message Trash returns metadata and enforces project scope on deletion",
+    "[capi][remaining-maintenance]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto other = host.project();
+  host.message(project, "trashed-message", "Discarded body");
+  host.message(project, "live-message", "Keep this body");
+  holder::ai::AiMessageRepo messages(host.db, &host.fts);
+  messages.trash("trashed-message", 50);
+  const holder_trash_item_list* items = nullptr;
+  REQUIRE(
+      holder_list_trash(
+          &host.context,
+          project.c_str(),
+          "ai_message",
+          host.arena.get(),
+          &items,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(items->count == 1);
+  const auto& item = items->items[0];
+  REQUIRE(item.type == HOLDER_TRASH_ITEM_TYPE_AI_MESSAGE);
+  REQUIRE(std::string(item.project_id) == project);
+  REQUIRE(item.card_id == nullptr);
+  REQUIRE(std::string(item.message_id) == "trashed-message");
+  REQUIRE(std::string(item.thread_id) == "thread-trashed-message");
+  REQUIRE(std::string(item.role) == "user");
+  REQUIRE(item.deleted_at == 50);
+  REQUIRE(item.created_at != nullptr);
+  REQUIRE(*item.created_at == 11);
+  const holder_trash_delete_result* result = nullptr;
+  host.failed(
+      holder_delete_project_trash_item(
+          &host.context,
+          other.c_str(),
+          HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_AI_MESSAGE,
+          "trashed-message",
+          host.arena.get(),
+          &result,
+          &host.error
+      ),
+      HOLDER_ERROR_NOT_FOUND
+  );
+  host.failed(
+      holder_delete_trash_item(
+          &host.context,
+          HOLDER_DELETE_TRASH_ITEM_TYPE_AI_MESSAGE,
+          "missing-message",
+          host.arena.get(),
+          &result,
+          &host.error
+      ),
+      HOLDER_ERROR_NOT_FOUND
+  );
+  REQUIRE(messages.get("trashed-message").has_value());
+  REQUIRE(
+      holder_delete_project_trash_item(
+          &host.context,
+          project.c_str(),
+          HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_AI_MESSAGE,
+          "trashed-message",
+          host.arena.get(),
+          &result,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(std::string(result->message_id) == "trashed-message");
+  REQUIRE(result->card_id == nullptr);
+  REQUIRE_FALSE(messages.get("trashed-message"));
+  REQUIRE(messages.get("live-message").has_value());
+}
+
+TEST_CASE(
+    "Generated card references separate live, trashed and ambiguous exact titles",
+    "[capi][remaining-maintenance]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto live = host.card(project, "Same title");
+  const auto trash = host.card(project, "Same title");
+  const holder_card* ignored = nullptr;
+  REQUIRE(
+      holder_trash_card(
+          &host.context,
+          project.c_str(),
+          trash.c_str(),
+          HOLDER_TRASH_CARD_CHILDREN_DEFAULT,
+          host.arena.get(),
+          &ignored,
+          &host.error
+      ) == HOLDER_OK
+  );
+  holder_card_reference_resolve_request request{
+      project.c_str(),
+      "Same title",
+      HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_EITHER
+  };
+  const holder_card_reference_resolve_data* result = nullptr;
+  REQUIRE(
+      holder_resolve_card_reference(
+          &host.context,
+          &request,
+          host.arena.get(),
+          &result,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(result->status == HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_AMBIGUOUS);
+  REQUIRE(result->candidates != nullptr);
+  REQUIRE(result->candidates->count == 2);
+  REQUIRE(result->card == nullptr);
+  request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_TRASHED;
+  REQUIRE(
+      holder_resolve_card_reference(
+          &host.context,
+          &request,
+          host.arena.get(),
+          &result,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(result->status == HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_RESOLVED);
+  REQUIRE(std::string(result->card->card_id) == trash);
+  REQUIRE(result->card->deleted_at != nullptr);
+  request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_LIVE;
+  REQUIRE(
+      holder_resolve_card_reference(
+          &host.context,
+          &request,
+          host.arena.get(),
+          &result,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(std::string(result->card->card_id) == live);
+  REQUIRE(result->card->deleted_at == nullptr);
+}
+
+TEST_CASE("Generated storage callbacks preserve typed download, lookup and removal failures", "[capi][storage-failures]") {
+  Host host;
+  struct Failure {
+    int code = 0;
+    bool message = false;
+    static int fail(void* data, int* code, char** error) {
+      const auto& state = *static_cast<Failure*>(data);
+      *code = state.code;
+      if (state.message) {
+        constexpr char text[] = "provider failure";
+        *error = static_cast<char*>(std::malloc(sizeof(text)));
+        std::memcpy(*error, text, sizeof(text));
+      }
+      return 1;
+    }
+  };
+  // Registration owns this heap state; it remains valid until the next provider
+  // replacement, even when a REQUIRE aborts the test early.
+  auto owned = std::make_unique<Failure>();
+  auto* state = owned.get();
+  SECTION("callback supplies a message") { state->message = true; }
+  SECTION("callback supplies no message") { state->message = false; }
+  const holder_storage_provider_callbacks callbacks{
+      +[](void*, const char*, const char*, int64_t, const char*, int*, char**) {
+        return 0;
+      },
+      +[](void* data, const char*, const char*, int* code, char** error) {
+        return Failure::fail(data, code, error);
+      },
+      +[](void* data, const char*, int*, int* code, char** error) {
+        return Failure::fail(data, code, error);
+      },
+      +[](void* data, const char*, int* code, char** error) {
+        return Failure::fail(data, code, error);
+      }
+  };
+  REQUIRE(
+      holder_register_storage_provider(
+          HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE,
+          &callbacks,
+          owned.release(),
+          +[](void* data) {
+            delete static_cast<Failure*>(data);
+          },
+          &host.error
+      ) == HOLDER_OK
+  );
+  const auto provider = holder::capi::storage_provider(host.context, "s3_compatible");
+  using Code = holder::resource::StorageErrorCode;
+  const std::pair<int, Code> cases[] = {
+      {0, Code::Unavailable},
+      {1, Code::Authentication},
+      {2, Code::Permission},
+      {3, Code::Capacity},
+      {4, Code::Integrity},
+      {5, Code::Conflict},
+      {6, Code::InvalidConfiguration},
+      {7, Code::Transient},
+      {-1, Code::Unavailable},
+      {99, Code::Unavailable}
+  };
+  for (const auto& [code, expected] : cases) {
+    state->code = code;
+    for (int operation = 0; operation < 3; ++operation) {
+      bool caught = false;
+      try {
+        if (operation == 0) provider->get("object", host.dir / "destination");
+        if (operation == 1) (void)provider->exists("object");
+        if (operation == 2) provider->remove("object");
+      } catch (const holder::resource::StorageError& error) {
+        caught = true;
+        REQUIRE(error.code() == expected);
+        const std::string fallback = operation == 0   ? "storage get failed"
+                                     : operation == 1 ? "storage exists failed"
+                                                      : "storage remove failed";
+        REQUIRE(std::string(error.what()) == (state->message ? "provider failure" : fallback));
+      }
+      REQUIRE(caught);
+    }
+  }
+  REQUIRE_FALSE(std::filesystem::exists(host.dir / "destination"));
+}
+
+TEST_CASE(
+    "Scoped message purge refuses live messages and other projects",
+    "[privacy][message-purge-guards]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto other = host.project();
+  host.message(project, "guarded-message", "Preserve this message");
+  holder::ai::AiMessageRepo messages(host.db, &host.fts);
+  REQUIRE_THROWS_AS(messages.remove_trashed(other, "guarded-message"), std::runtime_error);
+  REQUIRE_THROWS_AS(messages.remove_trashed(project, "guarded-message"), std::runtime_error);
+  REQUIRE(messages.get("guarded-message")->content == "Preserve this message");
+  REQUIRE_FALSE(messages.get("guarded-message")->deleted_at);
+  REQUIRE(host.fts.search_messages(project, "Preserve", 10, 0).size() == 1);
+  messages.trash("guarded-message", 50);
+  REQUIRE_THROWS_AS(messages.remove_trashed(other, "guarded-message"), std::runtime_error);
+  REQUIRE(messages.get("guarded-message")->deleted_at == 50);
+  REQUIRE_NOTHROW(messages.remove_trashed(project, "guarded-message"));
+  REQUIRE_FALSE(messages.get("guarded-message"));
+}
+
+TEST_CASE(
+    "Generated resources expose encrypted placement metadata and reject unknown encodings",
+    "[capi][resource-boundaries]"
+) {
+  Host host;
+  const auto project = host.project();
+  holder::resource::LocationRepo(host.db).put(
+      {"location-1", project, "Files", "local_directory", {}, 10, 20}
+  );
+  holder::model::ResourceBundle bundle;
+  bundle.resource = {"resource-1", project, "document", "Notes", {}, 10, 20};
+  bundle.assets.push_back(
+      {"asset-1",
+       "resource-1",
+       "notes.txt",
+       "text/plain",
+       4,
+       std::string(64, 'a'),
+       10,
+       20,
+       {{"placement-1",
+         "asset-1",
+         "location-1",
+         "object/notes",
+         "holder_asset_v1",
+         64,
+         std::string(64, 'b'),
+         10}}}
+  );
+  holder::resource::ResourceRepo(host.db).put_bundle(bundle);
+  const holder_resource* resource = nullptr;
+  REQUIRE(
+      holder_get_resource(
+          &host.context,
+          project.c_str(),
+          "resource-1",
+          host.arena.get(),
+          &resource,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(resource->assets.count == 1);
+  const auto& asset = resource->assets.items[0];
+  REQUIRE(std::string(asset.original_filename) == "notes.txt");
+  REQUIRE(asset.byte_size == 4);
+  REQUIRE(asset.placements.count == 1);
+  REQUIRE(asset.placements.items[0].encoding == HOLDER_ASSET_PLACEMENT_ENCODING_HOLDER_ASSET_V1);
+  REQUIRE(asset.placements.items[0].stored_byte_size == 64);
+  host.db.exec("UPDATE asset_placements SET encoding='unsupported';");
+  host.failed(
+      holder_get_resource(
+          &host.context,
+          project.c_str(),
+          "resource-1",
+          host.arena.get(),
+          &resource,
+          &host.error
+      ),
+      HOLDER_ERROR_RUNTIME
+  );
+  REQUIRE(resource == nullptr);
+  host.db.exec("UPDATE asset_placements SET encoding='holder_asset_v1';");
+  REQUIRE(
+      holder_get_resource(
+          &host.context,
+          project.c_str(),
+          "resource-1",
+          host.arena.get(),
+          &resource,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(
+      resource->assets.items[0].placements.items[0].encoding ==
+      HOLDER_ASSET_PLACEMENT_ENCODING_HOLDER_ASSET_V1
+  );
+}
+
+TEST_CASE(
+    "Generated card resource listings cross the repository page boundary without truncation",
+    "[capi][resource-boundaries]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto card = host.card(project, "Many attachments");
+  int count = 1000;
+  SECTION("exactly one full page") { count = 1000; }
+  SECTION("one attachment beyond a full page") { count = 1001; }
+  holder::resource::ResourceRepo resources(host.db);
+  std::vector<holder::model::CardLink> links;
+  {
+    holder::platform::Tx transaction(host.db);
+    for (int i = 0; i < count; ++i) {
+      const auto id = "resource-" + std::to_string(i);
+      resources.add({id, project, "document", "Attachment " + std::to_string(i), {}, i + 1, i + 1});
+      links.push_back(
+          {project, card, id, "resource", "attachment", std::nullopt, i + 1, std::nullopt}
+      );
+    }
+    holder::card::LinkRepo(host.db).upsert_links(project, card, links);
+    transaction.commit();
+  }
+  const holder_resource_list* result = nullptr;
+  REQUIRE(
+      holder_list_card_resources(
+          &host.context,
+          project.c_str(),
+          card.c_str(),
+          host.arena.get(),
+          &result,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(result->count == static_cast<size_t>(count));
+  std::set<std::string> ids;
+  for (size_t i = 0; i < result->count; ++i) {
+    REQUIRE(std::string(result->items[i].project_id) == project);
+    REQUIRE(ids.insert(result->items[i].resource_id).second);
+  }
+  REQUIRE(ids.contains("resource-0"));
+  REQUIRE(ids.contains("resource-" + std::to_string(count - 1)));
+}
+
+TEST_CASE(
+    "Generated links round trip AI and resource targets and combine available backlink sources",
+    "[capi][typed-link-roundtrip]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto card = host.card(project, "Linked card");
+  host.message(project, "linked-message", "Conversation body");
+  holder::resource::ResourceRepo(host.db).add(
+      {"linked-resource", project, "document", "Notes", {}, 10, 10}
+  );
+  struct Target {
+    const char* id;
+    holder_new_link_target_type create;
+    holder_link_target_type returned;
+    holder_remove_card_link_target_type remove;
+  };
+  const Target targets[] = {
+      {"linked-message",
+       HOLDER_NEW_LINK_TARGET_TYPE_AI_MESSAGE,
+       HOLDER_LINK_TARGET_TYPE_AI_MESSAGE,
+       HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_MESSAGE},
+      {"thread-linked-message",
+       HOLDER_NEW_LINK_TARGET_TYPE_AI_THREAD,
+       HOLDER_LINK_TARGET_TYPE_AI_THREAD,
+       HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_THREAD},
+      {"linked-resource",
+       HOLDER_NEW_LINK_TARGET_TYPE_RESOURCE,
+       HOLDER_LINK_TARGET_TYPE_RESOURCE,
+       HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_RESOURCE}
+  };
+  for (const auto& target : targets) {
+    holder_new_link request{};
+    request.target_id = target.id;
+    request.target_type = target.create;
+    request.kind = "ref";
+    const holder_link* result = nullptr;
+    REQUIRE(
+        holder_add_card_link(
+            &host.context,
+            project.c_str(),
+            card.c_str(),
+            &request,
+            host.arena.get(),
+            &result,
+            &host.error
+        ) == HOLDER_OK
+    );
+    REQUIRE(result->target_type == target.returned);
+    REQUIRE(std::string(result->target_id) == target.id);
+    REQUIRE(result->source_type == HOLDER_LINK_SOURCE_TYPE_CARD);
+  }
+  // One incoming AI-message link in this project and one card link in another
+  // available project must both be represented with their source types intact.
+  holder::card::LinkRepo(host.db).upsert_links(
+      project,
+      "linked-message",
+      {{project, "linked-message", card, "card", "ref", std::nullopt, 10, std::nullopt}}
+  );
+  holder::ai::AiMessageRepo(host.db, &host.fts).update_links("linked-message");
+  const auto other = host.project();
+  const auto other_card = host.card(other, "External source");
+  holder_new_link incoming{};
+  incoming.target_id = card.c_str();
+  incoming.target_project_id = project.c_str();
+  incoming.target_type = HOLDER_NEW_LINK_TARGET_TYPE_CARD;
+  const holder_link* result = nullptr;
+  REQUIRE(
+      holder_add_card_link(
+          &host.context,
+          other.c_str(),
+          other_card.c_str(),
+          &incoming,
+          host.arena.get(),
+          &result,
+          &host.error
+      ) == HOLDER_OK
+  );
+  const holder_link_list* backlinks = nullptr;
+  REQUIRE(
+      holder_list_card_backlinks(
+          &host.context,
+          project.c_str(),
+          card.c_str(),
+          HOLDER_LIST_CARD_BACKLINKS_SCOPE_ALL_AVAILABLE,
+          false,
+          host.arena.get(),
+          &backlinks,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(backlinks->count == 2);
+  std::set<holder_link_source_type> types;
+  std::set<std::string> sources;
+  for (size_t i = 0; i < backlinks->count; ++i) {
+    types.insert(backlinks->items[i].source_type);
+    sources.insert(backlinks->items[i].source_id);
+  }
+  REQUIRE(
+      types == std::set<holder_link_source_type>{
+                   HOLDER_LINK_SOURCE_TYPE_CARD,
+                   HOLDER_LINK_SOURCE_TYPE_AI_MESSAGE
+               }
+  );
+  REQUIRE(sources == std::set<std::string>{"linked-message", other_card});
+  size_t remaining = 3;
+  for (const auto& target : targets) {
+    const holder_link_list* links = nullptr;
+    REQUIRE(
+        holder_remove_card_link(
+            &host.context,
+            project.c_str(),
+            card.c_str(),
+            target.remove,
+            target.id,
+            "ref",
+            nullptr,
+            host.arena.get(),
+            &links,
+            &host.error
+        ) == HOLDER_OK
+    );
+    --remaining;
+    REQUIRE(links->count == remaining);
+    for (size_t i = 0; i < links->count; ++i)
+      REQUIRE(std::string(links->items[i].target_id) != target.id);
+  }
 }
