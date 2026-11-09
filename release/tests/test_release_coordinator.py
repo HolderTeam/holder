@@ -89,8 +89,9 @@ class FakeGitHub:
             if action == 'dispatches':
                 if self.rejected_dispatch == name:
                     raise tool.APIError('403', 'Request rejected')
-                identifier = {'backend': 20, 'desktop': 10, 'linux': 30, 'windows': 40, 'macos': 50}[name]
-                head = CANDIDATE if name in tool.BUILDS else MAIN
+                identifier = {'backend': 20, 'desktop': 10, 'linux': 30, 'windows': 40, 'macos': 50,
+                              'kit': 60, 'python': 70}[name]
+                head = CANDIDATE if name in tool.BUILDS + tool.PACKAGES else MAIN
                 self.runs[identifier] = {'id': identifier, 'repository': {'full_name': REPOSITORY},
                     'path': '.github/workflows/' + workflow, 'event': 'workflow_dispatch',
                     'head_branch': data['ref'], 'head_sha': head,

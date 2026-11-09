@@ -1,9 +1,10 @@
 name: Release / Kit to PyPI
+run-name: ${{ inputs.release_request || github.event.pull_request.title || github.workflow }}
 
 # Builds Holder Kit's wheels (CPython 3.10-3.15 on Linux, Windows and macOS) and source archive,
-# and publishes them to TestPyPI or PyPI. Kit is built against Release core SDKs that Core / SDK
-# builds from core/ in the same commit (cached by core/'s tree, so a release usually reuses the
-# SDKs its Daemon CI run built). Publishing requires the holder-v<version> tag, with Kit, core and
+# and publishes them to TestPyPI or PyPI. Build-only candidate preparation can use the exact
+# Release SDKs pinned by its generated manifest; other runs use Core / SDK in this workflow.
+# Publishing requires the holder-v<version> tag, with Kit, core and
 # the repository all at that version.
 
 on:
@@ -15,6 +16,9 @@ on:
       - .github/workflows/release-kit-pypi.yml
       - .github/workflows/core-sdk.yml
       - .github/actions/core-sdk/**
+      - release/scripts/fetch-candidate-sdk.py
+      - release/scripts/python-distributions.py
+      - release/staging/scripts/**
       - python/kit/pyproject.toml
       - python/kit/CMakeLists.txt
       - python/kit/src/**
@@ -25,6 +29,18 @@ on:
       - python/kit/docs/**
   workflow_dispatch:
     inputs:
+      release_request:
+        description: Optional coordinator request identifier
+        type: string
+        default: ''
+      release_manifest:
+        description: Optional generated candidate manifest for pinned SDK reuse (build only)
+        type: string
+        default: ''
+      release_manifest_ref:
+        description: Immutable commit holding the candidate manifest
+        type: string
+        default: ''
       destination:
         description: Build only, or publish from a holder-v<version> tag after validation
         type: choice
@@ -32,6 +48,7 @@ on:
         default: none
 
 permissions:
+  actions: read
   contents: read
 
 defaults:
@@ -54,11 +71,16 @@ jobs:
         name: Check the version and the destination
         env:
           DESTINATION: ${{ inputs.destination || 'none' }}
+          RELEASE_MANIFEST: ${{ inputs.release_manifest }}
+          RELEASE_MANIFEST_REF: ${{ inputs.release_manifest_ref }}
         run: |
           python - <<'PY'
           import os
           from pathlib import Path
           version = Path('../../VERSION').read_text().strip()
+          pinned = os.environ['RELEASE_MANIFEST']
+          assert bool(pinned) == bool(os.environ['RELEASE_MANIFEST_REF']), 'Provide both candidate manifest inputs'
+          assert not pinned or os.environ['DESTINATION'] == 'none', 'Candidate SDK reuse is build-only'
           if os.environ['DESTINATION'] != 'none':
               assert os.environ['GITHUB_REF'] == f'refs/tags/holder-v{version}', 'Publishing requires the holder-v<version> tag'
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
@@ -66,6 +88,7 @@ jobs:
           PY
 
   core-sdk:
+    if: inputs.release_manifest == ''
     # Kit is built against core from this same commit, through core's Release SDKs.
     needs: prepare
     # Core / SDK deletes this branch's older vcpkg binary caches.
@@ -77,6 +100,7 @@ jobs:
       build_type: Release
 
   wheels:
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && (needs.core-sdk.result == 'success' || (needs.core-sdk.result == 'skipped' && inputs.release_manifest != '')) }}
     needs: [prepare, core-sdk]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
@@ -97,8 +121,10 @@ jobs:
       - name: Fetch the Release core SDK
         uses: ./.github/actions/core-sdk
         with:
-          commit: ${{ needs.core-sdk.outputs.commit }}
+          commit: ${{ inputs.release_manifest != '' && github.sha || needs.core-sdk.outputs.commit }}
           build-type: Release
+          release-manifest: ${{ inputs.release_manifest }}
+          release-manifest-ref: ${{ inputs.release_manifest_ref }}
       - name: Configure Python build tools
         shell: bash
         run: |
@@ -182,6 +208,7 @@ jobs:
           if-no-files-found: error
 
   sdist:
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && (needs.core-sdk.result == 'success' || (needs.core-sdk.result == 'skipped' && inputs.release_manifest != '')) }}
     needs: [prepare, core-sdk]
     runs-on: ubuntu-24.04
     steps:
@@ -199,8 +226,17 @@ jobs:
       - name: Fetch the Release core SDK
         uses: ./.github/actions/core-sdk
         with:
-          commit: ${{ needs.core-sdk.outputs.commit }}
+          commit: ${{ inputs.release_manifest != '' && github.sha || needs.core-sdk.outputs.commit }}
           build-type: Release
+          release-manifest: ${{ inputs.release_manifest }}
+          release-manifest-ref: ${{ inputs.release_manifest_ref }}
+      - name: Retain the pinned core selection for release-set verification
+        if: inputs.release_manifest != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: core-selection
+          path: out/core-selection.json
+          if-no-files-found: error
       - name: Build and install the source archive with the Release SDK
         env:
           KIT_VERSION: ${{ needs.prepare.outputs.version }}
@@ -220,6 +256,7 @@ jobs:
           if-no-files-found: error
 
   distributions:
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.wheels.result == 'success' && needs.sdist.result == 'success' }}
     needs: [prepare, wheels, sdist]
     runs-on: ubuntu-24.04
     steps:

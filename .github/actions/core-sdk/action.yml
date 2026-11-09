@@ -1,6 +1,6 @@
 name: Fetch the core SDK
 description: >-
-  Fetch and verify the libholder SDK that the Core / SDK workflow built earlier in this run, then
+  Fetch and verify the libholder SDK from this run or an immutable candidate manifest, then
   set HOLDER_CORE_SDK, CMAKE_ARGS and HOLDER_CORE_BUILD_TYPE for the build.
 inputs:
   commit:
@@ -9,6 +9,12 @@ inputs:
   build-type:
     description: RelWithDebInfo for development; Release for shipping
     default: RelWithDebInfo
+  release-manifest:
+    description: Optional generated candidate manifest; reuse its pinned Release SDKs
+    default: ''
+  release-manifest-ref:
+    description: Immutable commit holding the generated candidate manifest
+    default: ''
 outputs:
   sdk:
     description: Verified SDK installation path
@@ -17,13 +23,28 @@ runs:
   using: composite
   steps:
     - uses: actions/download-artifact@v4
+      if: inputs.release-manifest == ''
       with:
         name: core-selection
         path: out
     - uses: actions/download-artifact@v4
+      if: inputs.release-manifest == ''
       with:
         name: core-sdk-${{ runner.os == 'Linux' && 'linux' || runner.os == 'macOS' && 'macos' || 'windows' }}-${{ inputs.build-type }}
         path: out/core-sdk-assets
+    - name: Fetch the candidate's pinned SDK
+      if: inputs.release-manifest != ''
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        CANDIDATE_MANIFEST: ${{ inputs.release-manifest }}
+        CANDIDATE_MANIFEST_REF: ${{ inputs.release-manifest-ref }}
+        CORE_COMMIT: ${{ inputs.commit }}
+        BUILD_TYPE: ${{ inputs.build-type }}
+      run: |
+        test "$BUILD_TYPE" = Release
+        python release/scripts/fetch-candidate-sdk.py --manifest "$CANDIDATE_MANIFEST" \
+          --ref "$CANDIDATE_MANIFEST_REF" --repository "$GITHUB_REPOSITORY" --candidate "$CORE_COMMIT"
     - id: fetch
       shell: bash
       env:

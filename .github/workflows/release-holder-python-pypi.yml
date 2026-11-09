@@ -1,4 +1,5 @@
 name: Release / Holder Python to PyPI
+run-name: ${{ inputs.release_request || github.event.pull_request.title || github.workflow }}
 
 # Build the pure-Python wheel and source archive on pull requests or manual runs.
 # PyPI publishing requires a matching root VERSION and a release tag. TestPyPI
@@ -10,8 +11,14 @@ on:
       - python/holder/**
       - VERSION
       - python/_build_support.py
+      - release/scripts/python-distributions.py
+      - release/staging/scripts/**
   workflow_dispatch:
     inputs:
+      release_request:
+        description: Optional coordinator request identifier
+        type: string
+        default: ''
       destination:
         description: Build only, publish a TestPyPI preview, or publish from a release tag
         type: choice
@@ -116,10 +123,21 @@ jobs:
           PY
             )
           done
+      - name: Record the verified distribution set
+        env:
+          PACKAGE_VERSION: ${{ steps.config.outputs.version }}
+        run: |
+          python ../../release/scripts/python-distributions.py --directory dist \
+            --version "$PACKAGE_VERSION" --candidate "$GITHUB_SHA" --output out/release-manifest.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: holder-python-distributions
           path: python/holder/dist/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: holder-python-release-manifest
+          path: python/holder/out/release-manifest.json
           if-no-files-found: error
 
   publish:

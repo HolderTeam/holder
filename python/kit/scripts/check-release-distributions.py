@@ -59,9 +59,11 @@ def main() -> None:
         metadata = Parser().parsestr(pkg_info.read().decode())
         assert metadata.get_payload().strip() == description.strip(), "Source metadata README differs"
     manifest = {
+        "source": commit,
         "version": version,
         "core": {"commit": selection["commit"], "core_tree": selection.get("core_tree"),
-                 "version": selection["version"], "sdk_commits": core_commits},
+                 "version": selection["version"], "sdk_commits": core_commits,
+                 "sdk_assets": selection["assets"]},
         "files": [{"name": file.name, "sha256": hashlib.sha256(file.read_bytes()).hexdigest(),
                    "size": file.stat().st_size} for file in files],
     }

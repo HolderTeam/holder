@@ -199,14 +199,26 @@ Use the successful component builds, staging checks, checksums and provenance
 already produced for this release. Reuse recent platform/upgrade evidence where
 it still applies, and repeat manual checks affected by the changes. Do not run
 another complete build matrix just to call it a rehearsal. The normal Python
-publication workflows build and validate distributions before uploading them;
-an extra build-only dispatch is optional when a packaging change needs an
-earlier check:
+publication workflows build and validate distributions before uploading them.
+The coordinator can now prepare both Python sets once and retain their verified
+identities alongside the staged candidate:
+
+```sh
+python3 release/scripts/release.py packages \
+  --record release/records/0.2.6-candidate-1.json --wait
+```
+
+Kit reuses the candidate's exact Release SDK archives. The record retains both
+packages' artifact IDs, archive and file hashes, source/SDK identity and expiry;
+the summary lists the files. See [Python preparation](python-preparation.md) for
+resume and targeted retry commands. Publication from this recorded set is the
+next coordinator slice; current manual publishing dispatches still rebuild.
+Standalone build-only inputs remain available when needed:
 
 | Workflow | Build-only inputs | Outputs |
 | --- | --- | --- |
-| [Kit to PyPI](../../.github/workflows/release-kit-pypi.yml) | `destination=none` | `kit-release-distributions`, `kit-release-manifest` (18 platform/interpreter wheels plus sdist) |
-| [Holder Python to PyPI](../../.github/workflows/release-holder-python-pypi.yml) | `destination=none`, `preview_number=0` | `holder-python-distributions` (wheel and sdist) |
+| [Kit to PyPI](../../.github/workflows/release-kit-pypi.yml) | `destination=none`; optional generated `release_manifest` and immutable `release_manifest_ref` for pinned SDK reuse | `kit-release-distributions`, `kit-release-manifest` (18 platform/interpreter wheels plus sdist) |
+| [Holder Python to PyPI](../../.github/workflows/release-holder-python-pypi.yml) | `destination=none`, `preview_number=0` | `holder-python-distributions`, `holder-python-release-manifest` (wheel and sdist) |
 
 Retain distribution manifests/digests from whichever runs are used. For Ubuntu
 packaging changes, reuse `Release / Launchpad`'s pull-request checks: they build
