@@ -17,6 +17,7 @@ struct ParsedCardFile {
   bool has_front_matter = false;
 };
 
+// Invalid front matter returns the original body with no partially parsed metadata.
 ParsedCardFile parse_card_file(const std::string& raw);
 std::string render_card_front_matter(
     const holder::model::Card& card,

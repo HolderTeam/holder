@@ -346,7 +346,8 @@ Rebuilder::RebuildStats Rebuilder::rebuild_project_in_transaction(
   auto load_card_file = [&](const std::filesystem::path& path, bool is_trash) {
     const std::string raw = fs.read_file(path);
     const auto parsed = holder::core::parse_card_file(decode_blob_for_project(project, raw));
-    if (raw.rfind("---\n", 0) == 0 && !parsed.has_front_matter) {
+    const bool has_header = raw.rfind("---\n", 0) == 0 || raw.rfind("---\r\n", 0) == 0;
+    if (has_header && !parsed.has_front_matter) {
       throw std::runtime_error("invalid card front matter");
     }
     holder::model::Card card = parsed.card;

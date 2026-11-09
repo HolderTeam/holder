@@ -153,3 +153,35 @@ TEST_CASE("Generated C API rejects unsafe or invalid project imports", "[capi][p
 
   REQUIRE(holder_import_project(f.target, f.root.string().c_str(), f.arena, &imported, &f.error) == HOLDER_OK);
 }
+
+TEST_CASE(
+    "Generated import rejects a symlink project root before registering it",
+    "[capi][symlink-root]"
+) {
+  ImportFixture f;
+  const auto alias = f.target_dir / "projects" / "alias";
+  std::error_code error;
+  std::filesystem::create_directory_symlink(f.root, alias, error);
+  if (error) {
+    WARN("Directory symlinks unavailable on this host: " << error.message());
+    return;
+  }
+  const holder_project* imported = nullptr;
+  REQUIRE(
+      holder_import_project(f.target, alias.string().c_str(), f.arena, &imported, &f.error) ==
+      HOLDER_ERROR_INVALID_ARGUMENT
+  );
+  REQUIRE(f.error != nullptr);
+  REQUIRE(std::string(holder_error_message(f.error)).find("symlink roots") != std::string::npos);
+  REQUIRE(imported == nullptr);
+  holder_error_destroy(f.error);
+  f.error = nullptr;
+  REQUIRE(f.project_count() == 0);
+  REQUIRE(std::filesystem::is_directory(f.root / ".git"));
+  REQUIRE(std::filesystem::remove(alias));
+  REQUIRE(
+      holder_import_project(f.target, f.root.string().c_str(), f.arena, &imported, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(std::string(imported->project_id) == f.project_id);
+}
