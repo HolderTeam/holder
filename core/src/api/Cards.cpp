@@ -261,9 +261,9 @@ holder::card::CardPlacementIntent placement_intent(CardMoveIntent intent) {
   case CardMoveIntent::Right: return Intent::Right;
   case CardMoveIntent::ToStart: return Intent::ToStart;
   case CardMoveIntent::ToEnd: return Intent::ToEnd;
-  case CardMoveIntent::UpLevel: break;
+  case CardMoveIntent::UpLevel: return Intent::UpLevel;
   }
-  return Intent::UpLevel;
+  throw InvalidArgument("unknown card move intent");
 }
 
 Card move(holder_context& context, const std::string& project_id, const std::string& card_id,

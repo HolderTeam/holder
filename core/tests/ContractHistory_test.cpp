@@ -41,6 +41,9 @@ TEST_CASE("Contract project history reads activity and validates its cursor", "[
     REQUIRE_THROWS_AS(holder::contract::list_project_history(context, project.project_id, limit,
         std::nullopt, std::nullopt), holder::contract::InvalidArgument);
   }
+  REQUIRE_THROWS_AS(holder::contract::list_project_history(context, project.project_id, 50,
+      std::nullopt, static_cast<holder::contract::ListProjectHistoryKind>(-1)),
+      holder::contract::InvalidArgument);
   CHECK_FALSE(holder::contract::list_project_history(context, project.project_id, 50,
       std::nullopt, std::nullopt).activities.empty());
 }

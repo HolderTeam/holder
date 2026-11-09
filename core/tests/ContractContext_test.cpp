@@ -71,6 +71,40 @@ TEST_CASE("Direct contract inputs reject unsupported enum choices before accessi
       static_cast<holder::contract::RegisterStorageProviderKind>(-1), nullptr), std::invalid_argument);
 }
 
+TEST_CASE("An unsupported direct move intent cannot silently move a card up a level",
+          "[contract][invalid-move-intent]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::index::FtsIndexer fts(db);
+  CountingGit git;
+  holder_context context(db, fts, &git);
+  context.projects_root = dir / "projects";
+  holder::contract::NewProject request;
+  request.name = "Move validation";
+  request.privacy_mode = holder::contract::NewProjectPrivacyMode::Plain;
+  const auto project = holder::contract::create_project(context, request);
+  holder::contract::NewCard card;
+  card.title = "Parent";
+  const auto parent = holder::contract::create_card(context, project.project_id, card);
+  card.title = "Child";
+  card.parent_card_id = parent.card_id;
+  const auto child = holder::contract::create_card(context, project.project_id, card);
+  const auto commits = git.commits;
+  holder::contract::CardMove move;
+  move.intent = static_cast<holder::contract::CardMoveIntent>(-1);
+  REQUIRE_THROWS_AS(holder::contract::move_card(context, project.project_id, child.card_id, move),
+                    holder::contract::InvalidArgument);
+  const auto current = holder::contract::get_card(context, project.project_id, child.card_id);
+  CHECK(current.parent_card_id == parent.card_id);
+  CHECK(current.sort_key == child.sort_key);
+  CHECK(current.updated_at == child.updated_at);
+  CHECK(git.commits == commits);
+  move.intent = holder::contract::CardMoveIntent::UpLevel;
+  const auto moved = holder::contract::move_card(context, project.project_id, child.card_id, move);
+  CHECK_FALSE(moved.parent_card_id.has_value());
+  CHECK(git.commits == commits + 1);
+}
+
 TEST_CASE("The contract's operations run on a host's database, indexer and Git", "[contract]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
