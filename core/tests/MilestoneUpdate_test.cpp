@@ -1,5 +1,6 @@
 #if __has_include(<catch2/catch_test_macros.hpp>)
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 #else
 #include <catch2/catch.hpp>
 #endif
@@ -84,6 +85,106 @@ std::string read_file(const std::filesystem::path& path) {
 }
 
 } // namespace
+
+TEST_CASE(
+    "Legacy milestone edits preserve unrelated dates and reject ambiguous roles atomically",
+    "[cardstore][milestone-update][legacy-dates]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  const auto project = create_project(db, "proj-1", dir / "project");
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore store(db, &fts);
+  const auto card = create_card(store, project.project_id, "aaaaaaaa-1111-4111-8111-111111111111");
+  auto original = milestone_for(project.project_id, card.card_id,
+                                "11111111-1111-4111-8111-111111111111");
+  const holder::model::MilestoneDate due{"due", std::string("2026-11-02"), std::nullopt};
+  original.dates.push_back(due);
+  holder::card::MilestoneUpdate update;
+  std::string error;
+  auto expected = original.dates;
+  SECTION("introduce a start alongside a custom date") {
+    original.dates = {due};
+    update.start_at = 300;
+    expected = {due, holder::model::milestone_date_from_legacy("start", 300, false)};
+  }
+  SECTION("introduce an end") {
+    original.dates.erase(original.dates.begin() + 1);
+    update.has_end_at = true;
+    update.end_at = 400;
+    expected = original.dates;
+    expected.push_back(holder::model::milestone_date_from_legacy("end", 400, false));
+  }
+  SECTION("explicitly remove an end") {
+    update.has_end_at = true;
+    update.end_at.reset();
+    expected.erase(expected.begin() + 1);
+  }
+  SECTION("convert existing calendar dates back to instants") {
+    original.dates = {holder::model::milestone_date_from_legacy("start", 86400, true),
+                      holder::model::milestone_date_from_legacy("end", 172800, true), due};
+    update.all_day = false;
+    expected = {holder::model::milestone_date_from_legacy("start", 86400, false),
+                holder::model::milestone_date_from_legacy("end", 172800, false), due};
+  }
+  SECTION("start cannot be inferred from a custom date") {
+    original.dates = {due};
+    update.all_day = true;
+    error = "legacy milestone update requires a single start value";
+  }
+  SECTION("duplicate start roles are ambiguous") {
+    original.dates.push_back(holder::model::milestone_date_from_legacy("start", 150, false));
+    update.start_at = 120;
+    error = "legacy milestone update requires a unique start";
+  }
+  SECTION("duplicate end roles are ambiguous") {
+    original.dates.push_back(holder::model::milestone_date_from_legacy("end", 250, false));
+    update.has_end_at = true;
+    update.end_at = 300;
+    error = "legacy milestone update requires a unique end";
+  }
+  SECTION("explicit dates cannot be mixed with legacy fields") {
+    update.dates = std::vector<holder::model::MilestoneDate>{due};
+    update.start_at = 120;
+    error = "dates cannot be mixed with legacy milestone fields";
+  }
+  store.add_milestone(original, 10);
+  const auto path = std::filesystem::path(project.root_path) / holder::core::card_rel_path(card.card_id);
+  const auto before = read_file(path);
+  holder::git::GitRepo git;
+  git.open_existing(project.root_path);
+  const auto head = git.head_oid();
+  REQUIRE(head.has_value());
+  if (!error.empty()) {
+    REQUIRE_THROWS_WITH(
+        store.update_milestone(project.project_id, card.card_id, original.milestone_id, update, 30),
+        Catch::Matchers::ContainsSubstring(error));
+    CHECK(read_file(path) == before);
+    CHECK(git.head_oid() == head);
+    const auto projected = holder::card::MilestoneRepo(db).list_for_card(project.project_id, card.card_id);
+    REQUIRE(projected.size() == 1);
+    CHECK(projected[0].dates == original.dates);
+    CHECK(projected[0].updated_at == 10);
+  } else {
+    const auto result = store.update_milestone(project.project_id, card.card_id, original.milestone_id, update, 30);
+    REQUIRE(result.has_value());
+    CHECK(result->dates == expected);
+    CHECK(result->updated_at == 30);
+    CHECK(result->created_at == 10);
+    CHECK(result->kind == original.kind);
+    CHECK(result->description == original.description);
+    CHECK(git.head_oid() != head);
+    const auto parsed = holder::core::parse_card_file(read_file(path));
+    REQUIRE(parsed.milestones.size() == 1);
+    CHECK(parsed.milestones[0].dates == expected);
+    const auto stats = holder::store::Rebuilder(db, &fts).rebuild_project(project);
+    CHECK(stats.milestones == 1);
+    const auto rebuilt = holder::card::MilestoneRepo(db).list_for_card(project.project_id, card.card_id);
+    REQUIRE(rebuilt.size() == 1);
+    CHECK(rebuilt[0].dates == expected);
+    CHECK(rebuilt[0].updated_at == 30);
+  }
+}
 
 TEST_CASE(
     "CardStore milestone update preserves fields and survives projection "
