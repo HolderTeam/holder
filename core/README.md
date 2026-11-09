@@ -133,6 +133,9 @@ The lcov report omits a narrow list of unused GCC deleting-destructor aliases
 only when their matching destructor bodies have executed. This changes function
 records only; destructor bodies, source lines and branch counters remain measured.
 The allowlist and its rationale live in `scripts/coverage_filters.py`.
+Capture preserves positive gcov line counts when GCC also reports an unexecuted
+block on that line, retaining lcov inconsistency warnings for review. The audit
+and remaining guard classifications are in [docs/coverage-audit.md](docs/coverage-audit.md).
 Coverage requires Python 3 and runs the filter's unit tests before building.
 
 ### macOS (Homebrew)

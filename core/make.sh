@@ -308,13 +308,16 @@ coverage_all() {
   cmake_build "${build_dir}" --parallel "$(jobs)"
 
   lcov --directory "${build_dir}" --zerocounters
+  # Preserve gcov line counts when GCC attaches an unexecuted cleanup block to
+  # an executed line. Setting geninfo_unexecuted_blocks=1 instead zeroes it.
+  # Keep the inconsistency warning so compiler/reporting issues remain visible.
   lcov --capture --initial --directory "${build_dir}" --output-file "${info_base}" \
-    --ignore-errors gcov,gcov \
-    --rc geninfo_unexecuted_blocks=1
+    --ignore-errors gcov,gcov,inconsistent \
+    --rc geninfo_unexecuted_blocks=0
   ctest --test-dir "${build_dir}" --output-on-failure
   lcov --capture --directory "${build_dir}" --output-file "${info_tests}" \
-    --ignore-errors gcov,gcov \
-    --rc geninfo_unexecuted_blocks=1
+    --ignore-errors gcov,gcov,inconsistent \
+    --rc geninfo_unexecuted_blocks=0
   # GCC can report covered lambda lines with zero function hits. Let lcov
   # reconcile those counters during the merge, retaining warnings for review.
   lcov --add-tracefile "${info_base}" --add-tracefile "${info_tests}" --output-file "${info_total}" \
