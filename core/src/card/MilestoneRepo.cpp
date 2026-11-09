@@ -244,7 +244,7 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_for_card(
       continue;
     }
     if (rc == SQLITE_DONE) break;
-    throw_sqlite(db_.handle(), "list milestones for card failed"); // LCOV_EXCL_LINE
+    throw_sqlite(db_.handle(), "list milestones for card failed");
   }
   return out;
 } // LCOV_EXCL_LINE
@@ -338,7 +338,7 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_instants_in_range(
       continue;
     }
     if (rc == SQLITE_DONE) break;
-    throw_sqlite(db_.handle(), "list milestones in range failed"); // LCOV_EXCL_LINE
+    throw_sqlite(db_.handle(), "list milestones in range failed");
   }
   return out;
 } // LCOV_EXCL_LINE
