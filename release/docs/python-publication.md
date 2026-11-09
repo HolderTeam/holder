@@ -88,7 +88,8 @@ on the matching release tag, set `destination`, and supply the recorded
 `prepared_release_path` and full immutable `prepared_release_ref`. Leave Kit's
 SDK-manifest inputs empty and holder-python's `preview_number=0`.
 
-This completes the Python artifact handoff, not desktop/core promotion, signing
-handoffs, Launchpad build/availability checks or website completion. Exercise the
+Linux signing/promotion and [core SDK publication](sdk-publication.md) also use
+the same record. Remaining platform delivery, Launchpad build/availability checks
+and website completion remain subsequent work. Exercise the
 full remote path through the next actual release; a separate rehearsal or
 TestPyPI upload is not required.

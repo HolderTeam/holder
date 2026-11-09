@@ -305,14 +305,14 @@ let tag creation select the then-current tip of `main` instead. Never move a
 published tag. Pushing the tag starts `Release / Launchpad`; GitHub draft state
 does not postpone that upload. Record the resulting run immediately.
 
-Linux signing and promotion are coordinated. Other destinations retain their
+Linux signing/promotion and core SDK publication are coordinated. Other destinations retain their
 independent manual entry points:
 
 | Operation | Public workflow/ref and inputs | Handoff/result |
 | --- | --- | --- |
 | Linux signing step | `release.py sign-linux --record <candidate.json> --wait`; or the existing [manual workflow](../../.github/workflows/sign-linux-appimage.yml) on `main` | After approval and verification: accepted `Holder-linux-appimage-signed-<version>`, pinned staging identity, signatures, metadata and attestation |
 | Linux promotion | `release.py promote-linux --record <candidate.json> --wait`; the [manual workflow](../../.github/workflows/promote-linux-appimage.yml) remains available on `main` | Verifies pinned signed bytes and the existing candidate tag; creates/reuses the matching draft and delivers only missing Linux files; records exact destination IDs/hashes |
-| Core SDK publication | [promote-core-sdk.yml](../../.github/workflows/promote-core-sdk.yml), `main`; `expected_version=<version>`, `daemon_ci_run_id=<selected Release daemon run>`, `release_tag=holder-v<version>` | Publishes the exact daemon run's three SDKs and `sdk-index.json` in `HolderTeam/holder-sdk`; this is a public SDK release, not an asset upload into Holder's draft |
+| Core SDK publication | `release.py publish-sdk --record <candidate.json> --wait`; the [manual workflow](../../.github/workflows/promote-core-sdk.yml) remains available on `main` | Publishes the daemon run's pinned three SDKs and compatible `sdk-index.json` in `HolderTeam/holder-sdk`; records destination identities and per-SDK producers |
 | Windows development installer, if chosen | [promote-windows-dev-build.yml](../../.github/workflows/promote-windows-dev-build.yml), `main`; `staging_run_id=<tester-signed Windows staging run>`, `release_tag=holder-v<version>`; keep repository/artifact defaults | Adds `Holder-windows-<version>-dev-Setup.exe`, checksum and test-certificate information to the existing draft |
 | macOS disk image | Complete the signing/notarization handoff from the selected `Holder-macos-staged` artifact | Add the verified `Holder-macos-<version>.dmg` and matching `.sha256` to the same draft, preserving candidate identity |
 
@@ -328,6 +328,12 @@ Intentional Linux draft replacement is now an explicit manual-only input,
 `replace_draft_assets=true`, unavailable with pinned inputs. See
 [Linux promotion](linux-promotion.md) for receipts, partial upload recovery,
 expiry handling and that separate mutable-draft operation.
+
+[Core SDK publication](sdk-publication.md) likewise verifies matching assets and
+resumes partial drafts without deletion/replacement. This publishes the SDK
+release, separate from Holder's draft. The Holder source tag must already exist;
+the SDK repository's own release tag target is a different identity. Preserve
+both along with each cached SDK producer and the publication receipt.
 
 Signing can change artifact bytes. Verify and record the final signed outputs
 and test those outputs; do not compare them to an unsigned checksum as if they

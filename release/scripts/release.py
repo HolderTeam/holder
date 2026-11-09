@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resume candidate preparation, Linux delivery and Python publication with one release record."""
+"""Resume candidate preparation and per-destination delivery with one release record."""
 import argparse
 import base64
 from contextlib import contextmanager
@@ -35,6 +35,9 @@ LINUX_SPEC.loader.exec_module(linux_tool)
 PROMOTION_SPEC = importlib.util.spec_from_file_location('release_linux_promotion', Path(__file__).with_name('promote-linux.py'))
 promotion_tool = importlib.util.module_from_spec(PROMOTION_SPEC)
 PROMOTION_SPEC.loader.exec_module(promotion_tool)
+SDK_SPEC = importlib.util.spec_from_file_location('release_sdk', Path(__file__).with_name('publish-core-sdk.py'))
+sdk_release = importlib.util.module_from_spec(SDK_SPEC)
+SDK_SPEC.loader.exec_module(sdk_release)
 require = manifest_tool.require
 WORKFLOWS = {'backend': 'daemon-ci.yml', 'desktop': 'desktop-ci.yml',
              'linux': 'staging-linux-appimage-stage.yml', 'windows': 'staging-windows-stage.yml',
@@ -47,6 +50,7 @@ PUBLICATIONS = {f'{package}_{destination}': (package, destination)
 WORKFLOWS.update({name: WORKFLOWS[package] for name, (package, _) in PUBLICATIONS.items()})
 WORKFLOWS['linux_signing'] = 'sign-linux-appimage.yml'
 WORKFLOWS['linux_promotion'] = 'promote-linux-appimage.yml'
+WORKFLOWS['core_sdk_publication'] = 'promote-core-sdk.yml'
 PLATFORMS = ('linux', 'windows', 'macos')
 STAGED = {'linux': ['Holder-linux-appimage-staged'], 'windows': ['Holder-windows-staged'],
           'macos': ['Holder-macos-staged']}
@@ -79,6 +83,7 @@ class APIError(RuntimeError):
 
 class GitHub:
     asset_fingerprint = staticmethod(promotion_tool.asset_fingerprint)
+    asset_contents = staticmethod(promotion_tool.assets.asset_contents)
     def api(self, route, method='GET', data=None, missing_ok=False, **query):
         if query:
             route += ('&' if '?' in route else '?') + urlencode(query)
@@ -134,6 +139,11 @@ class GitHub:
         return promotion_tool.observe(self, record['repository'], 'holder-v' + record['version'],
             linux_release_files(record), record['candidate'], release_id=release_id)
 
+    def sdk_publication_status(self, record, release_id=None):
+        document = record['sdk_publication_inputs']['document']
+        expected = sdk_release.make_index(document['core_selection'], record['repository'], document['backend']['run_id'])
+        return sdk_release.observe(self, expected, release_id)
+
 
 def save(path, record):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -184,6 +194,11 @@ class Coordinator:
             require(current['object']['sha'] == commit, f'Branch {name} moved; choose a new candidate number')
 
     def expected(self, name):
+        if name == 'core_sdk_publication':
+            snapshot = self.record['sdk_publication_inputs']
+            return 'main', {'expected_version': self.record['version'], 'daemon_ci_run_id': self.record['steps']['backend']['run_id'],
+                'release_tag': 'holder-v' + self.record['version'], 'prepared_sdk_path': snapshot['path'],
+                'prepared_sdk_ref': snapshot['commit']}
         if name == 'linux_promotion':
             signed = self.record['linux_signed']
             return 'main', {'expected_version': self.record['version'], 'signing_run_id': signed['run_id'],
@@ -271,7 +286,7 @@ class Coordinator:
             self.persist()
 
     def required_artifacts(self, name):
-        if name == 'linux_promotion':
+        if name in ('linux_promotion', 'core_sdk_publication'):
             return []  # Destination assets are verified independently of run cleanup/receipt retention.
         if name == 'linux_signing':
             return ['Holder-linux-appimage-signed-' + self.record['version']]
@@ -341,6 +356,11 @@ class Coordinator:
     def retry(self, name):
         require(name in self.record['steps'], f'{name} has not been started')
         step = self.record['steps'][name]
+        if name == 'core_sdk_publication':
+            require(not self.record.get('core_sdk_published'), 'SDK publication is already accepted; inspect its recorded assets instead of retrying')
+            self.prepare_sdk_publication()
+            self.require_sdk_inputs_available()
+            self.ensure_sdk_metadata()
         if name == 'linux_promotion':
             require(not self.record.get('linux_promoted'), 'Linux delivery is already accepted; inspect its recorded assets instead of retrying')
             self.prepare_linux_promotion()
@@ -668,6 +688,73 @@ class Coordinator:
         self.record['status'] = 'promoting_linux'
         self.persist()
 
+    def prepare_sdk_publication(self):
+        validate_record(self.record)
+        require(self.record.get('manifest') and digest(self.record['manifest']['document']) == self.record['manifest']['sha256'],
+                'SDK publication requires the unchanged candidate manifest')
+        manifest = self.record['manifest']
+        self.validate_manifest(manifest['document'], manifest['evidence'])
+        selection = manifest['evidence']['core_selection']
+        sdk_release.validate_selection(selection, self.record['candidate'], self.record['version'])
+        self.require_release_tag()
+        backend = self.record['steps']['backend']
+        names = {'core-selection', 'core-sdk-linux-Release', 'core-sdk-macos-Release', 'core-sdk-windows-Release'}
+        pins = [item for item in backend['artifacts'] if item['name'] in names]
+        require(len(pins) == 4 and {item['name'] for item in pins} == names, 'SDK artifact pins are incomplete')
+        document = {'schema': 1, **{key: self.record[key] for key in ('repository', 'candidate', 'version')},
+            'backend': {**{key: backend[key] for key in ('workflow', 'workflow_commit', 'run_id', 'attempt')}, 'artifacts': pins},
+            'core_selection': selection, 'core_pin': manifest['document']['core']}
+        if 'sdk_publication_inputs' not in self.record:
+            name = f'{self.record["version"]}-candidate-{self.record["number"]}'
+            self.record['sdk_publication_inputs'] = {'document': json.loads(encode(document)),
+                'path': f'sdk-manifests/{name}.json', 'branch': f'release/sdk/{name}', 'sha256': digest(document)}
+            self.persist()
+        snapshot = self.record['sdk_publication_inputs']
+        require(snapshot['sha256'] == digest(snapshot['document']) == digest(document), 'Saved SDK publication inputs changed')
+
+    def require_sdk_inputs_available(self):
+        require(all(datetime.fromisoformat(item['expires_at'].replace('Z', '+00:00')) > now()
+                    for item in self.record['sdk_publication_inputs']['document']['backend']['artifacts']),
+                'SDK publication inputs expired; recover the exact archives without rebuilding')
+
+    def ensure_sdk_metadata(self):
+        snapshot = self.record['sdk_publication_inputs']
+        self.ensure_metadata(snapshot, {'release/' + snapshot['path']: encode(snapshot['document'])}, label='SDK publication')
+
+    def advance_sdk_publication(self):
+        self.prepare_sdk_publication()
+        completed = self.record.get('core_sdk_published')
+        if completed:
+            require(digest(completed['receipt']) == completed['sha256'], 'Saved SDK publication receipt changed')
+        observed = self.github.sdk_publication_status(self.record, completed['receipt']['release']['id'] if completed else None)
+        if observed is not None:
+            if ('core_sdk_publication' in self.record['steps'] and
+                    self.record['steps']['core_sdk_publication']['status'] != 'dispatch_rejected'):
+                self.inspect('core_sdk_publication', allow_failure=True)
+            if completed:
+                receipt = completed['receipt']
+                require(receipt['files'] == observed['files'] and receipt['candidate'] == observed['candidate'] and
+                        receipt['sdk_repository_tag_commit'] == observed['sdk_repository_tag_commit'] and
+                        receipt['input_sha256'] == self.record['sdk_publication_inputs']['sha256'], 'Accepted SDK destination or input changed')
+            else:
+                receipt = {**observed, 'input_sha256': self.record['sdk_publication_inputs']['sha256'],
+                    'workflow_run_id': self.record['steps'].get('core_sdk_publication', {}).get('run_id')}
+                completed = {'receipt': receipt, 'sha256': digest(receipt)}
+                self.record['core_sdk_published'] = completed
+            completed['last_verified_at'] = observed['verified_at']
+            self.record['status'] = 'core_sdk_published'
+            self.persist()
+            return
+        require(not completed, 'Accepted SDK release is no longer published and complete')
+        if 'core_sdk_publication' not in self.record['steps']:
+            self.require_sdk_inputs_available()
+            self.ensure_sdk_metadata()
+            self.start('core_sdk_publication')
+        ready = self.inspect('core_sdk_publication')
+        require(not ready, 'SDK workflow succeeded but publication is incomplete; inspect and re-observe')
+        self.record['status'] = 'publishing_core_sdk'
+        self.persist()
+
 
 def summary(record):
     lines = [f'# Holder {record["version"]} candidate {record["number"]}', '',
@@ -711,6 +798,14 @@ def summary(record):
         current = delivery['last_check']
         lines += ['', f'Linux release assets: {current["url"]}; draft={current["draft"]}; prerelease={current["prerelease"]}',
                   f'Linux promotion receipt SHA256: `{delivery["sha256"]}`']
+    if record.get('core_sdk_published'):
+        delivery = record['core_sdk_published']
+        receipt = delivery['receipt']
+        lines += ['', f'Core SDK published: {receipt["release"]["url"]}',
+                  f'SDK repository tag target: `{receipt["sdk_repository_tag_commit"]}`',
+                  f'SDK publication receipt SHA256: `{delivery["sha256"]}`',
+                  '| SDK archive | Producer commit | SHA256 |', '| --- | --- | --- |']
+        lines += [f'| {item["name"]} | {item["commit"]} | {item["sha256"]} |' for item in receipt['index']['assets']]
     package_work = ('Python distributions prepared; publish-python selects one package and destination explicitly.'
                     if record.get('python_packages') else 'Python distribution preparation: run packages with this record.')
     lines += ['', package_work,
@@ -718,7 +813,8 @@ def summary(record):
               'the maintainer publication decision; per-destination promotion/publication',
               'and package availability checks; website completion. Follow release/docs/runbook.md.',
               'prepare/packages dispatch preparation workflows; sign-linux requests the protected signing workflow;',
-              'promote-linux delivers signed files to the exact release; publish-python uploads to the explicit destination.']
+              'promote-linux delivers signed files to the exact release; publish-sdk publishes the verified SDK set;',
+              'publish-python uploads to the explicit destination.']
     return '\n'.join(lines) + '\n'
 
 
@@ -753,6 +849,13 @@ def validate_record(record):
         if snapshot.get('commit'):
             manifest_tool.provenance.commit(snapshot['commit'])
     require(set(record.get('publications', {})) <= set(PUBLICATIONS), 'Unsupported publication destination')
+    if record.get('sdk_publication_inputs'):
+        snapshot = record['sdk_publication_inputs']
+        name = f'{record["version"]}-candidate-{record["number"]}'
+        require(snapshot['path'] == f'sdk-manifests/{name}.json' and snapshot['branch'] == f'release/sdk/{name}',
+                'Saved SDK input path/branch differs from candidate identity')
+        if snapshot.get('commit'):
+            manifest_tool.provenance.commit(snapshot['commit'])
     if record.get('manifest'):
         name = f'{record["version"]}-candidate-{record["number"]}'
         manifest = record['manifest']
@@ -768,7 +871,7 @@ def validate_record(record):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'status'))
+    parser.add_argument('command', choices=('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'publish-sdk', 'status'))
     parser.add_argument('--record', type=Path, required=True)
     parser.add_argument('--repository', default=None)
     parser.add_argument('--candidate')
@@ -794,12 +897,14 @@ def main():
         parser.error('Linux signing retries require sign-linux --retry linux_signing')
     if (args.retry == 'linux_promotion' and args.command != 'promote-linux') or (args.command == 'promote-linux' and args.retry not in (None, 'linux_promotion')):
         parser.error('Linux promotion retries require promote-linux --retry linux_promotion')
+    if (args.retry == 'core_sdk_publication' and args.command != 'publish-sdk') or (args.command == 'publish-sdk' and args.retry not in (None, 'core_sdk_publication')):
+        parser.error('SDK publication retries require publish-sdk --retry core_sdk_publication')
     if args.retry and args.command == 'status':
-        parser.error('--retry requires prepare, packages, sign-linux, promote-linux or publish-python')
+        parser.error('--retry requires a preparation or publication command')
     if args.retry in PACKAGES and args.command != 'packages':
         parser.error('Python package retries require packages')
     if args.wait and args.command == 'status':
-        parser.error('--wait requires prepare, packages, sign-linux, promote-linux or publish-python')
+        parser.error('--wait requires a preparation or publication command')
     if not 1 <= args.poll_seconds <= 60:
         parser.error('--poll-seconds must be between 1 and 60')
     github = GitHub()
@@ -826,7 +931,7 @@ def main():
                 record = initialize(github, args.repository or 'HolderTeam/holder', args.candidate,
                                     args.version, args.number, args.windows_sign_test_installer != 'false')
                 save(args.record, record)
-            if args.command in ('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux'):
+            if args.command in ('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'publish-sdk'):
                 coordinator = Coordinator(args.record, record, github)
                 try:
                     record.pop('error', None)
@@ -836,7 +941,9 @@ def main():
                         coordinator.retry(args.retry)
                     last_report = None
                     while True:
-                        if args.command == 'promote-linux':
+                        if args.command == 'publish-sdk':
+                            coordinator.advance_sdk_publication()
+                        elif args.command == 'promote-linux':
                             coordinator.advance_linux_promotion()
                         elif args.command == 'sign-linux':
                             coordinator.advance_signing()
@@ -853,7 +960,7 @@ def main():
                             last_report = report
                         target = {'packages': 'packages_prepared', 'prepare': 'candidate_staged',
                                   'publish-python': 'python_publication_completed', 'sign-linux': 'linux_signed',
-                                  'promote-linux': 'linux_promoted'}[args.command]
+                                  'promote-linux': 'linux_promoted', 'publish-sdk': 'core_sdk_published'}[args.command]
                         if not args.wait or record['status'] == target:
                             break
                         time.sleep(args.poll_seconds)
