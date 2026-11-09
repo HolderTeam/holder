@@ -23,6 +23,29 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SIZEOF_VOID_P EQUAL 8
   endif()
 endif()
 
+# Keep dependency failure injection in its own process and out of production binaries.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  add_executable(holder_core_crypto_failure_tests CryptoDependencyFailure_test.cpp)
+  target_link_libraries(holder_core_crypto_failure_tests PRIVATE Holder::Core)
+  target_link_options(holder_core_crypto_failure_tests PRIVATE
+    "LINKER:--wrap=sodium_init" "LINKER:--wrap=crypto_aead_xchacha20poly1305_ietf_encrypt")
+  target_compile_definitions(holder_core_crypto_failure_tests PRIVATE
+    SCHEMA_SQL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../schema/schema.sql")
+  if(TARGET Catch2::Catch2)
+    target_sources(holder_core_crypto_failure_tests PRIVATE catch_main.cpp)
+    target_link_libraries(holder_core_crypto_failure_tests PRIVATE Catch2::Catch2)
+  elseif(TARGET Catch2::Catch2WithMain)
+    target_link_libraries(holder_core_crypto_failure_tests PRIVATE Catch2::Catch2WithMain)
+  endif()
+  if(HOLDER_CORE_TSAN_USE_SETARCH)
+    find_program(SETARCH_EXECUTABLE setarch REQUIRED)
+    add_test(NAME "Crypto dependency failures preserve recovery state"
+      COMMAND ${SETARCH_EXECUTABLE} ${CMAKE_SYSTEM_PROCESSOR} -R $<TARGET_FILE:holder_core_crypto_failure_tests>)
+  else()
+    add_test(NAME "Crypto dependency failures preserve recovery state" COMMAND holder_core_crypto_failure_tests)
+  endif()
+endif()
+
 if(TARGET Catch2::Catch2)
   include(Catch)
 endif()
