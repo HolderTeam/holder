@@ -1255,6 +1255,21 @@ TEST_CASE("CardStore complete pages read encrypted authoritative content", "[car
   REQUIRE(second.cards[0].card.card_id == "encpage2");
   REQUIRE(second.cards[0].content == "second secret body");
   REQUIRE_FALSE(second.next_cursor.has_value());
+  REQUIRE_THROWS_WITH(store.list_complete_page(project.project_id, std::nullopt, 0),
+                      Catch::Matchers::ContainsSubstring("limit must be positive"));
+  const auto path = std::filesystem::path(project.root_path) / holder::core::card_rel_path("encpage2");
+  std::filesystem::rename(path, path.string() + ".saved");
+  REQUIRE_THROWS_WITH(store.list_complete_page(project.project_id, first.next_cursor, 1),
+                      Catch::Matchers::ContainsSubstring("card content missing: encpage2"));
+  // A failed content read must neither delete metadata nor advance the caller's
+  // cursor; the same page works once its authoritative file is available again.
+  CHECK(holder::card::CardRepo(db).count_all_not_deleted(project.project_id) == 2);
+  CHECK(store.list_complete_page(project.project_id, std::nullopt, 1).cards[0].content == "first secret body");
+  std::filesystem::rename(path.string() + ".saved", path);
+  const auto retried = store.list_complete_page(project.project_id, first.next_cursor, 1);
+  REQUIRE(retried.cards.size() == 1);
+  CHECK(retried.cards[0].content == "second secret body");
+  CHECK_FALSE(retried.next_cursor.has_value());
 }
 
 TEST_CASE("CardStore move exercises error and no-op branches", "[cardstore]") {
