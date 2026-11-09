@@ -86,6 +86,99 @@ struct Host {
 } // namespace
 
 TEST_CASE(
+    "Generated card moves reject invalid targets and damaged sources without changing hierarchy",
+    "[capi][move-errors]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto root = host.card(project, "Root");
+  const auto source = host.card(project, "Source", root.c_str());
+  const auto child = host.card(project, "Child", source.c_str());
+  const auto sibling = host.card(project, "Sibling", root.c_str());
+  const auto other_project = host.project();
+  const auto foreign = host.card(other_project, "Foreign");
+  const auto project_record = holder::project::ProjectRepo(host.db).get(project);
+  REQUIRE(project_record.has_value());
+  holder::git::GitRepo git;
+  git.open_existing(project_record->root_path);
+  holder_card_move move{};
+  move.intent = HOLDER_CARD_MOVE_INTENT_INTO;
+  std::string target = sibling;
+  std::string moved = source;
+  int expected = HOLDER_ERROR_INVALID_MOVE;
+  bool missing_file = false;
+  bool bad_path = false;
+  SECTION("before itself") {
+    move.intent = HOLDER_CARD_MOVE_INTENT_BEFORE;
+    target = source;
+  }
+  SECTION("after itself") {
+    move.intent = HOLDER_CARD_MOVE_INTENT_AFTER;
+    target = source;
+  }
+  SECTION("into its descendant") { target = child; }
+  SECTION("missing target") {
+    target = "00000000-0000-4000-8000-000000000001";
+    expected = HOLDER_ERROR_NOT_FOUND;
+  }
+  SECTION("foreign target") {
+    target = foreign;
+    expected = HOLDER_ERROR_NOT_FOUND;
+  }
+  SECTION("trashed target") {
+    const holder_card* trashed = nullptr;
+    REQUIRE(holder_trash_card(&host.context, project.c_str(), sibling.c_str(),
+        HOLDER_TRASH_CARD_CHILDREN_TRASH_SUBTREE, host.arena.get(), &trashed, &host.error) == HOLDER_OK);
+    expected = HOLDER_ERROR_NOT_FOUND;
+  }
+  SECTION("root cannot move up a level") {
+    moved = root;
+    move.intent = HOLDER_CARD_MOVE_INTENT_UP_LEVEL;
+  }
+  SECTION("missing source content") {
+    missing_file = true;
+    expected = HOLDER_ERROR_RUNTIME;
+  }
+  SECTION("source path does not match its identity") {
+    bad_path = true;
+    expected = HOLDER_ERROR_RUNTIME;
+    host.db.exec("UPDATE cards SET rel_path='cards/wrong.md' WHERE card_id='" + source + "';");
+  }
+  const auto path = std::filesystem::path(project_record->root_path) / holder::core::card_rel_path(source);
+  std::ifstream input(path, std::ios::binary);
+  REQUIRE(input.is_open());
+  const std::string content{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+  input.close();
+  if (missing_file) std::filesystem::rename(path, path.string() + ".saved");
+  const auto before = holder::card::CardRepo(host.db).list_all(project);
+  const auto head = git.head_oid();
+  REQUIRE(head.has_value());
+  move.target_card_id = target.c_str();
+  const holder_card* result = nullptr;
+  host.failed(holder_move_card(&host.context, project.c_str(), moved.c_str(), &move,
+      host.arena.get(), &result, &host.error), expected);
+  CHECK(result == nullptr);
+  CHECK(git.head_oid() == head);
+  const auto after = holder::card::CardRepo(host.db).list_all(project);
+  REQUIRE(after.size() == before.size());
+  for (const auto& old : before) {
+    const auto current = holder::card::CardRepo(host.db).get(old.card_id);
+    REQUIRE(current.has_value());
+    CHECK(current->parent_card_id == old.parent_card_id);
+    CHECK(current->sort_key == old.sort_key);
+    CHECK(current->updated_at == old.updated_at);
+    CHECK(current->deleted_at == old.deleted_at);
+    CHECK(current->rel_path == old.rel_path);
+  }
+  if (missing_file) std::filesystem::rename(path.string() + ".saved", path);
+  if (bad_path) host.db.exec("UPDATE cards SET rel_path='" + holder::core::card_rel_path(source) +
+                           "' WHERE card_id='" + source + "';");
+  std::ifstream remaining(path, std::ios::binary);
+  REQUIRE(remaining.is_open());
+  CHECK(std::string(std::istreambuf_iterator<char>(remaining), std::istreambuf_iterator<char>()) == content);
+}
+
+TEST_CASE(
     "Generated Home creation is idempotent and returns an optional project",
     "[capi][maintenance]"
 ) {
