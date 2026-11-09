@@ -62,8 +62,9 @@ The Linux checksum signature is verified against the committed public release ke
 All checksum entries must name the expected binary and match GitHub's binary
 digest. Small downloaded checksum/signature/key files are also hash checked.
 Binary installers are not downloaded or executed during a website build.
-Generated feed/catalog/checksum files are ignored by Git; the older 0.2.0/0.2.1
-checksum files remain as historical public URLs.
+Generated feed/catalog/checksum files are ignored by Git. The existing
+0.2.0/0.2.1/0.2.5 checksum files remain as immutable historical public URLs;
+new releases do not require committing another checksum copy.
 
 `_data/ubuntu.json` is maintained separately. Its `available` status and version
 carry forward the site's declared PPA availability (currently 0.2.5). Change that
