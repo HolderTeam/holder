@@ -93,7 +93,7 @@ class FakeGitHub:
                     raise tool.APIError('403', 'Request rejected')
                 identifier = {'backend': 20, 'desktop': 10, 'linux': 30, 'windows': 40, 'macos': 50,
                               'kit': 60, 'python': 70, 'kit_pypi': 80, 'python_pypi': 90,
-                              'kit_testpypi': 100, 'python_testpypi': 110}[name]
+                              'kit_testpypi': 100, 'python_testpypi': 110, 'linux_signing': 120}[name]
                 head = CANDIDATE if name in tool.BUILDS + tool.PACKAGES or name in tool.PUBLICATIONS else MAIN
                 self.runs[identifier] = {'id': identifier, 'repository': {'full_name': REPOSITORY},
                     'path': '.github/workflows/' + workflow, 'event': 'workflow_dispatch',
