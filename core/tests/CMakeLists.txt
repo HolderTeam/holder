@@ -46,6 +46,35 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Cla
   endif()
 endif()
 
+# Linker wrapping sees std::mutex's pthread calls when libstdc++ defines lock inline.
+# Keep this fault-injection runner out of other standard-library implementations.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  include(CheckCXXSourceCompiles)
+  check_cxx_source_compiles("#include <mutex>
+#ifndef __GLIBCXX__
+#error This test requires libstdc++ inline mutex locking
+#endif
+int main() { return 0; }" HOLDER_CORE_TEST_HAS_LIBSTDCXX_MUTEX)
+  if(HOLDER_CORE_TEST_HAS_LIBSTDCXX_MUTEX)
+    add_executable(holder_core_host_registration_failure_tests HostRegistrationFailure_test.cpp)
+    target_link_libraries(holder_core_host_registration_failure_tests PRIVATE Holder::Core)
+    target_link_options(holder_core_host_registration_failure_tests PRIVATE "LINKER:--wrap=pthread_mutex_lock")
+    if(TARGET Catch2::Catch2)
+      target_sources(holder_core_host_registration_failure_tests PRIVATE catch_main.cpp)
+      target_link_libraries(holder_core_host_registration_failure_tests PRIVATE Catch2::Catch2)
+    elseif(TARGET Catch2::Catch2WithMain)
+      target_link_libraries(holder_core_host_registration_failure_tests PRIVATE Catch2::Catch2WithMain)
+    endif()
+    if(HOLDER_CORE_TSAN_USE_SETARCH)
+      find_program(SETARCH_EXECUTABLE setarch REQUIRED)
+      add_test(NAME "Host registration lock failures preserve provider ownership"
+        COMMAND ${SETARCH_EXECUTABLE} ${CMAKE_SYSTEM_PROCESSOR} -R $<TARGET_FILE:holder_core_host_registration_failure_tests>)
+    else()
+      add_test(NAME "Host registration lock failures preserve provider ownership" COMMAND holder_core_host_registration_failure_tests)
+    endif()
+  endif()
+endif()
+
 if(TARGET Catch2::Catch2)
   include(Catch)
 endif()

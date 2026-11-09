@@ -8,6 +8,23 @@ an untested behavior, and a difficult failure path is not automatically an artif
 
 ## Latest result
 
+After the registration-lock batch: **15,050 / 15,084 lines (99.8%)** and
+**1,881 / 1,881 functions (100%)**. There are **34 missed lcov records** left,
+including **29 executable misses in gcovr**.
+
+All **888 CTest entries pass**, including the new isolated runner with 83
+assertions across three service sections. The five coverage-filter tests pass.
+The new file passes clang-format, and `git diff --check` passes. The final
+libstdc++ configuration check succeeds and its focused CTest entry passes again.
+One full coverage run validates this batch.
+
+The before/after traces contain exactly the same line records. Nine records in
+`api/HostCApi.cpp` changed from zero to positive hits: 189–191, 215–217 and 280–282.
+Every other record retains its covered/uncovered status. This batch adds tests
+and documentation only, without production source changes or new exclusions.
+
+## Result after the crypto dependency batch
+
 After the crypto dependency batch: **15,041 / 15,084 lines (99.7%)** and
 **1,881 / 1,881 functions (100%)**. There are **43 missed lcov records** left,
 including **38 executable misses in gcovr**.
@@ -301,7 +318,7 @@ Eight single-line internal fallback annotations accompany this batch:
 No host-registration catch, resource-limit guard, card invariant or initializer
 expression is excluded by this batch. No production behavior changes.
 
-## Current missed lcov records
+## Missed lcov records after the crypto dependency batch
 
 | File under `src/` | Line records |
 |---|---|
@@ -309,6 +326,57 @@ expression is excluded by this batch. No production behavior changes.
 | `api/Git.cpp` | 192 |
 | `api/History.cpp` | 145, 146, 147 |
 | `api/HostCApi.cpp` | 188, 189, 190, 191, 192, 193, 214, 215, 216, 217, 218, 219, 246, 247, 248, 249, 250, 251, 279, 280, 281, 282, 283, 284 |
+| `api/ProjectMaintenance.cpp` | 42 |
+| `api/Rebuild.cpp` | 36 |
+| `api/RecoverySnapshots.cpp` | 232, 260, 286, 294, 479, 493 |
+| `api/RuntimeHosts.cpp` | 111 |
+| `card/CardHierarchy.cpp` | 83 |
+| `card/CardRepo.cpp` | 383 |
+| `card/CardStore.cpp` | 807, 891 |
+
+## Follow-up: host-registration mutex failure
+
+`tests/HostRegistrationFailure_test.cpp` adds a separate Linux GNU/Clang test
+executable using libstdc++. It wraps `pthread_mutex_lock` for this executable only.
+The target checks for libstdc++ because its inline `std::mutex::lock` exposes the
+pthread call to linker wrapping; it does not assume other standard libraries do. A scoped,
+thread-local flag makes the next lock attempt return `EAGAIN` without acquiring
+the mutex; all other calls pass through. The test checks that this fault was
+consumed during registration and that the resulting `std::system_error` becomes
+a `HOLDER_ERROR_RUNTIME` C error with the platform's error message.
+
+The test has time-zone, keyring and storage sections, with 83 assertions in total.
+For each service it installs an existing provider, rejects a replacement under
+the injected lock failure, then verifies:
+
+- Registration invoked neither provider's service callbacks.
+- The rejected provider's callback owner was destroyed exactly once.
+- The existing provider remains alive and services the next request.
+- With injection disabled, a new registration succeeds, releases the old owner
+  once, and services requests through the new provider.
+- A further replacement releases the successful new owner once; neither of the
+  earlier owners is released a second time.
+
+The callback data uses heap-owned shared state, so a retained provider never
+holds a pointer to a test's stack. The isolated runner also avoids changing
+registries in the ordinary test process. This checks Holder's handling of a
+platform error return, rather than inducing resource exhaustion or modifying
+mutex memory. It does not claim that this error commonly occurs with a healthy
+platform mutex.
+
+The covered registration paths publish under `std::mutex` in `TimeZones.cpp`,
+`PlatformKeyring.cpp` and `RuntimeHosts.cpp`. SSH signer registration has no
+corresponding lock, so it is not included. No production source or coverage
+exclusions change in this batch.
+
+## Current missed lcov records
+
+| File under `src/` | Line records |
+|---|---|
+| `api/Cards.cpp` | 198, 200 |
+| `api/Git.cpp` | 192 |
+| `api/History.cpp` | 145, 146, 147 |
+| `api/HostCApi.cpp` | 188, 192, 193, 214, 218, 219, 246, 247, 248, 249, 250, 251, 279, 283, 284 |
 | `api/ProjectMaintenance.cpp` | 42 |
 | `api/Rebuild.cpp` | 36 |
 | `api/RecoverySnapshots.cpp` | 232, 260, 286, 294, 479, 493 |
