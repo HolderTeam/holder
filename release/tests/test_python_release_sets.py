@@ -1,5 +1,6 @@
 import base64
 import copy
+from datetime import datetime
 import hashlib
 import io
 import json
@@ -85,6 +86,9 @@ class PackageCoordinatorTests(unittest.TestCase):
 
     def setUp(self):
         preparation.CoordinatorTests.setUp(self)
+        clock = patch.object(packages.manifest_tool, 'datetime', wraps=datetime)
+        clock.start().now.return_value = NOW
+        self.addCleanup(clock.stop)
         self.github = PackageGitHub(self.directory.name)
         self.coordinator = tool.Coordinator(self.path, self.record, self.github)
 
@@ -306,9 +310,16 @@ class DistributionEvidenceTests(unittest.TestCase):
 
 class PinnedSDKTests(unittest.TestCase):
     def setUp(self):
+        clock = patch.object(sdk.manifest_tool, 'datetime', wraps=datetime)
+        clock.start().now.return_value = NOW
+        self.addCleanup(clock.stop)
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
+        (self.root / 'VERSION').write_text('0.2.6\n')
+        checkout = patch.object(sdk, 'ROOT', self.root)
+        checkout.start()
+        self.addCleanup(checkout.stop)
         self.github = fixtures.Fixture(self.root)
         self.core = self.github.selection['assets'][0]
         data = tar_bytes({'libholder-sdk/libholder-manifest.json': json.dumps(self.core),

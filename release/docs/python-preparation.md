@@ -49,10 +49,12 @@ inputs require a new candidate. Preserve the record for operator handoffs;
 rechecks run/artifact identities and expiry, without downloading accepted
 distribution bytes again.
 
-This command starts no uploads and creates no production tag. Publication from
-these recorded artifacts is a subsequent #120 slice; the existing manual PyPI
-dispatches still build their own distributions. Until that handoff is implemented,
-do not treat a manual publishing dispatch as promotion of this prepared set.
+This command starts no uploads and creates no production tag. Continue with
+[prepared Python publication](python-publication.md) after the maintainer's
+publication decision. The coordinator publishes those recorded bytes; direct
+manual PyPI dispatches still build their own distributions unless supplied with
+the prepared-release inputs. Do not treat that default manual path as promotion
+of this prepared set.
 Use the next actual release to validate the complete path; no extra rehearsal or
 TestPyPI upload is required.
 

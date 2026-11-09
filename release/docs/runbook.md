@@ -211,8 +211,9 @@ python3 release/scripts/release.py packages \
 Kit reuses the candidate's exact Release SDK archives. The record retains both
 packages' artifact IDs, archive and file hashes, source/SDK identity and expiry;
 the summary lists the files. See [Python preparation](python-preparation.md) for
-resume and targeted retry commands. Publication from this recorded set is the
-next coordinator slice; current manual publishing dispatches still rebuild.
+resume and targeted retry commands and [Python publication](python-publication.md)
+for the upload handoff. Manual publishing dispatches rebuild unless given the
+prepared-release inputs.
 Standalone build-only inputs remain available when needed:
 
 | Workflow | Build-only inputs | Outputs |
@@ -325,15 +326,18 @@ Launchpad binary builds or website updates.
 | Destination | Current operation | Completion evidence |
 | --- | --- | --- |
 | Ubuntu PPA | `Release / Launchpad` runs on the pushed `holder-v*` tag, uploading `holder-core`, `holder-daemon`, `holder-kit`, `holder-desktop` for noble and resolute | Successful source uploads **and** successful remote binary builds/publication for each intended series; fresh install and supported upgrade tests |
-| Kit | Dispatch `release-kit-pypi.yml` on `holder-v<version>` with `destination=pypi` | Complete distribution checks/upload, expected index files and installation smoke checks |
-| Holder Python | Dispatch `release-holder-python-pypi.yml` on `holder-v<version>` with `destination=pypi`, `preview_number=0` | Expected wheel/sdist on the index and installation smoke checks |
+| Kit | `release.py publish-python --record <candidate.json> --package kit --destination pypi --wait` | Prepared files fetched/verified without rebuilding, expected index hashes and publication receipt |
+| Holder Python | `release.py publish-python --record <candidate.json> --package python --destination pypi --wait` | Prepared wheel/sdist on the index with matching hashes and publication receipt |
 
-These Python dispatches build distributions again. There is currently no public
-input to promote an earlier build-only run's distribution artifact. Verify the
-publication run's source/core provenance and distribution manifest, retain its
-hashes, and inspect the actual published files. Do not claim byte-for-byte
-promotion of an earlier build-only Python set; closing that gap belongs to
-[#120](https://github.com/HolderTeam/holder/issues/120).
+The matching release tag must already point to the prepared source. The command
+does not create it. Each package/destination is separately resumable and recorded;
+matching existing files are reused and conflicting bytes stop publication. See
+[Python publication](python-publication.md) for inputs, receipts, partial upload
+recovery and expiry handling. Existing manual package dispatches retain their
+build-and-publish behavior when prepared-release inputs are omitted; with both
+`prepared_release_path` and immutable `prepared_release_ref`, they publish the
+recorded files without rebuilding. Retain the source/core provenance, file hashes
+and actual index/installation evidence for whichever path is used.
 
 TestPyPI and PyPI file/version identities cannot be reused for changed uploads.
 If using TestPyPI after the release tag exists, apply each workflow's documented

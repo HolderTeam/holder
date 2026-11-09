@@ -17,6 +17,7 @@ SPEC.loader.exec_module(manifest_tool)
 require = manifest_tool.require
 ARTIFACTS = {'kit': ('kit-release-distributions', 'kit-release-manifest'),
              'python': ('holder-python-distributions', 'holder-python-release-manifest')}
+WORKFLOWS = {'kit': 'release-kit-pypi.yml', 'python': 'release-holder-python-pypi.yml'}
 PLATFORMS = {'manylinux_2_39_x86_64': 'linux', 'win_amd64': 'windows', 'macosx_15_0_arm64': 'macos'}
 
 
@@ -84,11 +85,13 @@ def verify(directory, package, version, candidate, document, selection=None):
     return files
 
 
-def collect(record, github):
+def collect(record, github, names=None):
     """Download accepted artifact IDs, verify ZIPs/contents and return durable evidence."""
     result = {}
-    for package, (dist_name, manifest_name) in ARTIFACTS.items():
+    for package in names or ARTIFACTS:
+        dist_name, manifest_name = ARTIFACTS[package]
         step = record['steps'][package]
+        require(step['workflow'] == WORKFLOWS[package], 'Unexpected Python producer workflow')
         accepted = {item['name']: item for item in step['artifacts']}
         # inspect() has already checked ownership, expiry and attempt. Recheck the
         # complete accepted artifact metadata before downloading immutable IDs.
