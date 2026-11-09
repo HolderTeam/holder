@@ -1,10 +1,11 @@
 # Holder release runbook
 
-This is the current manual, multi-dispatch procedure for preparing, checking and
-publishing a Holder release from this monorepo. Run commands from the repository
+This is the current procedure for preparing, checking and publishing a Holder
+release from this monorepo. Candidate preparation has a single resumable entry
+point; publication handoffs still use the individual workflows below. Run commands from the repository
 root; workflow names and inputs below refer to `HolderTeam/holder`.
 
-Last source check: 2026-11-08. Workflow inputs and manifest preparation have been
+Last source check: 2026-11-09. Workflow inputs and manifest preparation have been
 checked against the repository. Use the next release using this procedure to validate the
 complete sequence and record corrections. A separate full rehearsal, TestPyPI
 upload or deliberately failed release is not a prerequisite. Until that release,
@@ -68,8 +69,9 @@ Product version and HTTP compatibility are different contracts. Review
 `api/API_VERSION` and `apps/desktop/gtk/compatibility/daemon-api.json` separately;
 do not change the API version just to match a product release.
 
-Choose the reviewed full source SHA and create a frozen remote build branch at
-that commit, for example `rc/<version>-candidate-1`. Leave it unchanged while
+Choose the reviewed full source SHA. The coordinator creates a frozen remote
+build branch at that commit, for example `rc/<version>-candidate-1`; create it
+yourself when using the manual dispatch procedure. Leave it unchanged while
 building the candidate. Dispatch accepts a branch or tag name, so record the
 resolved SHA of every run, not merely its branch. Do not create a `holder-v*` tag
 for an optional test: pushing that tag starts production Launchpad uploads, even if
@@ -81,6 +83,23 @@ unrelated PR is not evidence of a release build. Release-configured builds in
 the next step are additional to ordinary PR checks.
 
 ## 3. Build the release components
+
+For coordinated preparation through all three staging outputs, use:
+
+```sh
+python3 release/scripts/release.py prepare \
+  --record release/records/<version>-candidate-1.json \
+  --candidate <full-reviewed-SHA> --version <version> --number 1 --wait
+```
+
+This creates the frozen build branch, starts the Release builds below, generates
+and commits verified manifest/evidence on a candidate metadata branch, and stages
+all three platforms on `main` using that immutable manifest commit. It saves
+progress and a reviewable summary beside the record. Resume with the same record;
+see [candidate preparation](candidate-preparation.md) for inputs, targeted retries,
+uncertain requests, expiry and recovery points. After `candidate_staged`, continue
+with section 5's validation and the publication decision. The manual steps in
+sections 3–4 remain available independently.
 
 Dispatch both workflows on the frozen build branch:
 

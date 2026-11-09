@@ -1,8 +1,17 @@
 name: Staging / macOS
+run-name: ${{ inputs.release_request || github.event.pull_request.title || github.event.head_commit.message || github.workflow }}
 
 on:
   workflow_dispatch:
     inputs:
+      release_manifest_ref:
+        description: Optional full commit SHA holding release_manifest; blank reads the workflow checkout
+        type: string
+        default: ""
+      release_request:
+        description: Optional coordinator request identifier
+        type: string
+        default: ""
       desktop_run_id:
         description: Optional Desktop / CI run ID; blank uses the newest one built from the backend's desktop source (apps/desktop/)
         required: false
@@ -37,6 +46,18 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: sources/holder-framework
+
+      - name: Read an immutable coordinator manifest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MANIFEST_PATH: ${{ inputs.release_manifest }}
+          MANIFEST_REF: ${{ inputs.release_manifest_ref }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 sources/holder-framework/release/staging/scripts/fetch-release-manifest.py \
+            --root sources/holder-framework/release/staging \
+            --path "$MANIFEST_PATH" --ref "$MANIFEST_REF" --repository "$REPOSITORY"
 
       - name: Test SDK provenance and artifact selection
         shell: bash
