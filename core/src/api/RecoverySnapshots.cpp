@@ -53,7 +53,7 @@ const char* name(RecoverySnapshotLinkTargetType value) {
   case RecoverySnapshotLinkTargetType::AiThread: return "ai_thread";
   case RecoverySnapshotLinkTargetType::Resource: return "resource";
   }
-  throw Error("unknown link target type");
+  throw Error("unknown link target type"); // LCOV_EXCL_LINE - private serializer handles every validated enum value.
 }
 
 RecoverySnapshotLinkTargetType link_target_type(const std::string& value) {
@@ -69,7 +69,7 @@ const char* name(RecoverySnapshotPlacementEncoding value) {
   case RecoverySnapshotPlacementEncoding::Plain: return "plain";
   case RecoverySnapshotPlacementEncoding::HolderAssetV1: return "holder_asset_v1";
   }
-  throw Error("unknown placement encoding");
+  throw Error("unknown placement encoding"); // LCOV_EXCL_LINE - private serializer handles every validated enum value.
 }
 
 RecoverySnapshotPlacementEncoding placement_encoding(const std::string& value) {
@@ -84,7 +84,7 @@ const char* name(RecoverySnapshotLocationProvider value) {
   case RecoverySnapshotLocationProvider::S3Compatible: return "s3_compatible";
   case RecoverySnapshotLocationProvider::GoogleDrive: return "google-drive";
   }
-  throw Error("unknown storage provider");
+  throw Error("unknown storage provider"); // LCOV_EXCL_LINE - private serializer handles every validated enum value.
 }
 
 RecoverySnapshotLocationProvider location_provider(const std::string& value) {
@@ -99,7 +99,7 @@ const char* name(RecoverySnapshotCardPrivacyMode value) {
   case RecoverySnapshotCardPrivacyMode::EncryptedGit: return "encrypted_git";
   case RecoverySnapshotCardPrivacyMode::Plain: return "plain";
   }
-  throw Error("unknown privacy mode");
+  throw Error("unknown privacy mode"); // LCOV_EXCL_LINE - private serializer handles every validated enum value.
 }
 
 RecoverySnapshotCardPrivacyMode card_privacy_mode(const std::string& value) {

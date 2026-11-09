@@ -49,7 +49,7 @@ HistoryAffectedObjectKind to_contract(holder::history::ProjectHistoryObjectKind 
   case Kind::ProjectSettings: return HistoryAffectedObjectKind::ProjectSettings;
   case Kind::Unknown: return HistoryAffectedObjectKind::Unknown;
   }
-  throw HistoryUnavailable("unknown history object kind");
+  throw HistoryUnavailable("unknown history object kind"); // LCOV_EXCL_LINE - private output mapping handles every declared enum value.
 }
 
 const char* kind_name(HistoryAffectedObjectKind kind) {
@@ -61,7 +61,7 @@ const char* kind_name(HistoryAffectedObjectKind kind) {
   case HistoryAffectedObjectKind::ProjectSettings: return "project_settings";
   case HistoryAffectedObjectKind::Unknown: return "unknown";
   }
-  throw HistoryUnavailable("unknown history object kind");
+  throw HistoryUnavailable("unknown history object kind"); // LCOV_EXCL_LINE - private output mapping handles every declared enum value.
 }
 
 void check_cursor(const std::optional<std::string>& cursor) {
@@ -191,7 +191,7 @@ std::string history_revision(const holder::model::Project& project, const std::s
   case holder::git::RevisionReferenceStatus::NotFound:
     throw NotFound(parameter + " revision was not found: " + reference);
   }
-  throw HistoryUnavailable("unknown revision reference status");
+  throw HistoryUnavailable("unknown revision reference status"); // LCOV_EXCL_LINE - resolver output switch is exhaustive.
 }
 
 CardHistoryVersion history_version(const holder::history::CardVersion& value) {

@@ -8,6 +8,23 @@ an untested behavior, and a difficult failure path is not automatically an artif
 
 ## Latest result
 
+After the crypto dependency batch: **15,041 / 15,084 lines (99.7%)** and
+**1,881 / 1,881 functions (100%)**. There are **43 missed lcov records** left,
+including **38 executable misses in gcovr**.
+
+All **887 CTest entries pass**, including the separate crypto runner with three
+test cases and 86 assertions. The five coverage-filter tests also pass. The new
+C++ test file passes clang-format, and `git diff --check` passes. One complete
+coverage run validates this batch.
+
+A trace comparison accounts for the change exactly: eight zero-hit private
+fallback records were excluded, two existing recovery translation records became
+covered, and five previously excluded crypto handler records became measured and
+covered. Every other record retains its covered/uncovered status after adjusting
+for the one-line condition-formatting change in `CryptoService.cpp`.
+
+## Result after the compiler-cleanup review
+
 After the compiler-cleanup review: **15,034 / 15,087 lines (99.6%)**, with
 **1,881 / 1,881 functions (100%)**. There are **53 missed lcov records** left,
 including **48 executable misses in gcovr**. This batch changes reporting only;
@@ -226,7 +243,7 @@ contain application expressions, so this brace-only policy does not apply even
 where compiler cleanup contributes to their counters. Dependency failures and
 invariant guards also remain measured.
 
-## Current missed lcov records
+## Missed lcov records after the compiler-cleanup review
 
 | File under `src/` | Line records |
 |---|---|
@@ -238,6 +255,63 @@ invariant guards also remain measured.
 | `api/Rebuild.cpp` | 36 |
 | `api/RecoverySnapshots.cpp` | 56, 72, 87, 102, 232, 260, 286, 294, 479, 493 |
 | `api/RecoveryTokens.cpp` | 37, 38, 39 |
+| `api/RuntimeHosts.cpp` | 111 |
+| `card/CardHierarchy.cpp` | 83 |
+| `card/CardRepo.cpp` | 383 |
+| `card/CardStore.cpp` | 807, 891 |
+
+## Follow-up: crypto dependency failures and internal enum fallbacks
+
+`tests/CryptoDependencyFailure_test.cpp` runs in a separate executable on Linux
+with GNU/Clang linker wrapping. Only this executable wraps `sodium_init` and
+`crypto_aead_xchacha20poly1305_ietf_encrypt`; production libraries and the main
+Catch runner keep the ordinary dependency calls. A scoped, thread-local flag
+injects one failing return value, then restores pass-through behavior. This is
+return-value injection, not an attempt to exhaust memory or use malformed pointers.
+It verifies Holder's response to the dependency's failure result; a successful
+retry after injection is disabled does not claim that an actually broken crypto
+subsystem can recover.
+
+Three test cases (86 assertions across their sections) cover:
+
+- Initialization failure raises `PrivacyCryptoFailed` before returning key material.
+- Token export reports `HOLDER_ERROR_DATA_CORRUPTED` on initialization or encryption
+  failure and publishes no result. Project key identity, timestamp, key bytes and
+  Git HEAD stay unchanged; the existing token is still readable. A healthy export
+  works after injection is disabled.
+- Existing-project and global token import translate an initialization failure to
+  `HOLDER_ERROR_RECOVERY_TOKEN_INVALID`, matching the current recovery policy.
+  Neither the existing project/key nor an empty target is changed. Retrying with
+  the same valid token and healthy dependency succeeds and restores the same key.
+
+The initialization and encryption failure blocks in `privacy/CryptoService.cpp`
+previously had source exclusions. Those exclusions are removed now that the
+handlers execute in tests. The export test also reaches `api/RecoveryTokens.cpp:37–38`,
+which the previous report showed as missed.
+
+Eight single-line internal fallback annotations accompany this batch:
+
+| Source | Lines | Reachability argument and existing witnesses |
+|---|---|---|
+| `api/History.cpp` | 52, 64 | Private output enum conversions explicitly handle every `ProjectHistoryObjectKind` / `HistoryAffectedObjectKind` enumerator, including `Unknown`. These functions do not parse caller-provided integers. History activity/filter tests cover the real kinds; the public input converter remains measured. |
+| `api/History.cpp` | 194 | The resolver's private output switch handles `Resolved`, `Ambiguous`, and `NotFound`. `CApiHistory_test.cpp` includes real Git abbreviation collisions as well as missing and resolved revisions. |
+| `api/RecoverySnapshots.cpp` | 56, 72, 87, 102 | Private serializers handle every declared enum. Persisted strings and imported snapshots pass through separate validating converters. `ContractRecoverySnapshots_test.cpp` tests unknown persisted link/provider/encoding/privacy values and malformed imported snapshots; those rejection paths remain measured. |
+| `api/RecoveryTokens.cpp` | 39 | `with_contract_errors` translates six of the eight declared `PrivacyErrorCode` values before this catch. This catch translates the other two (`RecoveryTokenInvalid`, `PrivacyCryptoFailed`). The final rethrow protects a future code; valid current codes cannot reach it. Crypto failure translation now has a real dependency-return-value test. |
+
+No host-registration catch, resource-limit guard, card invariant or initializer
+expression is excluded by this batch. No production behavior changes.
+
+## Current missed lcov records
+
+| File under `src/` | Line records |
+|---|---|
+| `api/Cards.cpp` | 198, 200 |
+| `api/Git.cpp` | 192 |
+| `api/History.cpp` | 145, 146, 147 |
+| `api/HostCApi.cpp` | 188, 189, 190, 191, 192, 193, 214, 215, 216, 217, 218, 219, 246, 247, 248, 249, 250, 251, 279, 280, 281, 282, 283, 284 |
+| `api/ProjectMaintenance.cpp` | 42 |
+| `api/Rebuild.cpp` | 36 |
+| `api/RecoverySnapshots.cpp` | 232, 260, 286, 294, 479, 493 |
 | `api/RuntimeHosts.cpp` | 111 |
 | `card/CardHierarchy.cpp` | 83 |
 | `card/CardRepo.cpp` | 383 |

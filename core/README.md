@@ -139,6 +139,9 @@ and remaining guard classifications are in [docs/coverage-audit.md](docs/coverag
 Reviewed closing braces that only carry GCC exception-cleanup counters have
 single-line source annotations; validation, returns and explicit error handling
 remain measured. Their block evidence and test witnesses are in the audit.
+On Linux with GNU/Clang, an isolated test executable injects libsodium failure
+return values to exercise crypto error translation without changing production
+calls. The initialization and encryption failure handlers remain measured.
 Coverage requires Python 3 and runs the filter's unit tests before building.
 
 ### macOS (Homebrew)
