@@ -9,6 +9,7 @@
 #include <holder/holder_api.h>
 
 #include <fstream>
+#include <memory>
 #include <set>
 #include <string>
 
@@ -99,6 +100,50 @@ struct HistoryFixture {
 };
 
 } // namespace
+
+TEST_CASE("Oversized project history fails without changing data and can be paged past",
+          "[capi][history-response-boundary]") {
+  HistoryFixture f;
+  const auto project = holder::project::ProjectRepo(f.context->db).get(f.project);
+  REQUIRE(project.has_value());
+  git_repository* raw = nullptr;
+  REQUIRE(git_repository_open(&raw, project->root_path.c_str()) == 0);
+  const std::unique_ptr<git_repository, decltype(&git_repository_free)> repo(raw, git_repository_free);
+  git_oid head{};
+  REQUIRE(git_reference_name_to_id(&head, repo.get(), "HEAD") == 0);
+  git_commit* raw_parent = nullptr;
+  REQUIRE(git_commit_lookup(&raw_parent, repo.get(), &head) == 0);
+  const std::unique_ptr<git_commit, decltype(&git_commit_free)> parent(raw_parent, git_commit_free);
+  git_tree* raw_tree = nullptr;
+  REQUIRE(git_commit_tree(&raw_tree, parent.get()) == 0);
+  const std::unique_ptr<git_tree, decltype(&git_tree_free)> tree(raw_tree, git_tree_free);
+  git_signature* raw_signature = nullptr;
+  REQUIRE(git_signature_new(&raw_signature, "History", "history@example.invalid", 1, 0) == 0);
+  const std::unique_ptr<git_signature, decltype(&git_signature_free)> signature(raw_signature, git_signature_free);
+  const std::string message(2 * 1024 * 1024, 'x');
+  git_oid oversized{};
+  const git_commit* parents[] = {parent.get()};
+  REQUIRE(git_commit_create(&oversized, repo.get(), "HEAD", signature.get(), signature.get(),
+      nullptr, message.c_str(), tree.get(), 1, parents) == 0);
+  const std::string cursor = git_oid_tostr_s(&oversized);
+  const int32_t limit = 1;
+  const holder_project_history_page* page = nullptr;
+  f.failed(holder_list_project_history(f.context, f.project.c_str(), &limit, nullptr,
+      HOLDER_LIST_PROJECT_HISTORY_KIND_NONE, f.arena, &page, &f.error),
+      HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE);
+  CHECK(page == nullptr);
+  git_oid after{};
+  REQUIRE(git_reference_name_to_id(&after, repo.get(), "HEAD") == 0);
+  CHECK(git_oid_equal(&after, &oversized));
+  REQUIRE(holder_list_project_history(f.context, f.project.c_str(), &limit, cursor.c_str(),
+      HOLDER_LIST_PROJECT_HISTORY_KIND_NONE, f.arena, &page, &f.error) == HOLDER_OK);
+  REQUIRE(page != nullptr);
+  REQUIRE(page->activities.count == 1);
+  CHECK(std::string(page->activities.items[0].message).size() < message.size());
+  const holder_card* card = nullptr;
+  REQUIRE(holder_get_card(f.context, f.project.c_str(), f.card.c_str(), f.arena, &card, &f.error) == HOLDER_OK);
+  CHECK(std::string(card->content) == "Original body\n");
+}
 
 TEST_CASE("The default history comparison mode compares the supplied revisions",
           "[capi][broad-history-default]") {

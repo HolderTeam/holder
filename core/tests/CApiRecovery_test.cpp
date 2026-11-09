@@ -12,6 +12,7 @@
 #include "platform/Db.h"
 #include "privacy/ProjectPrivacy.h"
 #include "project/ProjectRepo.h"
+#include "project/ProjectRegistry.h"
 
 #include <git2.h>
 #include <holder/holder_api.h>
@@ -119,6 +120,37 @@ struct Fixture {
 };
 
 } // namespace
+
+TEST_CASE("Recovery token import registers a recovered project and restores a forgotten identity",
+          "[capi][recovery-registry]") {
+  Fixture f;
+  const auto id = f.add_card();
+  f.push();
+  f.target->registry_path = f.target->data_dir / "recovered-projects.json";
+  holder::core::ProjectRegistry registry(f.target->registry_path);
+  CHECK(registry.roots().empty());
+  const auto* imported = f.restore();
+  CHECK(imported->project_created);
+  const auto project = holder::project::ProjectRepo(f.target->db).get(f.project_id);
+  REQUIRE(project.has_value());
+  auto roots = registry.roots();
+  REQUIRE(roots.size() == 1);
+  CHECK(std::filesystem::equivalent(roots[0], project->root_path));
+  registry.forget(*project);
+  REQUIRE(registry.roots().empty());
+  // An ordinary refresh may not undo a deliberate removal, but explicit token
+  // import is authorized to restore the identity to this device's registry.
+  registry.remember({*project});
+  CHECK(registry.roots().empty());
+  const auto* retried = f.restore();
+  CHECK_FALSE(retried->project_created);
+  roots = registry.roots();
+  REQUIRE(roots.size() == 1);
+  CHECK(std::filesystem::equivalent(roots[0], project->root_path));
+  const holder_card* card = nullptr;
+  REQUIRE(holder_get_card(f.target, f.project_id.c_str(), id.c_str(), f.arena, &card, &f.error) == HOLDER_OK);
+  CHECK(std::string(card->content) == "hidden");
+}
 
 TEST_CASE("Generated sync exposes failed pulls and up-to-date pushes",
           "[capi][broad-sync-results]") {
