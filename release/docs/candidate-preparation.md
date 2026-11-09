@@ -90,7 +90,8 @@ and their required artifacts were available at the last preparation check. Run
 `prepare` again to refresh remote status and expiry checks. It does not make the publication
 decision. Continue the [runbook](runbook.md) with platform/install/upgrade checks,
 signing handoffs and [Python distribution preparation](python-preparation.md), then the maintainer's
-publication decision. Promotion, prepared Python distribution publication, PPA
+publication decision. [Prepared Python publication](python-publication.md) uses
+the same record. Desktop/core promotion, PPA
 completion and website completion remain subsequent coordinator slices in #120.
 The first end-to-end validation is the next actual release using this entry
 point; a separate rehearsal or extra build matrix is not required.
