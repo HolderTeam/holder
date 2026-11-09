@@ -100,6 +100,21 @@ struct HistoryFixture {
 
 } // namespace
 
+TEST_CASE("The default history comparison mode compares the supplied revisions",
+          "[capi][broad-history-default]") {
+  HistoryFixture f;
+  const std::string before = f.history()->entries.items[0].last_oid;
+  f.edit();
+  const std::string after = f.history()->entries.items[0].last_oid;
+  const holder_card_history_comparison* result = nullptr;
+  REQUIRE(holder_compare_card_history(f.context, f.project.c_str(), f.card.c_str(),
+      after.c_str(), before.c_str(), HOLDER_COMPARE_CARD_HISTORY_MODE_DEFAULT,
+      f.arena, &result, &f.error) == HOLDER_OK);
+  REQUIRE(result != nullptr);
+  CHECK(std::string(result->before.body) == "Original body\n");
+  CHECK(std::string(result->after.body) == "Revised body\n");
+}
+
 TEST_CASE(
     "Generated encrypted history reports key and envelope failures without mutating saved data",
     "[capi][history-privacy-errors]"

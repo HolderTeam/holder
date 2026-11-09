@@ -95,7 +95,9 @@ struct Fixture {
   const holder_recovery_token_global_import_result* restore() {
     holder_recovery_token_import_request request{"1234", token.c_str()};
     const holder_recovery_token_global_import_result* result = nullptr;
-    REQUIRE(holder_import_recovery_token_global(target, &request, arena, &result, &error) == HOLDER_OK);
+    const auto status = holder_import_recovery_token_global(target, &request, arena, &result, &error);
+    INFO((error ? holder_error_message(error) : "no import error"));
+    REQUIRE(status == HOLDER_OK);
     return result;
   }
 
@@ -117,6 +119,59 @@ struct Fixture {
 };
 
 } // namespace
+
+TEST_CASE("Generated sync exposes failed pulls and up-to-date pushes",
+          "[capi][broad-sync-results]") {
+  Fixture f;
+  f.add_card();
+  holder_push_options options{};
+  const holder_sync_result* result = nullptr;
+  SECTION("a repeated push reports up to date") {
+    f.push();
+    REQUIRE(holder_push_project(f.source, f.project_id.c_str(), &options, f.arena, &result, &f.error) == HOLDER_OK);
+    REQUIRE(result != nullptr);
+    CHECK(result->push.status == HOLDER_PUSH_PHASE_STATUS_UP_TO_DATE);
+    CHECK(result->status == HOLDER_SYNC_RESULT_STATUS_SUCCEEDED);
+  }
+  SECTION("an empty remote reports a failed pull") {
+    REQUIRE(holder_sync_project(f.source, f.project_id.c_str(), &options, f.arena, &result, &f.error) == HOLDER_OK);
+    REQUIRE(result != nullptr);
+    CHECK(result->pull.status == HOLDER_PULL_PHASE_STATUS_FAILED);
+    REQUIRE(result->pull.error_message != nullptr);
+    CHECK(std::string(result->pull.error_message).size() > 0);
+  }
+}
+
+TEST_CASE("Recovery import reports a corrupt Git index and can be retried after repair",
+          "[capi][broad-recovery-metrics]") {
+  Fixture f;
+  const auto id = f.add_card();
+  f.push();
+  f.restore();
+  const auto project = holder::project::ProjectRepo(f.target->db).get(f.project_id);
+  REQUIRE(project.has_value());
+  const auto index = std::filesystem::path(project->root_path) / ".git/index";
+  std::filesystem::rename(index, index.string() + ".saved");
+  {
+    std::ofstream corrupt(index, std::ios::binary);
+    corrupt << "not an index";
+  }
+  holder_recovery_token_import_request request{"1234", f.token.c_str()};
+  const holder_recovery_token_global_import_result* result = nullptr;
+  REQUIRE(holder_import_recovery_token_global(f.target, &request, f.arena, &result, &f.error) == HOLDER_ERROR_RUNTIME);
+  REQUIRE(f.error != nullptr);
+  CHECK(std::string(holder_error_message(f.error)).find("index") != std::string::npos);
+  CHECK(result == nullptr);
+  holder_error_destroy(f.error);
+  f.error = nullptr;
+  REQUIRE(std::filesystem::remove(index));
+  std::filesystem::rename(index.string() + ".saved", index);
+  const auto* retried = f.restore();
+  CHECK(retried->pull_status == HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED);
+  const holder_card* card = nullptr;
+  REQUIRE(holder_get_card(f.target, f.project_id.c_str(), id.c_str(), f.arena, &card, &f.error) == HOLDER_OK);
+  CHECK(std::string(card->content) == "hidden");
+}
 
 TEST_CASE("Recovery token import reports a locked remote config while keeping the restored key usable",
           "[capi][recovery-import-failures]") {

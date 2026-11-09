@@ -6,6 +6,11 @@
 #include "card/CardPaths.h"
 #include "card/LinkMutation.h"
 #include "core_test_helpers.h"
+#if __has_include(<catch2/matchers/catch_matchers_string.hpp>)
+#include <catch2/matchers/catch_matchers_string.hpp>
+#endif
+#include "sqlite_read_race_test_helpers.h"
+#include "card/CardStore.h"
 #include "git/GitOps.h"
 #include "git/EcdsaDerSigningCredentialProvider.h"
 #include "project/ProjectRepo.h"
@@ -84,6 +89,129 @@ struct Host {
   }
 };
 } // namespace
+
+TEST_CASE("Card moves revalidate source and parent changes before writing", "[capi][broad-move-race]") {
+  Host host;
+  const auto project = host.project();
+  const auto source = host.card(project, "Source");
+  const auto target = host.card(project, "Target");
+  const auto row = holder::project::ProjectRepo(host.db).get(project);
+  REQUIRE(row.has_value());
+  holder::git::GitRepo git;
+  git.open_existing(row->root_path);
+  const auto head = git.head_oid();
+  int operation = 0;
+  int expected = HOLDER_ERROR_NOT_FOUND;
+  std::string mutation;
+  SECTION("source is trashed after the initial lookup") {
+    mutation = "UPDATE cards SET deleted_at=10 WHERE card_id='" + source + "';";
+  }
+  SECTION("a parent cycle appears after the initial check") {
+    mutation = "UPDATE cards SET parent_card_id='" + source + "' WHERE card_id='" + target + "';";
+    expected = HOLDER_ERROR_INVALID_MOVE;
+  }
+  SECTION("an update's parent disappears after validation") {
+    operation = 1;
+    mutation = "UPDATE cards SET deleted_at=10 WHERE card_id='" + target + "';";
+  }
+  holder::test::SqliteReadRace race(host.db.handle(), "FROM cards WHERE card_id", source, 2, mutation);
+  const holder_card* result = nullptr;
+  if (operation == 0) {
+    holder_card_move move{};
+    move.intent = HOLDER_CARD_MOVE_INTENT_INTO;
+    move.target_card_id = target.c_str();
+    host.failed(holder_move_card(&host.context, project.c_str(), source.c_str(), &move,
+        host.arena.get(), &result, &host.error), expected);
+  } else {
+    holder_card_update update{};
+    update.parent_card_id = {HOLDER_SET, target.c_str()};
+    host.failed(holder_update_card(&host.context, project.c_str(), source.c_str(), &update,
+        host.arena.get(), &result, &host.error), expected);
+  }
+  REQUIRE(race.fired);
+  REQUIRE(race.result == SQLITE_OK);
+  CHECK(result == nullptr);
+  CHECK(git.head_oid() == head);
+  CHECK_FALSE(holder::card::CardRepo(host.db).get(source)->parent_card_id.has_value());
+}
+
+TEST_CASE("Permanent deletion rechecks a card or message's project ownership",
+          "[capi][broad-purge-race]") {
+  Host host;
+  const auto project = host.project();
+  const auto other = host.project();
+  SECTION("trashed card changes projects before the locked read") {
+    const auto id = host.card(project, "Keep card");
+    holder::card::CardStore store(host.db, &host.fts, nullptr, &host.git);
+    store.trash(id, 10);
+    const auto row = holder::project::ProjectRepo(host.db).get(project);
+    holder::git::GitRepo git;
+    git.open_existing(row->root_path);
+    const auto head = git.head_oid();
+    holder::test::SqliteReadRace race(host.db.handle(), "FROM cards WHERE card_id", id, 2,
+        "UPDATE cards SET project_id='" + other + "' WHERE card_id='" + id + "';");
+    REQUIRE_THROWS_WITH(store.hard_delete(id, project),
+        Catch::Matchers::ContainsSubstring("card not found in project"));
+    REQUIRE(race.fired);
+    REQUIRE(race.result == SQLITE_OK);
+    const auto saved = store.get(id);
+    REQUIRE(saved.has_value());
+    CHECK(saved->project_id == other);
+    CHECK(saved->deleted_at == 10);
+    CHECK(git.head_oid() == head);
+    CHECK(std::filesystem::is_regular_file(std::filesystem::path(row->root_path) / holder::core::card_trash_rel_path(id)));
+  }
+  SECTION("trashed message changes to another project's thread") {
+    host.message(project, "message-first", "Keep message");
+    host.message(other, "message-second", "Other message");
+    holder::ai::AiMessageRepo messages(host.db, &host.fts);
+    messages.trash("message-first", 10);
+    holder::test::SqliteReadRace race(host.db.handle(), "FROM ai_messages WHERE message_id", "message-first", 2,
+        "UPDATE ai_messages SET thread_id='thread-message-second' WHERE message_id='message-first';");
+    REQUIRE_THROWS_WITH(messages.remove_trashed(project, "message-first"),
+        Catch::Matchers::ContainsSubstring("ai message not found in project"));
+    REQUIRE(race.fired);
+    REQUIRE(race.result == SQLITE_OK);
+    const auto saved = messages.get("message-first");
+    REQUIRE(saved.has_value());
+    CHECK(saved->thread_id == "thread-message-second");
+    CHECK(saved->deleted_at == 10);
+    CHECK(saved->content == "Keep message");
+  }
+}
+
+TEST_CASE("Generated API aliases preserve their documented behavior", "[capi][broad-api-aliases]") {
+  Host host;
+  const auto project = host.project();
+  const auto parent = host.card(project, "Parent");
+  const auto child = host.card(project, "Child", parent.c_str());
+  const holder_project_encryption_check* safety = nullptr;
+  REQUIRE(holder_check_project_encryption(&host.context, project.c_str(), host.arena.get(),
+      &safety, &host.error) == HOLDER_OK);
+  CHECK(safety->privacy_mode == HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_PLAIN);
+  holder_list_cards_parent scope{};
+  const holder_card_list_item_page* page = nullptr;
+  REQUIRE(holder_list_cards(&host.context, project.c_str(), scope, nullptr,
+      HOLDER_LIST_CARDS_ORDER_CARD_ID_ASC, nullptr, nullptr, false, false,
+      host.arena.get(), &page, &host.error) == HOLDER_OK);
+  REQUIRE(page->items.count == 2);
+  CHECK(std::string(page->items.items[0].card_id) < std::string(page->items.items[1].card_id));
+  const holder_card* trashed = nullptr;
+  REQUIRE(holder_trash_card(&host.context, project.c_str(), parent.c_str(),
+      HOLDER_TRASH_CARD_CHILDREN_PROMOTE, host.arena.get(), &trashed, &host.error) == HOLDER_OK);
+  const auto promoted = holder::card::CardRepo(host.db).get(child);
+  REQUIRE(promoted.has_value());
+  CHECK_FALSE(promoted->parent_card_id.has_value());
+  CHECK_FALSE(promoted->deleted_at.has_value());
+  const holder_trash_empty_result* emptied = nullptr;
+  REQUIRE(holder_empty_trash(&host.context, project.c_str(), HOLDER_EMPTY_TRASH_TYPE_AI_MESSAGE,
+      host.arena.get(), &emptied, &host.error) == HOLDER_OK);
+  CHECK(holder::card::CardRepo(host.db).get(parent).has_value());
+  REQUIRE(holder_empty_trash(&host.context, project.c_str(), HOLDER_EMPTY_TRASH_TYPE_DEFAULT,
+      host.arena.get(), &emptied, &host.error) == HOLDER_OK);
+  CHECK_FALSE(holder::card::CardRepo(host.db).get(parent).has_value());
+  CHECK(holder::card::CardRepo(host.db).get(child).has_value());
+}
 
 TEST_CASE("Generated C API rejects unsupported input enums without changing cards",
           "[capi][batch-enum-validation]") {

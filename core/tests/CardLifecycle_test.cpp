@@ -45,7 +45,12 @@ class ShortWriteFs final : public holder::core::Fs {
  public:
   holder::core::RealFs real;
   std::filesystem::path truncate_path;
-  bool exists(const std::filesystem::path& p) const override { return real.exists(p); }
+  std::filesystem::path unavailable_path;
+  mutable int existence_checks = 0;
+  bool exists(const std::filesystem::path& p) const override {
+    if (p == unavailable_path && ++existence_checks == 2) return false;
+    return real.exists(p);
+  }
   void create_directories(const std::filesystem::path& p) const override { real.create_directories(p); }
   void rename(const std::filesystem::path& a, const std::filesystem::path& b) const override { real.rename(a, b); }
   void remove(const std::filesystem::path& p) const override { real.remove(p); }
@@ -64,11 +69,12 @@ class FaultGit final : public holder::git::GitOps {
   bool fail_stage = false;
   bool fail_commit = false;
   bool fail_after_commit = false;
+  std::optional<std::filesystem::path> short_write_path;
   void open_or_init(const std::filesystem::path& p) override { real.open_or_init(p); }
   void write_file(const std::filesystem::path& p, const std::string& bytes) override {
     if (writes_until_failure && --writes_until_failure == 0)
       throw std::runtime_error("injected write failure");
-    real.write_file(p, bytes);
+    real.write_file(p, short_write_path && p == *short_write_path ? bytes.substr(0, bytes.size() / 2) : bytes);
   }
   void stage_path(const std::filesystem::path& p) override {
     if (fail_stage) throw std::runtime_error("injected stage failure");
@@ -156,6 +162,94 @@ struct Fixture {
   void rebuild() { holder::store::Rebuilder(db, &fts).rebuild_project(project); }
 };
 } // namespace
+
+TEST_CASE("Interrupted mutation recovery preserves a later uncommitted edit",
+          "[cardstore][broad-journal-later-edit]") {
+  Fixture f;
+  f.add(parent_id);
+  const auto root = std::filesystem::path(f.project.root_path);
+  const auto relative = holder::core::card_rel_path(parent_id);
+  {
+    holder::card::CardMutation mutation(f.fs, root, {relative}, {{relative, "interrupted bytes"}});
+    mutation.begin();
+    f.fs.write_file(root / relative, "interrupted bytes");
+  }
+  f.git.real.write_file("unrelated.txt", "later committed work");
+  f.git.real.stage_path("unrelated.txt");
+  f.git.real.commit("Another writer commits");
+  const auto later_head = f.head();
+  f.fs.write_file(root / relative, "newer uncommitted bytes");
+  holder::card::CardMutation::recover_files(f.fs, root);
+  CHECK(f.bytes(parent_id) == "newer uncommitted bytes");
+  CHECK(f.head() == later_head);
+  CHECK(f.fs.read_file(root / "unrelated.txt") == "later committed work");
+  CHECK(holder::card::CardMutation::pending(root));
+  holder::card::CardMutation::finish_recovery(f.fs, root);
+  CHECK_FALSE(holder::card::CardMutation::pending(root));
+}
+
+TEST_CASE("Lifecycle writes reject conflicting files and roll back incomplete writes",
+          "[cardstore][broad-lifecycle-guards]") {
+  Fixture f;
+  f.add(parent_id);
+  f.add(child_id, parent_id);
+  const auto root = std::filesystem::path(f.project.root_path);
+  const auto original = f.bytes(parent_id);
+  const auto original_child = f.bytes(child_id);
+  const auto head = f.head();
+  const auto trash = holder::core::card_trash_rel_path(parent_id);
+  SECTION("destination already exists") {
+    f.fs.create_directories((root / trash).parent_path());
+    f.fs.write_file(root / trash, "unrelated trash bytes");
+    REQUIRE_THROWS_WITH(f.store.trash(parent_id, 10),
+        Catch::Matchers::ContainsSubstring("destination card file already exists"));
+    CHECK(f.fs.read_file(root / trash) == "unrelated trash bytes");
+  }
+  SECTION("a placement card has an inconsistent path") {
+    f.db.exec("UPDATE cards SET rel_path='cards/wrong.md' WHERE card_id='" + child_id + "';");
+    REQUIRE_THROWS_WITH(f.store.trash(parent_id, 10),
+        Catch::Matchers::ContainsSubstring("card rel_path does not match card_id"));
+  }
+  SECTION("an incomplete lifecycle write is compensated") {
+    f.git.short_write_path = trash;
+    REQUIRE_THROWS_WITH(f.store.trash(parent_id, 10),
+        Catch::Matchers::ContainsSubstring("incomplete card lifecycle write"));
+    CHECK_FALSE(f.fs.exists(root / trash));
+  }
+  SECTION("the source becomes unavailable after planning") {
+    ShortWriteFs fs;
+    fs.unavailable_path = root / holder::core::card_rel_path(parent_id);
+    holder::card::CardStore store(f.db, &f.fts, &fs, &f.git);
+    REQUIRE_THROWS_WITH(store.trash(parent_id, 10),
+        Catch::Matchers::ContainsSubstring("card content missing"));
+    CHECK(fs.existence_checks == 2);
+  }
+  CHECK(f.bytes(parent_id) == original);
+  CHECK(f.bytes(child_id) == original_child);
+  CHECK(f.head() == head);
+  REQUIRE(f.cards.get(parent_id).has_value());
+  CHECK_FALSE(f.cards.get(parent_id)->deleted_at.has_value());
+  CHECK(f.cards.get(child_id)->parent_card_id == parent_id);
+  CHECK_FALSE(holder::card::CardMutation::pending(root));
+}
+
+TEST_CASE("Reconstruction requires the caller's transaction before changing projections",
+          "[cardstore][broad-rebuild-transaction]") {
+  Fixture f;
+  f.add(parent_id);
+  const auto head = f.head();
+  REQUIRE_THROWS_WITH(holder::store::Rebuilder(f.db, &f.fts).rebuild_project_in_transaction(f.project),
+      Catch::Matchers::ContainsSubstring("project reconstruction requires an active transaction"));
+  CHECK(f.cards.get(parent_id).has_value());
+  CHECK(f.head() == head);
+  {
+    holder::platform::Tx transaction(f.db);
+    const auto stats = holder::store::Rebuilder(f.db, &f.fts).rebuild_project_in_transaction(f.project);
+    CHECK(stats.cards == 1);
+    transaction.commit();
+  }
+  CHECK(f.cards.get(parent_id).has_value());
+}
 
 TEST_CASE("A card mutation journal recovers files without a Git repository",
           "[cardstore][journal-boundaries]") {

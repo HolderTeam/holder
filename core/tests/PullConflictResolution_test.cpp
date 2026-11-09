@@ -85,6 +85,7 @@ TEST_CASE("Conflict preservation rejects duplicate identities and cyclic parents
   holder::store::Rebuilder(local_db, &local_fts).rebuild_project(local_project);
 
   bool duplicate = false;
+  bool malformed = false;
   std::string expected;
   SECTION("two conflicted files claim the same card ID") {
     duplicate = true;
@@ -93,6 +94,7 @@ TEST_CASE("Conflict preservation rejects duplicate identities and cyclic parents
   SECTION("conflicted parents form a cycle") {
     expected = "cannot preserve conflicted card parent cycle from commit ";
   }
+  SECTION("malformed local files cannot be treated as card copies") { malformed = true; }
   std::map<std::string, std::string> local_bytes;
   for (const std::string id : {std::string(kSharedCardId), second_id}) {
     const auto path = holder::core::card_rel_path(id);
@@ -105,8 +107,9 @@ TEST_CASE("Conflict preservation rejects duplicate identities and cyclic parents
       parsed.card.card_id = kSharedCardId;
     else
       parsed.card.parent_card_id = id == kSharedCardId ? second_id : std::string(kSharedCardId);
-    const auto changed = holder::core::render_card_front_matter(parsed.card, parsed.links, parsed.milestones) +
-                         "local body to preserve\n";
+    const auto changed = malformed ? std::string("not card front matter\nlocal body to preserve\n")
+        : holder::core::render_card_front_matter(parsed.card, parsed.links, parsed.milestones) +
+          "local body to preserve\n";
     local_bytes.emplace(path, changed);
     local_git.write_file(path, changed);
     local_git.stage_path(path);
@@ -122,9 +125,13 @@ TEST_CASE("Conflict preservation rejects duplicate identities and cyclic parents
     seen = true;
   }
   REQUIRE(seen);
-  REQUIRE_THROWS_WITH(holder::sync::resolve_pull_conflicts(
+  if (malformed) {
+    CHECK(holder::sync::resolve_pull_conflicts(local_db, &local_fts, local_project, local_git, diverged, 3) == 0);
+  } else {
+    REQUIRE_THROWS_WITH(holder::sync::resolve_pull_conflicts(
       local_db, &local_fts, local_project, local_git, diverged, 3),
       Catch::Matchers::ContainsSubstring(expected));
+  }
   const auto cards = holder::card::CardRepo(local_db).list_all(project_id);
   REQUIRE(cards.size() == 2);
   for (const auto& card : cards) {
