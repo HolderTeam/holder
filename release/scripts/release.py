@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resume candidate preparation using one local release record and existing workflows."""
+"""Resume candidate and Python package preparation using one local release record."""
 import argparse
 import base64
 from contextlib import contextmanager
@@ -12,8 +12,10 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import tarfile
 import time
 import uuid
+import zipfile
 from urllib.parse import urlencode
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,11 +23,16 @@ SPEC = importlib.util.spec_from_file_location('release_manifest',
     ROOT / 'release/staging/scripts/generate-release-manifest.py')
 manifest_tool = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(manifest_tool)
+PACKAGE_SPEC = importlib.util.spec_from_file_location('release_packages', Path(__file__).with_name('python-distributions.py'))
+package_tool = importlib.util.module_from_spec(PACKAGE_SPEC)
+PACKAGE_SPEC.loader.exec_module(package_tool)
 require = manifest_tool.require
 WORKFLOWS = {'backend': 'daemon-ci.yml', 'desktop': 'desktop-ci.yml',
              'linux': 'staging-linux-appimage-stage.yml', 'windows': 'staging-windows-stage.yml',
-             'macos': 'staging-macos-stage.yml'}
+             'macos': 'staging-macos-stage.yml', 'kit': 'release-kit-pypi.yml',
+             'python': 'release-holder-python-pypi.yml'}
 BUILDS = ('backend', 'desktop')
+PACKAGES = ('kit', 'python')
 PLATFORMS = ('linux', 'windows', 'macos')
 STAGED = {'linux': ['Holder-linux-appimage-staged'], 'windows': ['Holder-windows-staged'],
           'macos': ['Holder-macos-staged']}
@@ -74,6 +81,10 @@ class GitHub:
             return manifest_tool.generate(record['repository'], record['candidate'], record['version'],
                 record['steps']['desktop']['run_id'], record['steps']['backend']['run_id'],
                 manifest_tool.GitHub(directory))
+
+    def packages(self, record):
+        with tempfile.TemporaryDirectory(prefix='holder-python-inputs-') as directory:
+            return package_tool.collect(record, manifest_tool.GitHub(directory))
 
 
 def save(path, record):
@@ -129,6 +140,14 @@ class Coordinator:
             return self.record['build_ref'], {'core_build_type': 'Release', 'core_packages': 'source'}
         if name == 'desktop':
             return self.record['build_ref'], {'build_type': 'release'}
+        if name in PACKAGES:
+            inputs = {'destination': 'none'}
+            if name == 'kit':
+                inputs.update(release_manifest=self.record['manifest']['path'],
+                              release_manifest_ref=self.record['manifest']['commit'])
+            else:
+                inputs['preview_number'] = '0'
+            return self.record['build_ref'], inputs
         inputs = {'backend_repository': self.record['repository'],
                   'release_manifest': self.record['manifest']['path'],
                   'release_manifest_ref': self.record['manifest']['commit']}
@@ -142,7 +161,7 @@ class Coordinator:
                 run['event'] == 'workflow_dispatch' and run['head_branch'] == step['ref'] and
                 run['display_title'] == step['request'], f'{name} run identity differs from the release request')
         manifest_tool.provenance.commit(run['head_sha'])
-        if name in BUILDS:
+        if name in BUILDS + PACKAGES:
             require(run['head_sha'] == self.record['candidate'], f'{name} run differs from candidate source')
         if step.get('workflow_commit'):
             require(step['workflow_commit'] == run['head_sha'], f'{name} workflow source changed')
@@ -191,6 +210,8 @@ class Coordinator:
                 pair[1] + '-release' for pair in manifest_tool.components.ARTIFACTS.values()]
         if name == 'desktop':
             return [pair[0] + '-release' for pair in manifest_tool.components.ARTIFACTS.values()]
+        if name in PACKAGES:
+            return list(package_tool.ARTIFACTS[name])
         return STAGED[name] + (['Holder-windows-test-signed-installer']
             if name == 'windows' and self.record['windows_sign_test_installer'] else [])
 
@@ -247,6 +268,8 @@ class Coordinator:
         step = self.record['steps'][name]
         require(not (name in BUILDS and self.record.get('manifest')),
                 'Builds already belong to a verified manifest; select a new candidate instead of replacing inputs')
+        require(not (name in PACKAGES and self.record.get('python_packages')),
+                'Packages already belong to a verified release set; select a new candidate instead of replacing inputs')
         require(not step.get('retry_attempt'), f'{name} retry is already requested; resume to observe it')
         if step['status'] == 'dispatch_rejected':
             self.record.setdefault('rejected_dispatches', []).append({'step': name, **step})
@@ -361,6 +384,37 @@ class Coordinator:
         self.record['status'] = 'candidate_staged' if self.observe(PLATFORMS) else 'staging'
         self.persist()
 
+    def advance_packages(self):
+        self.advance()
+        if self.record['status'] != 'candidate_staged':
+            return
+        for name in PACKAGES:
+            if name not in self.record['steps']:
+                self.start(name)
+        if not self.observe(PACKAGES):
+            self.record['status'] = 'packages_building'
+            self.persist()
+            return
+        if 'python_packages' not in self.record:
+            packages = self.github.packages(self.record)
+            self.record.update(python_packages=packages, python_packages_sha256=digest(packages))
+            self.persist()
+        packages = self.record['python_packages']
+        require(digest(packages) == self.record['python_packages_sha256'], 'Saved Python release set changed')
+        require(set(packages) == set(PACKAGES), 'Python release set is incomplete')
+        for name, evidence in packages.items():
+            step = self.record['steps'][name]
+            artifacts = {item['name']: item for item in step['artifacts']}
+            dist, manifest = package_tool.ARTIFACTS[name]
+            require(evidence['source'] == self.record['candidate'] and evidence['version'] == self.record['version'] and
+                    evidence['run_id'] == step['run_id'] and evidence['attempt'] == step['attempt'] and
+                    evidence['distribution_artifact_id'] == artifacts[dist]['id'] and
+                    evidence['manifest_artifact_id'] == artifacts[manifest]['id'], 'Saved Python artifacts changed')
+            require(datetime.fromisoformat(evidence['inputs_expire_at'].replace('Z', '+00:00')) > now(),
+                    'Python release artifacts expired; select a new candidate')
+        self.record['status'] = 'packages_prepared'
+        self.persist()
+
 
 def summary(record):
     lines = [f'# Holder {record["version"]} candidate {record["number"]}', '',
@@ -384,8 +438,17 @@ def summary(record):
                          f'{artifact["expires_at"]} | {artifact.get("digest") or "not supplied by GitHub"} |')
     if record.get('error'):
         lines += ['', 'Stopped: ' + record['error']]
-    lines += ['', 'Remaining release work: platform/upgrade validation and signing handoffs; package distribution',
-              'validation; the maintainer publication decision; per-destination promotion/publication',
+    if record.get('python_packages'):
+        lines += ['', f'Python release set SHA256: `{record["python_packages_sha256"]}`',
+                  '| Package | File | SHA256 |', '| --- | --- | --- |']
+        for name, evidence in record['python_packages'].items():
+            for file in evidence['files']:
+                lines.append(f'| {name} | {file["name"]} | {file["sha256"]} |')
+    package_work = ('Python distributions prepared; publication from these exact bytes remains a subsequent step.'
+                    if record.get('python_packages') else 'Python distribution preparation: run packages with this record.')
+    lines += ['', package_work,
+              'Remaining release work: platform/upgrade validation and signing handoffs;',
+              'the maintainer publication decision; per-destination promotion/publication',
               'and package availability checks; website completion. Follow release/docs/runbook.md.',
               'This preparation entry point creates candidate branches and dispatches build/staging workflows.']
     return '\n'.join(lines) + '\n'
@@ -429,7 +492,7 @@ def validate_record(record):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('prepare', 'status'))
+    parser.add_argument('command', choices=('prepare', 'packages', 'status'))
     parser.add_argument('--record', type=Path, required=True)
     parser.add_argument('--repository', default=None)
     parser.add_argument('--candidate')
@@ -437,15 +500,17 @@ def main():
     parser.add_argument('--number', type=int)
     parser.add_argument('--windows-sign-test-installer', choices=('true', 'false'))
     parser.add_argument('--retry', choices=tuple(WORKFLOWS))
-    parser.add_argument('--wait', action='store_true', help='keep observing until staged or stopped')
+    parser.add_argument('--wait', action='store_true', help='keep observing until prepared or stopped')
     parser.add_argument('--poll-seconds', type=int, default=30)
     args = parser.parse_args()
     if args.record.suffix != '.json':
         parser.error('--record must name a .json file')
-    if args.retry and args.command != 'prepare':
-        parser.error('--retry requires prepare')
-    if args.wait and args.command != 'prepare':
-        parser.error('--wait requires prepare')
+    if args.retry and args.command == 'status':
+        parser.error('--retry requires prepare or packages')
+    if args.retry in PACKAGES and args.command != 'packages':
+        parser.error('Python package retries require packages')
+    if args.wait and args.command == 'status':
+        parser.error('--wait requires prepare or packages')
     if not 1 <= args.poll_seconds <= 60:
         parser.error('--poll-seconds must be between 1 and 60')
     github = GitHub()
@@ -472,7 +537,7 @@ def main():
                 record = initialize(github, args.repository or 'HolderTeam/holder', args.candidate,
                                     args.version, args.number, args.windows_sign_test_installer != 'false')
                 save(args.record, record)
-            if args.command == 'prepare':
+            if args.command in ('prepare', 'packages'):
                 coordinator = Coordinator(args.record, record, github)
                 try:
                     record.pop('error', None)
@@ -480,25 +545,29 @@ def main():
                         coordinator.retry(args.retry)
                     last_report = None
                     while True:
-                        coordinator.advance()
+                        if args.command == 'packages':
+                            coordinator.advance_packages()
+                        else:
+                            coordinator.advance()
                         report = summary(record)
                         args.record.with_suffix('.summary.md').write_text(report)
                         if report != last_report:
                             print(report, flush=True)
                             last_report = report
-                        if not args.wait or record['status'] == 'candidate_staged':
+                        target = 'packages_prepared' if args.command == 'packages' else 'candidate_staged'
+                        if not args.wait or record['status'] == target:
                             break
                         time.sleep(args.poll_seconds)
-                except (ValueError, APIError, KeyError, subprocess.CalledProcessError) as error:
+                except (ValueError, APIError, KeyError, subprocess.CalledProcessError, zipfile.BadZipFile, tarfile.TarError) as error:
                     record.update(status='stopped', error=str(error))
                     coordinator.persist()
                     raise
                 finally:
                     args.record.with_suffix('.summary.md').write_text(summary(record))
-    except (ValueError, APIError, KeyError, subprocess.CalledProcessError) as error:
+    except (ValueError, APIError, KeyError, subprocess.CalledProcessError, zipfile.BadZipFile, tarfile.TarError) as error:
         parser.exit(1, f'Candidate preparation stopped: {error}\n')
     except KeyboardInterrupt:
-        parser.exit(130, 'Interrupted; resume prepare with the same release record\n')
+        parser.exit(130, 'Interrupted; resume the command with the same release record\n')
 
 
 if __name__ == '__main__':
