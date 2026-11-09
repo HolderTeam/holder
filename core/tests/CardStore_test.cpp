@@ -2568,3 +2568,66 @@ TEST_CASE("CardStore mutations reject a bad rel_path or a missing durable file",
   );
   REQUIRE_THROWS_WITH(store.update_links(missing_file.card_id, 2), kMissing);
 }
+
+TEST_CASE(
+    "Card creation rejects foreign link and milestone owners before writing the card",
+    "[cardstore][owner-validation]"
+) {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  const auto root = dir / "project";
+  create_project(db, "proj-1", root.string());
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore store(db, &fts);
+  holder::model::Card card;
+  card.card_id = "11111111-1111-4111-8111-111111111111";
+  card.project_id = "proj-1";
+  card.title = "Validated owner";
+  card.created_at = card.updated_at = 1;
+  std::vector<holder::model::CardLink> links;
+  std::vector<holder::model::Milestone> milestones;
+  std::string expected;
+  SECTION("link in another project") {
+    holder::model::CardLink link;
+    link.project_id = "other-project";
+    link.from_card_id = card.card_id;
+    links.push_back(link);
+    expected = "card link source does not match new card";
+  }
+  SECTION("link from another card") {
+    holder::model::CardLink link;
+    link.project_id = card.project_id;
+    link.from_card_id = "other-card";
+    links.push_back(link);
+    expected = "card link source does not match new card";
+  }
+  SECTION("milestone in another project") {
+    holder::model::Milestone milestone;
+    milestone.milestone_id = "milestone-1";
+    milestone.project_id = "other-project";
+    milestone.card_id = card.card_id;
+    milestones.push_back(milestone);
+    expected = "milestone owner does not match new card";
+  }
+  SECTION("milestone on another card") {
+    holder::model::Milestone milestone;
+    milestone.milestone_id = "milestone-1";
+    milestone.project_id = card.project_id;
+    milestone.card_id = "other-card";
+    milestones.push_back(milestone);
+    expected = "milestone owner does not match new card";
+  }
+  REQUIRE_THROWS_WITH(
+      store.create(card, "Must not be saved", std::nullopt, links, milestones),
+      Catch::Matchers::ContainsSubstring(expected)
+  );
+  REQUIRE_FALSE(store.get(card.card_id));
+  REQUIRE_FALSE(std::filesystem::exists(root / holder::core::card_rel_path(card.card_id)));
+  REQUIRE(fts.search_cards("proj-1", "saved", 10, 0).empty());
+  REQUIRE_NOTHROW(store.create(card, "Saved body"));
+  const auto saved = store.get(card.card_id);
+  REQUIRE(saved.has_value());
+  REQUIRE(store.get_content(*saved) == "Saved body");
+}

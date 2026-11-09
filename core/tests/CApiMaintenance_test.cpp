@@ -10,6 +10,9 @@
 #include "git/EcdsaDerSigningCredentialProvider.h"
 #include "project/ProjectRepo.h"
 #include "resource/ResourceRepo.h"
+#include "resource/LocationRepo.h"
+#include "card/LinkRepo.h"
+#include "platform/Tx.h"
 
 #include <holder/holder_api.h>
 #include <memory>
@@ -18,6 +21,7 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <set>
 
 namespace {
 struct Host {
@@ -899,4 +903,256 @@ TEST_CASE(
   REQUIRE(messages.get("guarded-message")->deleted_at == 50);
   REQUIRE_NOTHROW(messages.remove_trashed(project, "guarded-message"));
   REQUIRE_FALSE(messages.get("guarded-message"));
+}
+
+TEST_CASE(
+    "Generated resources expose encrypted placement metadata and reject unknown encodings",
+    "[capi][resource-boundaries]"
+) {
+  Host host;
+  const auto project = host.project();
+  holder::resource::LocationRepo(host.db).put(
+      {"location-1", project, "Files", "local_directory", {}, 10, 20}
+  );
+  holder::model::ResourceBundle bundle;
+  bundle.resource = {"resource-1", project, "document", "Notes", {}, 10, 20};
+  bundle.assets.push_back(
+      {"asset-1",
+       "resource-1",
+       "notes.txt",
+       "text/plain",
+       4,
+       std::string(64, 'a'),
+       10,
+       20,
+       {{"placement-1",
+         "asset-1",
+         "location-1",
+         "object/notes",
+         "holder_asset_v1",
+         64,
+         std::string(64, 'b'),
+         10}}}
+  );
+  holder::resource::ResourceRepo(host.db).put_bundle(bundle);
+  const holder_resource* resource = nullptr;
+  REQUIRE(
+      holder_get_resource(
+          &host.context,
+          project.c_str(),
+          "resource-1",
+          host.arena.get(),
+          &resource,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(resource->assets.count == 1);
+  const auto& asset = resource->assets.items[0];
+  REQUIRE(std::string(asset.original_filename) == "notes.txt");
+  REQUIRE(asset.byte_size == 4);
+  REQUIRE(asset.placements.count == 1);
+  REQUIRE(asset.placements.items[0].encoding == HOLDER_ASSET_PLACEMENT_ENCODING_HOLDER_ASSET_V1);
+  REQUIRE(asset.placements.items[0].stored_byte_size == 64);
+  host.db.exec("UPDATE asset_placements SET encoding='unsupported';");
+  host.failed(
+      holder_get_resource(
+          &host.context,
+          project.c_str(),
+          "resource-1",
+          host.arena.get(),
+          &resource,
+          &host.error
+      ),
+      HOLDER_ERROR_RUNTIME
+  );
+  REQUIRE(resource == nullptr);
+  host.db.exec("UPDATE asset_placements SET encoding='holder_asset_v1';");
+  REQUIRE(
+      holder_get_resource(
+          &host.context,
+          project.c_str(),
+          "resource-1",
+          host.arena.get(),
+          &resource,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(
+      resource->assets.items[0].placements.items[0].encoding ==
+      HOLDER_ASSET_PLACEMENT_ENCODING_HOLDER_ASSET_V1
+  );
+}
+
+TEST_CASE(
+    "Generated card resource listings cross the repository page boundary without truncation",
+    "[capi][resource-boundaries]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto card = host.card(project, "Many attachments");
+  int count = 1000;
+  SECTION("exactly one full page") { count = 1000; }
+  SECTION("one attachment beyond a full page") { count = 1001; }
+  holder::resource::ResourceRepo resources(host.db);
+  std::vector<holder::model::CardLink> links;
+  {
+    holder::platform::Tx transaction(host.db);
+    for (int i = 0; i < count; ++i) {
+      const auto id = "resource-" + std::to_string(i);
+      resources.add({id, project, "document", "Attachment " + std::to_string(i), {}, i + 1, i + 1});
+      links.push_back(
+          {project, card, id, "resource", "attachment", std::nullopt, i + 1, std::nullopt}
+      );
+    }
+    holder::card::LinkRepo(host.db).upsert_links(project, card, links);
+    transaction.commit();
+  }
+  const holder_resource_list* result = nullptr;
+  REQUIRE(
+      holder_list_card_resources(
+          &host.context,
+          project.c_str(),
+          card.c_str(),
+          host.arena.get(),
+          &result,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(result->count == static_cast<size_t>(count));
+  std::set<std::string> ids;
+  for (size_t i = 0; i < result->count; ++i) {
+    REQUIRE(std::string(result->items[i].project_id) == project);
+    REQUIRE(ids.insert(result->items[i].resource_id).second);
+  }
+  REQUIRE(ids.contains("resource-0"));
+  REQUIRE(ids.contains("resource-" + std::to_string(count - 1)));
+}
+
+TEST_CASE(
+    "Generated links round trip AI and resource targets and combine available backlink sources",
+    "[capi][typed-link-roundtrip]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto card = host.card(project, "Linked card");
+  host.message(project, "linked-message", "Conversation body");
+  holder::resource::ResourceRepo(host.db).add(
+      {"linked-resource", project, "document", "Notes", {}, 10, 10}
+  );
+  struct Target {
+    const char* id;
+    holder_new_link_target_type create;
+    holder_link_target_type returned;
+    holder_remove_card_link_target_type remove;
+  };
+  const Target targets[] = {
+      {"linked-message",
+       HOLDER_NEW_LINK_TARGET_TYPE_AI_MESSAGE,
+       HOLDER_LINK_TARGET_TYPE_AI_MESSAGE,
+       HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_MESSAGE},
+      {"thread-linked-message",
+       HOLDER_NEW_LINK_TARGET_TYPE_AI_THREAD,
+       HOLDER_LINK_TARGET_TYPE_AI_THREAD,
+       HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_THREAD},
+      {"linked-resource",
+       HOLDER_NEW_LINK_TARGET_TYPE_RESOURCE,
+       HOLDER_LINK_TARGET_TYPE_RESOURCE,
+       HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_RESOURCE}
+  };
+  for (const auto& target : targets) {
+    holder_new_link request{};
+    request.target_id = target.id;
+    request.target_type = target.create;
+    request.kind = "ref";
+    const holder_link* result = nullptr;
+    REQUIRE(
+        holder_add_card_link(
+            &host.context,
+            project.c_str(),
+            card.c_str(),
+            &request,
+            host.arena.get(),
+            &result,
+            &host.error
+        ) == HOLDER_OK
+    );
+    REQUIRE(result->target_type == target.returned);
+    REQUIRE(std::string(result->target_id) == target.id);
+    REQUIRE(result->source_type == HOLDER_LINK_SOURCE_TYPE_CARD);
+  }
+  // One incoming AI-message link in this project and one card link in another
+  // available project must both be represented with their source types intact.
+  holder::card::LinkRepo(host.db).upsert_links(
+      project,
+      "linked-message",
+      {{project, "linked-message", card, "card", "ref", std::nullopt, 10, std::nullopt}}
+  );
+  holder::ai::AiMessageRepo(host.db, &host.fts).update_links("linked-message");
+  const auto other = host.project();
+  const auto other_card = host.card(other, "External source");
+  holder_new_link incoming{};
+  incoming.target_id = card.c_str();
+  incoming.target_project_id = project.c_str();
+  incoming.target_type = HOLDER_NEW_LINK_TARGET_TYPE_CARD;
+  const holder_link* result = nullptr;
+  REQUIRE(
+      holder_add_card_link(
+          &host.context,
+          other.c_str(),
+          other_card.c_str(),
+          &incoming,
+          host.arena.get(),
+          &result,
+          &host.error
+      ) == HOLDER_OK
+  );
+  const holder_link_list* backlinks = nullptr;
+  REQUIRE(
+      holder_list_card_backlinks(
+          &host.context,
+          project.c_str(),
+          card.c_str(),
+          HOLDER_LIST_CARD_BACKLINKS_SCOPE_ALL_AVAILABLE,
+          false,
+          host.arena.get(),
+          &backlinks,
+          &host.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(backlinks->count == 2);
+  std::set<holder_link_source_type> types;
+  std::set<std::string> sources;
+  for (size_t i = 0; i < backlinks->count; ++i) {
+    types.insert(backlinks->items[i].source_type);
+    sources.insert(backlinks->items[i].source_id);
+  }
+  REQUIRE(
+      types == std::set<holder_link_source_type>{
+                   HOLDER_LINK_SOURCE_TYPE_CARD,
+                   HOLDER_LINK_SOURCE_TYPE_AI_MESSAGE
+               }
+  );
+  REQUIRE(sources == std::set<std::string>{"linked-message", other_card});
+  size_t remaining = 3;
+  for (const auto& target : targets) {
+    const holder_link_list* links = nullptr;
+    REQUIRE(
+        holder_remove_card_link(
+            &host.context,
+            project.c_str(),
+            card.c_str(),
+            target.remove,
+            target.id,
+            "ref",
+            nullptr,
+            host.arena.get(),
+            &links,
+            &host.error
+        ) == HOLDER_OK
+    );
+    --remaining;
+    REQUIRE(links->count == remaining);
+    for (size_t i = 0; i < links->count; ++i)
+      REQUIRE(std::string(links->items[i].target_id) != target.id);
+  }
 }
