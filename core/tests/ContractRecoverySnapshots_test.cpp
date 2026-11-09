@@ -909,6 +909,16 @@ TEST_CASE(
     host.db.exec("UPDATE card_links SET to_type='future-target';");
     repair = "UPDATE card_links SET to_type='resource';";
   }
+  SECTION("unknown persisted project privacy mode") {
+    // Model a database from an unsupported writer: normal writes cannot bypass
+    // this CHECK constraint. Readers must reject it rather than export plaintext
+    // under a guessed privacy mode.
+    host.db.exec("PRAGMA ignore_check_constraints=ON;");
+    host.db.exec("UPDATE projects SET privacy_mode='future-privacy';");
+    host.db.exec("PRAGMA ignore_check_constraints=OFF;");
+    repair = "UPDATE projects SET privacy_mode='plain';";
+    REQUIRE_THROWS_AS(contract::get_project(host.context, host.project_id), contract::Error);
+  }
   const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
       holder_arena_new(),
       holder_arena_free
