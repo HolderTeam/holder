@@ -3,6 +3,26 @@ name: Release / Promote Linux AppImage
 on:
   workflow_dispatch:
     inputs:
+      release_request:
+        description: Optional coordinator request identifier
+        type: string
+        default: ''
+      signing_artifact_id:
+        description: Optional immutable signed artifact ID; provide with ZIP SHA256 and candidate commit
+        type: string
+        default: ''
+      signing_artifact_sha256:
+        description: SHA256 of the pinned signed artifact ZIP
+        type: string
+        default: ''
+      candidate_commit:
+        description: Optional full candidate source SHA that the existing release tag must identify
+        type: string
+        default: ''
+      replace_draft_assets:
+        description: Explicit manual replacement of conflicting draft assets; unavailable with pinned inputs
+        type: boolean
+        default: false
       expected_version:
         description: Exact signed AppImage version, for example 0.2.0 or 0.2.0-dev
         required: true
@@ -22,7 +42,7 @@ on:
         default: false
         type: boolean
 
-run-name: Promote Linux AppImage ${{ inputs.expected_version }} to release
+run-name: ${{ inputs.release_request || format('Promote Linux AppImage {0} to release', inputs.expected_version) }}
 
 permissions:
   actions: read
@@ -55,8 +75,22 @@ jobs:
           EXPECTED_VERSION: ${{ inputs.expected_version }}
           RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
           SIGNING_RUN_ID: ${{ inputs.signing_run_id }}
+          ARTIFACT_ID: ${{ inputs.signing_artifact_id }}
+          ARTIFACT_SHA256: ${{ inputs.signing_artifact_sha256 }}
+          CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
+          REPLACE_DRAFT_ASSETS: ${{ inputs.replace_draft_assets }}
         run: |
           set -euo pipefail
+
+          python3 - <<'PY'
+          import os, re
+          identifier, checksum, candidate = (os.environ[name] for name in ('ARTIFACT_ID', 'ARTIFACT_SHA256', 'CANDIDATE_COMMIT'))
+          assert bool(identifier) == bool(checksum), 'Provide both signed artifact ID and ZIP SHA256'
+          assert not candidate or re.fullmatch(r'[0-9a-f]{40}', candidate), 'Candidate commit must be a full SHA'
+          if identifier:
+              assert identifier.isdecimal() and re.fullmatch(r'[0-9a-f]{64}', checksum) and candidate, 'Pinned promotion needs artifact ID, ZIP SHA256 and candidate SHA'
+              assert os.environ['REPLACE_DRAFT_ASSETS'] != 'true', 'Pinned promotion cannot replace draft assets'
+          PY
 
           semver_pattern='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
           if ! [[ "${EXPECTED_VERSION}" =~ ${semver_pattern} ]]; then
@@ -83,6 +117,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Download exact signed AppImage artifact
+        if: inputs.signing_artifact_id == ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ steps.release.outputs.artifact_name }}
@@ -90,6 +125,20 @@ jobs:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: ${{ inputs.signing_run_id }}
+
+      - name: Download the pinned signed artifact
+        if: inputs.signing_artifact_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNING_RUN_ID: ${{ inputs.signing_run_id }}
+          ARTIFACT_ID: ${{ inputs.signing_artifact_id }}
+          ARTIFACT_SHA256: ${{ inputs.signing_artifact_sha256 }}
+          CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+        run: |
+          python3 release/scripts/linux-candidate.py --signed --repository "$GITHUB_REPOSITORY" \
+            --run-id "$SIGNING_RUN_ID" --artifact-id "$ARTIFACT_ID" --archive-sha256 "$ARTIFACT_SHA256" \
+            --version "$EXPECTED_VERSION" --candidate "$CANDIDATE_COMMIT" --output downloads/linux-signed
 
       - name: Install verification dependencies
         run: |
@@ -141,6 +190,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download verified signed artifact again
+        if: inputs.signing_artifact_id == ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ needs.verify_candidate.outputs.artifact_name }}
@@ -148,6 +198,20 @@ jobs:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: ${{ inputs.signing_run_id }}
+
+      - name: Download the same pinned signed bytes
+        if: inputs.signing_artifact_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNING_RUN_ID: ${{ inputs.signing_run_id }}
+          ARTIFACT_ID: ${{ inputs.signing_artifact_id }}
+          ARTIFACT_SHA256: ${{ inputs.signing_artifact_sha256 }}
+          CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+        run: |
+          python3 release/scripts/linux-candidate.py --signed --repository "$GITHUB_REPOSITORY" \
+            --run-id "$SIGNING_RUN_ID" --artifact-id "$ARTIFACT_ID" --archive-sha256 "$ARTIFACT_SHA256" \
+            --version "$EXPECTED_VERSION" --candidate "$CANDIDATE_COMMIT" --output downloads/linux-signed
 
       - name: Install release dependencies
         run: |
@@ -229,7 +293,7 @@ jobs:
 
           find "${payload_dir}" -maxdepth 1 -type f -printf '%f\n' | sort
 
-      - name: Resolve or create exact release
+      - name: Promote missing Linux assets and verify the exact release
         id: draft
         env:
           ALLOW_PUBLISHED_PRERELEASE: ${{ inputs.allow_published_prerelease }}
@@ -237,70 +301,41 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_REPOSITORY: ${{ github.repository }}
           RELEASE_TAG: ${{ needs.verify_candidate.outputs.release_tag }}
+          CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
+          REPLACE_DRAFT_ASSETS: ${{ inputs.replace_draft_assets }}
+          SIGNING_RUN_ID: ${{ inputs.signing_run_id }}
+          ARTIFACT_ID: ${{ inputs.signing_artifact_id }}
+          ARTIFACT_SHA256: ${{ inputs.signing_artifact_sha256 }}
         run: |
           set -euo pipefail
+          options=()
+          if [ -n "$CANDIDATE_COMMIT" ]; then options+=(--candidate "$CANDIDATE_COMMIT"); fi
+          if [ "$ALLOW_PUBLISHED_PRERELEASE" = true ]; then options+=(--allow-published-prerelease); fi
+          if [ "$REPLACE_DRAFT_ASSETS" = true ]; then options+=(--replace-draft-assets); fi
+          python3 release/scripts/promote-linux.py --repository "$RELEASE_REPOSITORY" \
+            --tag "$RELEASE_TAG" --version "$EXPECTED_VERSION" --directory out/linux-release-payload \
+            --receipt out/linux-promotion.json "${options[@]}"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('out/linux-promotion.json')
+          result = json.loads(path.read_text())
+          result['source'] = {'signing_run_id': os.environ['SIGNING_RUN_ID'],
+              'artifact_id': os.environ['ARTIFACT_ID'], 'archive_sha256': os.environ['ARTIFACT_SHA256']}
+          result['promotion_workflow'] = {'repository': os.environ['GITHUB_REPOSITORY'],
+              'run_id': os.environ['GITHUB_RUN_ID'], 'commit': os.environ['GITHUB_SHA']}
+          path.write_text(json.dumps(result, indent=2) + '\n')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('release_url=' + result['release']['url'] + '\n')
+          PY
 
-          releases="$(gh api "repos/${RELEASE_REPOSITORY}/releases?per_page=100")"
-          matching_release="$(
-            jq -c --arg tag "${RELEASE_TAG}" \
-              '[.[] | select(.tag_name == $tag)]' <<<"${releases}"
-          )"
-          match_count="$(jq 'length' <<<"${matching_release}")"
-          if [ "${match_count}" -gt 1 ]; then
-            echo "GitHub returned more than one release for tag ${RELEASE_TAG}." >&2
-            exit 1
-          fi
-
-          if [ "${match_count}" -eq 1 ]; then
-            is_draft="$(jq -r '.[0].draft' <<<"${matching_release}")"
-            is_prerelease="$(jq -r '.[0].prerelease' <<<"${matching_release}")"
-            if [ "${is_draft}" != "true" ] &&
-               { [ "${ALLOW_PUBLISHED_PRERELEASE}" != "true" ] || [ "${is_prerelease}" != "true" ]; }; then
-              echo "Release ${RELEASE_TAG} is already published; only an explicitly allowed prerelease may be updated." >&2
-              exit 1
-            fi
-            release_url="$(jq -r '.[0].html_url' <<<"${matching_release}")"
-            echo "Using existing release ${RELEASE_TAG} without changing its title or description."
-          else
-            create_args=(
-              "${RELEASE_TAG}"
-              --repo "${RELEASE_REPOSITORY}"
-              --draft
-              --title "Holder ${EXPECTED_VERSION}"
-              --notes "Release notes pending. Edit this draft before publishing."
-            )
-            if [[ "${EXPECTED_VERSION}" == *-* ]]; then
-              create_args+=(--prerelease)
-            fi
-            gh release create "${create_args[@]}"
-            release_url="$(
-              gh release view "${RELEASE_TAG}" \
-                --repo "${RELEASE_REPOSITORY}" \
-                --json url \
-                --jq '.url'
-            )"
-            echo "Created draft ${RELEASE_TAG}."
-          fi
-
-          {
-            echo "release_url=${release_url}"
-          } >> "${GITHUB_OUTPUT}"
-
-      - name: Upload Linux assets without editing release notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_REPOSITORY: ${{ github.repository }}
-          RELEASE_TAG: ${{ needs.verify_candidate.outputs.release_tag }}
-        run: |
-          set -euo pipefail
-
-          mapfile -t assets < <(
-            find out/linux-release-payload -maxdepth 1 -type f | sort
-          )
-          gh release upload "${RELEASE_TAG}" \
-            --repo "${RELEASE_REPOSITORY}" \
-            --clobber \
-            "${assets[@]}"
+      - name: Retain the promotion receipt
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-release-promotion
+          path: out/linux-promotion.json
+          if-no-files-found: error
+          overwrite: true
 
       - name: Summarize promotion
         env:
