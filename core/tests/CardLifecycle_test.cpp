@@ -181,6 +181,63 @@ TEST_CASE("A card mutation journal recovers files without a Git repository",
   CHECK_FALSE(fs.exists(root / ".git"));
 }
 
+TEST_CASE("Mutation preparation preserves an invalid Git repository for explicit repair",
+          "[cardstore][batch-journal-preparation]") {
+  Fixture f;
+  f.add(parent_id);
+  const auto root = std::filesystem::path(f.project.root_path);
+  const auto original = f.bytes(parent_id);
+  const auto head = f.head();
+  std::filesystem::path damaged;
+  std::filesystem::path backup;
+  SECTION("invalid Git directory pointer") {
+    damaged = root / ".git";
+    backup = root / ".git.saved";
+    std::filesystem::rename(damaged, backup);
+    std::ofstream(damaged) << "not a gitdir pointer\n";
+  }
+  SECTION("corrupt Git index") {
+    damaged = root / ".git/index";
+    backup = root / ".git/index.saved";
+    std::filesystem::rename(damaged, backup);
+    std::ofstream(damaged) << "not a Git index\n";
+  }
+  const auto corrupt = f.fs.read_file(damaged);
+  REQUIRE_THROWS_WITH(holder::card::CardMutation(f.fs, root,
+      {holder::core::card_rel_path(parent_id)}, {}),
+      Catch::Matchers::ContainsSubstring("card mutation Git failure:"));
+  CHECK(f.bytes(parent_id) == original);
+  CHECK(f.fs.read_file(damaged) == corrupt);
+  REQUIRE(std::filesystem::remove(damaged));
+  std::filesystem::rename(backup, damaged);
+  CHECK(f.head() == head);
+  CHECK_FALSE(holder::card::CardMutation::pending(root));
+  REQUIRE_NOTHROW(holder::card::CardMutation(f.fs, root,
+      {holder::core::card_rel_path(parent_id)}, {}));
+}
+
+TEST_CASE("A pending mutation journal blocks a new mutation without replacing recovery evidence",
+          "[cardstore][batch-journal-preparation]") {
+  Fixture f;
+  f.add(parent_id);
+  const auto root = std::filesystem::path(f.project.root_path);
+  const auto relative = holder::core::card_rel_path(parent_id);
+  const auto journal = root / ".git/holder-card-mutation";
+  const auto original = f.bytes(parent_id);
+  const auto head = f.head();
+  holder::card::CardMutation first(f.fs, root, {relative}, {{relative, "new bytes"}});
+  first.begin();
+  const auto saved = f.fs.read_file(journal);
+  REQUIRE_THROWS_WITH(holder::card::CardMutation(f.fs, root, {relative}, {}),
+                      Catch::Matchers::ContainsSubstring("card mutation recovery required"));
+  CHECK(f.fs.read_file(journal) == saved);
+  CHECK(f.bytes(parent_id) == original);
+  CHECK(f.head() == head);
+  first.rollback();
+  CHECK_FALSE(holder::card::CardMutation::pending(root));
+  REQUIRE_NOTHROW(holder::card::CardMutation(f.fs, root, {relative}, {}));
+}
+
 TEST_CASE("Incomplete journal and recovery writes are detected and can be retried",
           "[cardstore][journal-boundaries]") {
   Fixture f;

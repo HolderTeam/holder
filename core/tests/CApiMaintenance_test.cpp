@@ -85,6 +85,57 @@ struct Host {
 };
 } // namespace
 
+TEST_CASE("Generated C API rejects unsupported input enums without changing cards",
+          "[capi][batch-enum-validation]") {
+  Host host;
+  const auto project = host.project();
+  const auto card_id = host.card(project, "Keep me");
+  const auto project_row = holder::project::ProjectRepo(host.db).get(project);
+  REQUIRE(project_row.has_value());
+  holder::git::GitRepo git;
+  git.open_existing(project_row->root_path);
+  const auto head = git.head_oid();
+  for (int operation = 0; operation < 5; ++operation) {
+    INFO("invalid enum operation " << operation);
+    const holder_card_list_item_page* cards = nullptr;
+    const holder_card* card = nullptr;
+    const holder_project_history_page* history = nullptr;
+    const holder_card_history_comparison* comparison = nullptr;
+    const holder_trash_empty_result* emptied = nullptr;
+    int status;
+    if (operation == 0) {
+      holder_list_cards_parent parent{};
+      parent.kind = HOLDER_LIST_CARDS_PARENT_MAX_ENUM;
+      status = holder_list_cards(&host.context, project.c_str(), parent, nullptr,
+          HOLDER_LIST_CARDS_ORDER_DEFAULT, nullptr, nullptr, false, false, host.arena.get(), &cards, &host.error);
+    } else if (operation == 1) {
+      status = holder_trash_card(&host.context, project.c_str(), card_id.c_str(),
+          HOLDER_TRASH_CARD_CHILDREN_MAX_ENUM, host.arena.get(), &card, &host.error);
+    } else if (operation == 2) {
+      status = holder_list_project_history(&host.context, project.c_str(), nullptr, nullptr,
+          HOLDER_LIST_PROJECT_HISTORY_KIND_MAX_ENUM, host.arena.get(), &history, &host.error);
+    } else if (operation == 3) {
+      status = holder_compare_card_history(&host.context, project.c_str(), card_id.c_str(),
+          head->c_str(), nullptr, HOLDER_COMPARE_CARD_HISTORY_MODE_MAX_ENUM,
+          host.arena.get(), &comparison, &host.error);
+    } else {
+      status = holder_empty_trash(&host.context, project.c_str(), HOLDER_EMPTY_TRASH_TYPE_MAX_ENUM,
+          host.arena.get(), &emptied, &host.error);
+    }
+    host.failed(status, HOLDER_ERROR_INVALID_ARGUMENT);
+    CHECK(cards == nullptr);
+    CHECK(card == nullptr);
+    CHECK(history == nullptr);
+    CHECK(comparison == nullptr);
+    CHECK(emptied == nullptr);
+    CHECK(git.head_oid() == head);
+    const auto current = holder::card::CardRepo(host.db).get(card_id);
+    REQUIRE(current.has_value());
+    CHECK_FALSE(current->deleted_at.has_value());
+    CHECK(current->title == "Keep me");
+  }
+}
+
 TEST_CASE(
     "Generated card moves reject invalid targets and damaged sources without changing hierarchy",
     "[capi][move-errors]"

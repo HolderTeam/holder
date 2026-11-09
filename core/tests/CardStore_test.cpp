@@ -2438,6 +2438,40 @@ TEST_CASE("CardStore tag and historical restore methods reject missing cards", "
   );
 }
 
+TEST_CASE("Permanent deletion checks project ownership before changing a trashed card",
+          "[cardstore][batch-delete-ownership]") {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  const auto root = dir / "project";
+  create_project(db, "proj-1", root.string());
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore store(db, &fts);
+  holder::model::Card card;
+  card.card_id = "aaaaaaaa-1111-4111-8111-111111111111";
+  card.project_id = "proj-1";
+  card.title = "Keep trash";
+  card.created_at = card.updated_at = 1;
+  store.create(card, "Trashed body");
+  store.trash(card.card_id, 10);
+  holder::git::GitRepo git;
+  git.open_existing(root);
+  const auto head = git.head_oid();
+  const auto path = root / holder::core::card_trash_rel_path(card.card_id);
+  REQUIRE_THROWS_WITH(store.hard_delete(card.card_id, "wrong-project"),
+                      Catch::Matchers::ContainsSubstring("card not found in project:"));
+  const auto saved = store.get(card.card_id);
+  REQUIRE(saved.has_value());
+  CHECK(saved->deleted_at == 10);
+  CHECK(store.get_content(*saved) == "Trashed body");
+  CHECK(std::filesystem::is_regular_file(path));
+  CHECK(git.head_oid() == head);
+  store.hard_delete(card.card_id, "proj-1");
+  CHECK_FALSE(store.get(card.card_id).has_value());
+  CHECK_FALSE(std::filesystem::exists(path));
+}
+
 TEST_CASE(
     "CardStore rejects missing milestone content and malformed historical blobs",
     "[cardstore][history]"
