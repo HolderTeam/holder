@@ -326,6 +326,8 @@ coverage_all() {
   genhtml "${info_total}" --output-directory "${report_dir}" --title "holder core coverage"
 
   if command -v gcovr >/dev/null 2>&1; then
+    # --object-directory resolves gcov paths; the positional search path keeps
+    # unrelated builds from contributing stale or conflicting counters.
     gcovr \
       --root . \
       --object-directory "${build_dir}" \
@@ -339,7 +341,8 @@ coverage_all() {
       --exclude-function-lines \
       --exclude-noncode-lines \
       --json-pretty \
-      --output "${coverage_json}"
+      --output "${coverage_json}" \
+      "${build_dir}"
     echo "Coverage JSON:   ${coverage_json}"
   else
     echo "Coverage JSON:   skipped (gcovr not found)" >&2
