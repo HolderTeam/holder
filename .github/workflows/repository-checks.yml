@@ -29,6 +29,8 @@ jobs:
         run: python3 -m pip install 'build>=1.2,<2' 'hatchling>=1.27' 'scikit-build-core>=0.11'
       - name: Test version derivation and source distributions
         run: python3 -m unittest discover -s release/tests -v
+      - name: Test release manifest generation and staging contracts
+        run: python3 -m unittest discover -s release/staging/tests -v
       - name: Check dynamic Python metadata and root VERSION
         run: python3 release/scripts/version.py --check
       - name: Check that only contract/ uses the contract's tooling
