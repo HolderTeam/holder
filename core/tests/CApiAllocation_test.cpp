@@ -1,10 +1,16 @@
-#include <holder/holder_api.h>
 #include "capi/Context.h"
+#include <holder/holder_api.h>
+
+#include <git2.h>
+#include <git2/sys/alloc.h>
 
 #include <cstddef>
 #include <cstdio>
-#include <new>
+#include <cstdlib>
 #include <memory>
+#include <new>
+#include <string>
+#include <unistd.h>
 
 // GNU/LLVM linkers can fail the next allocation in the statically linked core
 // without replacing the allocator in shared dependencies or the test framework.
@@ -13,6 +19,23 @@ namespace {
 bool fail_next_allocation = false;
 bool throw_nonstandard = false;
 int allocations_until_failure = 1;
+bool fail_next_git_allocation = false;
+
+void* git_malloc(size_t size, const char*, int) {
+  if (fail_next_git_allocation) {
+    fail_next_git_allocation = false;
+    return nullptr;
+  }
+  return std::malloc(size);
+}
+
+void* git_realloc(void* pointer, size_t size, const char*, int) {
+  if (fail_next_git_allocation) {
+    fail_next_git_allocation = false;
+    return nullptr;
+  }
+  return std::realloc(pointer, size);
+}
 } // namespace
 
 extern "C" void* __real__Znwm(std::size_t size);
@@ -169,5 +192,38 @@ int main() {
   if (holder_version(arena, &version, &error) != HOLDER_OK || !version || error) ++failures;
   holder_error_destroy(error);
   holder_arena_free(arena);
+  // libgit2 exposes an allocator seam, so its home-path allocation failure can
+  // be exercised without faking git_libgit2_opts or exhausting process memory.
+  std::string git_home = "/tmp/holder-git-home-" + std::string(180, 'x') + "-XXXXXX";
+  if (!mkdtemp(git_home.data())) return 1;
+  git_libgit2_init();
+  git_allocator failing_git_allocator{git_malloc, git_realloc, std::free};
+  if (git_libgit2_opts(GIT_OPT_SET_ALLOCATOR, &failing_git_allocator) != 0) {
+    std::fprintf(stderr, "Cannot install libgit2 allocator: %s\n", git_error_last()->message);
+    return 1;
+  }
+  error = nullptr;
+  fail_next_git_allocation = true;
+  const int configured = holder_configure_git_home(git_home.c_str(), &error);
+  const bool injected = !fail_next_git_allocation;
+  fail_next_git_allocation = false;
+  if (git_libgit2_opts(GIT_OPT_SET_ALLOCATOR, static_cast<git_allocator*>(nullptr)) != 0) {
+    std::fprintf(stderr, "Cannot restore libgit2 allocator: %s\n", git_error_last()->message);
+    return 1;
+  }
+  if (!injected || configured != HOLDER_ERROR_RUNTIME || error == nullptr) {
+    std::fprintf(
+        stderr,
+        "Git home: injected=%d, result=%d, error=%p\n",
+        injected,
+        configured,
+        static_cast<void*>(error)
+    );
+    ++failures;
+  }
+  holder_error_destroy(error);
+  // libgit2 keeps an OOM sentinel in its global home-path buffer. This isolated
+  // process exits here rather than assuming that restoring the allocator repairs it.
+  rmdir(git_home.c_str());
   return failures == 0 ? 0 : 1;
 }

@@ -90,6 +90,40 @@ struct Host {
 };
 } // namespace
 
+TEST_CASE(
+    "Card creation rejects a cyclic existing parent chain without writing a new card",
+    "[capi][cyclic-create-parent]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto first = host.card(project, "First");
+  const auto second = host.card(project, "Second", first.c_str());
+  host.db.exec("UPDATE cards SET parent_card_id='" + second + "' WHERE card_id='" + first + "';");
+  const auto record = holder::project::ProjectRepo(host.db).get(project);
+  REQUIRE(record.has_value());
+  holder::git::GitRepo git;
+  git.open_existing(record->root_path);
+  const auto head = git.head_oid();
+  holder_new_card request{};
+  request.title = "Cannot create";
+  request.parent_card_id = first.c_str();
+  const holder_card* card = nullptr;
+  host.failed(
+      holder_create_card(
+          &host.context,
+          project.c_str(),
+          &request,
+          host.arena.get(),
+          &card,
+          &host.error
+      ),
+      HOLDER_ERROR_INVALID_ARGUMENT
+  );
+  CHECK(card == nullptr);
+  CHECK(holder::card::CardRepo(host.db).list_all(project).size() == 2);
+  CHECK(git.head_oid() == head);
+}
+
 TEST_CASE("Card moves revalidate source and parent changes before writing", "[capi][broad-move-race]") {
   Host host;
   const auto project = host.project();
