@@ -86,6 +86,65 @@ std::string read_file(const std::filesystem::path& path) {
 
 } // namespace
 
+TEST_CASE("Milestone additions reject duplicates and damaged authoritative cards atomically",
+          "[cardstore][milestone-guards]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  const auto project = create_project(db, "proj-1", dir / "project");
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore store(db, &fts);
+  const auto card = create_card(store, project.project_id, "aaaaaaaa-1111-4111-8111-111111111111");
+  const auto original = milestone_for(project.project_id, card.card_id,
+                                      "11111111-1111-4111-8111-111111111111");
+  store.add_milestone(original, 10);
+  auto request = original;
+  const auto path = std::filesystem::path(project.root_path) / holder::core::card_rel_path(card.card_id);
+  const auto original_bytes = read_file(path);
+  std::string expected;
+  bool missing_file = false;
+  SECTION("duplicate milestone identity") { expected = "milestone ID already exists"; }
+  SECTION("empty owner identity") {
+    request.project_id.clear();
+    expected = "milestone project_id/card_id must not be empty";
+  }
+  SECTION("card content is missing") {
+    std::filesystem::rename(path, path.string() + ".saved");
+    missing_file = true;
+    expected = "card content missing";
+  }
+  SECTION("stored path does not match card identity") {
+    db.exec("UPDATE cards SET rel_path='cards/wrong.md';");
+    expected = "card rel_path does not match card_id";
+  }
+  SECTION("front matter belongs to a different card") {
+    auto wrong = original_bytes;
+    const auto at = wrong.find(card.card_id);
+    REQUIRE(at != std::string::npos);
+    wrong.replace(at, card.card_id.size(), "bbbbbbbb-2222-4222-8222-222222222222");
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    REQUIRE(output.is_open());
+    output << wrong;
+    expected = "card front matter identity mismatch";
+  }
+  holder::git::GitRepo git;
+  git.open_existing(project.root_path);
+  const auto head = git.head_oid();
+  const auto before = missing_file ? std::string() : read_file(path);
+  REQUIRE_THROWS_WITH(store.add_milestone(request, 30), Catch::Matchers::ContainsSubstring(expected));
+  CHECK(git.head_oid() == head);
+  const auto rows = holder::card::MilestoneRepo(db).list_for_card(project.project_id, card.card_id);
+  REQUIRE(rows.size() == 1);
+  CHECK(rows[0].milestone_id == original.milestone_id);
+  CHECK(rows[0].dates == original.dates);
+  CHECK(rows[0].updated_at == 10);
+  if (missing_file) {
+    CHECK_FALSE(std::filesystem::exists(path));
+    CHECK(read_file(path.string() + ".saved") == original_bytes);
+  } else {
+    CHECK(read_file(path) == before);
+  }
+}
+
 TEST_CASE(
     "Legacy milestone edits preserve unrelated dates and reject ambiguous roles atomically",
     "[cardstore][milestone-update][legacy-dates]"
