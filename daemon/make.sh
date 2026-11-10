@@ -482,14 +482,17 @@ coverage_all() {
   cmake_build "${build_dir}" -- -j "${JOBS}"
 
   lcov --directory "${build_dir}" --zerocounters
+  # Preserve executed line counts when GCC attaches an unexecuted cleanup block.
   lcov --capture --initial --directory "${build_dir}" --output-file "${info_base}" \
-    --ignore-errors gcov,gcov \
-    --rc geninfo_unexecuted_blocks=1
+    --ignore-errors gcov,gcov,inconsistent \
+    --rc geninfo_unexecuted_blocks=0
   ctest --test-dir "${build_dir}" --output-on-failure
   lcov --capture --directory "${build_dir}" --output-file "${info_tests}" \
-    --ignore-errors gcov,gcov \
-    --rc geninfo_unexecuted_blocks=1
-  lcov --add-tracefile "${info_base}" --add-tracefile "${info_tests}" --output-file "${info_total}"
+    --ignore-errors gcov,gcov,inconsistent \
+    --rc geninfo_unexecuted_blocks=0
+  # GCC can report covered lambda lines with zero function hits. Keep the warning.
+  lcov --add-tracefile "${info_base}" --add-tracefile "${info_tests}" --output-file "${info_total}" \
+    --ignore-errors inconsistent
   lcov --remove "${info_total}" \
     '/usr/*' \
     '*/submodules/*' \
@@ -511,7 +514,8 @@ coverage_all() {
       --exclude-throw-branches \
       --exclude-function-lines \
       --json-pretty \
-      --output "${coverage_json}"
+      --output "${coverage_json}" \
+      "${build_dir}"
     echo "Coverage JSON:   ${coverage_json}"
   else
     echo "Coverage JSON:   skipped (gcovr not found)" >&2
