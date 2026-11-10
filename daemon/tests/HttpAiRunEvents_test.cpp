@@ -257,12 +257,22 @@ TEST_CASE("HTTP ai run events streams from in-memory event stream", "[http]") {
   run.updated_at = 2;
   repo.create(run);
 
+  holder::api::support::append_run_event(run.run_id, ai_events::run_started, {}, false);
   holder::api::support::append_run_event(
       "run-stream-1",
       ai_events::progress,
       {.message = "step 1"},
       false
   );
+
+  bool truncated = false;
+  SECTION("complete history is replayed") {}
+  SECTION("truncated history requests a resync") {
+    truncated = true;
+    for (int i = 0; i < 512; ++i)
+      holder::api::support::append_run_event(run.run_id, ai_events::progress, {}, false);
+  }
+
   holder::api::support::append_run_event(
       "run-stream-1",
       ai_events::done,
@@ -280,10 +290,8 @@ TEST_CASE("HTTP ai run events streams from in-memory event stream", "[http]") {
   }
 
   holder::core::SignalHandler signals;
-  std::thread server_thread([&server, &signals]() {
-    server.run(signals);
-  });
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  holder::test::HttpServerThreadGuard guard(server, signals);
+  REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, token));
 
   const auto res = http_request_raw(
       bound.bind,
@@ -294,12 +302,15 @@ TEST_CASE("HTTP ai run events streams from in-memory event stream", "[http]") {
   );
   REQUIRE(res.status == boost::beast::http::status::ok);
   REQUIRE(res.content_type.find("text/event-stream") != std::string::npos);
-  REQUIRE(res.body.find("event: progress") != std::string::npos);
-  REQUIRE(res.body.find("event: done") != std::string::npos);
-  REQUIRE(res.body.find("\"run_id\":\"run-stream-1\"") != std::string::npos);
-
-  std::raise(SIGTERM);
-  server_thread.join();
+  if (truncated) {
+    CHECK(res.body.find("event: resync_required") != std::string::npos);
+    CHECK(res.body.find("history_unavailable") != std::string::npos);
+    CHECK(res.body.find("event: progress") == std::string::npos);
+  } else {
+    CHECK(res.body.find("event: progress") != std::string::npos);
+    CHECK(res.body.find("event: done") != std::string::npos);
+    CHECK(res.body.find("\"run_id\":\"run-stream-1\"") != std::string::npos);
+  }
 }
 
 TEST_CASE("RunEventStore trims in-memory event stream to last 512 events", "[http]") {
