@@ -27,8 +27,11 @@
     <file alias="512x512/apps/team.holder.Holder.png">data/icons/hicolor/512x512/apps/team.holder.Holder.png</file>
     <!-- The development launcher's local hicolor index only lists app icon directories. -->
     <file alias="16x16/apps/holder-tag-symbolic.svg">data/icons/hicolor/scalable/actions/holder-tag-symbolic.svg</file>
-    <!-- Bundle these theme fallbacks: macOS installations may omit the emblems. -->
-    <file alias="16x16/apps/emblem-documents-symbolic.svg">data/icons/hicolor/scalable/actions/emblem-documents-symbolic.svg</file>
+    <!-- Holder's own icon: no icon theme provides an Intelligence/AI glyph. -->
+    <file alias="16x16/apps/holder-intelligence-symbolic.svg">data/icons/hicolor/scalable/actions/holder-intelligence-symbolic.svg</file>
+    <!-- Theme fallbacks, used only when the active theme lacks the icon: Adwaita has no
+         emblem-ok and keeps utilities-terminal only in its legacy set. -->
     <file alias="16x16/apps/emblem-ok-symbolic.svg">data/icons/hicolor/scalable/actions/emblem-ok-symbolic.svg</file>
+    <file alias="16x16/apps/utilities-terminal-symbolic.svg">data/icons/hicolor/scalable/actions/utilities-terminal-symbolic.svg</file>
   </gresource>
 </gresources>

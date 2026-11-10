@@ -426,7 +426,7 @@ public class ToolboxPane : Object {
             "sharing",
             "Sharing"
         );
-        sharing_page.set_icon_name("emblem-shared-symbolic");
+        sharing_page.set_icon_name("send-to-symbolic");
 
         terminal_tool = new TerminalToolView();
         tool_adapters.set("terminals", terminal_tool);
