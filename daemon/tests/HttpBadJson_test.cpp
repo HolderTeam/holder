@@ -158,3 +158,38 @@ TEST_CASE("Project routes report missing cards resources and projects consistent
     CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == "not_found");
   }
 }
+
+TEST_CASE("Calendar requests validate dates and accept an explicit time zone", "[http]") {
+  namespace http = boost::beast::http;
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  create_project(db, "project", (dir / "project").string());
+  const auto get = [&](const std::string& query) {
+    CAPTURE(query);
+    http::request<http::string_body> req{
+        http::verb::get, "/projects/project/calendar" + query, 11};
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    return res;
+  };
+
+  for (const auto& [query, message] :
+       std::initializer_list<std::pair<const char*, const char*>>{
+           {"", "first_day is required"},
+           {"?first_day=2026-02-01", "last_day is required"},
+           {"?first_day=not-a-date&last_day=2026-02-02", "first_day must be a day"},
+       }) {
+    const auto res = get(query);
+    REQUIRE(res.result() == http::status::bad_request);
+    const auto error = nlohmann::json::parse(res.body()).at("error");
+    CHECK(error.at("code") == "invalid_argument");
+    CHECK(error.at("message").get<std::string>().find(message) != std::string::npos);
+  }
+
+  const auto res = get("?first_day=2026-02-01&last_day=2026-02-02&time_zone=UTC");
+  REQUIRE(res.result() == http::status::ok);
+  const auto data = nlohmann::json::parse(res.body()).at("data");
+  CHECK(data.at("created_cards") == nlohmann::json::array());
+  CHECK(data.at("updated_cards") == nlohmann::json::array());
+  CHECK(data.at("milestones") == nlohmann::json::array());
+}

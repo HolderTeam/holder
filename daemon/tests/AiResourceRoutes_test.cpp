@@ -619,6 +619,7 @@ TEST_CASE("Asset downloads report storage failures and clean up after a write fa
   };
   const auto cache = f.root / "cache/holder/asset-cache";
 
+  std::unique_ptr<holder::test::StorageHttpTestServer> server;
   std::optional<http::status> expected_error;
   std::string expected_code;
   SECTION("missing object") {
@@ -635,6 +636,23 @@ TEST_CASE("Asset downloads report storage failures and clean up after a write fa
     expected_error = http::status::bad_request;
     expected_code = "bad_request";
     bundle.assets.front().placements.front().encoding = "unsupported";
+  }
+  SECTION("object key escapes the storage root") {
+    expected_error = http::status::bad_request;
+    expected_code = "storage_configuration_invalid";
+    bundle.assets.front().placements.front().object_key = "../object";
+  }
+  SECTION("remote provider denies access") {
+    using Server = holder::test::StorageHttpTestServer;
+    server = std::make_unique<Server>([](const Server::Request&) {
+      return Server::response(403);
+    });
+    f.put("s3_compatible",
+          {{"endpoint", server->endpoint()}, {"region", "region"}, {"bucket", "bucket"},
+           {"allow_insecure_localhost", "true"}, {"addressing_style", "path"}},
+          {{"access_key_id", "access"}, {"secret_access_key", "secret"}});
+    expected_error = http::status::bad_gateway;
+    expected_code = "storage_permission_denied";
   }
   SECTION("socket cannot write the recovered file") {}
 
