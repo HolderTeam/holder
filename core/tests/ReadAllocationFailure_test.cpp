@@ -5,14 +5,21 @@
 #include <catch2/catch.hpp>
 #endif
 
+#include "api/Contract.h"
+#include "capi/Context.h"
 #include "card/CardFrontMatter.h"
 #include "card/CardRepo.h"
 #include "core_test_helpers.h"
+#include "git/GitOps.h"
 #include "project/ProjectRepo.h"
+#include "project/Rebuilder.h"
+#include <holder/holder_api.h>
 
 #include <yaml-cpp/yaml.h>
 
+#include <array>
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <new>
 #include <optional>
@@ -22,6 +29,12 @@ namespace {
 thread_local std::size_t allocations_until_failure = 0;
 thread_local bool allocation_failed = false;
 thread_local bool fail_yaml_load = false;
+thread_local std::optional<holder::store::Rebuilder::RebuildStats> injected_stats;
+struct InjectStats {
+  explicit InjectStats(holder::store::Rebuilder::RebuildStats value) { injected_stats = value; }
+  ~InjectStats() { injected_stats.reset(); }
+  bool consumed() const { return !injected_stats.has_value(); }
+};
 struct FailYamlLoad {
   FailYamlLoad() { fail_yaml_load = true; }
   ~FailYamlLoad() { fail_yaml_load = false; }
@@ -201,4 +214,94 @@ TEST_CASE(
   const auto rejected = holder::core::parse_card_file(malformed);
   CHECK_FALSE(rejected.has_front_matter);
   CHECK(rejected.body == malformed);
+}
+
+// The adapter must validate a large backend result without constructing billions of rows.
+using Rebuilder = holder::store::Rebuilder;
+Rebuilder::RebuildStats real_rebuild(Rebuilder*, const holder::model::Project&) __asm__(
+    "__real__ZN6holder5store9Rebuilder15rebuild_projectERKNS_5model7ProjectE"
+);
+Rebuilder::RebuildStats wrap_rebuild(Rebuilder*, const holder::model::Project&) __asm__(
+    "__wrap__ZN6holder5store9Rebuilder15rebuild_projectERKNS_5model7ProjectE"
+);
+Rebuilder::RebuildStats wrap_rebuild(Rebuilder* self, const holder::model::Project& project) {
+  if (injected_stats) {
+    const auto value = *injected_stats;
+    injected_stats.reset();
+    return value;
+  }
+  return real_rebuild(self, project);
+}
+
+TEST_CASE(
+    "Rebuild response counts accept INT32_MAX and reject overflow without partial results",
+    "[read-allocation][rebuild-boundary]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::index::FtsIndexer fts(db);
+  holder::git::RealGitOps git;
+  holder_context context{db, fts, &git};
+  context.projects_root = dir / "projects";
+  context.registry_path = dir / "projects.json";
+  holder::contract::NewProject make;
+  make.name = "Rebuild count boundaries";
+  make.privacy_mode = holder::contract::NewProjectPrivacyMode::Plain;
+  const auto project = holder::contract::create_project(context, make);
+  const holder_rebuild_request request{project.project_id.c_str()};
+  const auto changes = sqlite3_total_changes64(db.handle());
+  using Stats = Rebuilder::RebuildStats;
+  const std::array<std::size_t Stats::*, 4> fields{
+      &Stats::cards,
+      &Stats::ai_messages,
+      &Stats::ai_threads,
+      &Stats::links
+  };
+  const std::array<int32_t holder_rebuild_result::*, 4> outputs{
+      &holder_rebuild_result::cards,
+      &holder_rebuild_result::ai_messages,
+      &holder_rebuild_result::ai_threads,
+      &holder_rebuild_result::links
+  };
+  for (std::size_t field = 0; field < fields.size(); ++field) {
+    for (bool overflow : {false, true}) {
+      INFO("Field " << field << ", overflow " << overflow);
+      Stats stats;
+      stats.*fields[field] = static_cast<std::size_t>(std::numeric_limits<int32_t>::max()) +
+                             static_cast<std::size_t>(overflow);
+      std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
+          holder_arena_new(),
+          holder_arena_free
+      );
+      const holder_rebuild_result* result = nullptr;
+      holder_error* raw_error = nullptr;
+      int status;
+      bool consumed;
+      {
+        InjectStats backend(stats);
+        status = holder_rebuild_project(&context, &request, arena.get(), &result, &raw_error);
+        consumed = backend.consumed();
+      }
+      std::unique_ptr<holder_error, decltype(&holder_error_destroy)> error(
+          raw_error,
+          holder_error_destroy
+      );
+      CHECK(consumed);
+      CHECK(sqlite3_total_changes64(db.handle()) == changes);
+      if (overflow) {
+        CHECK(status == HOLDER_ERROR_REBUILD_FAILED);
+        CHECK(result == nullptr);
+        REQUIRE(error != nullptr);
+        CHECK(std::string(holder_error_message(error.get())) == "rebuild count exceeds API range");
+      } else {
+        CHECK(status == HOLDER_OK);
+        CHECK(error == nullptr);
+        REQUIRE(result != nullptr);
+        CHECK(result->*outputs[field] == std::numeric_limits<int32_t>::max());
+      }
+    }
+  }
+  // The wrapper's default path still performs a real rebuild.
+  const auto normal = holder::contract::rebuild_project(context, {project.project_id});
+  CHECK(normal.cards == 0);
 }

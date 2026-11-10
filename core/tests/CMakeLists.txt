@@ -88,7 +88,8 @@ int main() { return 0; }" HOLDER_CORE_TEST_HAS_GNU_STRING_ABI)
     add_executable(holder_core_read_allocation_tests ReadAllocationFailure_test.cpp)
     target_link_libraries(holder_core_read_allocation_tests PRIVATE Holder::Core)
     target_link_options(holder_core_read_allocation_tests PRIVATE "LINKER:--wrap=_Znwm"
-      "LINKER:--wrap=_ZN4YAML4LoadERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE")
+      "LINKER:--wrap=_ZN4YAML4LoadERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE"
+      "LINKER:--wrap=_ZN6holder5store9Rebuilder15rebuild_projectERKNS_5model7ProjectE")
     target_compile_definitions(holder_core_read_allocation_tests PRIVATE
       SCHEMA_SQL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../schema/schema.sql")
     if(TARGET Catch2::Catch2)
