@@ -68,18 +68,7 @@ def promote(github, repository, tag, version, directory, *, candidate=None,
                 'Published release cannot be modified by this promotion')
         return current
 
-    missing, conflicts, _ = classify(github, repository, assets_for(github, repository, release), files)
-    require(not conflicts or (release['draft'] and replace_draft_assets),
-            'Release asset conflicts with signed bytes; replacement requires an explicit draft-only operation')
-    if missing or conflicts:
-        writable(bool(conflicts))  # Check every conflict before performing any mutation.
-    for item in conflicts:
-        writable(True)
-        github.api(f'repos/{repository}/releases/assets/{item["id"]}', method='DELETE')
-        missing.append(item['name'])
-    for name in sorted(missing):
-        writable()
-        github.upload(repository, tag, directory / name)
+    assets.upload_missing(github, repository, tag, release, directory, files, writable, replace_draft_assets)
     result = observe(github, repository, tag, files, candidate, release_id=release['id'])
     require(result is not None, 'Linux release assets are incomplete after promotion; resume the same inputs')
     return result
