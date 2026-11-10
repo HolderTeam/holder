@@ -10,7 +10,7 @@ an untested behavior, and a difficult failure path is not automatically an artif
 
 Verified on 2026-11-10: **15,055 / 15,055 measured lines (100%)** and
 **1,881 / 1,881 functions (100%)**. gcovr has no remaining unexcluded executable
-line misses. All 889 CTest entries, 22 generator tests and eight coverage-filter
+line misses. All 890 CTest entries, 22 generator tests and eight coverage-filter
 tests pass. Generated-file freshness, Ruff, clang-format for the changed C++ test,
 and `git diff --check` pass.
 
@@ -596,3 +596,29 @@ placement tests. The executable still throws if the safeguard ever triggers.
 
 None within the documented measurement scope. The JSON dependency limitation and
 resource-boundary exclusion above remain explicit limitations of that scope.
+
+## PR #426 portability verification
+
+Windows and macOS CI exposed three platform assumptions after the Linux audit:
+
+- The journal short-write fixture compared path spellings. libgit2 can expand a
+  Windows short path or resolve macOS `/var` to `/private/var`, so the intended
+  failure was never injected. It now matches the filename plus filesystem identity
+  of the existing parent directory. The fixture deliberately uses a `.` alias and
+  asserts exactly one truncated write, reproducing the issue on Linux as well.
+- The blocked-checkout test assumed LF output regardless of Git configuration.
+  It now tests repository-local `core.autocrlf=false` and `true`, retaining exact
+  byte comparisons for preserved local work and checking the configured LF/CRLF
+  output after successful checkout.
+- The privacy safety scan rejected a CRLF `HolderPriv1` header even though the
+  envelope decoder accepts CRLF. Working-tree and index checks now accept either
+  LF or CRLF while continuing to reject altered magic. The regression encrypts a
+  real envelope, verifies decryption of both forms, and checks cards, resources
+  and locations in both the working tree and an index configured to preserve
+  their bytes with `-text` attributes. Modified header prefixes are still rejected.
+
+The focused regression selection passes 272 assertions across eight test cases.
+The complete Linux suite passes 890 CTest entries and retains 100% measured line
+and function coverage. Logs: `build-coverage/ci-426-targeted-tests.log` and
+`build-coverage/ci-426-verification.log`. Platform CI will verify the same changes
+on Windows and macOS. No coverage exclusions were added for these fixes.

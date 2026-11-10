@@ -290,6 +290,7 @@ TEST_CASE("Recovery token import preserves a divergent local encrypted edit as a
   REQUIRE(holder_check_project_encryption(f.target, f.project_id.c_str(), f.arena,
                                            &safety, &f.error) == HOLDER_OK);
   REQUIRE(safety != nullptr);
+  INFO(safety->check.message);
   CHECK(safety->check.ok);
   // Importing again does not create a second copy of the already-resolved edit.
   REQUIRE(f.restore()->pull_status == HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED);

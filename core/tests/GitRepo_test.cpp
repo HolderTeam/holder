@@ -1,5 +1,6 @@
 #if __has_include(<catch2/catch_test_macros.hpp>)
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 #else
 #include <catch2/catch.hpp>
@@ -366,6 +367,8 @@ TEST_CASE("A blocked fast-forward checkout preserves local work and can be retri
   const auto dir = make_temp_dir();
   const auto remote_dir = dir / "remote";
   const auto local_dir = dir / "local";
+  const bool autocrlf = GENERATE(false, true);
+  INFO("core.autocrlf=" << autocrlf);
   holder::git::GitRepo remote;
   remote.open_or_init(remote_dir);
   remote.write_file("cards/a.md", "base body\n");
@@ -373,6 +376,13 @@ TEST_CASE("A blocked fast-forward checkout preserves local work and can be retri
   remote.commit("Base");
   holder::git::GitRepo local;
   local.open_or_init(local_dir);
+  git_repository* raw = nullptr;
+  REQUIRE(git_repository_open(&raw, local_dir.string().c_str()) == 0);
+  git_config* config = nullptr;
+  REQUIRE(git_repository_config(&config, raw) == 0);
+  REQUIRE(git_config_set_bool(config, "core.autocrlf", autocrlf) == 0);
+  git_config_free(config);
+  git_repository_free(raw);
   local.set_remote("origin", remote_dir.string());
   local.pull_remote_ff_only("origin");
   const auto head = local.head_oid();
@@ -419,8 +429,8 @@ TEST_CASE("A blocked fast-forward checkout preserves local work and can be retri
   }
   REQUIRE_NOTHROW(local.pull_remote_ff_only("origin"));
   CHECK(local.head_oid() == remote_head);
-  CHECK(read("cards/a.md") == "remote body\n");
-  CHECK(read("cards/new.md") == "remote addition\n");
+  CHECK(read("cards/a.md") == (autocrlf ? "remote body\r\n" : "remote body\n"));
+  CHECK(read("cards/new.md") == (autocrlf ? "remote addition\r\n" : "remote addition\n"));
   CHECK(read("unrelated.txt") == "unrelated local work\n");
 }
 

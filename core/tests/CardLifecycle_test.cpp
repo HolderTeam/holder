@@ -47,6 +47,7 @@ class ShortWriteFs final : public holder::core::Fs {
   std::filesystem::path truncate_path;
   std::filesystem::path unavailable_path;
   mutable int existence_checks = 0;
+  mutable int truncated_writes = 0;
   bool exists(const std::filesystem::path& p) const override {
     if (p == unavailable_path && ++existence_checks == 2) return false;
     return real.exists(p);
@@ -59,7 +60,13 @@ class ShortWriteFs final : public holder::core::Fs {
   }
   std::string read_file(const std::filesystem::path& p) const override { return real.read_file(p); }
   void write_file(const std::filesystem::path& p, const std::string& bytes) const override {
-    real.write_file(p, p == truncate_path ? bytes.substr(0, bytes.size() / 2) : bytes);
+    // libgit2 may canonicalize /var to /private/var or expand Windows short paths.
+    // The journal temporary does not exist yet, so compare the existing parents.
+    std::error_code error;
+    const bool truncate = !truncate_path.empty() && p.filename() == truncate_path.filename() &&
+        std::filesystem::equivalent(p.parent_path(), truncate_path.parent_path(), error);
+    if (truncate) ++truncated_writes;
+    real.write_file(p, truncate ? bytes.substr(0, bytes.size() / 2) : bytes);
   }
 };
 class FaultGit final : public holder::git::GitOps {
@@ -345,8 +352,9 @@ TEST_CASE("Incomplete journal and recovery writes are detected and can be retrie
   ShortWriteFs fs;
   SECTION("journal is not published if its temporary write is incomplete") {
     holder::card::CardMutation mutation(fs, root, {relative}, {{relative, "changed"}});
-    fs.truncate_path = journal.string() + ".tmp";
+    fs.truncate_path = journal.parent_path() / "." / (journal.filename().string() + ".tmp");
     REQUIRE_THROWS_WITH(mutation.begin(), Catch::Matchers::ContainsSubstring("incomplete card recovery journal"));
+    CHECK(fs.truncated_writes == 1);
     CHECK_FALSE(holder::card::CardMutation::pending(root));
     CHECK(f.bytes(parent_id) == original);
     fs.truncate_path.clear();
@@ -364,6 +372,7 @@ TEST_CASE("Incomplete journal and recovery writes are detected and can be retrie
     fs.truncate_path = path;
     REQUIRE_THROWS_WITH(holder::card::CardMutation::recover_files(fs, root),
                         Catch::Matchers::ContainsSubstring("incomplete card recovery write"));
+    CHECK(fs.truncated_writes == 1);
     CHECK(holder::card::CardMutation::pending(root));
     CHECK(f.fs.read_file(journal) == saved);
     fs.truncate_path.clear();
