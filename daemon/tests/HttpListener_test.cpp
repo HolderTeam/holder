@@ -966,12 +966,13 @@ TEST_CASE("Listener stop cancels in-flight writer response and returns promptly"
   auto db = open_db_with_schema(db_path);
   std::atomic<int> route_started{0};
 
+  const std::string payload(std::size_t{8} * 1024 * 1024, 'x');
   HookedSecretStore secrets;
   // The preferred location ID is the response's large payload.
-  secrets.on_get = [&route_started](const std::string&) {
+  secrets.on_get = [&route_started, &payload](const std::string&) {
     route_started.fetch_add(1);
     return std::optional<holder::privacy::StoredSecret>(
-        holder::privacy::StoredSecret{{}, std::string(std::size_t{32} * 1024 * 1024, 'x')});
+        holder::privacy::StoredSecret{{}, payload});
   };
 
   const std::string token = "testtoken";
@@ -1018,12 +1019,20 @@ TEST_CASE("Listener stop cancels in-flight writer response and returns promptly"
   auto run_future = std::async(std::launch::async, [&listener, &signals]() {
     listener.run(signals);
   });
+  // Destroy this before run_future so assertion failures also stop the listener.
+  struct StopGuard {
+    holder::api::Listener& listener;
+    ~StopGuard() { listener.stop(); }
+  } stop_guard{listener};
   REQUIRE(wait_for_http_listener(bound.bind, bound.port));
 
   boost::asio::io_context ioc;
   tcp::resolver resolver(ioc);
   auto endpoints = resolver.resolve(bound.bind, std::to_string(bound.port));
   tcp::socket socket(ioc);
+  socket.open(tcp::v4());
+  // Keep the response blocked in the writer without depending on host buffer sizes.
+  socket.set_option(boost::asio::socket_base::receive_buffer_size(1024));
   boost::asio::connect(socket, endpoints);
   const std::string request = "GET /locations?project_id=large HTTP/1.1\r\n"
                               "Host: " +
@@ -1036,10 +1045,15 @@ TEST_CASE("Listener stop cancels in-flight writer response and returns promptly"
                               "\r\n";
   boost::asio::write(socket, boost::asio::buffer(request));
 
-  for (int i = 0; i < 50 && route_started.load() < 1; ++i) {
+  // Route entry precedes JSON serialization, which is slow in coverage builds.
+  // Only time shutdown once the response has actually reached the writer.
+  const auto setup_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+  while (listener.active_write_socket_count() == 0 &&
+         std::chrono::steady_clock::now() < setup_deadline) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   REQUIRE(route_started.load() == 1);
+  REQUIRE(listener.active_write_socket_count() == 1);
 
   listener.stop();
   REQUIRE(run_future.wait_for(std::chrono::seconds(3)) == std::future_status::ready);
