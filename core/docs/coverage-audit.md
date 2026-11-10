@@ -8,6 +8,21 @@ an untested behavior, and a difficult failure path is not automatically an artif
 
 ## Latest result
 
+After the repository/parser allocation batch: **15,053 / 15,086 lines (99.8%)**
+and **1,881 / 1,881 functions (100%)**. There are **33 missed lcov records**
+left, including **28 executable misses in gcovr**.
+
+All **889 CTest entries pass**, including the new runner's two test cases and
+235 assertions. The five coverage-filter tests pass. The new file passes
+clang-format, and `git diff --check` passes. Verification completed on
+2026-11-10; the log is `build-coverage/read-allocation-verification.log`.
+
+Compared with the previous inventory, `card/CardRepo.cpp:383` is now covered and
+no new missed records appear. The two newly measured parser allocation-handler
+records are covered. No source exclusions were added.
+
+## Result after the registration-lock batch
+
 After the registration-lock batch: **15,050 / 15,084 lines (99.8%)** and
 **1,881 / 1,881 functions (100%)**. There are **34 missed lcov records** left,
 including **29 executable misses in gcovr**.
@@ -369,7 +384,7 @@ The covered registration paths publish under `std::mutex` in `TimeZones.cpp`,
 corresponding lock, so it is not included. No production source or coverage
 exclusions change in this batch.
 
-## Current missed lcov records
+## Missed lcov records after the registration-lock batch
 
 | File under `src/` | Line records |
 |---|---|
@@ -383,4 +398,68 @@ exclusions change in this batch.
 | `api/RuntimeHosts.cpp` | 111 |
 | `card/CardHierarchy.cpp` | 83 |
 | `card/CardRepo.cpp` | 383 |
+| `card/CardStore.cpp` | 807, 891 |
+
+## Follow-up: repository allocation cleanup and parser resource errors
+
+`tests/ReadAllocationFailure_test.cpp` adds an isolated runner on 64-bit Linux
+with GNU/Clang and the GNU C++11 string ABI. The configuration checks the string
+ABI before enabling the YAML symbol wrapper. Production libraries use their
+ordinary allocation and YAML functions.
+
+The repository test sweeps one failed allocation at a time through
+`CardRepo::list_collection_page`, covering both an unfiltered page and an indexed
+tag page. It tests the C++ allocations exposed by linker wrapping of `operator new`
+in the statically linked code; SQLite's allocator and shared-library internals
+are not injected. Each failure must propagate `std::bad_alloc`, publish no vector,
+and allow a complete retry. The tests assert unchanged SQLite write counts,
+unchanged prepared-statement counts relative to the connection's pre-read
+baseline, and unchanged IDs/titles. They stop when a call completes without
+consuming the next failure, with an explicit iteration cap.
+
+The parser regression injects `std::bad_alloc` at the `YAML::Load(std::string)`
+boundary. Previously the broad `std::exception` handler treated it as malformed
+front matter and returned the complete raw file as body content, exposing the
+front matter and dropping parsed identity/links. `CardFrontMatter.cpp` now
+rethrows `std::bad_alloc` before the malformed-input fallback. A healthy retry
+parses the original metadata and body completely, and malformed YAML still uses
+the original fallback. This change concerns a propagated resource exception; it
+does not promise that every internal dependency failure retains that exception
+type through the dependency's own converters.
+
+These two test cases have 235 assertions across their sections. The repository
+sweep reaches the previously zero-hit `CardRepo.cpp:383` record without an
+exclusion. No new source exclusions are introduced in this batch.
+
+### Dependency limitation found during investigation
+
+A whole-call allocation sweep through the JSON-based C read APIs is not a valid
+uniform recoverability test with the installed nlohmann-json 3.11.3. The debugger
+traces an abort to `json_value::destroy`: it allocates a vector to flatten nested
+arrays/objects, and the allocation exception crosses a `noexcept` destructor.
+The process terminates before Holder's C ABI guard can translate the error.
+The local implementation is `/usr/include/nlohmann/json.hpp`, especially the
+flattening stack in `json_value::destroy` around lines 567–613 and the destructor
+at line 1257. The triggering read was constructing the card-pagination scope.
+
+The test suite therefore targets the Holder-owned repository path and the YAML
+exception boundary explicitly. It does not skip arbitrary allocation positions,
+change dependency destructors or system headers, or claim all process-wide
+allocation failures are recoverable. JSON aggregate cleanup counters in the
+remaining inventory still need separate review. This dependency limitation
+remains unresolved by the parser fix.
+
+## Current missed lcov records
+
+| File under `src/` | Line records |
+|---|---|
+| `api/Cards.cpp` | 198, 200 |
+| `api/Git.cpp` | 192 |
+| `api/History.cpp` | 145, 146, 147 |
+| `api/HostCApi.cpp` | 188, 192, 193, 214, 218, 219, 246, 247, 248, 249, 250, 251, 279, 283, 284 |
+| `api/ProjectMaintenance.cpp` | 42 |
+| `api/Rebuild.cpp` | 36 |
+| `api/RecoverySnapshots.cpp` | 232, 260, 286, 294, 479, 493 |
+| `api/RuntimeHosts.cpp` | 111 |
+| `card/CardHierarchy.cpp` | 83 |
 | `card/CardStore.cpp` | 807, 891 |

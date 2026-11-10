@@ -142,7 +142,10 @@ remain measured. Their block evidence and test witnesses are in the audit.
 On Linux with GNU/Clang, isolated test executables inject libsodium failure
 returns and mutex errors to exercise crypto translation and provider-registration
 ownership (mutex injection requires libstdc++). The initialization, encryption
-and registration failure handlers remain measured.
+and registration failure handlers remain measured. A separate allocation runner
+checks repository statement cleanup and parser resource-error propagation; it
+requires 64-bit Linux and the GNU C++11 string ABI. The audit also records the
+JSON dependency's allocation-during-destruction limitation.
 Coverage requires Python 3 and runs the filter's unit tests before building.
 
 ### macOS (Homebrew)

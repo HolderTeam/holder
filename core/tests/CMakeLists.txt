@@ -75,6 +75,38 @@ int main() { return 0; }" HOLDER_CORE_TEST_HAS_LIBSTDCXX_MUTEX)
   endif()
 endif()
 
+# Isolate allocation failures; YAML::Load wrapping needs the GNU C++11 string ABI.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SIZEOF_VOID_P EQUAL 8
+   AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  include(CheckCXXSourceCompiles)
+  check_cxx_source_compiles("#include <string>
+#if !defined(__GLIBCXX__) || !_GLIBCXX_USE_CXX11_ABI
+#error This test requires the GNU C++11 string ABI
+#endif
+int main() { return 0; }" HOLDER_CORE_TEST_HAS_GNU_STRING_ABI)
+  if(HOLDER_CORE_TEST_HAS_GNU_STRING_ABI)
+    add_executable(holder_core_read_allocation_tests ReadAllocationFailure_test.cpp)
+    target_link_libraries(holder_core_read_allocation_tests PRIVATE Holder::Core)
+    target_link_options(holder_core_read_allocation_tests PRIVATE "LINKER:--wrap=_Znwm"
+      "LINKER:--wrap=_ZN4YAML4LoadERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE")
+    target_compile_definitions(holder_core_read_allocation_tests PRIVATE
+      SCHEMA_SQL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../schema/schema.sql")
+    if(TARGET Catch2::Catch2)
+      target_sources(holder_core_read_allocation_tests PRIVATE catch_main.cpp)
+      target_link_libraries(holder_core_read_allocation_tests PRIVATE Catch2::Catch2)
+    elseif(TARGET Catch2::Catch2WithMain)
+      target_link_libraries(holder_core_read_allocation_tests PRIVATE Catch2::Catch2WithMain)
+    endif()
+    if(HOLDER_CORE_TSAN_USE_SETARCH)
+      find_program(SETARCH_EXECUTABLE setarch REQUIRED)
+      add_test(NAME "Read allocation failures preserve complete results"
+        COMMAND ${SETARCH_EXECUTABLE} ${CMAKE_SYSTEM_PROCESSOR} -R $<TARGET_FILE:holder_core_read_allocation_tests>)
+    else()
+      add_test(NAME "Read allocation failures preserve complete results" COMMAND holder_core_read_allocation_tests)
+    endif()
+  endif()
+endif()
+
 if(TARGET Catch2::Catch2)
   include(Catch)
 endif()
