@@ -1,9 +1,8 @@
 """Reporting filters must never conceal real function or source-line misses."""
 
 import importlib.util
-from pathlib import Path
 import unittest
-
+from pathlib import Path
 
 spec = importlib.util.spec_from_file_location("coverage_filters", Path(__file__).parents[1] / "coverage_filters.py")
 coverage_filters = importlib.util.module_from_spec(spec)
@@ -62,6 +61,32 @@ class CoverageFilterTests(unittest.TestCase):
         self.assertEqual(count, 1)
         self.assertIn("FNA:2,0,OtherD0Ev\n", filtered)
         self.assertIn("FNF:3\nFNH:2\n", filtered)
+
+    def test_covered_lambda_entry_normalization_preserves_function_body_and_branches(self):
+        symbol = next(iter(coverage_filters.COVERED_ENTRY_LINES["src/api/ProjectMaintenance.cpp"]))
+        original = (f"SF:/repo/core/src/api/ProjectMaintenance.cpp\nFNL:0,42,45\nFNA:0,8,{symbol}\n"
+                    "FNF:1\nFNH:1\nDA:42,0\nDA:43,0\nDA:44,8\nBRDA:43,0,0,0\nLF:3\nLH:1\nend_of_record\n")
+        expected = original.replace("DA:42,0", "DA:42,8").replace("LH:1", "LH:2")
+        self.assertEqual(coverage_filters.filter_lcov(original), (expected, 0))
+        self.assertEqual(coverage_filters.filter_lcov(expected), (expected, 0))
+
+    def test_lambda_entry_requires_exact_covered_function_in_the_same_file(self):
+        symbol = next(iter(coverage_filters.COVERED_ENTRY_LINES["src/api/ProjectMaintenance.cpp"]))
+        original = (f"SF:src/api/ProjectMaintenance.cpp\nFNL:0,42,45\nFNA:0,8,{symbol}\n"
+                    "DA:42,0\nLF:1\nLH:0\nend_of_record\n")
+        for text in (original.replace("FNA:0,8,", "FNA:0,0,"),
+                     original.replace("ProjectMaintenance.cpp", "Other.cpp"),
+                     original.replace(symbol, "other_lambda"),
+                     original.replace("FNL:0,42,45\n", ""),
+                     original.replace("DA:42,0", "DA:42,3")):
+            self.assertEqual(coverage_filters.filter_lcov(text), (text, 0))
+
+    def test_legacy_lambda_entry_uses_the_recorded_positive_count(self):
+        symbol = next(iter(coverage_filters.COVERED_ENTRY_LINES["src/api/ProjectMaintenance.cpp"]))
+        original = (f"SF:src/api/ProjectMaintenance.cpp\nFN:42,{symbol}\nFNDA:8,{symbol}\n"
+                    "FNF:1\nFNH:1\nDA:42,0,checksum\nLF:1\nLH:0\nend_of_record\n")
+        expected = original.replace("DA:42,0,checksum", "DA:42,8,checksum").replace("LH:0", "LH:1")
+        self.assertEqual(coverage_filters.filter_lcov(original), (expected, 0))
 
 
 if __name__ == "__main__":

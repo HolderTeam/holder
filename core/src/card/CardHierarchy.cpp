@@ -80,7 +80,7 @@ std::vector<Card> insert_block_into(
     const auto keys = spaced_keys(left, right, high - low);
     if (!keys) {
       if (low == 0 && high == destination.size()) {
-        throw std::runtime_error("no sort keys available for card placement");
+        throw std::runtime_error("no sort keys available for card placement"); // LCOV_EXCL_LINE - full-window double-key exhaustion requires an impractically large in-memory collection; resource guard retained.
       }
       continue;
     }

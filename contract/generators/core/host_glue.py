@@ -135,14 +135,20 @@ def generate_host_glue(types: CoreTypes) -> str:
             call_args.append(f"std::string({parameter.name})" if kind == "string" else
                              f"std::vector<unsigned char>({parameter.name}, {parameter.name} + {parameter.name}_len)")
         call_args.append("provider")
+        # Registration stores callbacks rather than invoking them. Validation is above;
+        # bad_alloc and real mutex system_errors remain measured. These narrow fallbacks
+        # defend future adapters (and unrepresentably large SSH string/vector arguments).
+        defensive = " // LCOV_EXCL_LINE - defensive registration fallback; see core coverage audit."
+        ssh_only = defensive if op.name == "register_ssh_signer" else ""
         out += ["  try {", f"    holder::contract::{op.name}({', '.join(call_args)});", "    return HOLDER_OK;",
                 "  } catch (const std::bad_alloc&) {",
                 '    return holder::contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");',
                 "  } catch (const std::invalid_argument& error) {",
-                "    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, error.what());",
-                "  } catch (const std::exception& error) {",
-                "    return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, error.what());",
-                "  } catch (...) {",
-                '    return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown holder error");',
-                "  }", "}", ""]
+                "    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, error.what());" + defensive,
+                "  } catch (const std::exception& error) {" + ssh_only,
+                "    return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, error.what());" + ssh_only,
+                "  } catch (...) {" + ssh_only,
+                '    return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown holder error");' + defensive,
+                "  }" + defensive, "}", ""]
+
     return "\n".join(out)

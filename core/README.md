@@ -131,8 +131,10 @@ sudo apt install -y ccache lcov gcovr
 it). `./make.sh coverage` uses GCC/gcov, lcov and genhtml; gcovr adds a JSON report.
 The lcov report omits a narrow list of unused GCC deleting-destructor aliases
 only when their matching destructor bodies have executed. This changes function
-records only; destructor bodies, source lines and branch counters remain measured.
-The allowlist and its rationale live in `scripts/coverage_filters.py`.
+records only; destructor bodies and branch counters remain measured. An exact
+file/symbol rule also restores one covered hierarchy-repair lambda entry line
+from its positive function-entry counter; other source counters stay unchanged.
+Both allowlists and their rationale live in `scripts/coverage_filters.py`.
 Capture preserves positive gcov line counts when GCC also reports an unexecuted
 block on that line, retaining lcov inconsistency warnings for review. The audit
 and remaining guard classifications are in [docs/coverage-audit.md](docs/coverage-audit.md).

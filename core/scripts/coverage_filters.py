@@ -1,17 +1,21 @@
-"""Remove verified compiler-only function aliases without changing line coverage.
+"""Filter verified compiler aliases and normalize one covered lambda entry counter.
 
 GCC emits an Itanium ABI D0 deleting destructor as well as the D2 body. The
 abstract interfaces below cannot be constructed, and their private callback
 adapters are created with make_shared, which destroys the body in place. D0 is
 therefore unused. Keep this list narrow: other destructors can have real delete
 paths. Require a covered matching D2 body before dropping a zero-hit D0 record.
+
+GCC also attributes a zero-hit cleanup block to the hierarchy-repair lambda's
+entry line despite its positive function-entry count. For this exact symbol and
+file only, use that recorded count for a zero source-entry counter. Keep the
+function, body, other source lines and branches intact. See docs/coverage-audit.md.
 """
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
-
 
 DELETING_ALIASES = {
     "src/api/Contract.h": {
@@ -32,6 +36,46 @@ DELETING_ALIASES = {
 }
 
 
+COVERED_ENTRY_LINES = {
+    "src/api/ProjectMaintenance.cpp": {
+        "_ZZN6holder8contract24repair_project_hierarchyER14holder_contextNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKNS0_22HierarchyRepairRequestEENKUlvE_clEv",
+    },
+}
+
+
+def normalize_entry_lines(lines: list[str], source: str, hits: dict[str, int]) -> list[str]:
+    allowed = next((names for path, names in COVERED_ENTRY_LINES.items()
+                    if source == path or source.endswith("/" + path)), set())
+    if not allowed:
+        return lines
+    starts = {line[4:].split(",")[0]: int(line[4:].split(",")[1])
+              for line in lines if line.startswith("FNL:")}
+    entries: dict[int, int] = {}
+    for line in lines:
+        if line.startswith("FNA:"):
+            ident, count, name = line[4:].split(",", 2)
+            if name in allowed and int(count) > 0 and ident in starts:
+                entries[starts[ident]] = int(count)
+        elif line.startswith("FN:"):
+            start, name = line[3:].split(",", 1)
+            if name in allowed and hits.get(name, 0) > 0:
+                entries[int(start)] = hits[name]
+    normalized = []
+    for line in lines:
+        if line.startswith("DA:"):
+            fields = line[3:].split(",")
+            if int(fields[0]) in entries and int(fields[1]) == 0:
+                fields[1] = str(entries[int(fields[0])])
+                line = "DA:" + ",".join(fields)
+        normalized.append(line)
+    # A zero entry becoming covered changes the line-hit summary, not the total.
+    changed = sum(a != b for a, b in zip(lines, normalized))
+    if changed:
+        normalized = [f"LH:{int(line[3:]) + changed}" if line.startswith("LH:") else line
+                      for line in normalized]
+    return normalized
+
+
 def filter_record(lines: list[str]) -> tuple[list[str], int]:
     source = next((line[3:].replace("\\", "/") for line in lines if line.startswith("SF:")), "")
     allowed = next((names for path, names in DELETING_ALIASES.items()
@@ -45,6 +89,7 @@ def filter_record(lines: list[str]) -> tuple[list[str], int]:
         elif not modern and line.startswith("FNDA:"):
             count, name = line[5:].split(",", 1)
             hits[name] = int(count)
+    lines = normalize_entry_lines(lines, source, hits)
     removed = {name for name in allowed if hits.get(name) == 0
                and hits.get(name.replace("D0Ev", "D2Ev"), 0) > 0}
     if not removed:
@@ -99,7 +144,11 @@ def main() -> None:
     filtered, count = filter_lcov(original)
     if count:
         args.tracefile.write_text(filtered, encoding="utf-8")
-    print(f"Excluded {count} verified compiler deleting-destructor function aliases; line counters unchanged.")
+    old_data = [line for line in original.splitlines() if line.startswith("DA:")]
+    new_data = [line for line in filtered.splitlines() if line.startswith("DA:")]
+    normalized = sum(a != b for a, b in zip(old_data, new_data))
+    print(f"Excluded {count} verified compiler deleting-destructor aliases; "
+          f"normalized {normalized} verified covered lambda entry counters.")
 
 
 if __name__ == "__main__":

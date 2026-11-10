@@ -51,6 +51,25 @@ def test_generated_coverage_exclusions_preserve_validation_and_returns():
                    if "throw ArgumentError" in line or line.lstrip().startswith("require("))
 
 
+def test_host_coverage_annotations_preserve_validation_allocation_and_mutex_failures():
+    glue = generate(holder_ir())["HostCApi.cpp"]
+    excluded = [line for line in glue.splitlines() if "LCOV_EXCL" in line]
+    assert len(excluded) == 15
+    assert all("LCOV_EXCL_LINE" in line for line in excluded)
+    functions = glue.split('extern "C" int ')[1:]
+    assert len(functions) == 4
+    for function in functions:
+        validation, registration = function.split("  try {\n    holder::contract::register_", 1)
+        assert "LCOV_EXCL" not in validation
+        allocation, rest = registration.split("  } catch (const std::invalid_argument& error)", 1)
+        assert "LCOV_EXCL" not in allocation
+        assert "HOLDER_ERROR_ALLOCATION" in allocation
+        if not function.startswith("holder_register_ssh_signer("):
+            mutex_handler = rest.split("catch (const std::exception& error)", 1)[1].split("catch (...)", 1)[0]
+            assert "LCOV_EXCL" not in mutex_handler
+            assert "HOLDER_ERROR_RUNTIME" in mutex_handler
+
+
 def test_every_generated_file_names_its_source():
     for name, text in generate(holder_ir()).items():
         header = "\n".join(text.splitlines()[:2])

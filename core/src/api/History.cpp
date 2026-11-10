@@ -142,9 +142,9 @@ ProjectHistoryPage list_project_history(holder_context& context, std::string pro
     throw InvalidArgument(error.what());
   } catch (const holder::privacy::PrivacyError& error) {
     using Code = holder::privacy::PrivacyErrorCode;
-    if (error.code() == Code::KeyMaterialMissing || error.code() == Code::KeyringUnavailable)
-      throw HistoryKeyUnavailable(error.what());
-    throw HistoryUnavailable(error.what());
+    if (error.code() == Code::KeyMaterialMissing || error.code() == Code::KeyringUnavailable) // LCOV_EXCL_LINE - current history enrichment absorbs privacy failures; retained for future backends.
+      throw HistoryKeyUnavailable(error.what()); // LCOV_EXCL_LINE - current history enrichment absorbs privacy failures; retained for future backends.
+    throw HistoryUnavailable(error.what()); // LCOV_EXCL_LINE - current history enrichment absorbs privacy failures; retained for future backends.
   } catch (const std::exception& error) {
     throw HistoryUnavailable(error.what());
   }

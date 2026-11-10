@@ -6,7 +6,40 @@ refer to that baseline; generated output may move when regenerated. gcovr classi
 72 of these records as executable. An unhit source record alone does not establish
 an untested behavior, and a difficult failure path is not automatically an artifact.
 
-## Latest result
+## Final result and measurement scope
+
+Verified on 2026-11-10: **15,055 / 15,055 measured lines (100%)** and
+**1,881 / 1,881 functions (100%)**. gcovr has no remaining unexcluded executable
+line misses. All 889 CTest entries, 22 generator tests and eight coverage-filter
+tests pass. Generated-file freshness, Ruff, clang-format for the changed C++ test,
+and `git diff --check` pass.
+
+The last 33 records were resolved in one batch. A final trace comparison proves:
+
+- `Rebuild.cpp:36` is reached by new boundary tests (four hits).
+- `ProjectMaintenance.cpp:42` is normalized from zero to the lambda's recorded
+  eight entry hits, retaining the function and every other body/branch counter.
+- Exactly 31 other zero-hit line records are excluded as detailed below.
+- No function symbols were removed or added. Every retained line is covered.
+
+The full core suite ran once for this batch. Reporting was regenerated from its
+completed profiles after discovering that a source annotation on the lambda's
+entry also erased its function record. That annotation was removed, and an exact
+file/symbol normalization replaced it. Tests cover modern and legacy lcov formats,
+zero function hits, wrong symbols/files, missing function records, already-positive
+line counts, idempotence, and preservation of other missed lines and branches.
+Logs are `build-coverage/final-round-coverage.log`,
+`build-coverage/final-report-verification.log` and
+`build-coverage/final-generator-tests.log`.
+
+**100% refers to this documented measurement scope**, not every hypothetical
+resource failure. Defensive guards remain in the executable. In particular, the
+full-collection sort-key precision limit is an explicit resource-boundary
+exclusion, and the JSON allocation-during-destruction limitation described below
+remains unresolved. No malformed input, unsafe pointer, fabricated enormous
+container or machine-wide memory exhaustion was used to exercise a guard.
+
+## Result after the repository/parser allocation batch
 
 After the repository/parser allocation batch: **15,053 / 15,086 lines (99.8%)**
 and **1,881 / 1,881 functions (100%)**. There are **33 missed lcov records**
@@ -449,7 +482,7 @@ allocation failures are recoverable. JSON aggregate cleanup counters in the
 remaining inventory still need separate review. This dependency limitation
 remains unresolved by the parser fix.
 
-## Current missed lcov records
+## Missed lcov records before the final audit
 
 | File under `src/` | Line records |
 |---|---|
@@ -463,3 +496,103 @@ remains unresolved by the parser fix.
 | `api/RuntimeHosts.cpp` | 111 |
 | `card/CardHierarchy.cpp` | 83 |
 | `card/CardStore.cpp` | 807, 891 |
+
+## Final audit of the remaining 0.2%
+
+| Classification | Original records | Final treatment |
+|---|---:|---|
+| Rebuild response overflow | 1 | New adapter boundary tests, no exclusion |
+| Covered lambda entry attribution | 1 | Exact file/symbol normalization from its positive function-entry count |
+| Compiler expression/cleanup attribution | 8 | Single-line annotations, with executed-body and round-trip witnesses |
+| Guards behind earlier validation/error absorption | 7 | Single-line defensive annotations; public rejection paths remain measured |
+| Host registration defensive handlers | 15 | Generated single-line annotations; allocation and mutex failure handlers remain measured |
+| Full-collection numeric resource boundary | 1 | Explicitly documented resource-limit exclusion; guard retained |
+
+### Rebuild boundary test
+
+The isolated read-allocation runner now wraps `Rebuilder::rebuild_project` at its
+backend/adapter boundary. For each of `cards`, `ai_messages`, `ai_threads` and
+`links`, it returns `INT32_MAX` and `INT32_MAX + 1` without allocating that many
+records. The API must preserve the largest valid count exactly, or return
+`HOLDER_ERROR_REBUILD_FAILED` with `rebuild count exceeds API range`, a null result,
+and no database writes for the overflow. A pass-through call also performs a real
+empty-project rebuild. The runner now has 285 assertions across three test cases.
+This tests the actual private conversion guard and its error propagation rather
+than substituting the API's error handler.
+
+### Compiler attribution evidence
+
+GCC 15's JSON identifies a zero-hit counter at the following block in an otherwise
+executed function. Normal expression evaluation is attributed to adjacent lines
+or discriminators; debug disassembly and existing round trips demonstrate the
+ordinary path. For example, snapshot enum-name calls execute in normal code while
+GCC associates their exception continuation with the initializer's source record.
+The retained field converters and validating parsers remain measured.
+
+| Source / original line | Zero-hit block | Enclosing function calls before final batch | Witness |
+|---|---:|---:|---|
+| `api/Git.cpp:192` | 75 | 5 | Scheduled sync tests in `ContractGit_test.cpp` / C API sync tests |
+| `api/RecoverySnapshots.cpp:232` | 601 | 2039 | Nested recovery snapshot round trip, including link target types |
+| `api/RecoverySnapshots.cpp:260` | 747 | 2039 | Recovery placement encoding and asset round trip |
+| `api/RecoverySnapshots.cpp:286` | 1029 | 2039 | Recovery storage-provider round trip |
+| `api/RecoverySnapshots.cpp:294` | 1187 | 2039 | Plain and encrypted recovery privacy modes |
+| `api/RecoverySnapshots.cpp:479` | 32 | 4 | Location configuration/identity reconstruction assertions |
+| `api/RecoverySnapshots.cpp:493` | 128 | 4 | Placement location, encoding, size and digest reconstruction assertions |
+| `api/RuntimeHosts.cpp:111` | 20 | 7 | Keyring lookup success/failure and host lifetime tests; zero block belongs to cleanup/unwind |
+
+`api/ProjectMaintenance.cpp:42`, block 73 with eight lambda calls, gets a reporting
+correction instead of an annotation. The exact mangled lambda symbol is allowlisted
+in `scripts/coverage_filters.py`. A positive matching function-entry count in the
+same file is mandatory; only its zero entry-line counter and the line-hit summary
+can change. Positive counters, every function record and other missed lines stay
+intact. Existing hierarchy-repair tests exercise planning and application.
+The raw JSON/disassembly investigation is in
+`build-coverage/final-counter-evidence.json` (a local, regenerable artifact).
+
+### Defensive invariants
+
+| Source / original lines | Why valid current call paths cannot reach the fallback |
+|---|---|
+| `api/Cards.cpp:198,200` | `placement_intent` validates every incoming intent before the private placement translator. `ContractContext_test.cpp` tests invalid C++ intents and the generated C API rejects invalid integer choices. |
+| `api/History.cpp:145–147` | Current encrypted metadata reads occur only inside optional display enrichment, whose helpers catch privacy failures and preserve path-only history. Project lookup, Git reading, filtering and response sizing do not emit `PrivacyError`. Actual card-history key errors remain measured and tested. |
+| `card/CardStore.cpp:807` | Parsed milestone dates require exactly one validated date or datetime, so an existing valid end date always has an epoch. Invalid front matter and mixed legacy/new updates fail earlier. Legacy milestone and malformed-date tests retain those checks. |
+| `card/CardStore.cpp:891` | Every caller passes copied source snapshots validated by move, trash, restore, history restore or `placement_change`. A later database edit cannot mutate the copied value. Existing damaged-source/path tests exercise the public validation, which remains measured. |
+
+### Host registration handlers
+
+The generator annotates exactly 15 records: the four post-registration
+`invalid_argument` returns, four unknown-error returns, four terminal cleanup
+brace records, and the SSH-only generic exception catch/return and following
+catch-dispatch line. Callback validation, input enum/string/span validation,
+allocation errors and the three real mutex-system-error handlers stay measured.
+
+`RuntimeHosts.cpp` registers callback adapters without invoking their methods.
+The implemented operations allocate/move strings, vectors and shared pointers,
+and (except SSH) publish under a mutex. Standard allocation and mutex errors
+already have tests. Input validation prevents the internal storage-kind
+`invalid_argument`. No current operation emits a non-standard exception.
+SSH's generic standard-exception fallback protects future adapters and string/
+vector length errors requiring unrepresentably large, otherwise valid input
+objects. Its actual allocation handler remains measured. Exceptions from a host
+cleanup destructor cannot be safely used here: that destructor is `noexcept`.
+
+`contract/generators/core/host_glue.py` emits the annotations. The generator
+regression verifies their exact count and checks that all validation, ownership
+acquisition, allocation handling and non-SSH mutex-error handlers stay measured.
+No host callback invocation/error path is excluded.
+
+### Explicit resource-boundary exclusion
+
+`card/CardHierarchy.cpp:83` protects the final fully widened sibling window. With
+both endpoints open, its sort-key construction spaces values from 1 through the
+collection size; failure requires a collection beyond reliable distinct-double
+spacing. Constructing such a collection is outside a practical in-memory test
+fixture. The single throw is classified as a resource/numeric safeguard, not as a
+compiler artifact or a claim of mathematical unreachability. Neighbor exhaustion,
+tied keys, widening and ordinary full-window re-spacing stay measured in the
+placement tests. The executable still throws if the safeguard ever triggers.
+
+## Current missed records
+
+None within the documented measurement scope. The JSON dependency limitation and
+resource-boundary exclusion above remain explicit limitations of that scope.

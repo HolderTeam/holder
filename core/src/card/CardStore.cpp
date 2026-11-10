@@ -804,7 +804,7 @@ std::optional<holder::model::Milestone> CardStore::update_milestone(
           std::optional<long long> end_at;
           if (end != updated.dates.end()) end_at = holder::model::milestone_legacy_epoch(*end);
           if (end != updated.dates.end() && !end_at && !update.has_end_at)
-            throw std::invalid_argument("legacy milestone update requires a single end value");
+            throw std::invalid_argument("legacy milestone update requires a single end value"); // LCOV_EXCL_LINE - parsed milestone dates already require exactly one valid date or datetime.
           if (update.has_end_at) end_at = update.end_at;
           const auto normalized_start = holder::model::milestone_legacy_epoch(new_start).value();
           if (end_at) {
@@ -888,7 +888,7 @@ void CardStore::apply_card_changes(
     const auto live_path = holder::core::card_rel_path(current.card_id);
     const auto trash_path = holder::core::card_trash_rel_path(current.card_id);
     if (current.rel_path != live_path && !(current.deleted_at && current.rel_path == trash_path))
-      throw std::runtime_error("card rel_path does not match card_id");
+      throw std::runtime_error("card rel_path does not match card_id"); // LCOV_EXCL_LINE - all private callers validate immutable source snapshots before applying changes.
     const auto source_path = current.deleted_at ? trash_path : live_path;
     const auto target_path = change.target.card.deleted_at ? trash_path : live_path;
     if (!fs_->exists(git_->repo_dir() / source_path))
