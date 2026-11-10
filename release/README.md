@@ -20,9 +20,10 @@ The `Release / Promote Windows dev build` workflow can publish a self-signed Win
 
 This is for prerelease testing only. It does not replace the final Windows signing path.
 
-Given a `holder-v<version>` release tag, it adds the installer to that draft,
-creating a draft if needed. Without an explicit tag, it publishes a development
-prerelease under its own `holder-windows-dev-<staging run>` tag. Core SDK promotion
+Use the [recorded Windows delivery command](docs/windows-promotion.md) to verify
+and deliver the accepted tester installer to the existing product draft. The
+independent manual workflow can create a missing draft at an existing product
+tag. Without an explicit tag, it publishes a development prerelease under its own `holder-windows-dev-<staging run>` tag. Core SDK promotion
 publishes separately to `HolderTeam/holder-sdk`.
 
 ## Linux AppImage release candidates

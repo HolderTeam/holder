@@ -96,7 +96,8 @@ capture the explicitly selected run's current artifacts. All paths require the
 Holder release tag at that Daemon run's source SHA.
 
 Development snapshot publication, including its Ubuntu SDK-package payload,
-continues through the existing Core CI publisher. Windows delivery, the remaining
+continues through the existing Core CI publisher.
+[Windows delivery](windows-promotion.md) uses the same record. The remaining
 platform handoff, Launchpad binary availability and website completion remain
 subsequent #120 work. Validate this complete remote handoff through the next
 actual release; an extra SDK build matrix or publication rehearsal is not
