@@ -351,7 +351,7 @@ Launchpad binary builds or website updates.
 
 | Destination | Current operation | Completion evidence |
 | --- | --- | --- |
-| Ubuntu PPA | `Release / Launchpad` runs on the pushed `holder-v*` tag, uploading `holder-core`, `holder-daemon`, `holder-kit`, `holder-desktop` for noble and resolute | Successful source uploads **and** successful remote binary builds/publication for each intended series; fresh install and supported upgrade tests |
+| Ubuntu PPA | `Release / Launchpad` uploads on the pushed `holder-v*` tag; `release.py observe-ppa --record <candidate.json> --wait` checks the exact packages for noble and resolute | Recorded source publications, remote builds and APT index entries for the selected architecture coverage; separately verify installs and supported upgrades |
 | Kit | `release.py publish-python --record <candidate.json> --package kit --destination pypi --wait` | Prepared files fetched/verified without rebuilding, expected index hashes and publication receipt |
 | Holder Python | `release.py publish-python --record <candidate.json> --package python --destination pypi --wait` | Prepared wheel/sdist on the index with matching hashes and publication receipt |
 
@@ -372,16 +372,18 @@ package-only backfill exception is not a general release route. See the
 [Python publishing](../../python/holder/docs/publishing.md) and
 [Kit packaging](../../python/kit/docs/packaging.md) contracts.
 
-Launchpad accepts source uploads before all dependent builds are ready. Wait
-for matching core development packages and then daemon/Kit packages, rather than
-treating a temporarily dependency-blocked build as a reason to replace the
-candidate. Record package versions/revisions and installed test results per
-series. A packaging-only repair can be dispatched on the intended source ref
+Launchpad accepts source uploads before all dependent builds are ready. Use
+[the PPA observer](launchpad-availability.md) to record each exact source/series
+version, remote builds and APT index entries. Wait for matching core development
+packages and then daemon/Kit packages. Record installed test results separately.
+A packaging-only repair can be dispatched on the intended source ref
 with `packages=<affected package>`, `series=<affected series>`,
 `version=<expected product version>` and a fresh positive `package_revision`.
 That manual dispatch uploads to the PPA; it is not a build-only switch. Core/Kit
 orig tarballs are shared across series/revisions for an upstream version:
 packaging revision changes do not permit replacing different upstream source.
+Select the repaired version with `observe-ppa --ppa-revision <package>:<series>=<revision>`;
+the prior observation remains in history and other targets are unchanged.
 
 ## 9. Update the website and installed-app feed
 
@@ -420,7 +422,7 @@ download links, checksums and Ubuntu instructions, then record website completio
 | Approval or signing step is pending | Wait for its recorded outcome. Resume from the retained exact input; do not rebuild or start another signing attempt simply because an external operation takes time. |
 | SDK publication is interrupted | The helper can recreate an unfinished draft on retry. An existing published SDK version is left untouched; its existence alone is not proof that it matches this candidate. Compare the published index/digests before accepting it as complete. |
 | Draft asset upload is interrupted | Inventory current assets and hashes first. Linux/Windows promotion reuses matching bytes and uploads only missing files. Conflicts stop the normal path. Intentional draft replacement requires the explicit manual recovery input; record/recheck it, and never use retries to replace different published bytes. |
-| PPA upload/build is incomplete | Inspect each package/series separately, including remote logs and dependency waits. Avoid re-uploading a successful set indiscriminately; use a new packaging revision only where appropriate and preserve upstream tarball identity. |
+| PPA upload/build is incomplete | Inspect the recorded package/series state and build logs. Repair only the affected target where needed, preserving upstream tarball identity, then resume `observe-ppa` with any explicitly revised target. |
 | PyPI/TestPyPI is partially uploaded | Inspect the index and local manifest before retrying. Existing files cannot be changed in place; do not assume the workflow can safely resume a partial upload. A new package/release version may be necessary. |
 | GitHub release is already public but another destination failed | Record partial completion and address the failed destination explicitly. Do not move tags or erase successful publications to simulate an atomic release. Keep website/channel claims accurate. |
 | Website deployment fails | Keep the verified release files and metadata revision, fix the site/deployment issue and redeploy that reviewed data. Do not advertise unverified package availability as a workaround. |
