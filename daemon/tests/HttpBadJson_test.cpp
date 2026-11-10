@@ -123,3 +123,38 @@ TEST_CASE("Milestone range routes validate required bounds and project IDs", "[h
     CHECK(error.at("message").get<std::string>().find(item.message) != std::string::npos);
   }
 }
+
+TEST_CASE("Project routes report missing cards resources and projects consistently", "[http]") {
+  namespace http = boost::beast::http;
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  create_project(db, "project", (dir / "project").string());
+
+  struct Case {
+    http::verb method;
+    const char* path;
+  };
+  for (const auto& item : {
+           Case{http::verb::get, "/projects/missing/history"},
+           Case{http::verb::get, "/projects/missing/resources"},
+           Case{http::verb::get,
+                "/projects/missing/calendar?first_day=2026-01-01&last_day=2026-01-02&time_zone=UTC"},
+           Case{http::verb::get, "/projects/project/cards/missing/metadata"},
+           Case{http::verb::get, "/projects/project/cards/missing/links?include_deleted=true"},
+           Case{http::verb::get, "/projects/project/cards/missing/backlinks?include_deleted=false"},
+           Case{http::verb::get, "/projects/project/cards/missing/milestones"},
+           Case{http::verb::get, "/projects/project/cards/missing/resources"},
+           Case{http::verb::get, "/projects/project/resources/missing/backlinks"},
+           Case{http::verb::delete_, "/projects/project/resources/missing"},
+           Case{http::verb::delete_, "/projects/project/cards/missing"},
+           Case{http::verb::delete_, "/projects/project/cards/missing/resources/missing"},
+       }) {
+    CAPTURE(item.path);
+    http::request<http::string_body> req{item.method, item.path, 11};
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    INFO(res.body());
+    REQUIRE(res.result() == http::status::not_found);
+    CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == "not_found");
+  }
+}

@@ -37,6 +37,7 @@ http::request<http::string_body> make_request(
 
 #include "git/GitOps.h"
 #include "google_storage_test_helpers.h"
+#include "resource/AssetEnvelope.h"
 #include "resource/LocationBindingStore.h"
 #include "resource/LocationRepo.h"
 #include "resource/ResourceRepo.h"
@@ -216,6 +217,7 @@ TEST_CASE(
   using Server = holder::test::StorageHttpTestServer;
   unsigned response_status = 200;
   http::status expected = http::status::ok;
+  bool missing_after_put = false;
   SECTION("success") {}
   SECTION("authentication") {
     response_status = 401;
@@ -233,8 +235,13 @@ TEST_CASE(
     response_status = 503;
     expected = http::status::service_unavailable;
   }
+  SECTION("the provider accepts the write but does not have the object") {
+    missing_after_put = true;
+    expected = http::status::unprocessable_entity;
+  }
   LocationRouteFixture f;
-  Server server([&](const Server::Request&) {
+  Server server([&](const Server::Request& request) {
+    if (missing_after_put && request.method() == http::verb::head) return Server::response(404);
     return Server::response(response_status);
   });
   f.put(
@@ -255,6 +262,12 @@ TEST_CASE(
   REQUIRE_FALSE(server.requests().empty());
   CHECK(std::string(server.requests()[0].target()).starts_with("/bucket/archive/.holder-probes/"));
   CHECK(server.requests()[0]["x-amz-security-token"] == "session");
+  if (missing_after_put) {
+    REQUIRE(server.requests().size() == 3);
+    CHECK(server.requests()[1].method() == http::verb::head);
+    CHECK(server.requests()[2].method() == http::verb::delete_);
+    CHECK(nlohmann::json::parse(response.body())["error"]["code"] == "storage_integrity_failed");
+  }
   CHECK(std::filesystem::is_empty(f.root / "cache/holder/asset-probes"));
 }
 
@@ -503,6 +516,12 @@ TEST_CASE("Resource asset retrieval validates placement ownership", "[resources]
     CHECK(in_use.result() == http::status::conflict);
     CHECK(nlohmann::json::parse(in_use.body())["error"]["code"] == "conflict");
   }
+  holder::resource::LocationBindingStore(*f.secrets).unbind("project", "location");
+  const auto unbound = retrieve({}, streamed);
+  REQUIRE(unbound.result() == http::status::conflict);
+  CHECK(nlohmann::json::parse(unbound.body())["error"]["code"] == "storage_binding_required");
+  CHECK_FALSE(streamed);
+
   f.db.exec("PRAGMA foreign_keys=OFF; DELETE FROM storage_locations; PRAGMA foreign_keys=ON;");
   CHECK(retrieve({}, streamed).result() == http::status::not_found);
   CHECK_FALSE(streamed);
@@ -578,4 +597,63 @@ TEST_CASE("Storage failure exceptions preserve the typed response and its error"
   check.operator()<StorageGatewayFailure>(Code::Permission, "storage_permission_denied");
   check.operator()<StorageCapacityExceeded>(Code::Capacity, "storage_capacity_exceeded");
   check.operator()<StorageUnavailable>(Code::Transient, "storage_transient_failure");
+}
+
+TEST_CASE("Asset downloads report storage failures and clean up after a write failure",
+          "[resources][routes]") {
+  LocationRouteFixture f;
+  holder::git::RealGitOps git;
+  const auto objects = f.root / "objects";
+  std::filesystem::create_directories(objects);
+  const auto object = objects / "object";
+  std::ofstream(object, std::ios::binary) << "asset";
+  const auto digest = holder::resource::digest_file(object);
+  f.put("local_directory", {}, {{"root_path", objects.string()}});
+
+  holder::model::ResourceBundle bundle{
+      .resource = {"resource", "project", "file", "Asset", {}, 1, 1},
+      .assets = {{"asset", "resource", "asset.txt", "text/plain", digest.byte_size,
+                  digest.sha256, 1, 1,
+                  {{"placement", "asset", "location", "object", "plain",
+                    digest.byte_size, digest.sha256, 1}}}},
+  };
+  const auto cache = f.root / "cache/holder/asset-cache";
+
+  std::optional<http::status> expected_error;
+  std::string expected_code;
+  SECTION("missing object") {
+    expected_error = http::status::service_unavailable;
+    expected_code = "storage_unavailable";
+    std::filesystem::remove(object);
+  }
+  SECTION("object bytes fail integrity verification") {
+    expected_error = http::status::unprocessable_entity;
+    expected_code = "storage_integrity_failed";
+    std::ofstream(object, std::ios::binary) << "wrong";
+  }
+  SECTION("stored encoding is unsupported") {
+    expected_error = http::status::bad_request;
+    expected_code = "bad_request";
+    bundle.assets.front().placements.front().encoding = "unsupported";
+  }
+  SECTION("socket cannot write the recovered file") {}
+
+  holder::resource::ResourceRepo(f.db).put_bundle(bundle);
+  boost::asio::io_context io;
+  boost::asio::ip::tcp::socket closed_socket(io);
+  auto req = make_request(http::verb::get, "/resources/resource/assets/asset/content");
+  http::response<http::string_body> res;
+  const auto served = holder::test::serve_generated(
+      req, res, closed_socket, f.db, nullptr, nullptr, f.secrets.get(), &git,
+      [] { return std::string("download-test"); });
+  INFO(res.body());
+  REQUIRE(served.handled);
+  CHECK(std::filesystem::is_empty(cache));
+
+  REQUIRE(served.streamed == !expected_error.has_value());
+  if (expected_error) {
+    CHECK(res.result() == *expected_error);
+    const auto error = nlohmann::json::parse(res.body()).at("error");
+    CHECK(error.at("code") == expected_code);
+  }
 }
