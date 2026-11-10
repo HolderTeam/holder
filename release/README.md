@@ -78,5 +78,6 @@ the one-time PyPI project setup and release steps.
 
 `Release / Launchpad` uploads the `holder-core`, `holder-daemon`, `holder-kit` and
 `holder-desktop` source packages to `ppa:holderteam/holder` for each `holder-v*` tag.
-There is no separate desktop tag any more. See the comments
-at the top of `.github/workflows/release-launchpad.yml`.
+Use the [PPA observer](docs/launchpad-availability.md) to track exact remote
+builds and APT index availability after upload. Install and upgrade validation
+remains a separate check.

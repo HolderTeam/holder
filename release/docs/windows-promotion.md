@@ -79,5 +79,5 @@ replacement separately from retrying an interrupted upload.
 
 Validate the complete remote path through the next actual release using this
 procedure. No additional publication rehearsal is needed. The remaining platform
-handoff, Launchpad binary availability and website completion remain later #120
-work.
+handoff and website completion remain later #120 work.
+[Launchpad availability](launchpad-availability.md) uses the same record.
