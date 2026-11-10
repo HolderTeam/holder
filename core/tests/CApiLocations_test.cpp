@@ -59,6 +59,38 @@ struct Fixture {
 
 } // namespace
 
+TEST_CASE("Location reads reject unsupported stored providers and recover after repair",
+          "[capi][batch-location-failures]") {
+  Fixture f;
+  holder_new_storage_location request{};
+  request.project_id = f.project_id.c_str();
+  request.name = "Keep location";
+  request.provider = HOLDER_NEW_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY;
+  const holder_project_storage_location* made = nullptr;
+  REQUIRE(holder_create_storage_location(f.context, &request, f.arena, &made, &f.error) == HOLDER_OK);
+  const std::string id = made->location_id;
+  f.context->db.exec("UPDATE storage_locations SET provider='future-provider';");
+  const holder_project_storage_location* location = nullptr;
+  const holder_storage_location_list* list = nullptr;
+  for (bool listing : {false, true}) {
+    const auto status = listing
+        ? holder_list_storage_locations(f.context, f.project_id.c_str(), f.arena, &list, &f.error)
+        : holder_get_storage_location(f.context, id.c_str(), f.arena, &location, &f.error);
+    REQUIRE(status == HOLDER_ERROR_RUNTIME);
+    REQUIRE(f.error != nullptr);
+    CHECK(std::string(holder_error_message(f.error)).find("unknown storage provider") != std::string::npos);
+    CHECK(location == nullptr);
+    CHECK(list == nullptr);
+    holder_error_destroy(f.error);
+    f.error = nullptr;
+  }
+  f.context->db.exec("UPDATE storage_locations SET provider='local_directory';");
+  REQUIRE(holder_get_storage_location(f.context, id.c_str(), f.arena, &location, &f.error) == HOLDER_OK);
+  CHECK(std::string(location->name) == "Keep location");
+  REQUIRE(holder_list_storage_locations(f.context, f.project_id.c_str(), f.arena, &list, &f.error) == HOLDER_OK);
+  CHECK(list->data.count == 1);
+}
+
 TEST_CASE("Generated C API storage locations create, list, update and delete portable declarations",
           "[capi][locations]") {
   Fixture f;

@@ -48,6 +48,55 @@ std::pair<std::string, std::string> seed_project_and_card(holder_context* contex
 
 } // namespace
 
+TEST_CASE("Context open preserves durable data when recovery lacks schema SQL",
+          "[capi][batch-runtime-failures]") {
+  const auto data_dir = holder::test::make_temp_dir();
+  const auto schema = schema_sql();
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  holder_arena* arena = holder_arena_new();
+  REQUIRE(holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK);
+  const auto [project_id, card_id] = seed_project_and_card(context, arena, &error, "Recover these bytes");
+  holder_context_destroy(context);
+  context = nullptr;
+  const auto database = data_dir / "server/holder.db";
+  std::filesystem::rename(database, database.string() + ".saved");
+  REQUIRE(holder_context_open(data_dir.string().c_str(), nullptr, &context, &error) == HOLDER_ERROR_RUNTIME);
+  REQUIRE(error != nullptr);
+  CHECK(std::string(holder_error_message(error)).find("schema SQL is required") != std::string::npos);
+  CHECK(context == nullptr);
+  CHECK_FALSE(std::filesystem::exists(database));
+  CHECK(std::filesystem::is_regular_file(database.string() + ".saved"));
+  holder_error_destroy(error);
+  error = nullptr;
+  REQUIRE(holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK);
+  const holder_card* card = nullptr;
+  REQUIRE(holder_get_card(context, project_id.c_str(), card_id.c_str(), arena, &card, &error) == HOLDER_OK);
+  CHECK(std::string(card->content) == "Recover these bytes");
+  holder_context_destroy(context);
+  holder_arena_free(arena);
+}
+
+TEST_CASE("Context open reports an unusable database path without removing it",
+          "[capi][batch-runtime-failures]") {
+  const auto data_dir = holder::test::make_temp_dir();
+  const auto database = data_dir / "server/holder.db";
+  std::filesystem::create_directories(database);
+  {
+    std::ofstream marker(database / "keep.txt");
+    marker << "keep me";
+  }
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  const auto schema = schema_sql();
+  REQUIRE(holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_ERROR_RUNTIME);
+  REQUIRE(error != nullptr);
+  CHECK(std::string(holder_error_message(error)).find("database I/O failure:") != std::string::npos);
+  CHECK(context == nullptr);
+  CHECK(std::filesystem::is_regular_file(database / "keep.txt"));
+  holder_error_destroy(error);
+}
+
 TEST_CASE("The generated C API exposes the core version", "[capi][runtime]") {
   holder_arena* arena = holder_arena_new();
   const holder_core_version* version = nullptr;

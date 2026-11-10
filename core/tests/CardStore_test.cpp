@@ -1255,6 +1255,21 @@ TEST_CASE("CardStore complete pages read encrypted authoritative content", "[car
   REQUIRE(second.cards[0].card.card_id == "encpage2");
   REQUIRE(second.cards[0].content == "second secret body");
   REQUIRE_FALSE(second.next_cursor.has_value());
+  REQUIRE_THROWS_WITH(store.list_complete_page(project.project_id, std::nullopt, 0),
+                      Catch::Matchers::ContainsSubstring("limit must be positive"));
+  const auto path = std::filesystem::path(project.root_path) / holder::core::card_rel_path("encpage2");
+  std::filesystem::rename(path, path.string() + ".saved");
+  REQUIRE_THROWS_WITH(store.list_complete_page(project.project_id, first.next_cursor, 1),
+                      Catch::Matchers::ContainsSubstring("card content missing: encpage2"));
+  // A failed content read must neither delete metadata nor advance the caller's
+  // cursor; the same page works once its authoritative file is available again.
+  CHECK(holder::card::CardRepo(db).count_all_not_deleted(project.project_id) == 2);
+  CHECK(store.list_complete_page(project.project_id, std::nullopt, 1).cards[0].content == "first secret body");
+  std::filesystem::rename(path.string() + ".saved", path);
+  const auto retried = store.list_complete_page(project.project_id, first.next_cursor, 1);
+  REQUIRE(retried.cards.size() == 1);
+  CHECK(retried.cards[0].content == "second secret body");
+  CHECK_FALSE(retried.next_cursor.has_value());
 }
 
 TEST_CASE("CardStore move exercises error and no-op branches", "[cardstore]") {
@@ -2421,6 +2436,40 @@ TEST_CASE("CardStore tag and historical restore methods reject missing cards", "
       store.list_editable_tags("missing-card"),
       Catch::Matchers::ContainsSubstring("card not found: missing-card")
   );
+}
+
+TEST_CASE("Permanent deletion checks project ownership before changing a trashed card",
+          "[cardstore][batch-delete-ownership]") {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  const auto root = dir / "project";
+  create_project(db, "proj-1", root.string());
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore store(db, &fts);
+  holder::model::Card card;
+  card.card_id = "aaaaaaaa-1111-4111-8111-111111111111";
+  card.project_id = "proj-1";
+  card.title = "Keep trash";
+  card.created_at = card.updated_at = 1;
+  store.create(card, "Trashed body");
+  store.trash(card.card_id, 10);
+  holder::git::GitRepo git;
+  git.open_existing(root);
+  const auto head = git.head_oid();
+  const auto path = root / holder::core::card_trash_rel_path(card.card_id);
+  REQUIRE_THROWS_WITH(store.hard_delete(card.card_id, "wrong-project"),
+                      Catch::Matchers::ContainsSubstring("card not found in project:"));
+  const auto saved = store.get(card.card_id);
+  REQUIRE(saved.has_value());
+  CHECK(saved->deleted_at == 10);
+  CHECK(store.get_content(*saved) == "Trashed body");
+  CHECK(std::filesystem::is_regular_file(path));
+  CHECK(git.head_oid() == head);
+  store.hard_delete(card.card_id, "proj-1");
+  CHECK_FALSE(store.get(card.card_id).has_value());
+  CHECK_FALSE(std::filesystem::exists(path));
 }
 
 TEST_CASE(

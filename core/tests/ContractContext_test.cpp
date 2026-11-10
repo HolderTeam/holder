@@ -48,12 +48,62 @@ class CountingGit final : public holder::git::GitOps {
 
 template <class Kind>
 void translated_as(holder::privacy::PrivacyErrorCode code) {
-  REQUIRE_THROWS_AS(holder::contract::with_contract_errors(
-                        [&]() -> int { throw holder::privacy::PrivacyError(code, "privacy"); }),
-                    Kind);
+  const auto raise_privacy_error = [&]() -> int { throw holder::privacy::PrivacyError(code, "privacy"); };
+  REQUIRE_THROWS_AS(holder::contract::with_contract_errors(raise_privacy_error), Kind);
 }
 
 } // namespace
+
+TEST_CASE("Direct contract inputs reject unsupported enum choices before accessing storage",
+          "[contract][broad-contract-validation]") {
+  holder_context context;
+  const auto invalid_scope = static_cast<holder::contract::CardReferenceResolveRequestScope>(-1);
+  holder::contract::CardReferenceResolveRequest reference{"unopened-project", "card", invalid_scope};
+  REQUIRE_THROWS_AS(holder::contract::resolve_card_reference(context, reference),
+                    holder::contract::InvalidArgument);
+  holder::contract::NewStorageLocation location;
+  location.project_id = "unopened-project";
+  location.name = "Invalid provider";
+  location.provider = static_cast<holder::contract::NewStorageLocationProvider>(-1);
+  REQUIRE_THROWS_AS(holder::contract::create_storage_location(context, location),
+                    holder::contract::InvalidArgument);
+  REQUIRE_THROWS_AS(holder::contract::register_storage_provider(
+      static_cast<holder::contract::RegisterStorageProviderKind>(-1), nullptr), std::invalid_argument);
+}
+
+TEST_CASE("An unsupported direct move intent cannot silently move a card up a level",
+          "[contract][invalid-move-intent]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::index::FtsIndexer fts(db);
+  CountingGit git;
+  holder_context context(db, fts, &git);
+  context.projects_root = dir / "projects";
+  holder::contract::NewProject request;
+  request.name = "Move validation";
+  request.privacy_mode = holder::contract::NewProjectPrivacyMode::Plain;
+  const auto project = holder::contract::create_project(context, request);
+  holder::contract::NewCard card;
+  card.title = "Parent";
+  const auto parent = holder::contract::create_card(context, project.project_id, card);
+  card.title = "Child";
+  card.parent_card_id = parent.card_id;
+  const auto child = holder::contract::create_card(context, project.project_id, card);
+  const auto commits = git.commits;
+  holder::contract::CardMove move;
+  move.intent = static_cast<holder::contract::CardMoveIntent>(-1);
+  REQUIRE_THROWS_AS(holder::contract::move_card(context, project.project_id, child.card_id, move),
+                    holder::contract::InvalidArgument);
+  const auto current = holder::contract::get_card(context, project.project_id, child.card_id);
+  CHECK(current.parent_card_id == parent.card_id);
+  CHECK(current.sort_key == child.sort_key);
+  CHECK(current.updated_at == child.updated_at);
+  CHECK(git.commits == commits);
+  move.intent = holder::contract::CardMoveIntent::UpLevel;
+  const auto moved = holder::contract::move_card(context, project.project_id, child.card_id, move);
+  CHECK_FALSE(moved.parent_card_id.has_value());
+  CHECK(git.commits == commits + 1);
+}
 
 TEST_CASE("The contract's operations run on a host's database, indexer and Git", "[contract]") {
   const auto dir = holder::test::make_temp_dir();
@@ -93,10 +143,12 @@ TEST_CASE("Core's failures become the contract's error kinds", "[contract]") {
   // Failures the contract does not name stay unexpected.
   translated_as<holder::privacy::PrivacyError>(PrivacyErrorCode::PrivacyCryptoFailed);
   translated_as<holder::privacy::PrivacyError>(PrivacyErrorCode::RecoveryTokenInvalid);
-  REQUIRE_THROWS_AS(holder::contract::with_contract_errors(
-                        []() -> int { throw holder::model::ConflictError("card_id already exists"); }),
-                    holder::contract::Conflict);
-  REQUIRE(holder::contract::with_contract_errors([] { return 7; }) == 7);
+  // Keep lambda types outside Catch's expression decomposition: its compile-time
+  // checks otherwise instantiate extra, uncalled copies of this header template.
+  const auto raise_conflict = []() -> int { throw holder::model::ConflictError("card_id already exists"); };
+  REQUIRE_THROWS_AS(holder::contract::with_contract_errors(raise_conflict), holder::contract::Conflict);
+  const auto answer = [] { return 7; };
+  REQUIRE(holder::contract::with_contract_errors(answer) == 7);
 }
 
 TEST_CASE("The C API reports an encrypted project's missing key as HOLDER_ERROR_KEY_MISSING", "[capi][contract]") {

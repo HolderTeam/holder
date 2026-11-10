@@ -26,6 +26,16 @@ TEMPLATES = Environment(
     newline_sequence="\n",
 )
 
+# GCC 15 attributes exception-unwind continuations to these closing braces.
+# The conversion bodies, validation failures and return statements stay measured.
+# Exact gcov block evidence and test witnesses: core/docs/coverage-audit.md.
+UNWIND_END = "} // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured."
+INPUT_UNWIND_ENDS = frozenset({
+    "StorageLocationUpdate", "MilestoneDate", "MilestoneUpdate", "AssetImportRequest",
+    "NewResource", "ProjectUpdate", "RebuildRequest", "RecoveryTokenExportRequest",
+    "RecoveryTokenImportRequest", "PushOptions", "RemoteTest",
+})
+
 CHANGE_SUPPORT = r"""
 // A partial update's text field: kept, set to its value, or cleared.
 contract::Change<std::string> changed_text(const holder_string_change& value, const char* name,
@@ -149,7 +159,7 @@ def map_glue(types: CoreTypes, alias: str, ref: MapType) -> list[str]:
                 '    auto key = text(entry.key, (std::string(name) + " key").c_str(), 0, SIZE_MAX);',
                 f'    auto value_text = text(entry.values, (std::string(name) + "." + key).c_str(), {low}, {high});',
                 '    require(out.emplace(std::move(key), std::move(value_text)).second, std::string(name) + " repeats a key");',
-                "  }", "  return out;", "}", ""]
+                "  }", "  return out;", UNWIND_END if alias == "LocationConfiguration" else "}", ""]
     low, high = limits(types.resolve(values_ref.items).type)
     return [f"{name} to_c_{alias_name}(holder_arena* arena, const {cpp}& value) {{",
             f"  auto* items = make<{name}_entry>(arena, value.size());",
@@ -276,7 +286,8 @@ def generate_glue(types: CoreTypes) -> str:
             out += [f"{enum} to_c_enum(contract::{slot.enum} value) {{", "  switch (value) {"]
             out += [f"  case contract::{slot.enum}::{camel(v)}: return {enum.upper()}_{literal_member(v)};"
                     for v in slot.type.values]
-            out += ["  }", f'  throw std::logic_error("not a contract::{slot.enum} value");', "}", ""]
+            out += ["  }", (f'  throw std::logic_error("not a contract::{slot.enum} value"); '
+                            '// LCOV_EXCL_LINE - internal output enum: all declared values handled above.'), "}", ""]
     for instance in outputs:
         out.append(f"{instance.c_name} to_c(holder_arena* arena, const {instance.qualified('contract::')}& value);")
         if instance in types.listed:
@@ -310,7 +321,7 @@ def generate_glue(types: CoreTypes) -> str:
                 out += [f'  default: throw ArgumentError("{label} is not a {enum} value");', "  }"]
                 continue
             out.append(f"  out.{slot.name} = {from_c_value(types, slot, 'value.' + slot.name, label)};")
-        out += ["  return out;", "}", ""]
+        out += ["  return out;", UNWIND_END if instance.record in INPUT_UNWIND_ENDS else "}", ""]
         if instance in types.listed:
             out += [(f"std::vector<{instance.qualified('contract::')}> from_c_list("
                      f"const {instance.c_name}_list& values, const char* name) {{"),
@@ -318,7 +329,7 @@ def generate_glue(types: CoreTypes) -> str:
                     f"  std::vector<{instance.qualified('contract::')}> out;",
                     "  out.reserve(values.count);",
                     "  for (std::size_t i = 0; i < values.count; ++i) out.push_back(from_c(values.items[i]));",
-                    "  return out;", "}", ""]
+                    "  return out;", UNWIND_END if instance.record == "MilestoneDate" else "}", ""]
     out += ["}  // namespace", "", 'extern "C" {', "",
             "holder_arena* holder_arena_new(void) { return new (std::nothrow) holder_arena; }",
             "void holder_arena_free(holder_arena* arena) { delete arena; }", ""]

@@ -126,6 +126,6 @@ inline MilestoneDate milestone_date_from_legacy(std::string role, long long at, 
   else
     value.datetime = milestone_datetime_utc(at);
   return value;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
 
 } // namespace holder::model

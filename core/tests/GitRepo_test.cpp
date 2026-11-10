@@ -1,5 +1,6 @@
 #if __has_include(<catch2/catch_test_macros.hpp>)
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 #else
 #include <catch2/catch.hpp>
@@ -359,6 +360,78 @@ TEST_CASE("GitRepo push_branch returns up_to_date for unborn branch with remote"
   REQUIRE(result.ahead_count == 0);
   REQUIRE(result.behind_count == 0);
   REQUIRE(result.error_message.empty());
+}
+
+TEST_CASE("A blocked fast-forward checkout preserves local work and can be retried",
+          "[git][checkout-failure]") {
+  const auto dir = make_temp_dir();
+  const auto remote_dir = dir / "remote";
+  const auto local_dir = dir / "local";
+  const bool autocrlf = GENERATE(false, true);
+  INFO("core.autocrlf=" << autocrlf);
+  holder::git::GitRepo remote;
+  remote.open_or_init(remote_dir);
+  remote.write_file("cards/a.md", "base body\n");
+  remote.stage_path("cards/a.md");
+  remote.commit("Base");
+  holder::git::GitRepo local;
+  local.open_or_init(local_dir);
+  git_repository* raw = nullptr;
+  REQUIRE(git_repository_open(&raw, local_dir.string().c_str()) == 0);
+  git_config* config = nullptr;
+  REQUIRE(git_repository_config(&config, raw) == 0);
+  REQUIRE(git_config_set_bool(config, "core.autocrlf", autocrlf) == 0);
+  git_config_free(config);
+  git_repository_free(raw);
+  local.set_remote("origin", remote_dir.string());
+  local.pull_remote_ff_only("origin");
+  const auto head = local.head_oid();
+  REQUIRE(head.has_value());
+  remote.write_file("cards/a.md", "remote body\n");
+  remote.write_file("cards/new.md", "remote addition\n");
+  remote.stage_path("cards/a.md");
+  remote.stage_path("cards/new.md");
+  remote.commit("Remote update");
+  const auto remote_head = remote.head_oid();
+  REQUIRE(remote_head.has_value());
+  bool staged = false;
+  bool untracked = false;
+  SECTION("unstaged tracked edit") { local.write_file("cards/a.md", "local unsaved body\n"); }
+  SECTION("staged tracked edit") {
+    staged = true;
+    local.write_file("cards/a.md", "local staged body\n");
+    local.stage_path("cards/a.md");
+  }
+  SECTION("untracked file collides with incoming addition") {
+    untracked = true;
+    local.write_file("cards/new.md", "local untracked body\n");
+  }
+  local.write_file("unrelated.txt", "unrelated local work\n");
+  const auto read = [&](const std::filesystem::path& path) {
+    std::ifstream input(local_dir / path, std::ios::binary);
+    REQUIRE(input.is_open());
+    return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+  };
+  const auto before = read("cards/a.md");
+  const auto index = read(".git/index");
+  REQUIRE_THROWS(local.pull_remote_ff_only("origin"));
+  CHECK(local.head_oid() == head);
+  CHECK(read("cards/a.md") == before);
+  CHECK(read(".git/index") == index);
+  CHECK(read("unrelated.txt") == "unrelated local work\n");
+  if (untracked) {
+    CHECK(read("cards/new.md") == "local untracked body\n");
+    REQUIRE(std::filesystem::remove(local_dir / "cards/new.md"));
+  } else {
+    CHECK_FALSE(std::filesystem::exists(local_dir / "cards/new.md"));
+    local.write_file("cards/a.md", "base body\n");
+    if (staged) local.stage_path("cards/a.md");
+  }
+  REQUIRE_NOTHROW(local.pull_remote_ff_only("origin"));
+  CHECK(local.head_oid() == remote_head);
+  CHECK(read("cards/a.md") == (autocrlf ? "remote body\r\n" : "remote body\n"));
+  CHECK(read("cards/new.md") == (autocrlf ? "remote addition\r\n" : "remote addition\n"));
+  CHECK(read("unrelated.txt") == "unrelated local work\n");
 }
 
 TEST_CASE(

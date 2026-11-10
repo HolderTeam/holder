@@ -70,7 +70,7 @@ std::vector<Link> outgoing(holder_context& context, const std::string& project_i
       out.push_back(to_link(link, LinkSourceType::Card));
   }
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
 
 bool on_this_device(const holder::model::Project& project) {
   std::error_code error;
@@ -92,7 +92,7 @@ std::vector<Link> with_sources(holder_context& context, std::vector<holder::mode
     if (source && (include_deleted || !source->deleted)) out.push_back(to_link(link, source->type));
   }
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
 
 std::vector<Link> backlinks(holder_context& context, const std::string& project_id, const std::string& card_id,
                             ListCardBacklinksScope scope, bool include_deleted) {
@@ -246,6 +246,6 @@ std::vector<LinkKindLabels> list_link_kinds(holder_context&) {
   for (const auto& entry : holder::core::link_kind_catalog())
     out.push_back(LinkKindLabels{entry.id, entry.forward_label, entry.reverse_label});
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
 
 } // namespace holder::contract

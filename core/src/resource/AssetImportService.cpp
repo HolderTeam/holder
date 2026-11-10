@@ -314,11 +314,15 @@ void AssetImportService::retrieve(
   if (!project.has_value()) throw std::runtime_error("project not found");
   std::filesystem::create_directories(staging_root_);
   const auto download = staging_root_ / (placement->placement_id + ".download");
+  // Decode and validate beside the destination, so a failed download or integrity
+  // check cannot truncate the caller's existing file. A sibling also keeps the
+  // final rename on one filesystem.
+  const auto recovered = destination.parent_path() / (".holder-retrieve-" + uuid_v4_());
   try {
     provider.get(placement->object_key, download);
     recover_asset_file(
         download,
-        destination,
+        recovered,
         *project,
         resource_id,
         asset_id,
@@ -326,10 +330,11 @@ void AssetImportService::retrieve(
         {placement->stored_byte_size, placement->stored_sha256},
         {asset->byte_size, asset->plaintext_sha256}
     );
+    std::filesystem::rename(recovered, destination);
     remove_quietly(download);
   } catch (...) {
     remove_quietly(download);
-    remove_quietly(destination);
+    remove_quietly(recovered);
     throw;
   }
 }

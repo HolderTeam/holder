@@ -178,7 +178,7 @@ std::string project_identity(const std::filesystem::path& root) {
     if (body.is_object() && body.contains("project_id") && body["project_id"].is_string()) {
       const auto id = body["project_id"].get<std::string>();
       if (!id.empty()) return id;
-    }
+    } // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
   }
   return {};
 }

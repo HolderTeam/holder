@@ -1,9 +1,15 @@
 #include "core_test_helpers.h"
 #include "git/GitRepo.h"
+#include "git_revision_test_helpers.h"
+#include "capi/Context.h"
+#include "card/CardPaths.h"
+#include "card/CardRepo.h"
+#include "project/ProjectRepo.h"
 
 #include <holder/holder_api.h>
 
 #include <fstream>
+#include <memory>
 #include <set>
 #include <string>
 
@@ -17,7 +23,7 @@ struct HistoryFixture {
   std::string project;
   std::string card;
 
-  HistoryFixture() {
+  explicit HistoryFixture(bool encrypted = false) {
     std::ifstream in(SCHEMA_SQL_PATH);
     REQUIRE(in.is_open());
     const std::string schema{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
@@ -26,7 +32,8 @@ struct HistoryFixture {
     );
     holder_new_project request{};
     request.name = "History coverage";
-    request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN;
+    request.privacy_mode = encrypted ? HOLDER_NEW_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT
+                                    : HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN;
     const holder_project* made = nullptr;
     REQUIRE(holder_create_project(context, &request, arena, &made, &error) == HOLDER_OK);
     project = made->project_id;
@@ -93,6 +100,211 @@ struct HistoryFixture {
 };
 
 } // namespace
+
+TEST_CASE("Oversized project history fails without changing data and can be paged past",
+          "[capi][history-response-boundary]") {
+  HistoryFixture f;
+  const auto project = holder::project::ProjectRepo(f.context->db).get(f.project);
+  REQUIRE(project.has_value());
+  git_repository* raw = nullptr;
+  REQUIRE(git_repository_open(&raw, project->root_path.c_str()) == 0);
+  const std::unique_ptr<git_repository, decltype(&git_repository_free)> repo(raw, git_repository_free);
+  git_oid head{};
+  REQUIRE(git_reference_name_to_id(&head, repo.get(), "HEAD") == 0);
+  git_commit* raw_parent = nullptr;
+  REQUIRE(git_commit_lookup(&raw_parent, repo.get(), &head) == 0);
+  const std::unique_ptr<git_commit, decltype(&git_commit_free)> parent(raw_parent, git_commit_free);
+  git_tree* raw_tree = nullptr;
+  REQUIRE(git_commit_tree(&raw_tree, parent.get()) == 0);
+  const std::unique_ptr<git_tree, decltype(&git_tree_free)> tree(raw_tree, git_tree_free);
+  git_signature* raw_signature = nullptr;
+  REQUIRE(git_signature_new(&raw_signature, "History", "history@example.invalid", 1, 0) == 0);
+  const std::unique_ptr<git_signature, decltype(&git_signature_free)> signature(raw_signature, git_signature_free);
+  const std::string message(2 * 1024 * 1024, 'x');
+  git_oid oversized{};
+  const git_commit* parents[] = {parent.get()};
+  REQUIRE(git_commit_create(&oversized, repo.get(), "HEAD", signature.get(), signature.get(),
+      nullptr, message.c_str(), tree.get(), 1, parents) == 0);
+  const std::string cursor = git_oid_tostr_s(&oversized);
+  const int32_t limit = 1;
+  const holder_project_history_page* page = nullptr;
+  f.failed(holder_list_project_history(f.context, f.project.c_str(), &limit, nullptr,
+      HOLDER_LIST_PROJECT_HISTORY_KIND_NONE, f.arena, &page, &f.error),
+      HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE);
+  CHECK(page == nullptr);
+  git_oid after{};
+  REQUIRE(git_reference_name_to_id(&after, repo.get(), "HEAD") == 0);
+  CHECK(git_oid_equal(&after, &oversized));
+  REQUIRE(holder_list_project_history(f.context, f.project.c_str(), &limit, cursor.c_str(),
+      HOLDER_LIST_PROJECT_HISTORY_KIND_NONE, f.arena, &page, &f.error) == HOLDER_OK);
+  REQUIRE(page != nullptr);
+  REQUIRE(page->activities.count == 1);
+  CHECK(std::string(page->activities.items[0].message).size() < message.size());
+  const holder_card* card = nullptr;
+  REQUIRE(holder_get_card(f.context, f.project.c_str(), f.card.c_str(), f.arena, &card, &f.error) == HOLDER_OK);
+  CHECK(std::string(card->content) == "Original body\n");
+}
+
+TEST_CASE("The default history comparison mode compares the supplied revisions",
+          "[capi][broad-history-default]") {
+  HistoryFixture f;
+  const std::string before = f.history()->entries.items[0].last_oid;
+  f.edit();
+  const std::string after = f.history()->entries.items[0].last_oid;
+  const holder_card_history_comparison* result = nullptr;
+  REQUIRE(holder_compare_card_history(f.context, f.project.c_str(), f.card.c_str(),
+      after.c_str(), before.c_str(), HOLDER_COMPARE_CARD_HISTORY_MODE_DEFAULT,
+      f.arena, &result, &f.error) == HOLDER_OK);
+  REQUIRE(result != nullptr);
+  CHECK(std::string(result->before.body) == "Original body\n");
+  CHECK(std::string(result->after.body) == "Revised body\n");
+}
+
+TEST_CASE(
+    "Generated encrypted history reports key and envelope failures without mutating saved data",
+    "[capi][history-privacy-errors]"
+) {
+  const auto key_dir = holder::test::make_temp_dir() / "keys";
+  holder::test::EnvGuard keystore("HOLDER_TEST_KEYSTORE_DIR", key_dir.string());
+  HistoryFixture f(true);
+  const auto project = holder::project::ProjectRepo(f.context->db).get(f.project);
+  REQUIRE(project.has_value());
+  REQUIRE(project->project_key_id.has_value());
+  const auto key_path = key_dir / (*project->project_key_id + ".key");
+  REQUIRE(std::filesystem::is_regular_file(key_path));
+  holder::git::GitRepo repo;
+  repo.open_existing(project->root_path);
+  const auto valid_revision = repo.head_oid();
+  REQUIRE(valid_revision.has_value());
+  std::string revision = *valid_revision;
+  int expected = HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE;
+  int failure = 0;
+  SECTION("project key ID is missing") {
+    f.context->db.exec("UPDATE projects SET project_key_id=NULL;");
+    failure = 0;
+  }
+  SECTION("project key material is missing") {
+    std::filesystem::rename(key_path, key_path.string() + ".saved");
+    failure = 1;
+  }
+  SECTION("encrypted envelope is damaged") {
+    repo.write_file(holder::core::card_rel_path(f.card), "Plaintext must not become history\n");
+    repo.stage_path(holder::core::card_rel_path(f.card));
+    repo.commit("Damaged encrypted history");
+    revision = *repo.head_oid();
+    expected = HOLDER_ERROR_HISTORY_UNAVAILABLE;
+    failure = 2;
+  }
+  const auto head = repo.head_oid();
+  const auto path = std::filesystem::path(project->root_path) / holder::core::card_rel_path(f.card);
+  const auto read = [&] {
+    std::ifstream input(path, std::ios::binary);
+    REQUIRE(input.is_open());
+    return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+  };
+  const auto bytes = read();
+  const auto before = holder::card::CardRepo(f.context->db).get(f.card);
+  REQUIRE(before.has_value());
+  for (int operation = 0; operation < 4; ++operation) {
+    INFO("history operation " << operation);
+    const holder_card_history_page* page = nullptr;
+    const holder_card_history_snapshot* snapshot = nullptr;
+    const holder_card_history_comparison* comparison = nullptr;
+    const holder_card_history_restore_result* restored = nullptr;
+    int status;
+    if (operation == 0)
+      status = holder_list_card_history(f.context, f.project.c_str(), f.card.c_str(), nullptr,
+                                        nullptr, f.arena, &page, &f.error);
+    else if (operation == 1)
+      status = holder_get_card_history_snapshot(f.context, f.project.c_str(), f.card.c_str(),
+                                                revision.c_str(), f.arena, &snapshot, &f.error);
+    else if (operation == 2)
+      status = holder_compare_card_history(f.context, f.project.c_str(), f.card.c_str(),
+          revision.c_str(), nullptr, HOLDER_COMPARE_CARD_HISTORY_MODE_CHANGE,
+          f.arena, &comparison, &f.error);
+    else
+      status = holder_restore_card_history_snapshot(f.context, f.project.c_str(), f.card.c_str(),
+          revision.c_str(), f.arena, &restored, &f.error);
+    f.failed(status, expected);
+    CHECK(page == nullptr);
+    CHECK(snapshot == nullptr);
+    CHECK(comparison == nullptr);
+    CHECK(restored == nullptr);
+    CHECK(repo.head_oid() == head);
+    CHECK(read() == bytes);
+    const auto after = holder::card::CardRepo(f.context->db).get(f.card);
+    REQUIRE(after.has_value());
+    CHECK(after->title == before->title);
+    CHECK(after->updated_at == before->updated_at);
+    CHECK(after->deleted_at == before->deleted_at);
+  }
+  if (failure == 0)
+    f.context->db.exec("UPDATE projects SET project_key_id='" + *project->project_key_id + "';");
+  if (failure == 1) std::filesystem::rename(key_path.string() + ".saved", key_path);
+  const holder_card_history_snapshot* recovered = nullptr;
+  REQUIRE(holder_get_card_history_snapshot(f.context, f.project.c_str(), f.card.c_str(),
+      valid_revision->c_str(), f.arena, &recovered, &f.error) == HOLDER_OK);
+  REQUIRE(recovered != nullptr);
+  CHECK(std::string(recovered->snapshot.body) == "Original body\n");
+}
+
+TEST_CASE(
+    "Generated history rejects ambiguous revisions without changing the saved card",
+    "[capi][history-errors][ambiguous-revision]"
+) {
+  HistoryFixture f;
+  const holder_project* project = nullptr;
+  REQUIRE(holder_get_project(f.context, f.project.c_str(), f.arena, &project, &f.error) == HOLDER_OK);
+  holder::git::GitRepo repo;
+  repo.open_existing(project->root_path);
+  const auto head = repo.head_oid();
+  REQUIRE(head.has_value());
+  const auto [first, second] = holder::test::write_ambiguous_commit_prefix(project->root_path);
+  const auto prefix = first.substr(0, 8);
+  REQUIRE(second.substr(0, 8) == prefix);
+  const holder_card_history_snapshot* snapshot = nullptr;
+  const holder_card_history_comparison* comparison = nullptr;
+  const holder_card_history_restore_result* restored = nullptr;
+  int status = HOLDER_OK;
+  SECTION("snapshot") {
+    status = holder_get_card_history_snapshot(f.context, f.project.c_str(), f.card.c_str(),
+                                              prefix.c_str(), f.arena, &snapshot, &f.error);
+  }
+  SECTION("comparison target") {
+    status = holder_compare_card_history(f.context, f.project.c_str(), f.card.c_str(),
+        prefix.c_str(), nullptr, HOLDER_COMPARE_CARD_HISTORY_MODE_CHANGE,
+        f.arena, &comparison, &f.error);
+  }
+  SECTION("comparison source") {
+    status = holder_compare_card_history(f.context, f.project.c_str(), f.card.c_str(),
+        head->c_str(), prefix.c_str(), HOLDER_COMPARE_CARD_HISTORY_MODE_SINCE,
+        f.arena, &comparison, &f.error);
+  }
+  SECTION("restore") {
+    status = holder_restore_card_history_snapshot(f.context, f.project.c_str(), f.card.c_str(),
+        prefix.c_str(), f.arena, &restored, &f.error);
+  }
+  REQUIRE(f.error != nullptr);
+  CHECK(std::string(holder_error_message(f.error)).find("ambiguous") != std::string::npos);
+  f.failed(status, HOLDER_ERROR_REVISION_AMBIGUOUS);
+  CHECK(snapshot == nullptr);
+  CHECK(comparison == nullptr);
+  CHECK(restored == nullptr);
+  CHECK(repo.head_oid() == head);
+  const holder_card* current = nullptr;
+  REQUIRE(holder_get_card(f.context, f.project.c_str(), f.card.c_str(), f.arena, &current, &f.error) == HOLDER_OK);
+  CHECK(std::string(current->title) == "Original title");
+  CHECK(std::string(current->content) == "Original body\n");
+  // A full object ID still resolves even when its shorter prefix is ambiguous.
+  REQUIRE(holder_get_card_history_snapshot(f.context, f.project.c_str(), f.card.c_str(),
+      first.c_str(), f.arena, &snapshot, &f.error) == HOLDER_OK);
+  REQUIRE(snapshot != nullptr);
+  CHECK_FALSE(snapshot->snapshot.exists);
+  REQUIRE(holder_get_card_history_snapshot(f.context, f.project.c_str(), f.card.c_str(),
+      head->c_str(), f.arena, &snapshot, &f.error) == HOLDER_OK);
+  REQUIRE(snapshot != nullptr);
+  CHECK(std::string(snapshot->snapshot.body) == "Original body\n");
+}
 
 TEST_CASE(
     "Generated card history preserves snapshots, diff line numbers, and restored content",
