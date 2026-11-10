@@ -3,6 +3,8 @@
 #include "api/routes/ai/runs/AiRunQueryRoutes.h"
 #include "api/support/RunEventStore.h"
 #include "http_test_helpers.h"
+#include "llm/LocalModelRunner.h"
+#include "llm/LocalRunnerClient.h"
 
 namespace http = boost::beast::http;
 
@@ -376,4 +378,64 @@ TEST_CASE("Ai run events route tells a reconnect past a finished run to stop", "
   req.set("Last-Event-ID", started);
   out = holder::test::serve_generated(req, pending, socket, db);
   REQUIRE(pending.result() != http::status::no_content);
+}
+
+TEST_CASE("HTTP AI run failures use the response path appropriate to their timing", "[http]") {
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "proj-1", (dir / "project").string());
+  db.exec("INSERT INTO ai_threads(thread_id, project_id, title, created_at, updated_at) "
+          "VALUES('thread-1', 'proj-1', 'Thread', 1, 1)");
+
+  bool insert_fails = false;
+  SECTION("a rejected insert returns JSON before starting the stream") {
+    insert_fails = true;
+    db.exec("CREATE TRIGGER reject_run BEFORE INSERT ON ai_runs "
+            "BEGIN SELECT RAISE(ABORT, 'fixture rejects run insert'); END");
+  }
+  SECTION("a model exception after stream start publishes a terminal failure") {}
+
+  holder::llm::LocalModelRunner model;
+  holder::llm::RunnerStatus status;
+  status.available = true;
+  status.models = {{.name = "fixture-model", .size = 1}};
+  model.set_status_override_for_tests(status);
+  model.set_stream_generate_override_for_tests(
+      [](const std::string&, const std::string&, const std::string&,
+         const std::function<void(const std::string&)>&, std::string*) -> bool {
+        throw std::runtime_error("fixture model failed");
+      });
+  holder::llm::LocalRunnerClient client(&model);
+  holder::llm::RunnerRegistry registry(&db, &client);
+  const std::string token = "testtoken";
+  holder::api::HttpServer server("127.0.0.1", 0, db, token, nullptr, nullptr, nullptr, &registry);
+  const auto bound = server.start();
+  holder::core::SignalHandler signals;
+  holder::test::HttpServerThreadGuard guard(server, signals);
+  REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, token));
+
+  const auto response = http_request_raw(
+      bound.bind, bound.port, token, http::verb::post, "/ai/runs",
+      {{"project_id", "proj-1"}, {"thread_id", "thread-1"}, {"prompt", "Run a test"}});
+  guard.stop();
+  const auto runs = holder::ai::AiRunRepo(db).list_by_thread("thread-1");
+  if (insert_fails) {
+    CHECK(response.status == http::status::internal_server_error);
+    CHECK(response.content_type.find("application/json") != std::string::npos);
+    CHECK(nlohmann::json::parse(response.body).at("ok") == false);
+    CHECK(runs.empty());
+  } else {
+    REQUIRE(response.status == http::status::ok);
+    CHECK(response.content_type.find("text/event-stream") != std::string::npos);
+    CHECK(response.body.find("event: run_started") != std::string::npos);
+    CHECK(response.body.find("event: failed") != std::string::npos);
+    CHECK(response.body.find("event: done") == std::string::npos);
+    REQUIRE(runs.size() == 1);
+    CHECK(runs.front().status == "failed");
+    const auto events = holder::api::support::read_run_events(runs.front().run_id, "");
+    REQUIRE(events);
+    REQUIRE_FALSE(events->events.empty());
+    CHECK(events->finished);
+    CHECK(events->events.back().name == "failed");
+  }
 }
