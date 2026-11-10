@@ -1,3 +1,4 @@
+#include "api/GeneratedRoutes.h"
 #include "http_test_helpers.h"
 
 #include <boost/asio.hpp>
@@ -80,4 +81,45 @@ TEST_CASE("HTTP endpoints reject invalid JSON bodies", "[http]") {
 
   std::raise(SIGTERM);
   server_thread.join();
+}
+
+TEST_CASE("Milestone range routes validate required bounds and project IDs", "[http]") {
+  namespace http = boost::beast::http;
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  create_project(db, "project", (dir / "project").string());
+
+  struct Case {
+    const char* path;
+    http::status status;
+    const char* code;
+    const char* message;
+  };
+  for (const auto& item : {
+           Case{"/projects/project/milestones/days", http::status::bad_request,
+                "invalid_argument", "first_day is required"},
+           Case{"/projects/project/milestones/days?first_day=2026-01-01",
+                http::status::bad_request, "invalid_argument", "last_day is required"},
+           Case{"/projects/project/milestones/days?first_day=not-a-date&last_day=2026-01-02",
+                http::status::bad_request, "invalid_argument", "first_day must be a day"},
+           Case{"/projects/missing/milestones/days?first_day=2026-01-01&last_day=2026-01-02",
+                http::status::not_found, "not_found", "project not found"},
+           Case{"/projects/project/milestones/instants", http::status::bad_request,
+                "invalid_argument", "first_instant is required"},
+           Case{"/projects/project/milestones/instants?first_instant=1",
+                http::status::bad_request, "invalid_argument", "last_instant is required"},
+           Case{"/projects/project/milestones/instants?first_instant=no&last_instant=2",
+                http::status::bad_request, "invalid_argument", "first_instant"},
+           Case{"/projects/missing/milestones/instants?first_instant=1&last_instant=2",
+                http::status::not_found, "not_found", "project not found"},
+       }) {
+    CAPTURE(item.path);
+    http::request<http::string_body> req{http::verb::get, item.path, 11};
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    REQUIRE(res.result() == item.status);
+    const auto error = nlohmann::json::parse(res.body()).at("error");
+    CHECK(error.at("code") == item.code);
+    CHECK(error.at("message").get<std::string>().find(item.message) != std::string::npos);
+  }
 }

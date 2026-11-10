@@ -1,4 +1,5 @@
 #include "api/support/ChangeFeed.h"
+#include "api/support/EventService.h"
 #include "http_test_helpers.h"
 
 using namespace holder::api::support;
@@ -75,4 +76,43 @@ TEST_CASE("Change feed tracks Git-only commits without a database mutation", "[e
   REQUIRE(events[0].data["deleted"] == false);
   feed.poll();
   REQUIRE(journal.read().events.size() == 1);
+}
+
+TEST_CASE("Change feed can retry a snapshot after a required table is restored", "[events]") {
+  const auto path = holder::test::make_temp_dir() / "holder.db";
+  auto writer = holder::test::open_db_with_schema(path);
+  holder::test::create_project(writer, "p", (path.parent_path() / "project").string());
+  holder::platform::Db observer;
+  observer.open(path);
+  EventJournal journal;
+  ChangeFeed feed(observer, journal);
+  const auto cursor = journal.cursor();
+
+  writer.exec("ALTER TABLE cards RENAME TO hidden_cards");
+  REQUIRE_THROWS(feed.poll());
+  CHECK(journal.read(cursor).events.empty());
+
+  writer.exec("ALTER TABLE hidden_cards RENAME TO cards");
+  writer.exec(
+      "INSERT INTO cards(card_id,project_id,title,rel_path,created_at,updated_at) "
+      "VALUES('c','p','C','c.md',1,1)"
+  );
+  REQUIRE_NOTHROW(feed.poll());
+  const auto batch = journal.read(cursor);
+  REQUIRE(batch.events.size() == 1);
+  CHECK(batch.events.front().name == "card.changed");
+  CHECK(batch.events.front().data.at("entity_id") == "c");
+}
+
+TEST_CASE("Event checkpoints encode project IDs as one history URL segment", "[events]") {
+  const auto path = holder::test::make_temp_dir() / "holder.db";
+  auto db = holder::test::open_db_with_schema(path);
+  const std::string id = "a b/c%";
+  holder::test::create_project(db, id, (path.parent_path() / "project").string());
+  EventService service(path);
+  const auto checkpoint = service.current_checkpoint(id);
+  REQUIRE(checkpoint);
+  CHECK(checkpoint->history_urls.at(id) == "/projects/a%20b%2Fc%25/history");
+  CHECK_FALSE(checkpoint->git_revisions.at(id));
+  CHECK_THROWS_AS(service.subscribe(id, "", "invalid-cursor"), std::invalid_argument);
 }

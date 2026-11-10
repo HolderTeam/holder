@@ -54,3 +54,11 @@ TEST_CASE("RunnerModelRef helpers normalize and resolve refs", "[llm]") {
     REQUIRE(resolved->runner == &auto_local_client);
   }
 }
+
+TEST_CASE("Runner IDs are extracted only from qualified model references", "[llm]") {
+  using holder::llm::runner_id_from_ref;
+  CHECK(runner_id_from_ref("office::model:latest") == "office");
+  CHECK_FALSE(runner_id_from_ref("model:latest"));
+  CHECK_FALSE(runner_id_from_ref(""));
+  CHECK_FALSE(runner_id_from_ref(std::nullopt));
+}

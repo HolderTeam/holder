@@ -531,3 +531,51 @@ TEST_CASE("Location updates and removals persist their Git manifests", "[resourc
   );
   CHECK_FALSE(holder::resource::LocationRepo(f.db).get("location").has_value());
 }
+
+TEST_CASE("Resource routes reject malformed bindings and import requests", "[resources][routes]") {
+  LocationRouteFixture f;
+  struct Case {
+    http::verb method;
+    const char* path;
+    nlohmann::json body;
+    const char* message;
+  };
+  for (const auto& item : std::vector<Case>{
+           {http::verb::put, "/locations/location/binding", {{"values", "invalid"}},
+            "values must be an object"},
+           {http::verb::put, "/locations/location/binding", {{"values", {{"root_path", 42}}}},
+            "binding values must be strings"},
+           {http::verb::put, "/locations/preferred", {{"project_id", "project"}, {"location_id", 42}},
+            "location_id must be a string"},
+           {http::verb::post, "/imports", {{"unexpected", true}}, "there is no field unexpected"},
+           {http::verb::get, "/imports/missing?unexpected=true", nlohmann::json::object(),
+            "unexpected"},
+       }) {
+    CAPTURE(item.path, item.body);
+    const auto res = f.call(item.method, item.path, item.body);
+    REQUIRE(res.result() == http::status::bad_request);
+    const auto error = nlohmann::json::parse(res.body()).at("error");
+    CHECK(error.at("code") == "invalid_argument");
+    CHECK(error.at("message").get<std::string>().find(item.message) != std::string::npos);
+  }
+}
+
+TEST_CASE("Storage failure exceptions preserve the typed response and its error", "[resources][routes]") {
+  using Code = holder::resource::StorageErrorCode;
+  using namespace holder::api::support;
+  const auto check = []<typename Failure>(Code code, const char* name) {
+    CAPTURE(name);
+    try {
+      throw_storage_failure(holder::resource::StorageError(code, "provider detail"));
+    } catch (const Failure& failure) {
+      CHECK(failure.code == name);
+      CHECK(std::string(failure.what()) == "provider detail");
+    }
+  };
+  check.operator()<StorageBadRequest>(Code::InvalidConfiguration, "storage_configuration_invalid");
+  check.operator()<StorageConflict>(Code::Conflict, "storage_conflict");
+  check.operator()<StorageIntegrityFailed>(Code::Integrity, "storage_integrity_failed");
+  check.operator()<StorageGatewayFailure>(Code::Permission, "storage_permission_denied");
+  check.operator()<StorageCapacityExceeded>(Code::Capacity, "storage_capacity_exceeded");
+  check.operator()<StorageUnavailable>(Code::Transient, "storage_transient_failure");
+}
