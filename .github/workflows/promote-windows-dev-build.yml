@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       staging_run_id:
-        description: holder-framework staging run ID that uploaded the Windows tester installer
+        description: Successful Windows staging run containing tester installer evidence
         required: true
         type: string
       staging_repository:
@@ -13,149 +13,91 @@ on:
         type: string
         default: HolderTeam/holder
       staging_artifact_name:
-        description: Name of the Windows tester installer artifact
+        description: Windows tester installer artifact name
         required: true
         type: string
         default: Holder-windows-test-signed-installer
       release_tag:
-        description: Optional real release tag, for example v0.1.7. Do not use GitHub's untagged-* draft placeholder. Defaults to holder-windows-dev-<staging_run_id>.
-        required: false
+        description: Existing product tag, or empty for holder-windows-dev-<staging_run_id>
         type: string
+      release_request:
+        description: Coordinator request identity (leave empty for manual delivery)
+        type: string
+      staging_artifact_id:
+        description: Exact accepted staging artifact ID
+        type: string
+      staging_artifact_sha256:
+        description: Exact accepted artifact archive SHA-256
+        type: string
+      expected_version:
+        description: Accepted product version
+        type: string
+      candidate_commit:
+        description: Exact accepted candidate source SHA (requires product draft and artifact pins)
+        type: string
+      replace_draft_assets:
+        description: Explicit manual recovery only; replace conflicting assets in a draft
+        type: boolean
+        default: false
 
-run-name: Promote Windows dev build from staging run ${{ inputs.staging_run_id }}
+run-name: Promote Windows dev build from staging run ${{ inputs.staging_run_id }} ${{ inputs.release_request }}
 
 permissions:
   actions: read
   contents: write
 
+concurrency:
+  group: holder-draft-release-promotion
+  cancel-in-progress: false
+
 jobs:
   promote:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Download Windows tester installer
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          name: ${{ inputs.staging_artifact_name }}
-          path: downloads/windows-dev
-          github-token: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
-          repository: ${{ inputs.staging_repository }}
-          run-id: ${{ inputs.staging_run_id }}
-
-      - name: Prepare release payload
+          persist-credentials: false
+      - name: Verify and download the accepted tester installer
         env:
-          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
-          STAGING_ARTIFACT_NAME: ${{ inputs.staging_artifact_name }}
+          GH_TOKEN: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
           STAGING_REPOSITORY: ${{ inputs.staging_repository }}
           STAGING_RUN_ID: ${{ inputs.staging_run_id }}
+          ARTIFACT_NAME: ${{ inputs.staging_artifact_name }}
+          ARTIFACT_ID: ${{ inputs.staging_artifact_id }}
+          ARCHIVE_SHA256: ${{ inputs.staging_artifact_sha256 }}
+          VERSION: ${{ inputs.expected_version }}
+          CANDIDATE: ${{ inputs.candidate_commit }}
         run: |
           set -euo pipefail
-
-          input_dir="downloads/windows-dev"
-          payload_dir="out/release-payload"
-          mkdir -p "${payload_dir}"
-
-          installer="$(find "${input_dir}" -type f -name 'Holder-*-Setup-test-signed.exe' | sort | head -n 1)"
-          if [ -z "${installer}" ]; then
-            echo "Could not find Holder-*-Setup-test-signed.exe in ${input_dir}"
-            find "${input_dir}" -type f -print | sort
-            exit 1
-          fi
-
-          installer_name="$(basename "${installer}")"
-          version="${installer_name#Holder-}"
-          version="${version%-Setup-test-signed.exe}"
-          if [ -z "${version}" ] || [ "${version}" = "${installer_name}" ]; then
-            echo "Could not infer Holder version from ${installer_name}"
-            exit 1
-          fi
-
-          release_tag="${RELEASE_TAG_INPUT}"
-          if [ -z "${release_tag}" ]; then
-            release_tag="holder-windows-dev-${STAGING_RUN_ID}"
-          fi
-          if [[ "${release_tag}" == untagged-* ]]; then
-            echo "release_tag must be a real Git tag, not GitHub's temporary draft-release placeholder: ${release_tag}"
-            echo "Edit the draft release in GitHub and assign a real tag such as v${version}, then rerun this workflow with that tag."
-            exit 1
-          fi
-
-          asset_name="Holder-windows-${version}-dev-Setup.exe"
-          cp "${installer}" "${payload_dir}/${asset_name}"
-
-          cert_path="$(find "${input_dir}" -type f -name 'Holder-windows-test-signing.cer' | sort | head -n 1)"
-          fingerprint_path="$(find "${input_dir}" -type f -name 'Holder-windows-test-signing-fingerprint.txt' | sort | head -n 1)"
-
-          if [ -n "${cert_path}" ]; then
-            cp "${cert_path}" "${payload_dir}/Holder-windows-dev-test-signing.cer"
-          fi
-          if [ -n "${fingerprint_path}" ]; then
-            cp "${fingerprint_path}" "${payload_dir}/Holder-windows-dev-test-signing-fingerprint.txt"
-          fi
-
-          (
-            cd "${payload_dir}"
-            shasum -a 256 "${asset_name}" > "${asset_name}.sha256"
-          )
-
-          {
-            echo "# Holder ${version} Windows dev build"
-            echo
-            echo "This is a Windows development build promoted from Holder's public staging pipeline."
-            echo
-            echo "It is useful for testing the current Windows installer, but it is not the final Windows release-signing path."
-            echo
-            echo "## Windows"
-            echo
-            echo "- Asset: \`${asset_name}\`"
-            echo "- SHA-256: \`$(cut -d ' ' -f 1 "${payload_dir}/${asset_name}.sha256")\`"
-            echo "- Staging run: \`${STAGING_REPOSITORY}#${STAGING_RUN_ID}\`"
-            echo "- Staging artifact: \`${STAGING_ARTIFACT_NAME}\`"
-            echo
-            echo "## Trust notes"
-            echo
-            echo "This installer is a development build. Windows may show SmartScreen or unknown-publisher warnings."
-            echo
-            echo "The installer is self-signed for testing. If a test certificate and fingerprint are attached to this release, only trust that certificate after checking the fingerprint matches the release asset."
-            echo
-            echo "This release is marked as a GitHub prerelease."
-          } > "${payload_dir}/release-notes.md"
-
-          {
-            echo "RELEASE_VERSION=${version}"
-            echo "RELEASE_TAG=${release_tag}"
-            echo "RELEASE_TITLE=Holder ${version} Windows dev build"
-          } >> "${GITHUB_ENV}"
-
-          find "${payload_dir}" -maxdepth 1 -type f -print | sort
-
-      - name: Create or upload to Windows dev prerelease
+          args=(fetch --repository "$STAGING_REPOSITORY" --run-id "$STAGING_RUN_ID"
+            --artifact-name "$ARTIFACT_NAME" --directory out/windows-payload)
+          if [ -n "$ARTIFACT_ID" ]; then args+=(--artifact-id "$ARTIFACT_ID"); fi
+          if [ -n "$ARCHIVE_SHA256" ]; then args+=(--archive-sha256 "$ARCHIVE_SHA256"); fi
+          if [ -n "$VERSION" ]; then args+=(--version "$VERSION"); fi
+          if [ -n "$CANDIDATE" ]; then args+=(--candidate "$CANDIDATE"); fi
+          python3 release/scripts/windows-candidate.py "${args[@]}"
+      - name: Deliver missing Windows development assets
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_REPOSITORY: ${{ github.repository }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          STAGING_RUN_ID: ${{ inputs.staging_run_id }}
+          VERSION: ${{ inputs.expected_version }}
+          CANDIDATE: ${{ inputs.candidate_commit }}
+          REPLACE_DRAFT_ASSETS: ${{ inputs.replace_draft_assets }}
         run: |
           set -euo pipefail
-
-          payload_dir="out/release-payload"
-          notes="${payload_dir}/release-notes.md"
-          mapfile -t assets < <(find "${payload_dir}" -maxdepth 1 -type f ! -name 'release-notes.md' | sort)
-
-          if gh release view "${RELEASE_TAG}" --repo "${RELEASE_REPOSITORY}" >/dev/null 2>&1; then
-            echo "Uploading to existing release ${RELEASE_TAG} without changing its title or description."
-            gh release upload "${RELEASE_TAG}" \
-              --repo "${RELEASE_REPOSITORY}" \
-              --clobber \
-              "${assets[@]}"
-          else
-            create_args=("${RELEASE_TAG}" --repo "${RELEASE_REPOSITORY}" --prerelease
-              --title "${RELEASE_TITLE}" --notes-file "${notes}")
-            if [[ "${RELEASE_TAG}" == holder-v* ]]; then
-              # A product release starts as a draft, as the other promotions create it: publishing
-              # it would make GitHub create the tag at the tip of main, not on the release commit.
-              create_args+=(--draft)
-              echo "Creating draft ${RELEASE_TAG}"
-            else
-              echo "Creating prerelease ${RELEASE_TAG}"
-            fi
-            gh release create "${create_args[@]}" "${assets[@]}"
-          fi
+          args=(--repository "$REPOSITORY" --run-id "$STAGING_RUN_ID"
+            --directory out/windows-payload --receipt out/windows-delivery.json)
+          if [ -n "$RELEASE_TAG" ]; then args+=(--tag "$RELEASE_TAG"); fi
+          if [ -n "$VERSION" ]; then args+=(--version "$VERSION"); fi
+          if [ -n "$CANDIDATE" ]; then args+=(--candidate "$CANDIDATE"); fi
+          if [ "$REPLACE_DRAFT_ASSETS" = true ]; then args+=(--replace-draft-assets); fi
+          python3 release/scripts/promote-windows.py "${args[@]}"
+      - name: Retain Windows delivery receipt
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-delivery-receipt
+          path: out/windows-delivery.json
+          if-no-files-found: error
+          retention-days: 30

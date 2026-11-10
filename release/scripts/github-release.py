@@ -127,3 +127,17 @@ def classify(github, repository, assets, files):
     return missing, conflicts, complete
 
 
+def upload_missing(github, repository, tag, release, directory, files, writable, replace_draft_assets=False):
+    """Reuse matching assets and check caller policy before every write."""
+    missing, conflicts, _ = classify(github, repository, assets_for(github, repository, release), files)
+    require(not conflicts or (release['draft'] and replace_draft_assets),
+            'Release asset conflicts with accepted bytes; replacement requires an explicit draft-only operation')
+    if missing or conflicts:
+        writable(bool(conflicts))  # Check every conflict before performing any mutation.
+    for item in conflicts:
+        writable(True)
+        github.api(f'repos/{repository}/releases/assets/{item["id"]}', method='DELETE')
+        missing.append(item['name'])
+    for name in sorted(missing):
+        writable()
+        github.upload(repository, tag, directory / name)

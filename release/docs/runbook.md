@@ -305,7 +305,7 @@ let tag creation select the then-current tip of `main` instead. Never move a
 published tag. Pushing the tag starts `Release / Launchpad`; GitHub draft state
 does not postpone that upload. Record the resulting run immediately.
 
-Linux signing/promotion and core SDK publication are coordinated. Other destinations retain their
+Linux signing/promotion, Windows development delivery and core SDK publication are coordinated. Other destinations retain their
 independent manual entry points:
 
 | Operation | Public workflow/ref and inputs | Handoff/result |
@@ -313,14 +313,15 @@ independent manual entry points:
 | Linux signing step | `release.py sign-linux --record <candidate.json> --wait`; or the existing [manual workflow](../../.github/workflows/sign-linux-appimage.yml) on `main` | After approval and verification: accepted `Holder-linux-appimage-signed-<version>`, pinned staging identity, signatures, metadata and attestation |
 | Linux promotion | `release.py promote-linux --record <candidate.json> --wait`; the [manual workflow](../../.github/workflows/promote-linux-appimage.yml) remains available on `main` | Verifies pinned signed bytes and the existing candidate tag; creates/reuses the matching draft and delivers only missing Linux files; records exact destination IDs/hashes |
 | Core SDK publication | `release.py publish-sdk --record <candidate.json> --wait`; the [manual workflow](../../.github/workflows/promote-core-sdk.yml) remains available on `main` | Publishes the daemon run's pinned three SDKs and compatible `sdk-index.json` in `HolderTeam/holder-sdk`; records destination identities and per-SDK producers |
-| Windows development installer, if chosen | [promote-windows-dev-build.yml](../../.github/workflows/promote-windows-dev-build.yml), `main`; `staging_run_id=<tester-signed Windows staging run>`, `release_tag=holder-v<version>`; keep repository/artifact defaults | Adds `Holder-windows-<version>-dev-Setup.exe`, checksum and test-certificate information to the existing draft |
+| Windows development installer, if chosen | `release.py promote-windows --record <candidate.json> --wait`; the [manual workflow](../../.github/workflows/promote-windows-dev-build.yml) remains available on `main` | Verifies the final installer evidence against the candidate, pins its archive, and delivers only missing development assets to the existing shared draft; records destination IDs/hashes |
 | macOS disk image | Complete the signing/notarization handoff from the selected `Holder-macos-staged` artifact | Add the verified `Holder-macos-<version>.dmg` and matching `.sha256` to the same draft, preserving candidate identity |
 
-Create/verify the shared draft before the Windows development promotion. With an
-explicit `holder-v*` tag and no matching release, that workflow creates a draft
-marked as a prerelease; review that flag before publishing a stable release.
-With no explicit `release_tag` it instead uses a separate
-`holder-windows-dev-<run>` tag and creates a published development prerelease.
+Create/verify the shared draft before coordinated Windows development delivery.
+Windows remains a development build. See [Windows delivery](windows-promotion.md)
+for the required staging evidence, pinned inputs and recovery procedure. The
+independent manual entry point can create a missing draft at an existing product
+tag. Without an explicit tag, it publishes a separate
+`holder-windows-dev-<run>` development prerelease after verifying all assets.
 Linux promotion leaves matching existing assets intact and rejects conflicts.
 It can verify a complete published stable release, but cannot modify one. Keep
 its published-prerelease exception disabled for the normal release path.
@@ -418,7 +419,7 @@ download links, checksums and Ubuntu instructions, then record website completio
 | Artifacts expire | Stop. Rebuild and revalidate a new recorded artifact set, even if the source SHA is unchanged; rebuilt bytes/provenance can differ. Do not substitute latest-green artifacts. |
 | Approval or signing step is pending | Wait for its recorded outcome. Resume from the retained exact input; do not rebuild or start another signing attempt simply because an external operation takes time. |
 | SDK publication is interrupted | The helper can recreate an unfinished draft on retry. An existing published SDK version is left untouched; its existence alone is not proof that it matches this candidate. Compare the published index/digests before accepting it as complete. |
-| Draft asset upload is interrupted | Inventory current assets and hashes first. Linux/Windows promotion currently uses `--clobber`, so a rerun can replace assets. Review any intentional draft replacement explicitly, record/recheck it, and never use retries to replace different published bytes. |
+| Draft asset upload is interrupted | Inventory current assets and hashes first. Linux/Windows promotion reuses matching bytes and uploads only missing files. Conflicts stop the normal path. Intentional draft replacement requires the explicit manual recovery input; record/recheck it, and never use retries to replace different published bytes. |
 | PPA upload/build is incomplete | Inspect each package/series separately, including remote logs and dependency waits. Avoid re-uploading a successful set indiscriminately; use a new packaging revision only where appropriate and preserve upstream tarball identity. |
 | PyPI/TestPyPI is partially uploaded | Inspect the index and local manifest before retrying. Existing files cannot be changed in place; do not assume the workflow can safely resume a partial upload. A new package/release version may be necessary. |
 | GitHub release is already public but another destination failed | Record partial completion and address the failed destination explicitly. Do not move tags or erase successful publications to simulate an atomic release. Keep website/channel claims accurate. |
