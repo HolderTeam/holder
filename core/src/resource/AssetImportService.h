@@ -47,6 +47,8 @@ class AssetImportService {
 
   AssetImportResult import_file(const AssetImportRequest& request, StorageProvider& provider);
 
+  // Replace the destination only after downloaded bytes decode and validate.
+  // A failure leaves an existing destination intact and removes temporary files.
   void retrieve(
       const std::string& resource_id,
       const std::string& asset_id,

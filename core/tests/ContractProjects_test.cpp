@@ -2,6 +2,7 @@
 // projects directory and project registry.
 #if __has_include(<catch2/catch_test_macros.hpp>)
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 #else
 #include <catch2/catch.hpp>
 #endif
@@ -66,6 +67,91 @@ bool registered(const Host& host, const contract::Project& project) {
 }
 
 } // namespace
+
+TEST_CASE("A locked Git configuration leaves project metadata unchanged and allows retry",
+          "[contract][projects][project-failures]") {
+  Host host;
+  const auto made = host.make("Work", std::nullopt, 1700000000);
+  const auto root = std::filesystem::path(made.root_path);
+  holder::git::GitRepo git;
+  git.open_existing(root);
+  const auto head = git.head_oid();
+  REQUIRE(head.has_value());
+  const auto manifest = root / ".holder" / "project.json";
+  const auto read = [](const std::filesystem::path& path) {
+    std::ifstream input(path, std::ios::binary);
+    REQUIRE(input.is_open());
+    return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+  };
+  const auto original_manifest = read(manifest);
+  const auto original_config = read(root / ".git" / "config");
+  {
+    std::ofstream lock(root / ".git" / "config.lock");
+    REQUIRE(lock.is_open());
+    lock << "another Git writer\n";
+  }
+  contract::ProjectUpdate update;
+  update.name = "Renamed";
+  update.git_remote_url = std::optional<std::string>("https://example.invalid/work.git");
+  update.git_provider = std::optional<std::string>("github");
+  REQUIRE_THROWS_WITH(contract::update_project(host.context, made.project_id, update),
+                      Catch::Matchers::ContainsSubstring("Git does not accept the remote:"));
+  const auto unchanged = contract::get_project(host.context, made.project_id);
+  CHECK(unchanged.name == made.name);
+  CHECK(unchanged.git_remote_url == made.git_remote_url);
+  CHECK(unchanged.git_provider == made.git_provider);
+  CHECK(unchanged.updated_at == made.updated_at);
+  CHECK(git.head_oid() == head);
+  CHECK(read(manifest) == original_manifest);
+  CHECK(read(root / ".git" / "config") == original_config);
+  CHECK(registered(host, made));
+  REQUIRE(std::filesystem::remove(root / ".git" / "config.lock"));
+  const auto updated = contract::update_project(host.context, made.project_id, update);
+  CHECK(updated.name == "Renamed");
+  CHECK(updated.git_remote_url == "https://example.invalid/work.git");
+  CHECK(updated.git_provider == "github");
+  CHECK(updated.updated_at > made.updated_at);
+  CHECK(git.head_oid() != head);
+  CHECK(read(root / ".git" / "config").find("https://example.invalid/work.git") != std::string::npos);
+  CHECK(registered(host, updated));
+}
+
+TEST_CASE("A failed project deletion commit restores the registry and database",
+          "[contract][projects][project-failures]") {
+  Host host;
+  const auto made = host.make("Keep me");
+  contract::NewCard request;
+  request.title = "Saved card";
+  request.content = "Saved body";
+  const auto card = contract::create_card(host.context, made.project_id, request);
+  holder::git::GitRepo git;
+  git.open_existing(made.root_path);
+  const auto head = git.head_oid();
+  struct CommitGuard {
+    sqlite3* db;
+    ~CommitGuard() { sqlite3_commit_hook(db, nullptr, nullptr); }
+  } guard{host.db.handle()};
+  int rejected = 0;
+  sqlite3_commit_hook(host.db.handle(), +[](void* data) {
+    ++*static_cast<int*>(data);
+    return 1;
+  }, &rejected);
+  REQUIRE_THROWS(contract::delete_project(host.context, made.project_id));
+  sqlite3_commit_hook(host.db.handle(), nullptr, nullptr);
+  REQUIRE(rejected == 1);
+  CHECK(contract::get_project(host.context, made.project_id).name == made.name);
+  CHECK(registered(host, made));
+  const auto saved = contract::get_card(host.context, made.project_id, card.card_id);
+  CHECK(saved.title == "Saved card");
+  CHECK(saved.content == "Saved body");
+  CHECK(git.head_oid() == head);
+  CHECK(std::filesystem::exists(made.root_path));
+  const auto removed = contract::delete_project(host.context, made.project_id);
+  CHECK(removed.project_id == made.project_id);
+  REQUIRE_THROWS_AS(contract::get_project(host.context, made.project_id), contract::NotFound);
+  CHECK_FALSE(registered(host, made));
+  CHECK(std::filesystem::exists(made.root_path));
+}
 
 TEST_CASE("Projects are made under the host's directory and known to its registry", "[contract][projects]") {
   Host host;

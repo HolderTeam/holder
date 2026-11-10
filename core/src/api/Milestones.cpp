@@ -36,7 +36,7 @@ std::vector<Milestone> to_milestones(const std::vector<holder::model::Milestone>
   out.reserve(milestones.size());
   for (const auto& milestone : milestones) out.push_back(to_milestone(milestone));
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
 
 // The contract states a date's form in words, so core checks it.
 std::vector<holder::model::MilestoneDate> checked_dates(const std::vector<MilestoneDate>& dates) {

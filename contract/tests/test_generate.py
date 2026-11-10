@@ -35,6 +35,41 @@ def test_cores_generated_files_are_up_to_date():
         assert text == (CONTRACT.parent / CORE_PATHS[name]).read_text(encoding="utf-8"), CORE_PATHS[name]
 
 
+def test_generated_coverage_exclusions_preserve_validation_and_returns():
+    glue = generate(holder_ir())["ContractCApi.cpp"]
+    excluded = [line for line in glue.splitlines() if "LCOV_EXCL" in line]
+    guards = [line for line in excluded if 'throw std::logic_error("not a contract::' in line]
+    unwind_ends = [line for line in excluded if line.startswith("} // LCOV_EXCL_LINE - GCC unwind")]
+    assert len(guards) == 19
+    assert len(unwind_ends) == 13
+    assert len(excluded) == len(guards) + len(unwind_ends)
+    assert all("LCOV_EXCL_LINE" in line for line in excluded)
+    assert not any("LCOV_EXCL" in line for line in glue.splitlines()
+                   if line.lstrip().startswith("return "))
+    # Caller-supplied C enum validation must remain measured.
+    assert not any("LCOV_EXCL" in line for line in glue.splitlines()
+                   if "throw ArgumentError" in line or line.lstrip().startswith("require("))
+
+
+def test_host_coverage_annotations_preserve_validation_allocation_and_mutex_failures():
+    glue = generate(holder_ir())["HostCApi.cpp"]
+    excluded = [line for line in glue.splitlines() if "LCOV_EXCL" in line]
+    assert len(excluded) == 15
+    assert all("LCOV_EXCL_LINE" in line for line in excluded)
+    functions = glue.split('extern "C" int ')[1:]
+    assert len(functions) == 4
+    for function in functions:
+        validation, registration = function.split("  try {\n    holder::contract::register_", 1)
+        assert "LCOV_EXCL" not in validation
+        allocation, rest = registration.split("  } catch (const std::invalid_argument& error)", 1)
+        assert "LCOV_EXCL" not in allocation
+        assert "HOLDER_ERROR_ALLOCATION" in allocation
+        if not function.startswith("holder_register_ssh_signer("):
+            mutex_handler = rest.split("catch (const std::exception& error)", 1)[1].split("catch (...)", 1)[0]
+            assert "LCOV_EXCL" not in mutex_handler
+            assert "HOLDER_ERROR_RUNTIME" in mutex_handler
+
+
 def test_every_generated_file_names_its_source():
     for name, text in generate(holder_ir()).items():
         header = "\n".join(text.splitlines()[:2])

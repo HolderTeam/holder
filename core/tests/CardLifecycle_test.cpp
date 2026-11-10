@@ -15,6 +15,9 @@
 #include "privacy/ProjectPrivacy.h"
 #include "project/Rebuilder.h"
 
+#include <git2.h>
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -38,6 +41,34 @@ const std::string child2_id = "00000000-0000-4000-8000-000000000011";
 const std::string child_id = "00000000-0000-4000-8000-000000000012";
 const std::string new_child_id = "00000000-0000-4000-8000-000000000013";
 const std::string missing_id = "00000000-0000-4000-8000-000000000014";
+class ShortWriteFs final : public holder::core::Fs {
+ public:
+  holder::core::RealFs real;
+  std::filesystem::path truncate_path;
+  std::filesystem::path unavailable_path;
+  mutable int existence_checks = 0;
+  mutable int truncated_writes = 0;
+  bool exists(const std::filesystem::path& p) const override {
+    if (p == unavailable_path && ++existence_checks == 2) return false;
+    return real.exists(p);
+  }
+  void create_directories(const std::filesystem::path& p) const override { real.create_directories(p); }
+  void rename(const std::filesystem::path& a, const std::filesystem::path& b) const override { real.rename(a, b); }
+  void remove(const std::filesystem::path& p) const override { real.remove(p); }
+  long long last_write_time_seconds(const std::filesystem::path& p) const override {
+    return real.last_write_time_seconds(p);
+  }
+  std::string read_file(const std::filesystem::path& p) const override { return real.read_file(p); }
+  void write_file(const std::filesystem::path& p, const std::string& bytes) const override {
+    // libgit2 may canonicalize /var to /private/var or expand Windows short paths.
+    // The journal temporary does not exist yet, so compare the existing parents.
+    std::error_code error;
+    const bool truncate = !truncate_path.empty() && p.filename() == truncate_path.filename() &&
+        std::filesystem::equivalent(p.parent_path(), truncate_path.parent_path(), error);
+    if (truncate) ++truncated_writes;
+    real.write_file(p, truncate ? bytes.substr(0, bytes.size() / 2) : bytes);
+  }
+};
 class FaultGit final : public holder::git::GitOps {
  public:
   holder::git::RealGitOps real;
@@ -45,11 +76,12 @@ class FaultGit final : public holder::git::GitOps {
   bool fail_stage = false;
   bool fail_commit = false;
   bool fail_after_commit = false;
+  std::optional<std::filesystem::path> short_write_path;
   void open_or_init(const std::filesystem::path& p) override { real.open_or_init(p); }
   void write_file(const std::filesystem::path& p, const std::string& bytes) override {
     if (writes_until_failure && --writes_until_failure == 0)
       throw std::runtime_error("injected write failure");
-    real.write_file(p, bytes);
+    real.write_file(p, short_write_path && p == *short_write_path ? bytes.substr(0, bytes.size() / 2) : bytes);
   }
   void stage_path(const std::filesystem::path& p) override {
     if (fail_stage) throw std::runtime_error("injected stage failure");
@@ -137,6 +169,310 @@ struct Fixture {
   void rebuild() { holder::store::Rebuilder(db, &fts).rebuild_project(project); }
 };
 } // namespace
+
+TEST_CASE("Interrupted mutation recovery preserves a later uncommitted edit",
+          "[cardstore][broad-journal-later-edit]") {
+  Fixture f;
+  f.add(parent_id);
+  const auto root = std::filesystem::path(f.project.root_path);
+  const auto relative = holder::core::card_rel_path(parent_id);
+  {
+    holder::card::CardMutation mutation(f.fs, root, {relative}, {{relative, "interrupted bytes"}});
+    mutation.begin();
+    f.fs.write_file(root / relative, "interrupted bytes");
+  }
+  f.git.real.write_file("unrelated.txt", "later committed work");
+  f.git.real.stage_path("unrelated.txt");
+  f.git.real.commit("Another writer commits");
+  const auto later_head = f.head();
+  f.fs.write_file(root / relative, "newer uncommitted bytes");
+  holder::card::CardMutation::recover_files(f.fs, root);
+  CHECK(f.bytes(parent_id) == "newer uncommitted bytes");
+  CHECK(f.head() == later_head);
+  CHECK(f.fs.read_file(root / "unrelated.txt") == "later committed work");
+  CHECK(holder::card::CardMutation::pending(root));
+  holder::card::CardMutation::finish_recovery(f.fs, root);
+  CHECK_FALSE(holder::card::CardMutation::pending(root));
+}
+
+TEST_CASE("Lifecycle writes reject conflicting files and roll back incomplete writes",
+          "[cardstore][broad-lifecycle-guards]") {
+  Fixture f;
+  f.add(parent_id);
+  f.add(child_id, parent_id);
+  const auto root = std::filesystem::path(f.project.root_path);
+  const auto original = f.bytes(parent_id);
+  const auto original_child = f.bytes(child_id);
+  const auto head = f.head();
+  const auto trash = holder::core::card_trash_rel_path(parent_id);
+  SECTION("destination already exists") {
+    f.fs.create_directories((root / trash).parent_path());
+    f.fs.write_file(root / trash, "unrelated trash bytes");
+    REQUIRE_THROWS_WITH(f.store.trash(parent_id, 10),
+        Catch::Matchers::ContainsSubstring("destination card file already exists"));
+    CHECK(f.fs.read_file(root / trash) == "unrelated trash bytes");
+  }
+  SECTION("a placement card has an inconsistent path") {
+    f.db.exec("UPDATE cards SET rel_path='cards/wrong.md' WHERE card_id='" + child_id + "';");
+    REQUIRE_THROWS_WITH(f.store.trash(parent_id, 10),
+        Catch::Matchers::ContainsSubstring("card rel_path does not match card_id"));
+  }
+  SECTION("an incomplete lifecycle write is compensated") {
+    f.git.short_write_path = trash;
+    REQUIRE_THROWS_WITH(f.store.trash(parent_id, 10),
+        Catch::Matchers::ContainsSubstring("incomplete card lifecycle write"));
+    CHECK_FALSE(f.fs.exists(root / trash));
+  }
+  SECTION("the source becomes unavailable after planning") {
+    ShortWriteFs fs;
+    fs.unavailable_path = root / holder::core::card_rel_path(parent_id);
+    holder::card::CardStore store(f.db, &f.fts, &fs, &f.git);
+    REQUIRE_THROWS_WITH(store.trash(parent_id, 10),
+        Catch::Matchers::ContainsSubstring("card content missing"));
+    CHECK(fs.existence_checks == 2);
+  }
+  CHECK(f.bytes(parent_id) == original);
+  CHECK(f.bytes(child_id) == original_child);
+  CHECK(f.head() == head);
+  REQUIRE(f.cards.get(parent_id).has_value());
+  CHECK_FALSE(f.cards.get(parent_id)->deleted_at.has_value());
+  CHECK(f.cards.get(child_id)->parent_card_id == parent_id);
+  CHECK_FALSE(holder::card::CardMutation::pending(root));
+}
+
+TEST_CASE("Reconstruction requires the caller's transaction before changing projections",
+          "[cardstore][broad-rebuild-transaction]") {
+  Fixture f;
+  f.add(parent_id);
+  const auto head = f.head();
+  REQUIRE_THROWS_WITH(holder::store::Rebuilder(f.db, &f.fts).rebuild_project_in_transaction(f.project),
+      Catch::Matchers::ContainsSubstring("project reconstruction requires an active transaction"));
+  CHECK(f.cards.get(parent_id).has_value());
+  CHECK(f.head() == head);
+  {
+    holder::platform::Tx transaction(f.db);
+    const auto stats = holder::store::Rebuilder(f.db, &f.fts).rebuild_project_in_transaction(f.project);
+    CHECK(stats.cards == 1);
+    transaction.commit();
+  }
+  CHECK(f.cards.get(parent_id).has_value());
+}
+
+TEST_CASE("A card mutation journal recovers files without a Git repository",
+          "[cardstore][journal-boundaries]") {
+  const auto root = holder::test::make_temp_dir();
+  holder::core::RealFs fs;
+  fs.create_directories(root / "cards");
+  fs.write_file(root / "cards/original.md", "original bytes");
+  {
+    holder::card::CardMutation mutation(fs, root, {"cards/original.md", "cards/new.md"},
+        {{"cards/original.md", std::nullopt}, {"cards/new.md", "new bytes"}});
+    mutation.begin();
+    fs.remove(root / "cards/original.md");
+    fs.write_file(root / "cards/new.md", "new bytes");
+    // Deliberately leave the journal as an interrupted writer would.
+  }
+  REQUIRE(holder::card::CardMutation::pending(root));
+  holder::card::CardMutation::recover_files(fs, root);
+  CHECK(fs.read_file(root / "cards/original.md") == "original bytes");
+  CHECK_FALSE(fs.exists(root / "cards/new.md"));
+  CHECK(holder::card::CardMutation::pending(root));
+  holder::card::CardMutation::finish_recovery(fs, root);
+  CHECK_FALSE(holder::card::CardMutation::pending(root));
+  CHECK_FALSE(fs.exists(root / ".git"));
+}
+
+TEST_CASE("Mutation preparation preserves an invalid Git repository for explicit repair",
+          "[cardstore][batch-journal-preparation]") {
+  Fixture f;
+  f.add(parent_id);
+  const auto root = std::filesystem::path(f.project.root_path);
+  const auto original = f.bytes(parent_id);
+  const auto head = f.head();
+  std::filesystem::path damaged;
+  std::filesystem::path backup;
+  SECTION("invalid Git directory pointer") {
+    damaged = root / ".git";
+    backup = root / ".git.saved";
+    std::filesystem::rename(damaged, backup);
+    std::ofstream(damaged) << "not a gitdir pointer\n";
+  }
+  SECTION("corrupt Git index") {
+    damaged = root / ".git/index";
+    backup = root / ".git/index.saved";
+    std::filesystem::rename(damaged, backup);
+    std::ofstream(damaged) << "not a Git index\n";
+  }
+  const auto corrupt = f.fs.read_file(damaged);
+  REQUIRE_THROWS_WITH(holder::card::CardMutation(f.fs, root,
+      {holder::core::card_rel_path(parent_id)}, {}),
+      Catch::Matchers::ContainsSubstring("card mutation Git failure:"));
+  CHECK(f.bytes(parent_id) == original);
+  CHECK(f.fs.read_file(damaged) == corrupt);
+  REQUIRE(std::filesystem::remove(damaged));
+  std::filesystem::rename(backup, damaged);
+  CHECK(f.head() == head);
+  CHECK_FALSE(holder::card::CardMutation::pending(root));
+  REQUIRE_NOTHROW(holder::card::CardMutation(f.fs, root,
+      {holder::core::card_rel_path(parent_id)}, {}));
+}
+
+TEST_CASE("A pending mutation journal blocks a new mutation without replacing recovery evidence",
+          "[cardstore][batch-journal-preparation]") {
+  Fixture f;
+  f.add(parent_id);
+  const auto root = std::filesystem::path(f.project.root_path);
+  const auto relative = holder::core::card_rel_path(parent_id);
+  const auto journal = root / ".git/holder-card-mutation";
+  const auto original = f.bytes(parent_id);
+  const auto head = f.head();
+  holder::card::CardMutation first(f.fs, root, {relative}, {{relative, "new bytes"}});
+  first.begin();
+  const auto saved = f.fs.read_file(journal);
+  REQUIRE_THROWS_WITH(holder::card::CardMutation(f.fs, root, {relative}, {}),
+                      Catch::Matchers::ContainsSubstring("card mutation recovery required"));
+  CHECK(f.fs.read_file(journal) == saved);
+  CHECK(f.bytes(parent_id) == original);
+  CHECK(f.head() == head);
+  first.rollback();
+  CHECK_FALSE(holder::card::CardMutation::pending(root));
+  REQUIRE_NOTHROW(holder::card::CardMutation(f.fs, root, {relative}, {}));
+}
+
+TEST_CASE("Incomplete journal and recovery writes are detected and can be retried",
+          "[cardstore][journal-boundaries]") {
+  Fixture f;
+  f.add(parent_id);
+  const auto root = std::filesystem::path(f.project.root_path);
+  const auto relative = holder::core::card_rel_path(parent_id);
+  const auto path = root / relative;
+  const auto journal = root / ".git/holder-card-mutation";
+  const auto original = f.bytes(parent_id);
+  const auto head = f.head();
+  ShortWriteFs fs;
+  SECTION("journal is not published if its temporary write is incomplete") {
+    holder::card::CardMutation mutation(fs, root, {relative}, {{relative, "changed"}});
+    fs.truncate_path = journal.parent_path() / "." / (journal.filename().string() + ".tmp");
+    REQUIRE_THROWS_WITH(mutation.begin(), Catch::Matchers::ContainsSubstring("incomplete card recovery journal"));
+    CHECK(fs.truncated_writes == 1);
+    CHECK_FALSE(holder::card::CardMutation::pending(root));
+    CHECK(f.bytes(parent_id) == original);
+    fs.truncate_path.clear();
+    mutation.begin();
+    REQUIRE(holder::card::CardMutation::pending(root));
+    mutation.rollback();
+  }
+  SECTION("a failed recovery retains its journal for another attempt") {
+    {
+      holder::card::CardMutation mutation(fs, root, {relative}, {{relative, "changed"}});
+      mutation.begin();
+      f.fs.write_file(path, "changed");
+    }
+    const auto saved = f.fs.read_file(journal);
+    fs.truncate_path = path;
+    REQUIRE_THROWS_WITH(holder::card::CardMutation::recover_files(fs, root),
+                        Catch::Matchers::ContainsSubstring("incomplete card recovery write"));
+    CHECK(fs.truncated_writes == 1);
+    CHECK(holder::card::CardMutation::pending(root));
+    CHECK(f.fs.read_file(journal) == saved);
+    fs.truncate_path.clear();
+    holder::card::CardMutation::recover_files(fs, root);
+    CHECK(f.bytes(parent_id) == original);
+    holder::card::CardMutation::finish_recovery(fs, root);
+  }
+  CHECK_FALSE(holder::card::CardMutation::pending(root));
+  CHECK(f.bytes(parent_id) == original);
+  CHECK(f.head() == head);
+}
+
+TEST_CASE("An unsupported mutation journal is retained without changing files or Git",
+          "[cardstore][journal-boundaries]") {
+  Fixture f;
+  f.add(parent_id);
+  const auto original = f.bytes(parent_id);
+  const auto head = f.head();
+  const auto root = std::filesystem::path(f.project.root_path);
+  const auto journal = root / ".git/holder-card-mutation";
+  {
+    holder::card::CardMutation mutation(f.fs, root, {holder::core::card_rel_path(parent_id)}, {});
+    mutation.begin();
+  }
+  const auto raw = f.fs.read_file(journal);
+  auto saved = nlohmann::json::from_msgpack(raw.begin(), raw.end());
+  saved["version"] = 999;
+  const auto encoded = nlohmann::json::to_msgpack(saved);
+  const std::string unsupported(encoded.begin(), encoded.end());
+  f.fs.write_file(journal, unsupported);
+  REQUIRE_THROWS_WITH(holder::card::CardMutation::recover_files(f.fs, root),
+                      Catch::Matchers::ContainsSubstring("unsupported card mutation journal"));
+  CHECK(f.fs.read_file(journal) == unsupported);
+  CHECK(f.bytes(parent_id) == original);
+  CHECK(f.head() == head);
+  // Restoring a supported version allows recovery to be retried.
+  f.fs.write_file(journal, raw);
+  REQUIRE_NOTHROW(holder::card::CardMutation::recover_files(f.fs, root));
+  holder::card::CardMutation::finish_recovery(f.fs, root);
+  CHECK_FALSE(holder::card::CardMutation::pending(root));
+  CHECK(f.bytes(parent_id) == original);
+}
+
+TEST_CASE("Mutation preparation rejects unsafe and unjournaled paths before writing",
+          "[cardstore][journal-boundaries]") {
+  Fixture f;
+  f.add(parent_id);
+  const auto original = f.bytes(parent_id);
+  const auto head = f.head();
+  std::string path;
+  SECTION("parent traversal") { path = "cards/../outside.md"; }
+  SECTION("absolute path") { path = (f.dir / "outside.md").string(); }
+  SECTION("non-card path") { path = ".holder/project.json"; }
+  SECTION("change absent from snapshot") { path = ""; }
+  if (path.empty()) {
+    REQUIRE_THROWS_WITH(
+        holder::card::CardMutation(f.fs, f.project.root_path,
+            {holder::core::card_rel_path(parent_id)}, {{"cards/unsaved.md", "new bytes"}}),
+        Catch::Matchers::ContainsSubstring("unjournaled card change"));
+  } else {
+    REQUIRE_THROWS_WITH(holder::card::CardMutation(f.fs, f.project.root_path, {path}, {}),
+                        Catch::Matchers::ContainsSubstring("invalid card mutation recovery path"));
+  }
+  CHECK_FALSE(holder::card::CardMutation::pending(f.project.root_path));
+  CHECK(f.bytes(parent_id) == original);
+  CHECK(f.head() == head);
+}
+
+TEST_CASE("A lifecycle mutation refuses an unresolved Git index without discarding conflicts",
+          "[cardstore][journal-boundaries]") {
+  Fixture f;
+  f.add(parent_id);
+  const auto original = f.bytes(parent_id);
+  const auto head = f.head();
+  git_repository* raw = nullptr;
+  REQUIRE(git_repository_open(&raw, f.project.root_path.c_str()) == 0);
+  const std::unique_ptr<git_repository, decltype(&git_repository_free)> repo(raw, git_repository_free);
+  git_index* raw_index = nullptr;
+  REQUIRE(git_repository_index(&raw_index, repo.get()) == 0);
+  const std::unique_ptr<git_index, decltype(&git_index_free)> index(raw_index, git_index_free);
+  const auto path = holder::core::card_rel_path(parent_id);
+  const auto* entry = git_index_get_bypath(index.get(), path.c_str(), 0);
+  REQUIRE(entry != nullptr);
+  auto copied = *entry;
+  copied.path = path.c_str();
+  REQUIRE(git_index_conflict_add(index.get(), &copied, &copied, &copied) == 0);
+  REQUIRE(git_index_write(index.get()) == 0);
+  const auto index_path = std::filesystem::path(git_index_path(index.get()));
+  const auto conflicted = f.fs.read_file(index_path);
+  REQUIRE_THROWS_WITH(holder::card::CardMutation(f.fs, f.project.root_path, {path}, {}),
+                      Catch::Matchers::ContainsSubstring("resolve Git conflicts before changing card lifecycle"));
+  CHECK_FALSE(holder::card::CardMutation::pending(f.project.root_path));
+  CHECK(f.fs.read_file(index_path) == conflicted);
+  CHECK(f.bytes(parent_id) == original);
+  CHECK(f.head() == head);
+  REQUIRE(git_index_conflict_cleanup(index.get()) == 0);
+  REQUIRE(git_index_add_bypath(index.get(), path.c_str()) == 0);
+  REQUIRE(git_index_write(index.get()) == 0);
+  REQUIRE_NOTHROW(holder::card::CardMutation(f.fs, f.project.root_path, {path}, {}));
+}
 
 TEST_CASE(
     "Trash replaces root or nested parent with its ordered live children",

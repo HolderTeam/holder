@@ -23,6 +23,91 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SIZEOF_VOID_P EQUAL 8
   endif()
 endif()
 
+# Keep dependency failure injection in its own process and out of production binaries.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  add_executable(holder_core_crypto_failure_tests CryptoDependencyFailure_test.cpp)
+  target_link_libraries(holder_core_crypto_failure_tests PRIVATE Holder::Core)
+  target_link_options(holder_core_crypto_failure_tests PRIVATE
+    "LINKER:--wrap=sodium_init" "LINKER:--wrap=crypto_aead_xchacha20poly1305_ietf_encrypt")
+  target_compile_definitions(holder_core_crypto_failure_tests PRIVATE
+    SCHEMA_SQL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../schema/schema.sql")
+  if(TARGET Catch2::Catch2)
+    target_sources(holder_core_crypto_failure_tests PRIVATE catch_main.cpp)
+    target_link_libraries(holder_core_crypto_failure_tests PRIVATE Catch2::Catch2)
+  elseif(TARGET Catch2::Catch2WithMain)
+    target_link_libraries(holder_core_crypto_failure_tests PRIVATE Catch2::Catch2WithMain)
+  endif()
+  if(HOLDER_CORE_TSAN_USE_SETARCH)
+    find_program(SETARCH_EXECUTABLE setarch REQUIRED)
+    add_test(NAME "Crypto dependency failures preserve recovery state"
+      COMMAND ${SETARCH_EXECUTABLE} ${CMAKE_SYSTEM_PROCESSOR} -R $<TARGET_FILE:holder_core_crypto_failure_tests>)
+  else()
+    add_test(NAME "Crypto dependency failures preserve recovery state" COMMAND holder_core_crypto_failure_tests)
+  endif()
+endif()
+
+# Linker wrapping sees std::mutex's pthread calls when libstdc++ defines lock inline.
+# Keep this fault-injection runner out of other standard-library implementations.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  include(CheckCXXSourceCompiles)
+  check_cxx_source_compiles("#include <mutex>
+#ifndef __GLIBCXX__
+#error This test requires libstdc++ inline mutex locking
+#endif
+int main() { return 0; }" HOLDER_CORE_TEST_HAS_LIBSTDCXX_MUTEX)
+  if(HOLDER_CORE_TEST_HAS_LIBSTDCXX_MUTEX)
+    add_executable(holder_core_host_registration_failure_tests HostRegistrationFailure_test.cpp)
+    target_link_libraries(holder_core_host_registration_failure_tests PRIVATE Holder::Core)
+    target_link_options(holder_core_host_registration_failure_tests PRIVATE "LINKER:--wrap=pthread_mutex_lock")
+    if(TARGET Catch2::Catch2)
+      target_sources(holder_core_host_registration_failure_tests PRIVATE catch_main.cpp)
+      target_link_libraries(holder_core_host_registration_failure_tests PRIVATE Catch2::Catch2)
+    elseif(TARGET Catch2::Catch2WithMain)
+      target_link_libraries(holder_core_host_registration_failure_tests PRIVATE Catch2::Catch2WithMain)
+    endif()
+    if(HOLDER_CORE_TSAN_USE_SETARCH)
+      find_program(SETARCH_EXECUTABLE setarch REQUIRED)
+      add_test(NAME "Host registration lock failures preserve provider ownership"
+        COMMAND ${SETARCH_EXECUTABLE} ${CMAKE_SYSTEM_PROCESSOR} -R $<TARGET_FILE:holder_core_host_registration_failure_tests>)
+    else()
+      add_test(NAME "Host registration lock failures preserve provider ownership" COMMAND holder_core_host_registration_failure_tests)
+    endif()
+  endif()
+endif()
+
+# Isolate allocation failures; YAML::Load wrapping needs the GNU C++11 string ABI.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SIZEOF_VOID_P EQUAL 8
+   AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  include(CheckCXXSourceCompiles)
+  check_cxx_source_compiles("#include <string>
+#if !defined(__GLIBCXX__) || !_GLIBCXX_USE_CXX11_ABI
+#error This test requires the GNU C++11 string ABI
+#endif
+int main() { return 0; }" HOLDER_CORE_TEST_HAS_GNU_STRING_ABI)
+  if(HOLDER_CORE_TEST_HAS_GNU_STRING_ABI)
+    add_executable(holder_core_read_allocation_tests ReadAllocationFailure_test.cpp)
+    target_link_libraries(holder_core_read_allocation_tests PRIVATE Holder::Core)
+    target_link_options(holder_core_read_allocation_tests PRIVATE "LINKER:--wrap=_Znwm"
+      "LINKER:--wrap=_ZN4YAML4LoadERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE"
+      "LINKER:--wrap=_ZN6holder5store9Rebuilder15rebuild_projectERKNS_5model7ProjectE")
+    target_compile_definitions(holder_core_read_allocation_tests PRIVATE
+      SCHEMA_SQL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../schema/schema.sql")
+    if(TARGET Catch2::Catch2)
+      target_sources(holder_core_read_allocation_tests PRIVATE catch_main.cpp)
+      target_link_libraries(holder_core_read_allocation_tests PRIVATE Catch2::Catch2)
+    elseif(TARGET Catch2::Catch2WithMain)
+      target_link_libraries(holder_core_read_allocation_tests PRIVATE Catch2::Catch2WithMain)
+    endif()
+    if(HOLDER_CORE_TSAN_USE_SETARCH)
+      find_program(SETARCH_EXECUTABLE setarch REQUIRED)
+      add_test(NAME "Read allocation failures preserve complete results"
+        COMMAND ${SETARCH_EXECUTABLE} ${CMAKE_SYSTEM_PROCESSOR} -R $<TARGET_FILE:holder_core_read_allocation_tests>)
+    else()
+      add_test(NAME "Read allocation failures preserve complete results" COMMAND holder_core_read_allocation_tests)
+    endif()
+  endif()
+endif()
+
 if(TARGET Catch2::Catch2)
   include(Catch)
 endif()

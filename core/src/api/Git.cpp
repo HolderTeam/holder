@@ -189,7 +189,7 @@ DueSyncResult run_if_due(holder_context& context, const std::string& project_id,
       {.pull = pull_due,
        .push = push_due,
        .push_after_failed_pull = true,
-       .branch = "",
+       .branch = "", // LCOV_EXCL_LINE - GCC cleanup-only counter; normal expression is measured on adjacent lines.
        .set_upstream = true,
        .now = now});
   return convert_due_result(result);

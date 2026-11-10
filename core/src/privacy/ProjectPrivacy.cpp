@@ -180,7 +180,7 @@ bool has_envelope_header(const std::filesystem::path& path) {
   }
   std::string first_line;
   std::getline(in, first_line);
-  return first_line == "HolderPriv1";
+  return first_line == "HolderPriv1" || first_line == "HolderPriv1\r";
 }
 
 bool starts_with(const std::string& text, const std::string& prefix) {
@@ -559,7 +559,7 @@ void assert_encryption_index_paths_safe(
     bool ok = false;
     if (data && size > 0) {
       const std::string_view view(data, size);
-      ok = view.rfind("HolderPriv1\n", 0) == 0;
+      ok = view.rfind("HolderPriv1\n", 0) == 0 || view.rfind("HolderPriv1\r\n", 0) == 0;
     }
     git_blob_free(blob);
 
