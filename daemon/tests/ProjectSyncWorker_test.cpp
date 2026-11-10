@@ -848,3 +848,23 @@ TEST_CASE("sync work that is due does count as activity", "[sync][worker][activi
   REQUIRE(holder::core::activity().quiet_for() < std::chrono::milliseconds(1400));
 }
 
+
+TEST_CASE("A failed final push leaves commits local for a later run", "[sync][worker][final-push]") {
+  FinalPushFixture fixture;
+  const auto unavailable = fixture.dir / "offline.git";
+  std::filesystem::rename(fixture.remote_dir, unavailable);
+  holder::git::GitRepo local;
+  local.open_or_init(fixture.local_dir);
+  const auto original_head = local.head_oid();
+  REQUIRE(original_head);
+
+  auto worker = worker_with_long_push_interval(fixture.db_path);
+  REQUIRE(worker.run_final_push() == 1);
+  const auto state = load_sync_state(fixture.db_path, "proj-final");
+  REQUIRE(state);
+  REQUIRE(state->last_push_status);
+  CHECK(*state->last_push_status != "pushed");
+  CHECK(local.head_oid() == original_head);
+  CHECK(state->next_retry_at.has_value());
+  CHECK_FALSE(holder::test::remote_has_local_head(fixture.local_dir, unavailable));
+}

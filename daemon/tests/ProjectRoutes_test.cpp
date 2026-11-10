@@ -830,3 +830,20 @@ TEST_CASE("ProjectRoutes create and recovery required field branches", "[project
     REQUIRE(payload["error"]["code"] == "invalid_argument");
   }
 }
+
+TEST_CASE("Privacy failures retain their category when translated for HTTP", "[projects][routes]") {
+  using Code = holder::privacy::PrivacyErrorCode;
+  using namespace holder::api::support;
+  const auto check = []<typename Failure>(Code code) {
+    CAPTURE(static_cast<int>(code));
+    try {
+      throw_privacy_failure(holder::privacy::PrivacyError(code, "privacy detail"));
+    } catch (const Failure& failure) {
+      CHECK(failure.code() == code);
+      CHECK(std::string(failure.what()) == "privacy detail");
+    }
+  };
+  check.operator()<KeyringUnavailable>(Code::KeyringUnavailable);
+  check.operator()<PrivacyBroken>(Code::CryptMetadataMissing);
+  check.operator()<PrivacyRejected>(Code::EnvelopeInvalid);
+}

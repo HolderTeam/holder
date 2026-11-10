@@ -133,6 +133,11 @@ TEST_CASE("Ai runner pull events route tells a reconnect to a finished pull to s
 
   const auto first = invoke_pull_event_route_and_capture(path, &runner_registry);
   REQUIRE(first.raw_response.find("event: completed") != std::string::npos);
+  const auto invalid = invoke_pull_event_route_and_capture(path, &runner_registry, "bad-cursor");
+  REQUIRE(invalid.route_result.handled);
+  REQUIRE_FALSE(invalid.route_result.streamed);
+  CHECK(invalid.status == http::status::bad_request);
+
   const auto cursor = holder::api::support::EventJournal().cursor();
   const auto reconnect = invoke_pull_event_route_and_capture(path, &runner_registry, cursor);
   REQUIRE(reconnect.route_result.handled);

@@ -2,6 +2,7 @@
 #include "api/support/EventJournal.h"
 #include "api/support/RunEventStore.h"
 #include "api/support/SseStream.h"
+#include "api/support/StreamServer.h"
 #include <catch2/catch_test_macros.hpp>
 #include <future>
 #include <thread>
@@ -39,6 +40,7 @@ TEST_CASE("Event journal bounds bytes and encodes one JSON data line", "[events]
   for (const auto& bad :
        {"",
         "hello",
+        "g0000000-0000-0000-0000-000000000000:1",
         "00000000-0000-0000-0000-000000000000:-1",
         "00000000-0000-0000-0000-000000000000:18446744073709551616"})
     REQUIRE_FALSE(EventJournal::valid_cursor(bad));
@@ -112,4 +114,36 @@ TEST_CASE(
   REQUIRE(exited_future.wait_for(std::chrono::milliseconds(100)) == std::future_status::timeout);
   released.set_value();
   REQUIRE(exited_future.wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+}
+
+TEST_CASE("Run event retention evicts history when the run limit is exceeded", "[events]") {
+  std::vector<std::string> ids;
+  for (int i = 0; i < 129; ++i) {
+    ids.push_back("retention-test-" + std::to_string(i));
+    append_run_event(ids.back(), ai_events::done, {}, true);
+  }
+
+  std::size_t retained = 0;
+  for (const auto& id : ids) {
+    if (const auto batch = read_run_events(id, "")) {
+      ++retained;
+      REQUIRE(batch->events.size() == 1);
+      CHECK(batch->events.front().data.at("run_id") == id);
+    }
+  }
+  CHECK(retained > 0);
+  CHECK(retained <= 128);
+  REQUIRE(read_run_events(ids.back(), ""));
+}
+
+TEST_CASE("Event stream admission reports a full registry as server busy", "[events]") {
+  boost::asio::io_context ioc;
+  boost::asio::ip::tcp::socket socket(ioc);
+  auto registry = std::make_shared<SseRegistry>(0);
+  auto serve = serve_events(registry, [] { return EventBatch{}; });
+  boost::beast::http::response<boost::beast::http::string_body> response;
+
+  REQUIRE_FALSE(serve(socket, response));
+  CHECK(response.result() == boost::beast::http::status::service_unavailable);
+  CHECK(nlohmann::json::parse(response.body()).at("error").at("code") == "server_busy");
 }

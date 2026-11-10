@@ -346,6 +346,13 @@ TEST_CASE("Ai run events route tells a reconnect past a finished run to stop", "
   const auto path = "/ai/runs/" + run.run_id + "/events";
   http::response<http::string_body> res;
   http::request<http::string_body> req{http::verb::get, path, 11};
+  req.set("Last-Event-ID", "invalid-cursor");
+  const auto invalid = holder::test::serve_generated(req, res, socket, db);
+  REQUIRE(invalid.handled);
+  REQUIRE_FALSE(invalid.streamed);
+  REQUIRE(res.result() == http::status::bad_request);
+  CHECK(res.body().find("Invalid Last-Event-ID") != std::string::npos);
+
   req.set("Last-Event-ID", done.id);
   auto out = holder::test::serve_generated(req, res, socket, db);
   REQUIRE(out.handled);
