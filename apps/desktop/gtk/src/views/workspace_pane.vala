@@ -410,7 +410,7 @@ public class WorkspacePane : Object {
         });
 
         editor_toggle_btn = new Gtk.ToggleButton();
-        editor_toggle_btn.set_icon_name("emblem-documents-symbolic");
+        editor_toggle_btn.set_icon_name("document-edit-symbolic");
         editor_toggle_btn.set_tooltip_text("Toggle card editor");
         editor_toggle_btn.set_active(true);
         editor_toggle_btn.toggled.connect(() => {
@@ -426,7 +426,7 @@ public class WorkspacePane : Object {
         });
 
         var ai_toggle_btn = new Gtk.ToggleButton();
-        ai_toggle_btn.set_icon_name("preferences-desktop-keyboard-symbolic");
+        ai_toggle_btn.set_icon_name("holder-intelligence-symbolic");
         ai_toggle_btn.set_tooltip_text("Toggle Intelligence panel");
         ai_toggle_btn.toggled.connect(() => {
             ai_panel_toggled(ai_toggle_btn.get_active());

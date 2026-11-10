@@ -1350,13 +1350,13 @@ public class MainWindow : Adw.ApplicationWindow {
 
     private void apply_persisted_preferences() {
         if (settings == null) {
-            Adw.StyleManager.get_default().set_color_scheme(AppSettings.resolve_default_color_scheme());
+            Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.DEFAULT);
             set_inline_image_previews_enabled(false);
             return;
         }
 
         var style_key = settings.get_string(AppSettings.KEY_STYLE_VARIANT);
-        Adw.StyleManager.get_default().set_color_scheme(AppSettings.effective_color_scheme_for_key(style_key));
+        Adw.StyleManager.get_default().set_color_scheme(AppSettings.key_to_color_scheme(style_key));
 
         editor_view.set_show_line_numbers(settings.get_boolean(AppSettings.KEY_SHOW_LINE_NUMBERS));
         editor_font_style.apply(
