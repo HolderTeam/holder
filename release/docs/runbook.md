@@ -409,9 +409,20 @@ publication never advances this record automatically. Update platform/upgrade
 guidance when behaviour changes; release-specific version labels come from the
 generated catalog.
 
-Website CI builds/checks reviewed changes, and website changes on `main` still
-deploy through `github-pages`. Check the deployed feed, platform channels,
-download links, checksums and Ubuntu instructions, then record website completion.
+After publication, observe the deployed website from the candidate record.
+
+```sh
+python3 release/scripts/release.py observe-website --record <candidate.json> --wait
+```
+
+The command verifies the candidate tag and the stable release selected by the
+website generator. It checks the live feed, checksum copies and Linux, macOS and
+Windows download links. It records the release and asset IDs, feed, checksum
+hashes and observation time in `website_verified`. Omit `--wait` for a single
+check. An older feed or missing public file means deployment is still pending.
+Inspect the existing Pages workflow if the site does not catch up, then resume
+the observer after recovery. Review the live Ubuntu instructions separately
+against the reviewed PPA declaration.
 
 ## 10. Recover from a failed or partial release
 
