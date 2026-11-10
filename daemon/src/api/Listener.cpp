@@ -391,6 +391,11 @@ std::size_t Listener::active_read_socket_count() const {
   return active_read_sockets_.size();
 }
 
+std::size_t Listener::active_write_socket_count() const {
+  std::lock_guard<std::mutex> lock(active_socket_mutex_);
+  return active_write_sockets_.size();
+}
+
 std::size_t Listener::pending_socket_count() const {
   std::lock_guard<std::mutex> lock(ingress_queue_mutex_);
   return pending_sockets_.size();

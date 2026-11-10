@@ -51,6 +51,7 @@ class Listener {
   void run(const holder::core::SignalHandler& signals);
   void stop();
   std::size_t active_read_socket_count() const;
+  std::size_t active_write_socket_count() const;
   std::size_t pending_socket_count() const;
   // Open event streams (change feed and AI streams); 0 before the server has started.
   std::size_t open_stream_count();
