@@ -91,7 +91,8 @@ and is never selected by the coordinator. The separate existing
 prerelease; it does not permit replacing conflicting files. A conflict may
 require a new candidate/version rather than treating a replacement as a retry.
 
-[Core SDK publication](sdk-publication.md) uses the same record. Windows delivery, the remaining platform handoff,
-Launchpad binary availability and website completion remain subsequent #120
+[Core SDK publication](sdk-publication.md) and
+[Windows delivery](windows-promotion.md) use the same record. The remaining
+platform handoff, Launchpad binary availability and website completion remain subsequent #120
 work. Validate this complete remote promotion path through the next actual
 release; no additional publication rehearsal is required.

@@ -38,6 +38,12 @@ PROMOTION_SPEC.loader.exec_module(promotion_tool)
 SDK_SPEC = importlib.util.spec_from_file_location('release_sdk', Path(__file__).with_name('publish-core-sdk.py'))
 sdk_release = importlib.util.module_from_spec(SDK_SPEC)
 SDK_SPEC.loader.exec_module(sdk_release)
+WINDOWS_SPEC = importlib.util.spec_from_file_location('release_windows', Path(__file__).with_name('windows-candidate.py'))
+windows_tool = importlib.util.module_from_spec(WINDOWS_SPEC)
+WINDOWS_SPEC.loader.exec_module(windows_tool)
+WINDOWS_PROMOTION_SPEC = importlib.util.spec_from_file_location('release_windows_promotion', Path(__file__).with_name('promote-windows.py'))
+windows_promotion = importlib.util.module_from_spec(WINDOWS_PROMOTION_SPEC)
+WINDOWS_PROMOTION_SPEC.loader.exec_module(windows_promotion)
 require = manifest_tool.require
 WORKFLOWS = {'backend': 'daemon-ci.yml', 'desktop': 'desktop-ci.yml',
              'linux': 'staging-linux-appimage-stage.yml', 'windows': 'staging-windows-stage.yml',
@@ -49,6 +55,7 @@ PUBLICATIONS = {f'{package}_{destination}': (package, destination)
                 for package in PACKAGES for destination in ('pypi', 'testpypi')}
 WORKFLOWS.update({name: WORKFLOWS[package] for name, (package, _) in PUBLICATIONS.items()})
 WORKFLOWS['linux_signing'] = 'sign-linux-appimage.yml'
+WORKFLOWS['windows_promotion'] = 'promote-windows-dev-build.yml'
 WORKFLOWS['linux_promotion'] = 'promote-linux-appimage.yml'
 WORKFLOWS['core_sdk_publication'] = 'promote-core-sdk.yml'
 PLATFORMS = ('linux', 'windows', 'macos')
@@ -139,6 +146,21 @@ class GitHub:
         return promotion_tool.observe(self, record['repository'], 'holder-v' + record['version'],
             linux_release_files(record), record['candidate'], release_id=release_id)
 
+    def windows_bundle(self, record):
+        step = record['steps']['windows']
+        artifact = next(item for item in step['artifacts'] if item['name'] == 'Holder-windows-test-signed-installer')
+        with tempfile.TemporaryDirectory(prefix='holder-windows-evidence-') as directory:
+            bundle = windows_tool.read(record['repository'], step['run_id'], artifact['name'], record['version'],
+                manifest_tool.GitHub(directory), artifact_id=artifact['id'], workflow_commit=step['workflow_commit'])
+        require(bundle['attempt'] == step['attempt'] and bundle['artifact'] == artifact,
+                'Accepted Windows run/artifact changed during verification')
+        windows_tool.bind(record, bundle)
+        return bundle
+
+    def windows_promotion_status(self, record, release_id=None):
+        return windows_promotion.observe(self, record['repository'], 'holder-v' + record['version'],
+            windows_tool.payload_files(record['windows_delivery_input'], record['version']), record['candidate'], release_id=release_id)
+
     def sdk_publication_status(self, record, release_id=None):
         document = record['sdk_publication_inputs']['document']
         expected = sdk_release.make_index(document['core_selection'], record['repository'], document['backend']['run_id'])
@@ -199,6 +221,13 @@ class Coordinator:
             return 'main', {'expected_version': self.record['version'], 'daemon_ci_run_id': self.record['steps']['backend']['run_id'],
                 'release_tag': 'holder-v' + self.record['version'], 'prepared_sdk_path': snapshot['path'],
                 'prepared_sdk_ref': snapshot['commit']}
+        if name == 'windows_promotion':
+            bundle = self.record['windows_delivery_input']
+            return 'main', {'expected_version': self.record['version'], 'staging_repository': self.record['repository'],
+                'staging_run_id': bundle['run_id'], 'staging_artifact_name': bundle['artifact']['name'],
+                'staging_artifact_id': str(bundle['artifact']['id']), 'staging_artifact_sha256': bundle['archive_sha256'],
+                'candidate_commit': self.record['candidate'], 'release_tag': 'holder-v' + self.record['version'],
+                'replace_draft_assets': 'false'}
         if name == 'linux_promotion':
             signed = self.record['linux_signed']
             return 'main', {'expected_version': self.record['version'], 'signing_run_id': signed['run_id'],
@@ -286,7 +315,7 @@ class Coordinator:
             self.persist()
 
     def required_artifacts(self, name):
-        if name in ('linux_promotion', 'core_sdk_publication'):
+        if name in ('linux_promotion', 'windows_promotion', 'core_sdk_publication'):
             return []  # Destination assets are verified independently of run cleanup/receipt retention.
         if name == 'linux_signing':
             return ['Holder-linux-appimage-signed-' + self.record['version']]
@@ -361,6 +390,13 @@ class Coordinator:
             self.prepare_sdk_publication()
             self.require_sdk_inputs_available()
             self.ensure_sdk_metadata()
+        require(not (name == 'windows' and self.record.get('windows_delivery_input')),
+                'Windows staging is pinned for delivery; select a new candidate instead of replacing inputs')
+        if name == 'windows_promotion':
+            require(not self.record.get('windows_promoted'), 'Windows delivery is already accepted; inspect its recorded assets instead of retrying')
+            self.prepare_windows_promotion()
+            require(datetime.fromisoformat(self.record['windows_delivery_input']['artifact']['expires_at'].replace('Z', '+00:00')) > now(),
+                    'Windows tester artifact expired before promotion could be retried')
         if name == 'linux_promotion':
             require(not self.record.get('linux_promoted'), 'Linux delivery is already accepted; inspect its recorded assets instead of retrying')
             self.prepare_linux_promotion()
@@ -688,6 +724,71 @@ class Coordinator:
         self.record['status'] = 'promoting_linux'
         self.persist()
 
+    def prepare_windows_promotion(self):
+        validate_record(self.record)
+        require(self.record['windows_sign_test_installer'], 'Windows delivery requires a candidate staged with tester signing enabled')
+        require(self.record.get('manifest') and digest(self.record['manifest']['document']) == self.record['manifest']['sha256'],
+                'Windows delivery requires the unchanged candidate manifest')
+        self.validate_manifest(self.record['manifest']['document'], self.record['manifest']['evidence'])
+        self.require_release_tag()
+        if 'windows_delivery_input' not in self.record:
+            require(self.inspect('windows'), 'Windows staging has not succeeded')
+            bundle = self.github.windows_bundle(self.record)
+            windows_tool.bind(self.record, bundle)
+            self.record.update(windows_delivery_input=bundle, windows_delivery_input_sha256=digest(bundle))
+            self.persist()
+        bundle, step = self.record['windows_delivery_input'], self.record['steps']['windows']
+        require(digest(bundle) == self.record['windows_delivery_input_sha256'], 'Saved Windows delivery evidence changed')
+        artifact = next(item for item in step['artifacts'] if item['name'] == 'Holder-windows-test-signed-installer')
+        require(bundle['run_id'] == step['run_id'] and bundle['attempt'] == step['attempt'] and bundle['artifact'] == artifact,
+                'Windows input differs from the accepted staging run')
+        windows_tool.bind(self.record, bundle)
+        files = windows_tool.payload_files(bundle, self.record['version'])
+        require({file['name'] for file in files} == windows_promotion.names(self.record['version']), 'Incomplete Windows release payload')
+
+    def advance_windows_promotion(self):
+        self.prepare_windows_promotion()
+        completed = self.record.get('windows_promoted')
+        if completed:
+            require(digest(completed['receipt']) == completed['sha256'], 'Saved Windows promotion receipt changed')
+        observed = self.github.windows_promotion_status(self.record,
+            release_id=completed['receipt']['release']['id'] if completed else None)
+        if observed is not None:
+            if ('windows_promotion' in self.record['steps'] and
+                    self.record['steps']['windows_promotion']['status'] != 'dispatch_rejected'):
+                self.inspect('windows_promotion', allow_failure=True)
+            source = {'staging_run_id': self.record['windows_delivery_input']['run_id'],
+                'artifact_id': self.record['windows_delivery_input']['artifact']['id'],
+                'archive_sha256': self.record['windows_delivery_input']['archive_sha256']}
+            if completed:
+                receipt = completed['receipt']
+                require(receipt['source'] == source and receipt['repository'] == self.record['repository'] and
+                        receipt['candidate'] == self.record['candidate'] and receipt['files'] == observed['files'] and
+                        receipt['release']['tag'] == observed['release']['tag'],
+                        'Accepted Windows release assets or source changed')
+            else:
+                receipt = {**observed, 'source': source,
+                    'workflow_run_id': self.record['steps'].get('windows_promotion', {}).get('run_id')}
+                completed = {'receipt': receipt, 'sha256': digest(receipt)}
+                self.record['windows_promoted'] = completed
+            completed['last_check'] = {**observed['release'], 'verified_at': observed['verified_at']}
+            self.record['status'] = 'windows_promoted'
+            self.persist()
+            return
+        require(not completed, 'Accepted Windows release assets are now incomplete')
+        if 'windows_promotion' not in self.record['steps']:
+            destination = promotion_tool.release_for(self.github, self.record['repository'], 'holder-v' + self.record['version'])
+            require(destination is not None, 'Create and review the shared product draft before Windows delivery')
+            require(destination['draft'] and not destination.get('immutable'),
+                    'Published or immutable product release cannot receive missing Windows assets')
+            require(datetime.fromisoformat(self.record['windows_delivery_input']['artifact']['expires_at'].replace('Z', '+00:00')) > now(),
+                    'Windows tester artifact expired before promotion; recover the exact bytes without rebuilding')
+            self.start('windows_promotion')
+        ready = self.inspect('windows_promotion')
+        require(not ready, 'Promotion workflow succeeded but destination assets are incomplete; inspect and re-observe')
+        self.record['status'] = 'promoting_windows'
+        self.persist()
+
     def prepare_sdk_publication(self):
         validate_record(self.record)
         require(self.record.get('manifest') and digest(self.record['manifest']['document']) == self.record['manifest']['sha256'],
@@ -798,6 +899,11 @@ def summary(record):
         current = delivery['last_check']
         lines += ['', f'Linux release assets: {current["url"]}; draft={current["draft"]}; prerelease={current["prerelease"]}',
                   f'Linux promotion receipt SHA256: `{delivery["sha256"]}`']
+    if record.get('windows_promoted'):
+        delivery = record['windows_promoted']
+        current = delivery['last_check']
+        lines += ['', f'Windows development assets: {current["url"]}; draft={current["draft"]}',
+                  f'Windows promotion receipt SHA256: `{delivery["sha256"]}`']
     if record.get('core_sdk_published'):
         delivery = record['core_sdk_published']
         receipt = delivery['receipt']
@@ -813,7 +919,7 @@ def summary(record):
               'the maintainer publication decision; per-destination promotion/publication',
               'and package availability checks; website completion. Follow release/docs/runbook.md.',
               'prepare/packages dispatch preparation workflows; sign-linux requests the protected signing workflow;',
-              'promote-linux delivers signed files to the exact release; publish-sdk publishes the verified SDK set;',
+              'promote-linux/promote-windows deliver accepted platform assets; publish-sdk publishes the verified SDK set;',
               'publish-python uploads to the explicit destination.']
     return '\n'.join(lines) + '\n'
 
@@ -871,7 +977,7 @@ def validate_record(record):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'publish-sdk', 'status'))
+    parser.add_argument('command', choices=('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'promote-windows', 'publish-sdk', 'status'))
     parser.add_argument('--record', type=Path, required=True)
     parser.add_argument('--repository', default=None)
     parser.add_argument('--candidate')
@@ -897,6 +1003,8 @@ def main():
         parser.error('Linux signing retries require sign-linux --retry linux_signing')
     if (args.retry == 'linux_promotion' and args.command != 'promote-linux') or (args.command == 'promote-linux' and args.retry not in (None, 'linux_promotion')):
         parser.error('Linux promotion retries require promote-linux --retry linux_promotion')
+    if (args.retry == 'windows_promotion' and args.command != 'promote-windows') or (args.command == 'promote-windows' and args.retry not in (None, 'windows_promotion')):
+        parser.error('Windows promotion retries require promote-windows --retry windows_promotion')
     if (args.retry == 'core_sdk_publication' and args.command != 'publish-sdk') or (args.command == 'publish-sdk' and args.retry not in (None, 'core_sdk_publication')):
         parser.error('SDK publication retries require publish-sdk --retry core_sdk_publication')
     if args.retry and args.command == 'status':
@@ -931,7 +1039,7 @@ def main():
                 record = initialize(github, args.repository or 'HolderTeam/holder', args.candidate,
                                     args.version, args.number, args.windows_sign_test_installer != 'false')
                 save(args.record, record)
-            if args.command in ('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'publish-sdk'):
+            if args.command in ('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'promote-windows', 'publish-sdk'):
                 coordinator = Coordinator(args.record, record, github)
                 try:
                     record.pop('error', None)
@@ -943,6 +1051,8 @@ def main():
                     while True:
                         if args.command == 'publish-sdk':
                             coordinator.advance_sdk_publication()
+                        elif args.command == 'promote-windows':
+                            coordinator.advance_windows_promotion()
                         elif args.command == 'promote-linux':
                             coordinator.advance_linux_promotion()
                         elif args.command == 'sign-linux':
@@ -960,7 +1070,7 @@ def main():
                             last_report = report
                         target = {'packages': 'packages_prepared', 'prepare': 'candidate_staged',
                                   'publish-python': 'python_publication_completed', 'sign-linux': 'linux_signed',
-                                  'promote-linux': 'linux_promoted', 'publish-sdk': 'core_sdk_published'}[args.command]
+                                  'promote-linux': 'linux_promoted', 'promote-windows': 'windows_promoted', 'publish-sdk': 'core_sdk_published'}[args.command]
                         if not args.wait or record['status'] == target:
                             break
                         time.sleep(args.poll_seconds)
