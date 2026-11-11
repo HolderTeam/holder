@@ -37,6 +37,8 @@ http::request<http::string_body> make_request(
 
 #include "git/GitOps.h"
 #include "google_storage_test_helpers.h"
+#include "privacy/ProjectPrivacy.h"
+#include "project/ProjectRepo.h"
 #include "resource/AssetEnvelope.h"
 #include "resource/LocationBindingStore.h"
 #include "resource/LocationRepo.h"
@@ -674,4 +676,78 @@ TEST_CASE("Asset downloads report storage failures and clean up after a write fa
     const auto error = nlohmann::json::parse(res.body()).at("error");
     CHECK(error.at("code") == expected_code);
   }
+}
+
+TEST_CASE("Resource writes preserve an attached resource when its project key is missing",
+          "[resources][routes]") {
+  LocationRouteFixture f;
+  holder::test::EnvGuard keys("HOLDER_TEST_KEYSTORE_DIR", (f.root / "empty-keystore").string());
+  holder::git::RealGitOps git;
+  holder::project::ProjectRepo projects(f.db);
+  projects.update_privacy_mode("project", "encrypted_git", 1);
+  const auto key_id = holder::privacy::ensure_project_key_material(
+      projects, "project", std::nullopt, 1, [] { return std::string("fixture-key"); });
+  holder::card::CardStore cards(f.db, nullptr);
+  holder::test::create_card_fixture(cards, "card", "project", "Card", "Body", 10);
+
+  const std::string list_path = "/projects/project/resources";
+  const auto resource_path = list_path + "/resource";
+  const nlohmann::json body{{"resource_id", "resource"}, {"type", "file"}, {"label", "Original"}};
+  const auto call = [&](http::verb method, const std::string& path,
+                        const nlohmann::json& payload = nlohmann::json::object()) {
+    return f.call(method, path, payload, "project", true, {}, &git);
+  };
+  REQUIRE(call(http::verb::post, list_path, body).result() == http::status::created);
+  REQUIRE(call(http::verb::put, "/projects/project/cards/card/resources/resource").result() ==
+          http::status::ok);
+
+  const auto check_error = [](const auto& res, http::status status, const char* code) {
+    INFO(res.body());
+    REQUIRE(res.result() == status);
+    CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == code);
+  };
+  check_error(call(http::verb::post, list_path, body), http::status::conflict, "conflict");
+  check_error(call(http::verb::post, "/projects/missing/resources", body),
+              http::status::not_found, "not_found");
+  check_error(call(http::verb::patch, list_path + "/missing", {{"label", "Missing"}}),
+              http::status::not_found, "not_found");
+
+  holder::git::GitRepo repo;
+  repo.open_or_init(f.root / "project");
+  const auto head = repo.head_oid();
+  REQUIRE(head);
+  REQUIRE(std::filesystem::remove(f.root / "empty-keystore" / (key_id + ".key")));
+
+  auto new_resource = body;
+  new_resource["resource_id"] = "new-resource";
+  check_error(call(http::verb::post, list_path, new_resource), http::status::conflict, "key_missing");
+  check_error(call(http::verb::patch, resource_path, {{"label", "Changed"}}),
+              http::status::conflict, "key_missing");
+  check_error(call(http::verb::delete_, resource_path), http::status::conflict, "key_missing");
+  CHECK(repo.head_oid() == head);
+  holder::resource::ResourceRepo resources(f.db);
+  const auto original = resources.get("resource");
+  REQUIRE(original);
+  CHECK(original->label == "Original");
+  CHECK_FALSE(resources.get("new-resource"));
+  const auto attached = call(http::verb::get, "/projects/project/cards/card/resources");
+  REQUIRE(attached.result() == http::status::ok);
+  CHECK(nlohmann::json::parse(attached.body()).at("data").size() == 1);
+}
+
+TEST_CASE("Asset import reports a failed location lookup without accepting a job",
+          "[resources][routes]") {
+  LocationRouteFixture f;
+  holder::git::RealGitOps git;
+  const auto source = f.root / "source.txt";
+  std::ofstream(source) << "asset";
+  f.db.exec("DROP TABLE storage_locations");
+  const auto res = f.call(
+      http::verb::post, "/imports",
+      {{"project_id", "project"}, {"card_id", "card"}, {"location_id", "location"},
+       {"source_path", source.string()}},
+      "project", true, {}, &git);
+  REQUIRE(res.result() == http::status::internal_server_error);
+  CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == "internal_error");
+  CHECK(f.sequence == 0);
 }
