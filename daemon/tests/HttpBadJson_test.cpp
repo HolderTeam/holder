@@ -364,3 +364,100 @@ TEST_CASE("Generated routes reject malformed request records before performing w
   CHECK(holder::card::CardRepo(db).list_all("p").empty());
   CHECK_FALSE(std::filesystem::exists(dir / "project" / ".git"));
 }
+
+TEST_CASE("Contract routes reject unknown query parameters before executing operations",
+          "[http][contract-routes]") {
+  namespace http = boost::beast::http;
+  holder::platform::Db unavailable;
+  struct Case { http::verb method; const char* path; };
+  for (const auto& item : {
+           Case{http::verb::get, "/link-kinds"},
+           Case{http::verb::get, "/projects"},
+           Case{http::verb::post, "/projects"},
+           Case{http::verb::post, "/rebuild"},
+           Case{http::verb::post, "/reindex"},
+           Case{http::verb::get, "/trash"},
+           Case{http::verb::delete_, "/trash"},
+           Case{http::verb::post, "/card-references/resolve"},
+           Case{http::verb::post, "/recovery-token/import"},
+           Case{http::verb::get, "/locations/location"},
+           Case{http::verb::patch, "/locations/location"},
+           Case{http::verb::delete_, "/locations/location"},
+           Case{http::verb::get, "/projects/project"},
+           Case{http::verb::patch, "/projects/project"},
+           Case{http::verb::delete_, "/projects/project"},
+           Case{http::verb::get, "/projects/project/cards"},
+           Case{http::verb::post, "/projects/project/cards"},
+           Case{http::verb::get, "/projects/project/tags"},
+           Case{http::verb::get, "/projects/project/resources"},
+           Case{http::verb::post, "/projects/project/resources"},
+           Case{http::verb::get, "/projects/project/encryption-check"},
+           Case{http::verb::post, "/projects/project/repair-hierarchy"},
+           Case{http::verb::get, "/projects/project/git/sync-status"},
+           Case{http::verb::post, "/projects/project/git/pull"},
+           Case{http::verb::post, "/projects/project/git/push"},
+           Case{http::verb::post, "/projects/project/git/sync"},
+           Case{http::verb::get, "/projects/project/cards/card"},
+           Case{http::verb::patch, "/projects/project/cards/card"},
+           Case{http::verb::delete_, "/projects/project/cards/card"},
+           Case{http::verb::get, "/projects/project/resources/resource"},
+           Case{http::verb::patch, "/projects/project/resources/resource"},
+           Case{http::verb::delete_, "/projects/project/resources/resource"},
+           Case{http::verb::get, "/projects/project/cards/card/metadata"},
+           Case{http::verb::get, "/projects/project/cards/card/breadcrumbs"},
+           Case{http::verb::post, "/projects/project/cards/card/restore"},
+           Case{http::verb::post, "/projects/project/cards/card/move"},
+           Case{http::verb::get, "/projects/project/cards/card/links"},
+           Case{http::verb::post, "/projects/project/cards/card/links"},
+           Case{http::verb::get, "/projects/project/cards/card/backlinks"},
+           Case{http::verb::get, "/projects/project/cards/card/milestones"},
+           Case{http::verb::post, "/projects/project/cards/card/milestones"},
+           Case{http::verb::get, "/projects/project/resources/resource/backlinks"},
+           Case{http::verb::get, "/projects/project/cards/card/resources"},
+           Case{http::verb::put, "/projects/project/cards/card/tags/work"},
+           Case{http::verb::delete_, "/projects/project/cards/card/tags/work"},
+           Case{http::verb::patch, "/projects/project/cards/card/milestones/milestone"},
+           Case{http::verb::delete_, "/projects/project/cards/card/milestones/milestone"},
+           Case{http::verb::put, "/projects/project/cards/card/resources/resource"},
+           Case{http::verb::delete_, "/projects/project/cards/card/resources/resource"},
+           Case{http::verb::delete_, "/projects/project/trash/card/card"},
+           Case{http::verb::delete_, "/trash/card/card"},
+       }) {
+    CAPTURE(item.method, item.path);
+    http::request<http::string_body> req{
+        item.method, std::string(item.path) + "?unexpected=true", 11};
+    req.body() = "{}";
+    req.prepare_payload();
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, unavailable));
+    INFO(res.body());
+    REQUIRE(res.result() == http::status::bad_request);
+    const auto error = nlohmann::json::parse(res.body()).at("error");
+    CHECK(error.at("code") == "invalid_argument");
+    CHECK(error.at("message") == "there is no query parameter unexpected");
+  }
+}
+
+TEST_CASE("Contract read routes report database failures as JSON internal errors",
+          "[http][contract-routes]") {
+  namespace http = boost::beast::http;
+  holder::platform::Db unavailable;
+  for (const std::string path : {
+           "/locations/location", "/projects/project/resources",
+           "/projects/project/resources/resource", "/projects/project/cards/card/metadata",
+           "/projects/project/cards/card/breadcrumbs", "/projects/project/cards/card/links",
+           "/projects/project/cards/card/backlinks", "/projects/project/cards/card/milestones",
+           "/projects/project/cards/card/resources", "/projects/project/resources/resource/backlinks",
+           "/projects/project/milestones/days?first_day=2026-01-01&last_day=2026-01-02",
+           "/projects/project/milestones/instants?first_instant=1&last_instant=2",
+           "/projects/project/calendar?first_day=2026-01-01&last_day=2026-01-02&time_zone=UTC",
+       }) {
+    CAPTURE(path);
+    http::request<http::string_body> req{http::verb::get, path, 11};
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, unavailable));
+    INFO(res.body());
+    REQUIRE(res.result() == http::status::internal_server_error);
+    CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == "internal_error");
+  }
+}
