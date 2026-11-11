@@ -75,7 +75,7 @@ int command_move(const holder::core::Paths& paths, int argc, char* argv[]) {
     const auto parent = card_api_request(
         paths, boost::beast::http::verb::get, card_api_path(project_id, parent_id)
     );
-    std::cout << "Moved card " << display_card_id(card_id) << " into "
+    std::cout << "Moved card " << display_card_id(card_id) << " into " // LCOV_EXCL_LINE: GCC attributes only unexecuted exception cleanup here; move output is tested.
               << json_string(parent.at("data"), "title") << "\n";
   } else {
     std::cout << "Moved card " << display_card_id(card_id) << " " << intent << " "
@@ -104,7 +104,7 @@ int command_repair(const holder::core::Paths& paths, int argc, char* argv[]) {
       paths,
       boost::beast::http::verb::post,
       "/projects/" + url_encode_component(project_id) + "/repair-hierarchy",
-      {{"apply", !dry_run}}
+      {{"apply", !dry_run}} // LCOV_EXCL_LINE: GCC attributes only unexecuted exception cleanup here; dry-run and apply requests are tested.
   );
   if (json_output) {
     std::cout << payload.dump(2) << "\n";
