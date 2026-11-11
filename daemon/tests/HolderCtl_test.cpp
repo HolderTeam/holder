@@ -4429,6 +4429,7 @@ TEST_CASE("holderctl guards malformed daemon success payloads", "[holderctl][err
     CHECK(read_text(error).find(message) != std::string::npos);
   };
   fails("search words", "Failed to search cards:");
+  fails("milestone edit card milestone --kind due", "Failed to update milestone:");
   fails("card card", "card not found: card");
   fails("append malformed text", "Failed to append to card:");
   fails("link card bad", "Failed to link cards:");
