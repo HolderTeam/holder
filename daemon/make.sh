@@ -481,7 +481,9 @@ coverage_all() {
   JOBS="$(jobs)"
   cmake_build "${build_dir}" -- -j "${JOBS}"
 
-  lcov --directory "${build_dir}" --zerocounters
+  # Discard old profiles entirely: zeroing preserves stale stamps when a source
+  # was rebuilt, which makes gcov reject the profile against its current notes.
+  find "${build_dir}" -type f -name '*.gcda' -delete
   # Preserve executed line counts when GCC attaches an unexecuted cleanup block.
   lcov --capture --initial --directory "${build_dir}" --output-file "${info_base}" \
     --ignore-errors gcov,gcov,inconsistent \
