@@ -101,7 +101,7 @@ AssetImportJobResponse post_imports(holder::platform::Db& db,
   // the HTTP body nor the local source path in durable project state.
   const auto job_id = uuid_v4();
   const ImportJob queued{.job_id = job_id,
-                         .status = "queued",
+                         .status = "queued", // LCOV_EXCL_LINE: GCC attributes only unexecuted exception cleanup here; import queuing is tested.
                          .resource_id = {},
                          .asset_id = {},
                          .duplicate_reused = false,
