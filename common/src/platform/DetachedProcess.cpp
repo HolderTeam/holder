@@ -269,8 +269,18 @@ std::optional<DetachedProcess> DetachedProcess::start(
 
   const std::string exe = request.executable.string();
 
-  int log_fd = -1;
   std::error_code ec;
+  const auto working_dir = request.working_dir.empty() ? std::filesystem::current_path(ec)
+                                                       : request.working_dir;
+
+  if (!request.working_dir.empty() && !std::filesystem::is_directory(working_dir, ec)) {
+    return fail(
+        "cannot start " + request.executable.string() + ": the working directory " +
+        working_dir.string() + " does not exist"
+    );
+  }
+
+  int log_fd = -1;
   if (!request.log_path.empty()) {
     std::filesystem::create_directories(request.log_path.parent_path(), ec);
     log_fd = move_above_stdio(
@@ -281,16 +291,6 @@ std::optional<DetachedProcess> DetachedProcess::start(
           "cannot open log file " + request.log_path.string() + ": " + std::strerror(errno)
       );
     }
-  }
-
-  const auto working_dir = request.working_dir.empty() ? std::filesystem::current_path(ec)
-                                                       : request.working_dir;
-
-  if (!request.working_dir.empty() && !std::filesystem::is_directory(working_dir, ec)) {
-    return fail(
-        "cannot start " + request.executable.string() + ": the working directory " +
-        working_dir.string() + " does not exist"
-    );
   }
 
   auto impl = std::make_unique<Impl>();

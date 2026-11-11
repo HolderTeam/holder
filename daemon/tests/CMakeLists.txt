@@ -18,6 +18,8 @@ target_link_libraries(lock_helper PRIVATE
   Boost::filesystem
 )
 
+add_executable(detached_process_helper detached_process_helper.cpp)
+
 add_executable(holder_daemon_tests
   EventJournal_test.cpp
   AiContractRuntime_test.cpp
@@ -106,6 +108,7 @@ add_executable(holder_daemon_tests
   HolderCtlEnsure_test.cpp
   ActivityTracker_test.cpp
   DaemonIdleExit_test.cpp
+  DetachedProcess_test.cpp
   MilestoneDateTime_test.cpp
   ProjectSyncWorker_test.cpp
   AiLocalModelConfigRepo_test.cpp
@@ -227,6 +230,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Cla
     "-ffile-prefix-map=${CMAKE_SOURCE_DIR}=${CMAKE_SOURCE_DIR}")
 endif()
 
+set_property(SOURCE DetachedProcess_test.cpp PROPERTY COMPILE_DEFINITIONS
+  DETACHED_PROCESS_HELPER_PATH="$<TARGET_FILE:detached_process_helper>"
+)
+
 target_compile_definitions(holder_daemon_tests PRIVATE
   LOCK_HELPER_PATH="$<TARGET_FILE:lock_helper>"
   CARD_SERVER_API_VERSION="${HOLDER_DAEMON_API_VERSION}"
@@ -239,7 +246,7 @@ target_compile_definitions(holder_daemon_tests PRIVATE
   HOLDER_BIN_PATH="$<TARGET_FILE:holderd>"
   HOLDER_CTL_PATH="$<TARGET_FILE:holderctl>"
 )
-add_dependencies(holder_daemon_tests lock_helper holderd holderctl holder_openapi_documents)
+add_dependencies(holder_daemon_tests detached_process_helper lock_helper holderd holderctl holder_openapi_documents)
 
 if(HOLDER_ENABLE_ENCRYPTED_GIT)
   target_compile_definitions(holder_daemon_tests PRIVATE
