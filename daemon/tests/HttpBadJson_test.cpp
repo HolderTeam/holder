@@ -244,3 +244,53 @@ TEST_CASE("Card mutation routes distinguish malformed selectors from missing car
     }
   }
 }
+
+TEST_CASE("Card routes reject cycles and preserve tags written in prose", "[http]") {
+  namespace http = boost::beast::http;
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  create_project(db, "project", (dir / "project").string());
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore cards(db, &fts);
+  const std::string original = "This prose mentions #work in the middle.";
+  holder::test::create_card_fixture(cards, "parent", "project", "Parent", original, 1);
+  holder::test::create_card_fixture(cards, "child", "project", "Child", "Body", 2, "parent");
+
+  struct Case {
+    http::verb method;
+    const char* suffix;
+    nlohmann::json body;
+    http::status status;
+    const char* code;
+  };
+  for (const auto& item : {
+           Case{http::verb::patch, "", {{"parent_card_id", "child"}, {"content", "changed"}},
+                http::status::unprocessable_entity, "invalid_move"},
+           Case{http::verb::post, "/move", {{"intent", "into"}, {"target_card_id", "child"}},
+                http::status::unprocessable_entity, "invalid_move"},
+           Case{http::verb::post, "/move", {{"intent", "into"}},
+                http::status::bad_request, "invalid_argument"},
+           Case{http::verb::delete_, "/tags/work", {}, http::status::conflict, "conflict"},
+       }) {
+    CAPTURE(item.suffix, item.body);
+    http::request<http::string_body> req{
+        item.method, std::string("/projects/project/cards/parent") + item.suffix, 11};
+    if (!item.body.is_null()) {
+      req.body() = item.body.dump();
+      req.prepare_payload();
+    }
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts));
+    INFO(res.body());
+    REQUIRE(res.result() == item.status);
+    CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == item.code);
+  }
+
+  const auto parent = cards.get("parent");
+  const auto child = cards.get("child");
+  REQUIRE(parent);
+  REQUIRE(child);
+  CHECK_FALSE(parent->parent_card_id);
+  CHECK(child->parent_card_id == "parent");
+  CHECK(cards.get_content(*parent) == original);
+}
