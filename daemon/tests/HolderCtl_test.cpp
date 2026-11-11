@@ -4228,6 +4228,43 @@ TEST_CASE("holderctl search reports daemon rejection and HTTP fallback errors", 
   CHECK(requests.back().target() == "/search/cards?project_id=project&q=words&limit=20");
 }
 
+TEST_CASE("holderctl repair explains parent cycles without claiming to repair them", "[holderctl][hierarchy]") {
+  using Server = holder::test::StorageHttpTestServer;
+  const auto xdg = prepare_xdg_tree();
+  holder::test::EnvGuard data("XDG_DATA_HOME", (xdg / "data").string());
+  holder::test::EnvGuard config("XDG_CONFIG_HOME", (xdg / "config").string());
+  holder::test::EnvGuard cache("XDG_CACHE_HOME", (xdg / "cache").string());
+  std::ofstream(xdg / "config/holder/holderctl.json") << R"({"current_project_id":"project"})";
+  nlohmann::json cycles = {"cycle-a"};
+  std::string expected = "1 card is in a parent cycle and left alone; move them to fix it:\n  cycle-a\n";
+  SECTION("a self cycle uses singular wording") {}
+  SECTION("a multi-card cycle lists every card") {
+    cycles.push_back("cycle-b");
+    expected = "2 cards are in a parent cycle and left alone; move them to fix it:\n  cycle-a\n  cycle-b\n";
+  }
+  Server server([&](const Server::Request& request) {
+    if (request.target() == "/projects")
+      return Server::response(200, R"({"ok":true,"data":[{"project_id":"project","name":"Home"}]})");
+    return Server::response(200, nlohmann::json{{"ok", true}, {"data", {
+        {"moved", nlohmann::json::array()}, {"cycle_card_ids", cycles}}}}.dump());
+  });
+  write_server_info(xdg / "data/holder/server/holder.json", 12345, server.address().port());
+#ifndef _WIN32
+  ::chmod((xdg / "data/holder/server").c_str(), S_IRWXU);
+  ::chmod((xdg / "data/holder/server/holder.json").c_str(), S_IRUSR | S_IWUSR);
+#endif
+  const auto output = xdg / "repair.out";
+  REQUIRE(run_command(std::string("\"") + HOLDER_CTL_PATH + "\" repair > \"" + output.string() + "\"") == 0);
+  CHECK(read_text(output) == "No hidden cards: every live card is reachable.\n" + expected);
+  server.stop();
+  server.rethrow_error();
+  const auto requests = server.requests();
+  REQUIRE_FALSE(requests.empty());
+  CHECK(requests.back().method() == boost::beast::http::verb::post);
+  CHECK(requests.back().target() == "/projects/project/repair-hierarchy");
+  CHECK(nlohmann::json::parse(requests.back().body()) == nlohmann::json{{"apply", true}});
+}
+
 TEST_CASE("holderctl rejects invalid milestone calendar and storage arguments", "[holderctl]") {
   using Server = holder::test::StorageHttpTestServer;
   const auto xdg = prepare_xdg_tree();
