@@ -494,3 +494,22 @@ TEST_CASE("Generated CardMetadata encoding preserves metadata and explicit null 
   CHECK(decoded.updated_at == metadata.updated_at);
   CHECK(decoded.deleted_at == metadata.deleted_at);
 }
+
+TEST_CASE("Generated CardMetadata decoding rejects missing and null required fields", "[generated][card-metadata]") {
+  const nlohmann::json valid{
+      {"card_id", "card"}, {"project_id", "project"}, {"title", "Card title"},
+      {"rel_path", "cards/card.md"}, {"parent_card_id", nullptr}, {"sort_key", 1.25},
+      {"created_at", 123}, {"updated_at", 456}, {"deleted_at", nullptr},
+  };
+  REQUIRE_NOTHROW(contract_json::decode<holder::contract::CardMetadata>(valid));
+  for (const std::string field : {
+      "card_id", "project_id", "title", "rel_path", "sort_key", "created_at", "updated_at"}) {
+    CAPTURE(field);
+    auto missing = valid;
+    missing.erase(field);
+    CHECK_THROWS_AS(contract_json::decode<holder::contract::CardMetadata>(missing), std::invalid_argument);
+    auto null = valid;
+    null[field] = nullptr;
+    CHECK_THROWS_AS(contract_json::decode<holder::contract::CardMetadata>(null), std::invalid_argument);
+  }
+}

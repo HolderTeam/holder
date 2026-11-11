@@ -208,3 +208,30 @@ TEST_CASE("Legacy milestone conversion preserves UTC days independently of local
     CHECK(milestone_legacy_epoch(instant) == item.at);
   }
 }
+
+TEST_CASE("Milestone datetime parsing rejects malformed digits times and offsets", "[milestones][model-date]") {
+  using holder::model::milestone_datetime_epoch;
+  for (const std::string input : {
+      "2026-01-01",                       // A calendar day is not an RFC 3339 instant.
+      "2026-01-01 00:00:00Z",             // Wrong date/time separator.
+      "202x-01-01T00:00:00Z",             // Nondigit year.
+      "2026-01-01T24:00:00Z",             // Hour outside its range.
+      "2026-01-01T00:60:00Z",             // Minute outside its range.
+      "2026-01-01T00:00:60Z",             // Leap seconds are not supported.
+      "2026-01-01T00:00:00+01_00",         // Missing offset colon.
+      "2026-01-01T00:00:00_01:00",         // Missing offset sign.
+      "2026-01-01T00:00:00+24:00",         // Offset hour outside its range.
+      "2026-01-01T00:00:00-00:60",         // Offset minute outside its range.
+  }) {
+    CAPTURE(input);
+    CHECK_THROWS_AS(milestone_datetime_epoch(input), std::invalid_argument);
+  }
+}
+
+TEST_CASE("An all-day milestone has no instant until legacy conversion is requested", "[milestones][model-date]") {
+  const holder::model::MilestoneDate day{
+      .role = "due", .date = "2026-01-01", .datetime = std::nullopt};
+  REQUIRE_NOTHROW(holder::model::validate_milestone_date(day));
+  CHECK_FALSE(holder::model::milestone_date_epoch(day));
+  CHECK(holder::model::milestone_legacy_epoch(day) == 1767225600LL);
+}
