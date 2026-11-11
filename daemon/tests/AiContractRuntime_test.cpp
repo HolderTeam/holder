@@ -227,3 +227,23 @@ TEST_CASE("Generated query decoding preserves URI and query escaping semantics",
   CHECK_NOTHROW(ai_http::check_negative_integer_tokens(
       R"({"text":"quoted \"-9223372036854775809\"","number":-1e4})"));
 }
+
+TEST_CASE("Generated LinkKindLabels encoding keeps forward and reverse labels distinct", "[generated]") {
+  const holder::contract::LinkKindLabels labels{
+      .kind = "depends_on",
+      .forward_label = "Depends on",
+      .reverse_label = "Required by",
+  };
+  const nlohmann::json expected{
+      {"kind", "depends_on"},
+      {"forward_label", "Depends on"},
+      {"reverse_label", "Required by"},
+  };
+
+  const auto encoded = contract_json::encode(labels);
+  REQUIRE(encoded == expected);
+  const auto decoded = contract_json::decode<holder::contract::LinkKindLabels>(encoded);
+  CHECK(decoded.kind == labels.kind);
+  CHECK(decoded.forward_label == labels.forward_label);
+  CHECK(decoded.reverse_label == labels.reverse_label);
+}
