@@ -8,12 +8,12 @@ internal interface IRecoveryDialogOps : Object {
     public abstract string import_summary_body(RecoveryTokenImportResult result);
 }
 
-internal class RecoveryDialogPin : Object {
-    public static string normalize(string pin) {
+namespace RecoveryDialogPin {
+    internal string normalize(string pin) {
         return pin.strip();
     }
 
-    public static bool is_submittable(string pin) {
+    internal bool is_submittable(string pin) {
         return normalize(pin).length > 0;
     }
 }
