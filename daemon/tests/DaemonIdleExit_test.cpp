@@ -1,6 +1,7 @@
 #include "ProcessTestSupport.h"
 
 #include "platform/DetachedProcess.h"
+#include "platform/Paths.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -94,6 +95,28 @@ TEST_CASE("holderd --idle-exit stops a daemon that nobody uses", "[idle][process
       holder::test::read_file(home.root() / "holderd.log").find("idle for 2 seconds") !=
       std::string::npos
   );
+}
+
+TEST_CASE("holderd still exits cleanly when its final push cannot read projects", "[idle][process]") {
+  IsolatedHome home;
+  auto daemon = start_daemon(home, {"--idle-exit", "2"});
+  REQUIRE(daemon);
+  home.track(daemon->pid());
+  REQUIRE(home.wait_for_daemon_info(60s));
+  {
+    holder::platform::Db db;
+    db.open(holder::core::Paths::resolve("holder").db_path());
+    // Keep SQLite healthy while making the final push's project query fail.
+    db.exec("ALTER TABLE projects RENAME TO withheld_projects");
+  }
+  int code = -1;
+  REQUIRE(holder::test::wait_until(30s, [&] { return exited(*daemon, &code); }));
+  CHECK(code == 0);
+  const auto log = holder::test::read_file(home.root() / "holderd.log");
+  INFO(log);
+  CHECK(log.find("final push before exiting failed:") != std::string::npos);
+  CHECK(log.find("no such table: projects") != std::string::npos);
+  CHECK(log.find("idle for 2 seconds") != std::string::npos);
 }
 
 TEST_CASE("holderd without --idle-exit keeps running while unused", "[idle][process]") {

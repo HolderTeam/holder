@@ -2,6 +2,8 @@
 #include "api/support/EventService.h"
 #include "http_test_helpers.h"
 
+#include <sqlite3.h>
+
 using namespace holder::api::support;
 
 TEST_CASE("Change feed observes committed background writes and same-second edits", "[events]") {
@@ -115,4 +117,57 @@ TEST_CASE("Event checkpoints encode project IDs as one history URL segment", "[e
   CHECK(checkpoint->history_urls.at(id) == "/projects/a%20b%2Fc%25/history");
   CHECK_FALSE(checkpoint->git_revisions.at(id));
   CHECK_THROWS_AS(service.subscribe(id, "", "invalid-cursor"), std::invalid_argument);
+}
+
+TEST_CASE("Change feed rejects a suppressed data-version probe without damaging its connection", "[events][feed-boundaries]") {
+  const auto path = holder::test::make_temp_dir() / "holder.db";
+  auto db = holder::test::open_db_with_schema(path);
+  EventJournal journal;
+  REQUIRE(sqlite3_set_authorizer(db.handle(),
+      [](void*, int action, const char* name, const char*, const char*, const char*) {
+        return action == SQLITE_PRAGMA && name && std::string_view(name) == "data_version"
+            ? SQLITE_IGNORE : SQLITE_OK;
+      }, nullptr) == SQLITE_OK);
+  CHECK_THROWS_AS(ChangeFeed(db, journal), std::runtime_error);
+  REQUIRE(sqlite3_set_authorizer(db.handle(), nullptr, nullptr) == SQLITE_OK);
+  CHECK_NOTHROW(ChangeFeed(db, journal));
+}
+
+TEST_CASE("Event service replays an observer failure after recovery with subscriber-specific data", "[events][feed-boundaries]") {
+  const auto path = holder::test::make_temp_dir() / "holder.db";
+  auto db = holder::test::open_db_with_schema(path);
+  holder::test::create_project(db, "p", (path.parent_path() / "project").string());
+  EventService service(path);
+  const auto before = service.current_checkpoint("p");
+  REQUIRE(before);
+  const std::string revision(40, 'a');
+  // Hold this subscription's source until the observer has failed and recovered.
+  auto serve = service.subscribe("p", revision, before->cursor);
+  db.exec("ALTER TABLE cards RENAME TO hidden_cards");
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(4);
+  while (service.current_checkpoint("p") && std::chrono::steady_clock::now() < deadline)
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  REQUIRE_FALSE(service.current_checkpoint("p"));
+  db.exec("ALTER TABLE hidden_cards RENAME TO cards");
+  deadline = std::chrono::steady_clock::now() + std::chrono::seconds(4);
+  while (!service.current_checkpoint("p") && std::chrono::steady_clock::now() < deadline)
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  REQUIRE(service.current_checkpoint("p"));
+  boost::asio::io_context io;
+  using tcp = boost::asio::ip::tcp;
+  tcp::acceptor acceptor(io, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
+  tcp::socket client(io);
+  client.connect(acceptor.local_endpoint());
+  auto socket = acceptor.accept();
+  boost::beast::http::response<boost::beast::http::string_body> response;
+  REQUIRE(serve(socket, response));
+  io.run_for(std::chrono::seconds(3));
+  REQUIRE(service.streams()->open_count() == 0);
+  boost::beast::flat_buffer buffer;
+  boost::beast::http::read(client, buffer, response);
+  INFO(response.body());
+  CHECK(response.body().find("event: resync_required") != std::string::npos);
+  CHECK(response.body().find("observer_unavailable") != std::string::npos);
+  CHECK(response.body().find(revision) != std::string::npos);
+  CHECK(response.body().find("/projects/p/history") != std::string::npos);
 }

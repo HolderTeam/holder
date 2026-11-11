@@ -5,6 +5,7 @@
 #include "api/support/StreamServer.h"
 #include <boost/beast/core/flat_buffer.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <array>
 #include <future>
 #include <thread>
 
@@ -179,4 +180,73 @@ TEST_CASE("SSE closes the client connection when its event source throws", "[eve
   CHECK(response.result() == http::status::ok);
   CHECK(response[http::field::content_type] == "text/event-stream");
   CHECK(response.body().empty());
+}
+
+TEST_CASE("SSE closes a socket when writing response headers fails", "[events][sse-boundaries]") {
+  boost::asio::io_context io;
+  boost::asio::ip::tcp::socket socket(io);
+  auto registry = std::make_shared<SseRegistry>();
+  auto stream = SseStream::start(socket, registry);
+  REQUIRE(stream);
+  io.run();
+  CHECK_FALSE(stream->open());
+  CHECK(registry->open_count() == 0);
+}
+
+TEST_CASE("SSE closes a blocked event write when its peer resets the connection", "[events][sse-boundaries]") {
+  using tcp = boost::asio::ip::tcp;
+  boost::asio::io_context io;
+  tcp::acceptor acceptor(io, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
+  tcp::socket peer(io);
+  peer.connect(acceptor.local_endpoint());
+  auto socket = acceptor.accept();
+  socket.set_option(boost::asio::socket_base::send_buffer_size(1024));
+  peer.set_option(boost::asio::socket_base::receive_buffer_size(1024));
+  auto registry = std::make_shared<SseRegistry>();
+  auto stream = SseStream::start(socket, registry);
+  REQUIRE(stream);
+  REQUIRE(stream->send({"large", {"chunk", {{"delta", std::string(1024 * 1024, 'x')}}}}));
+  io.run_for(std::chrono::milliseconds(50));
+  REQUIRE(stream->open());
+  peer.set_option(boost::asio::socket_base::linger(true, 0));
+  peer.close();
+  io.restart();
+  io.run();
+  CHECK_FALSE(stream->open());
+  CHECK(registry->open_count() == 0);
+}
+
+TEST_CASE("SSE sends keepalive frames while an event stream is idle", "[events][sse-boundaries]") {
+  using tcp = boost::asio::ip::tcp;
+  boost::asio::io_context io;
+  tcp::acceptor acceptor(io, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
+  tcp::socket peer(io);
+  peer.connect(acceptor.local_endpoint());
+  auto socket = acceptor.accept();
+  auto registry = std::make_shared<SseRegistry>();
+  auto stream = SseStream::start(socket, registry);
+  REQUIRE(stream);
+  peer.non_blocking(true);
+  std::string received;
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+  while (received.find(": keepalive\n\n") == std::string::npos &&
+         std::chrono::steady_clock::now() < deadline) {
+    io.restart();
+    io.run_for(std::chrono::milliseconds(50));
+    std::array<char, 4096> buffer{};
+    boost::system::error_code error;
+    for (;;) {
+      const auto count = peer.read_some(boost::asio::buffer(buffer), error);
+      received.append(buffer.data(), count);
+      if (error) break;
+    }
+  }
+  stream->cancel();
+  io.restart();
+  io.run();
+  INFO(received);
+  CHECK(received.find("200 OK") != std::string::npos);
+  CHECK(received.find(": keepalive\n\n") != std::string::npos);
+  CHECK_FALSE(stream->open());
+  CHECK(registry->open_count() == 0);
 }
