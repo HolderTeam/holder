@@ -1,5 +1,9 @@
 project('holder-gtk', ['vala', 'c'], version: run_command('python3', 'scripts/product_version.py', check: true).stdout().strip())
 
+if host_machine.system() == 'windows'
+  add_project_arguments('--define=HOLDER_WINDOWS', language: 'vala')
+endif
+
 fs = import('fs')
 version_source = fs.is_file('../../../VERSION') ? '../../../VERSION' : 'VERSION'
 # Register the version input so a version-only change reconfigures Meson too.
