@@ -3,7 +3,10 @@
 #include "http_test_helpers.h"
 
 #include "commands/Common.h"
+#include "commands/Commands.h"
 #include "commands/Ensure.h"
+#include "platform/ServerInfo.h"
+#include "storage_http_test_server.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
@@ -11,6 +14,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -567,4 +571,204 @@ TEST_CASE("ensure --idle-exit starts a daemon that stops by itself", "[ensure][p
   REQUIRE(again.json["daemon"]["pid"].get<long long>() != pid);
 }
 
+#endif
+
+TEST_CASE("Ensure and start help explain their options without starting a daemon", "[ensure]") {
+  const auto paths = holder::core::Paths::resolve("holder-help-test");
+  for (const std::string command : {"ensure", "start"}) {
+    CAPTURE(command);
+    std::vector<std::string> args{"holderctl", command, "--help"};
+    std::vector<char*> argv;
+    for (auto& arg : args) argv.push_back(arg.data());
+    std::ostringstream output;
+    struct RestoreOutput {
+      std::streambuf* previous;
+      ~RestoreOutput() { std::cout.rdbuf(previous); }
+    } restore{std::cout.rdbuf(output.rdbuf())};
+    const auto code = command == "ensure"
+                          ? holder::cli::command_ensure(paths, static_cast<int>(argv.size()), argv.data())
+                          : holder::cli::command_start(paths, static_cast<int>(argv.size()), argv.data());
+    CHECK(code == 0);
+    CHECK(output.str().find("Usage: holderctl " + command) != std::string::npos);
+    CHECK(output.str().find("--idle-exit") != std::string::npos);
+  }
+}
+
+#ifndef _WIN32
+TEST_CASE("Ensure reports an unhealthy daemon response without starting another", "[ensure][process]") {
+  using Server = holder::test::StorageHttpTestServer;
+  const auto dir = holder::test::make_temp_dir();
+  holder::test::EnvGuard data("XDG_DATA_HOME", (dir / "data").string());
+  holder::test::EnvGuard cache("XDG_CACHE_HOME", (dir / "cache").string());
+  const auto paths = holder::core::Paths::resolve("holder");
+  unsigned status = 503;
+  std::string body = R"({"ok":true})";
+  std::string expected = "HTTP 503";
+  SECTION("health returned a failing HTTP status") {}
+  SECTION("health declined readiness in its JSON") {
+    status = 200;
+    body = R"({"ok":false})";
+    expected = "not ok";
+  }
+  SECTION("health returned malformed JSON") {
+    status = 200;
+    body = "{";
+    expected = "parse error";
+  }
+  Server server([&](const Server::Request&) {
+    return Server::response(status, body);
+  });
+  std::filesystem::create_directories(paths.info_path().parent_path());
+  std::filesystem::permissions(paths.info_path().parent_path(), std::filesystem::perms::owner_all);
+  holder::core::write_server_info(paths.info_path(),
+      {.pid = holder::core::current_pid(), .bind = "127.0.0.1",
+       .port = server.address().port(), .api_version = "0.1", .server_version = "fixture",
+       .auth_token = "fixture-token"});
+  holder::cli::EnsureOptions options;
+  options.allow_start = false;
+  const auto result = holder::cli::ensure_daemon(paths, options);
+  CHECK(result.exit_code == holder::cli::kEnsureExitNotRunning);
+  CHECK(result.error_code == "not_running");
+  INFO(result.message);
+  CHECK(result.message.find(expected) != std::string::npos);
+  CHECK(result.spawned_pid == 0);
+  server.stop();
+  server.rethrow_error();
+  REQUIRE(server.requests().size() == 1);
+  CHECK(server.requests().front().target() == "/health");
+  CHECK(server.requests().front()["Authorization"] == "Bearer fixture-token");
+}
+#endif
+
+#ifdef __linux__
+namespace {
+void write_systemctl_fixture(const std::filesystem::path& path, const std::string& body) {
+  std::filesystem::create_directories(path.parent_path());
+  std::ofstream(path) << "#!/bin/sh\n" << body;
+  std::filesystem::permissions(path, std::filesystem::perms::owner_all);
+}
+} // namespace
+
+TEST_CASE("Ensure service mode reports missing tools and failed starts", "[ensure][service]") {
+  IsolatedHome home;
+  const auto bin = make_dirs(home.root() / "bin");
+  holder::test::EnvGuard path("PATH", bin.string());
+  std::string expected;
+  SECTION("systemctl is absent") {
+    expected = "systemctl was not found";
+  }
+  SECTION("systemctl exits with a failure") {
+    write_systemctl_fixture(bin / "systemctl", "exit 7\n");
+    expected = "failed with status 7";
+  }
+  SECTION("systemctl cannot be executed") {
+    std::ofstream(bin / "systemctl") << "#!/missing-fixture-interpreter\n";
+    std::filesystem::permissions(bin / "systemctl", std::filesystem::perms::owner_all);
+    expected = "failed";
+  }
+  const auto run = home.run("--mode service --timeout 2");
+  REQUIRE(run.exit_code == holder::cli::kEnsureExitStartFailed);
+  CHECK(run.json.at("error").at("code") == "start_failed");
+  CHECK(run.json.at("error").at("message").get<std::string>().find(expected) != std::string::npos);
+}
+
+TEST_CASE("Ensure detects a failed service after systemctl accepted the start", "[ensure][service]") {
+  IsolatedHome home;
+  const auto bin = make_dirs(home.root() / "bin");
+  holder::test::EnvGuard path("PATH", bin.string());
+  holder::test::EnvGuard appdir("APPDIR", std::nullopt);
+  const auto calls = home.root() / "calls";
+  holder::test::EnvGuard call_log("HOLDER_FIXTURE_CALLS", calls.string());
+  write_systemctl_fixture(bin / "systemctl",
+      "printf '%s\n' \"$*\" >> \"$HOLDER_FIXTURE_CALLS\"\n"
+      "case \"$2\" in cat|start|is-failed) exit 0;; *) exit 8;; esac\n");
+  const auto run = home.run("--mode auto --timeout 3");
+  REQUIRE(run.exit_code == holder::cli::kEnsureExitStartFailed);
+  CHECK(run.json.at("error").at("message").get<std::string>().find("journalctl") != std::string::npos);
+  const auto commands = holder::test::read_file(calls);
+  CHECK(commands.find("--user cat holder-daemon.service") != std::string::npos);
+  CHECK(commands.find("--user start holder-daemon.service") != std::string::npos);
+  CHECK(commands.find("--user is-failed --quiet holder-daemon.service") != std::string::npos);
+}
+
+TEST_CASE("Ensure service mode times out while a unit remains neither healthy nor failed",
+          "[ensure][service]") {
+  IsolatedHome home;
+  const auto bin = make_dirs(home.root() / "bin");
+  holder::test::EnvGuard path("PATH", bin.string());
+  write_systemctl_fixture(bin / "systemctl",
+      "case \"$2\" in start) exit 0;; is-failed) exit 1;; *) exit 8;; esac\n");
+  const auto run = home.run("--mode service --timeout 1.2");
+  REQUIRE(run.exit_code == holder::cli::kEnsureExitTimeout);
+  CHECK(run.json.at("error").at("code") == "timeout");
+  CHECK(run.json.at("error").at("message").get<std::string>().find("1.2 seconds") != std::string::npos);
+}
+
+TEST_CASE("Ensure auto mode can start a healthy daemon through its service", "[ensure][service]") {
+  IsolatedHome home;
+  const auto bin = make_dirs(home.root() / "bin");
+  holder::test::EnvGuard path("PATH", bin.string());
+  holder::test::EnvGuard appdir("APPDIR", std::nullopt);
+  holder::test::EnvGuard daemon("HOLDER_FIXTURE_DAEMON", HOLDER_BIN_PATH);
+  holder::test::EnvGuard workdir("HOLDER_FIXTURE_WORKDIR", IsolatedHome::source_root().string());
+  write_systemctl_fixture(bin / "systemctl",
+      "case \"$2\" in\n"
+      " cat) exit 0;;\n"
+      " start) cd \"$HOLDER_FIXTURE_WORKDIR\" || exit 8; "
+      "\"$HOLDER_FIXTURE_DAEMON\" --port 0 & exit 0;;\n"
+      " is-failed) exit 1;;\n"
+      " *) exit 8;;\nesac\n");
+  const auto run = home.run("--mode auto --timeout 15");
+  REQUIRE(run.exit_code == 0);
+  CHECK(run.json.at("state") == "started");
+  CHECK(run.json.at("mode") == "service");
+  CHECK(run.json.at("daemon").at("pid").get<long long>() > 0);
+  CHECK_FALSE(run.json.contains("spawned_pid"));
+  const auto words = home.run_ctl("ensure", "", false);
+  CHECK(words.exit_code == 0);
+  CHECK(words.stdout_text.find("Holder daemon: running") != std::string::npos);
+  CHECK(words.stdout_text.find("Mode: existing") != std::string::npos);
+}
+
+TEST_CASE("Ensure locates a daemon beside holderctl before trying PATH", "[ensure][service]") {
+  IsolatedHome home;
+  const auto bin = make_dirs(home.root() / "bin");
+  const auto sibling_dir = make_dirs(home.root() / "sibling");
+  holder::test::EnvGuard path("PATH", bin.string());
+  holder::test::EnvGuard appdir("APPDIR", std::nullopt);
+  write_systemctl_fixture(bin / "systemctl", "exit 1\n");
+  write_systemctl_fixture(bin / "holderd", "exit 4\n");
+  holder::cli::EnsureOptions options;
+  options.holderctl_path = sibling_dir / "holderctl";
+  options.timeout = std::chrono::seconds(2);
+  int expected_status = 4;
+  SECTION("PATH supplies the executable") {}
+  SECTION("the sibling takes precedence") {
+    write_systemctl_fixture(sibling_dir / "holderd", "exit 7\n");
+    expected_status = 7;
+  }
+  SECTION("an AppImage skips the service check") {
+    holder::test::EnvGuard bundled("APPDIR", home.root().string());
+    write_systemctl_fixture(bin / "systemctl", "exit 0\n");
+    const auto result = holder::cli::ensure_daemon(holder::core::Paths::resolve("holder"), options);
+    CHECK(result.exit_code == holder::cli::kEnsureExitStartFailed);
+    CHECK(result.message.find("status 4") != std::string::npos);
+    return;
+  }
+  const auto result = holder::cli::ensure_daemon(holder::core::Paths::resolve("holder"), options);
+  CHECK(result.exit_code == holder::cli::kEnsureExitStartFailed);
+  CHECK(result.message.find("status " + std::to_string(expected_status)) != std::string::npos);
+}
+#endif
+
+#ifndef _WIN32
+TEST_CASE("Ensure prints its start log when an executable cannot run", "[ensure][process]") {
+  IsolatedHome home;
+  const auto program = home.root() / "not-runnable";
+  std::ofstream(program) << "fixture";
+  const auto result = home.run_ctl("ensure", "--daemon \"" + program.string() + "\"", false);
+  REQUIRE(result.exit_code == holder::cli::kEnsureExitStartFailed);
+  CHECK(result.stderr_text.find("Holder daemon: failed (start_failed)") != std::string::npos);
+  CHECK(result.stderr_text.find("Log: " + home.start_log_path().string()) != std::string::npos);
+}
 #endif
