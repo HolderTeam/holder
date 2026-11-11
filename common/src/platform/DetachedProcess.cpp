@@ -249,11 +249,13 @@ int move_above_stdio(int fd) {
 // starter's process group (Ctrl-C in a terminal, for one) does not reach it. A failure is
 // reported to the caller the same way a failed exec is.
 struct NewSession {
+  // LCOV_EXCL_START: runs only after fork in the child; exec discards its counters. The helper verifies getsid(0) == getpid().
   template <typename Launcher, typename Path>
   boost::system::error_code on_exec_setup(Launcher&, const Path&, const char* const*&) const {
     if (::setsid() == -1) return boost::system::error_code(errno, boost::system::system_category());
     return {};
   }
+  // LCOV_EXCL_STOP
 };
 
 } // namespace
@@ -397,7 +399,7 @@ bool DetachedProcess::has_exited(int* exit_code) {
       } else if (WIFSIGNALED(status)) {
         impl_->exit_code = 128 + WTERMSIG(status);
       } else {
-        impl_->exit_code = -1;
+        impl_->exit_code = -1; // LCOV_EXCL_LINE: a completed POSIX wait reports normal exit or signal termination; retain the defensive fallback.
       }
 #endif
     }

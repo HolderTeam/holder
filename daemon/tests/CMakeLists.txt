@@ -20,6 +20,30 @@ target_link_libraries(lock_helper PRIVATE
 
 add_executable(detached_process_helper detached_process_helper.cpp)
 
+# Exercise the real generated HTTP dispatcher against operation doubles. Keep
+# this binary separate from core so the doubles cannot replace production code.
+add_executable(holder_contract_dispatch_tests GeneratedContractDispatch_test.cpp)
+target_include_directories(holder_contract_dispatch_tests PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src
+  $<TARGET_PROPERTY:${HOLDER_CORE_TARGET},INTERFACE_INCLUDE_DIRECTORIES>
+)
+target_link_libraries(holder_contract_dispatch_tests PRIVATE nlohmann_json::nlohmann_json)
+if(TARGET Catch2::Catch2)
+  target_sources(holder_contract_dispatch_tests PRIVATE catch_main.cpp)
+  target_link_libraries(holder_contract_dispatch_tests PRIVATE Catch2::Catch2)
+else()
+  target_link_libraries(holder_contract_dispatch_tests PRIVATE Catch2::Catch2WithMain)
+endif()
+if(HOLDER_TSAN_USE_SETARCH)
+  find_program(SETARCH_EXECUTABLE setarch)
+endif()
+if(HOLDER_TSAN_USE_SETARCH AND SETARCH_EXECUTABLE)
+  add_test(NAME generated_contract_dispatch
+    COMMAND ${SETARCH_EXECUTABLE} x86_64 -R $<TARGET_FILE:holder_contract_dispatch_tests>)
+else()
+  add_test(NAME generated_contract_dispatch COMMAND holder_contract_dispatch_tests)
+endif()
+
 add_executable(holder_daemon_tests
   EventJournal_test.cpp
   AiContractRuntime_test.cpp
@@ -246,7 +270,7 @@ target_compile_definitions(holder_daemon_tests PRIVATE
   HOLDER_BIN_PATH="$<TARGET_FILE:holderd>"
   HOLDER_CTL_PATH="$<TARGET_FILE:holderctl>"
 )
-add_dependencies(holder_daemon_tests detached_process_helper lock_helper holderd holderctl holder_openapi_documents)
+add_dependencies(holder_daemon_tests holder_contract_dispatch_tests detached_process_helper lock_helper holderd holderctl holder_openapi_documents)
 
 if(HOLDER_ENABLE_ENCRYPTED_GIT)
   target_compile_definitions(holder_daemon_tests PRIVATE

@@ -461,3 +461,28 @@ TEST_CASE("Contract read routes report database failures as JSON internal errors
     CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == "internal_error");
   }
 }
+
+TEST_CASE("Generated AI capability and status routes reject unexpected query parameters", "[http][generated]") {
+  namespace http = boost::beast::http;
+  holder::platform::Db db;
+  for (const std::string path : {"/ai/capabilities?unexpected=1", "/ai/status?unexpected=1"}) {
+    CAPTURE(path);
+    http::request<http::string_body> req{http::verb::get, path, 11};
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    CHECK(res.result() == http::status::bad_request);
+    CHECK(nlohmann::json::parse(res.body()).at("error").at("message") ==
+          "there is no query parameter unexpected");
+  }
+}
+
+TEST_CASE("Generated AI search requires its project query parameter", "[http][generated]") {
+  namespace http = boost::beast::http;
+  holder::platform::Db db;
+  http::request<http::string_body> req{http::verb::get, "/search/ai?q=words", 11};
+  http::response<http::string_body> res;
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+  CHECK(res.result() == http::status::bad_request);
+  CHECK(nlohmann::json::parse(res.body()).at("error").at("message") ==
+        "the query parameter project_id is required");
+}
