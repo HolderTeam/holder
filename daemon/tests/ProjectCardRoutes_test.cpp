@@ -4,6 +4,7 @@
 #include "http_test_helpers.h"
 #include "privacy/ProjectPrivacy.h"
 #include "project/ProjectRepo.h"
+#include <algorithm>
 #include <cctype>
 #include <fstream>
 #include <unordered_map>
@@ -459,4 +460,71 @@ TEST_CASE("Corrupt encrypted card content is reported without rewriting it", "[c
   REQUIRE(in.is_open());
   CHECK(std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()) ==
         truncated);
+}
+
+TEST_CASE("Contract link catalog exposes direction labels through its HTTP route", "[contract-routes]") {
+  holder::platform::Db unused;
+  http::request<http::string_body> req{http::verb::get, "/link-kinds", 11};
+  http::response<http::string_body> res;
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, unused));
+  REQUIRE(res.result() == http::status::ok);
+  const auto data = nlohmann::json::parse(res.body()).at("data");
+  REQUIRE(data.is_array());
+  CHECK(std::find(data.begin(), data.end(),
+      nlohmann::json{{"kind", "depends_on"}, {"forward_label", "Depends on"},
+                     {"reverse_label", "Required by"}}) != data.end());
+}
+
+TEST_CASE("Contract backlinks honor local external and combined scopes", "[contract-routes]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "local", (dir / "local").string());
+  holder::test::create_project(db, "other", (dir / "other").string());
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore store(db, &fts);
+  holder::test::create_card_fixture(store, "target", "local", "Target", "Body", 1);
+  holder::test::create_card_fixture(store, "local-source", "local", "Local", "Body", 2);
+  holder::test::create_card_fixture(store, "external-source", "other", "External", "Body", 3);
+
+  const auto link = [&](const std::string& project, const std::string& source) {
+    http::request<http::string_body> req{
+        http::verb::post, "/projects/" + project + "/cards/" + source + "/links", 11};
+    req.body() = nlohmann::json{
+        {"target_type", "card"}, {"target_id", "target"}, {"target_project_id", "local"}}.dump();
+    req.prepare_payload();
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    INFO(res.body());
+    REQUIRE(res.result() == http::status::ok);
+  };
+  link("local", "local-source");
+  link("other", "external-source");
+
+  const auto get = [&](const std::string& query) {
+    http::request<http::string_body> req{
+        http::verb::get, "/projects/local/cards/target/backlinks" + query, 11};
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    INFO(res.body());
+    REQUIRE(res.result() == http::status::ok);
+    return nlohmann::json::parse(res.body()).at("data");
+  };
+  const auto local = get("?scope=local");
+  REQUIRE(local.size() == 1);
+  CHECK(local.front().at("source_id") == "local-source");
+  const auto external = get("?scope=external");
+  REQUIRE(external.size() == 1);
+  CHECK(external.front().at("source_id") == "external-source");
+  CHECK(get("?scope=all_available").size() == 2);
+
+  holder::card::CardRepo(db).soft_delete("external-source", 4, 4);
+  CHECK(get("?scope=external").empty());
+  CHECK(get("?scope=external&include_deleted=true").size() == 1);
+
+  http::request<http::string_body> bad{
+      http::verb::get, "/projects/local/cards/target/backlinks?scope=unknown", 11};
+  http::response<http::string_body> res;
+  REQUIRE(holder::api::dispatch_generated_routes(bad, res, db));
+  CHECK(res.result() == http::status::bad_request);
+  CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == "invalid_argument");
 }
