@@ -384,6 +384,50 @@ TEST_CASE("HTTP card content stays plaintext over API for encrypted project", "[
   REQUIRE(raw.rfind("HolderPriv1\n", 0) == 0);
   REQUIRE(raw.find("this is secret plaintext") == std::string::npos);
 
+  in.close();
+  holder::git::GitRepo git;
+  git.open_or_init(project_root);
+  const auto head = git.head_oid();
+  REQUIRE(head);
+  const auto key_id = created_project["data"]["project_key_id"].get<std::string>();
+  REQUIRE(std::filesystem::remove(dir / "keystore" / (key_id + ".key")));
+
+  namespace http = boost::beast::http;
+  const auto card_path = "/projects/proj-enc/cards/" + encrypted_card_id;
+  const auto history_path = "/projects/proj-enc/history/cards/" + encrypted_card_id;
+  struct LockedRequest {
+    http::verb method;
+    std::string path;
+    nlohmann::json body;
+    const char* code;
+  };
+  for (const auto& request : {
+           LockedRequest{http::verb::get, card_path, {}, "key_missing"},
+           LockedRequest{http::verb::patch, card_path, {{"content", "replacement"}}, "key_missing"},
+           LockedRequest{http::verb::post, "/projects/proj-enc/cards",
+                         {{"title", "Another card"}, {"content", "new body"}}, "key_missing"},
+           LockedRequest{http::verb::put, card_path + "/tags/locked", {}, "key_missing"},
+           LockedRequest{http::verb::delete_, card_path + "/tags/locked", {}, "key_missing"},
+           LockedRequest{http::verb::get, history_path + "/snapshot?oid=" + *head, {},
+                         "history_key_unavailable"},
+           LockedRequest{http::verb::get, history_path + "/compare?mode=change&to_oid=" + *head, {},
+                         "history_key_unavailable"},
+           LockedRequest{http::verb::post, history_path + "/restore?oid=" + *head, {},
+                         "history_key_unavailable"},
+       }) {
+    CAPTURE(request.path);
+    const auto res = holder::test::http_request_raw(
+        bound.bind, bound.port, token, request.method, request.path, request.body);
+    INFO(res.body);
+    CHECK(res.status == http::status::conflict);
+    CHECK(nlohmann::json::parse(res.body).at("error").at("code") == request.code);
+  }
+  CHECK(git.head_oid() == head);
+  std::ifstream unchanged(full_path, std::ios::binary);
+  REQUIRE(unchanged.is_open());
+  CHECK(std::string(std::istreambuf_iterator<char>(unchanged), std::istreambuf_iterator<char>()) ==
+        raw);
+
   server_thread.stop();
 }
 
