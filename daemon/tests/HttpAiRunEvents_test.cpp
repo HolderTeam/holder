@@ -12,6 +12,31 @@ using holder::test::http_request_raw;
 using holder::test::make_temp_dir;
 using holder::test::open_db_with_schema;
 
+TEST_CASE("Generated AI stream dispatch contains a missing response consumer", "[http][generated]") {
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "project", (dir / "project").string());
+  db.exec("INSERT INTO ai_threads(thread_id, project_id, title, created_at, updated_at) "
+          "VALUES('thread', 'project', 'Thread', 1, 1);");
+  holder::model::AiRun run;
+  run.run_id = "missing-consumer-run";
+  run.project_id = "project";
+  run.thread_id = "thread";
+  run.mode = "auto";
+  run.prompt = "hello";
+  run.status = "completed";
+  run.created_at = run.updated_at = 1;
+  holder::ai::AiRunRepo(db).create(run);
+  http::request<http::string_body> req{http::verb::get,
+      "/ai/runs/missing-consumer-run/events", 11};
+  http::response<http::string_body> res;
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+  CHECK(res.result() == http::status::internal_server_error);
+  const auto error = nlohmann::json::parse(res.body()).at("error");
+  CHECK(error.at("code") == "error");
+  CHECK(error.at("message") == "no one to serve a host-written response");
+}
+
 TEST_CASE("HTTP ai run events streams terminal status", "[http]") {
   const auto dir = make_temp_dir();
   const auto db_path = dir / "holder.db";

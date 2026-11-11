@@ -601,6 +601,27 @@ TEST_CASE("Storage failure exceptions preserve the typed response and its error"
   check.operator()<StorageUnavailable>(Code::Transient, "storage_transient_failure");
 }
 
+TEST_CASE("Asset import reports an unexpected job identifier failure as an internal error",
+          "[resources][routes]") {
+  LocationRouteFixture f;
+  holder::git::RealGitOps git;
+  f.put("local_directory", {}, {{"root_path", f.root.string()}});
+  const auto source = f.root / "source.txt";
+  std::ofstream(source) << "asset";
+  auto req = make_request(http::verb::post, "/imports", {
+      {"project_id", "project"}, {"card_id", "card"},
+      {"location_id", "location"}, {"source_path", source.string()}});
+  http::response<http::string_body> res;
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, f.db, nullptr, nullptr,
+      f.secrets.get(), &git, []() -> std::string {
+        throw std::runtime_error("job identifier unavailable");
+      }));
+  CHECK(res.result() == http::status::internal_server_error);
+  const auto error = nlohmann::json::parse(res.body()).at("error");
+  CHECK(error.at("code") == "internal_error");
+  CHECK(error.at("message") == "job identifier unavailable");
+}
+
 TEST_CASE("Asset downloads report storage failures and clean up after a write failure",
           "[resources][routes]") {
   LocationRouteFixture f;
