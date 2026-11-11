@@ -294,3 +294,73 @@ TEST_CASE("Card routes reject cycles and preserve tags written in prose", "[http
   CHECK(child->parent_card_id == "parent");
   CHECK(cards.get_content(*parent) == original);
 }
+
+TEST_CASE("Generated routes reject malformed URL text before accessing records", "[http][generated]") {
+  namespace http = boost::beast::http;
+  auto db = open_db_with_schema(make_temp_dir() / "holder.db");
+  struct Case {
+    const char* path;
+    const char* code;
+  };
+  for (const auto& item : {
+           Case{"/projects/%", "invalid_argument"},
+           Case{"/projects/%GG", "invalid_argument"},
+           Case{"/projects/%C0%AF", "invalid_argument"},
+           Case{"/projects/%00", "invalid_argument"},
+           Case{"/projects/p/cards?limit=1.5", "invalid_argument"},
+           Case{"/projects/p/cards?limit=999999999999999999999", "invalid_argument"},
+           Case{"/projects/p/cards?include_content=maybe", "invalid_argument"},
+           Case{"/projects/p/cards?limit=1&limit=2", "invalid_argument"},
+           Case{"/ai/threads/%", "bad_request"},
+           Case{"/ai/threads/%ED%A0%80", "bad_request"},
+           Case{"/ai/messages?thread_id=%00", "bad_request"},
+           Case{"/ai/messages?thread_id=t&include_deleted=maybe", "bad_request"},
+       }) {
+    CAPTURE(item.path);
+    http::request<http::string_body> req{http::verb::get, item.path, 11};
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    INFO(res.body());
+    REQUIRE(res.result() == http::status::bad_request);
+    CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == item.code);
+  }
+}
+
+TEST_CASE("Generated routes reject malformed request records before performing writes", "[http][generated]") {
+  namespace http = boost::beast::http;
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  create_project(db, "p", (dir / "project").string());
+  struct Case {
+    http::verb method;
+    const char* path;
+    const char* body;
+    const char* code;
+  };
+  for (const auto& item : {
+           Case{http::verb::post, "/projects/p/cards", "[]", "invalid_argument"},
+           Case{http::verb::post, "/projects/p/cards", R"({"title":""})", "invalid_argument"},
+           Case{http::verb::post, "/projects/p/cards", R"({"title":"Card","sort_key":"1"})", "invalid_argument"},
+           Case{http::verb::post, "/projects/p/cards", R"({"title":"Card","sort_key":1e999})", "invalid_argument"},
+           Case{http::verb::post, "/projects/p/cards", R"({"title":"Card","created_at":9223372036854775808})", "invalid_argument"},
+           Case{http::verb::post, "/projects/p/cards", R"({"title":"Card","created_at":1.5})", "invalid_argument"},
+           Case{http::verb::post, "/projects/p/resources", R"({"type":"file","label":"Asset","metadata":[]})", "invalid_argument"},
+           Case{http::verb::post, "/locations", R"({"project_id":"p","name":"Store","provider":"s3_compatible","configuration":{"region":1}})", "invalid_argument"},
+           Case{http::verb::post, "/ai/threads", R"({"project_id":"p","title":"Thread","created_at":-9223372036854775809})", "bad_request"},
+           Case{http::verb::post, "/ai/threads", R"({"project_id":"p","title":"Thread","created_at":1.25})", "bad_request"},
+           Case{http::verb::post, "/ai/runners", R"({"name":"Runner","base_url":42})", "bad_request"},
+           Case{http::verb::put, "/ai/local-models/config", R"({"updated_at":"yesterday"})", "bad_request"},
+       }) {
+    CAPTURE(item.path, item.body);
+    http::request<http::string_body> req{item.method, item.path, 11};
+    req.body() = item.body;
+    req.prepare_payload();
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    INFO(res.body());
+    REQUIRE(res.result() == http::status::bad_request);
+    CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == item.code);
+  }
+  CHECK(holder::card::CardRepo(db).list_all("p").empty());
+  CHECK_FALSE(std::filesystem::exists(dir / "project" / ".git"));
+}

@@ -2,6 +2,10 @@
 #include "api/generated/AiRoutes.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <limits>
+#include <map>
+#include <string>
+#include <vector>
 
 TEST_CASE("AI contract codec rejects a non-object nudge facts field") {
   const nlohmann::json body = {
@@ -24,4 +28,202 @@ TEST_CASE("AI request body rejects negative int64 overflow without rejecting quo
       R"({"updated_at":-9223372036854775809})"), std::invalid_argument);
   REQUIRE_NOTHROW(ai_http::check_negative_integer_tokens(
       R"({"updated_at":-9223372036854775808.0,"note":"-9223372036854775809"})"));
+}
+
+TEST_CASE("Generated codecs count Unicode characters and reject malformed UTF-8", "[generated]") {
+  const std::string text = "\xC3\xA9\xE2\x82\xAC\xF0\x9F\x98\x80";
+  REQUIRE(ai_json::utf8_length(text) == 3);
+  REQUIRE(contract_json::utf8_length(text) == 3);
+  CHECK(ai_json::check_text(text, "text", 3, 3) == text);
+  CHECK(contract_json::check_text(text, "text", 3, 3) == text);
+  CHECK_THROWS_AS(ai_json::check_text(text, "text", 4, 8), std::invalid_argument);
+  CHECK_THROWS_AS(contract_json::check_text(text, "text", 1, 2), std::invalid_argument);
+  for (const std::string invalid : {
+           "\x80", "\xC0\xAF", "\xC2", "\xE2\x28\xA1", "\xED\xA0\x80",
+           "\xE0\x80\x80", "\xF0\x80\x80\x80", "\xF4\x90\x80\x80", "\xFF",
+       }) {
+    CAPTURE(invalid.size());
+    CHECK_FALSE(ai_json::utf8_length(invalid));
+    CHECK_FALSE(contract_json::utf8_length(invalid));
+    CHECK_THROWS_AS(ai_json::check_text(invalid, "text", 0, 100), std::invalid_argument);
+    CHECK_THROWS_AS(contract_json::check_text(invalid, "text", 0, 100), std::invalid_argument);
+  }
+  const std::string nul("a\0b", 3);
+  CHECK_THROWS_AS(ai_json::check_text(nul, "text", 0, 100), std::invalid_argument);
+  CHECK_THROWS_AS(contract_json::check_text(nul, "text", 0, 100), std::invalid_argument);
+  CHECK_THROWS_AS(ai_json::check_text("", "text", 1, 100), std::invalid_argument);
+  CHECK_THROWS_AS(contract_json::check_text("", "text", 1, 100), std::invalid_argument);
+}
+
+TEST_CASE("Generated integer codecs accept whole JSON numbers and enforce signed limits", "[generated]") {
+  using json = nlohmann::json;
+  for (const auto& value : {json(17), json(17U), json(17.0), json::parse("1.7e1")}) {
+    CHECK(ai_json::decode<std::int32_t>(value) == 17);
+    CHECK(contract_json::decode<std::int32_t>(value) == 17);
+    CHECK(ai_json::decode<long long>(value) == 17);
+    CHECK(contract_json::decode<long long>(value) == 17);
+  }
+  for (const auto& value : {
+           json(-2147483649LL), json(2147483648ULL), json(2147483648.0),
+           json(-2147483649.0), json(0.5), json("17"), json(true), json(nullptr),
+       }) {
+    CHECK_THROWS_AS(ai_json::decode<std::int32_t>(value), std::invalid_argument);
+    CHECK_THROWS_AS(contract_json::decode<std::int32_t>(value), std::invalid_argument);
+  }
+  CHECK(ai_json::decode<long long>(json::parse("-9223372036854775808")) ==
+        std::numeric_limits<long long>::min());
+  CHECK(contract_json::decode<long long>(json::parse("9223372036854775807")) ==
+        std::numeric_limits<long long>::max());
+  for (const auto& value : {json::parse("9223372036854775808"), json::parse("1e20")}) {
+    CHECK_THROWS_AS(ai_json::decode<long long>(value), std::invalid_argument);
+    CHECK_THROWS_AS(contract_json::decode<long long>(value), std::invalid_argument);
+  }
+}
+
+TEST_CASE("Generated codecs reject non-finite numbers and incorrect container types", "[generated]") {
+  using json = nlohmann::json;
+  for (const double invalid : {
+           std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity(),
+           std::numeric_limits<double>::quiet_NaN(),
+       }) {
+    CHECK_THROWS_AS(ai_json::decode<double>(json(invalid)), std::invalid_argument);
+    CHECK_THROWS_AS(contract_json::decode<double>(json(invalid)), std::invalid_argument);
+    CHECK_THROWS_AS(ai_json::check_finite(invalid, "number"), std::invalid_argument);
+    CHECK_THROWS_AS(contract_json::check_finite(invalid, "number"), std::invalid_argument);
+  }
+  CHECK_THROWS_AS(ai_json::decode<double>(json("1")), std::invalid_argument);
+  CHECK_THROWS_AS(contract_json::decode<double>(json("1")), std::invalid_argument);
+  CHECK(ai_json::decode<double>(json(1)) == 1.0);
+  CHECK(contract_json::decode<double>(json(1)) == 1.0);
+  CHECK_THROWS_AS(ai_json::decode<std::vector<std::string>>(json::object()), std::invalid_argument);
+  CHECK_THROWS_AS(contract_json::decode<std::vector<std::string>>(json::object()), std::invalid_argument);
+  using Metadata = std::map<std::string, std::vector<std::string>>;
+  CHECK_THROWS_AS(ai_json::decode<Metadata>(json::array()), std::invalid_argument);
+  CHECK_THROWS_AS(contract_json::decode<Metadata>(json::array()), std::invalid_argument);
+  CHECK_THROWS_AS(ai_json::decode<Metadata>(json{{"topic", 1}}), std::invalid_argument);
+  CHECK_THROWS_AS(contract_json::decode<Metadata>(json{{"topic", 1}}), std::invalid_argument);
+  const json valid{{"topic", {"work", "home"}}};
+  CHECK(ai_json::encode(ai_json::decode<Metadata>(valid)) == valid);
+  CHECK(contract_json::encode(contract_json::decode<Metadata>(valid)) == valid);
+}
+
+TEST_CASE("Generated card requests preserve omitted and explicitly cleared parents", "[generated]") {
+  using holder::contract::CardUpdate;
+  using json = nlohmann::json;
+  const auto omitted = contract_json::decode<CardUpdate>(json::object());
+  CHECK_FALSE(omitted.parent_card_id);
+  const auto cleared = contract_json::decode<CardUpdate>({{"parent_card_id", nullptr}});
+  REQUIRE(cleared.parent_card_id);
+  CHECK_FALSE(*cleared.parent_card_id);
+  CHECK(contract_json::encode(cleared) == json{{"parent_card_id", nullptr}});
+  const auto changed = contract_json::decode<CardUpdate>(
+      {{"parent_card_id", "parent"}, {"content", ""}, {"sort_key", 1.5}});
+  REQUIRE(changed.parent_card_id);
+  CHECK(*changed.parent_card_id == "parent");
+  CHECK(changed.content == "");
+  CHECK(changed.sort_key == 1.5);
+  CHECK(contract_json::encode(changed) ==
+        json{{"parent_card_id", "parent"}, {"content", ""}, {"sort_key", 1.5}});
+
+  for (const std::string field : {"title", "content", "sort_key", "updated_at"}) {
+    CAPTURE(field);
+    CHECK_THROWS_AS(contract_json::decode<CardUpdate>(json{{field, nullptr}}), std::invalid_argument);
+  }
+}
+
+TEST_CASE("Generated request codecs reject unknown fields and null required values", "[generated]") {
+  using json = nlohmann::json;
+  const auto check = []<typename T>(const json& valid, const std::vector<std::string>& required) {
+    REQUIRE_NOTHROW(contract_json::decode<T>(valid));
+    CHECK_THROWS_AS(contract_json::decode<T>(json::array()), std::invalid_argument);
+    auto unknown = valid;
+    unknown["unknown_field"] = true;
+    CHECK_THROWS_AS(contract_json::decode<T>(unknown), std::invalid_argument);
+    for (const auto& field : required) {
+      CAPTURE(field);
+      auto missing = valid;
+      missing.erase(field);
+      CHECK_THROWS_AS(contract_json::decode<T>(missing), std::invalid_argument);
+      auto null = valid;
+      null[field] = nullptr;
+      CHECK_THROWS_AS(contract_json::decode<T>(null), std::invalid_argument);
+    }
+  };
+  check.operator()<holder::contract::NewCard>({{"title", "Card"}}, {"title"});
+  check.operator()<holder::contract::NewResource>({{"type", "file"}, {"label", "Asset"}},
+                                                {"type", "label"});
+  check.operator()<holder::contract::NewStorageLocation>(
+      {{"project_id", "p"}, {"name", "Storage"}, {"provider", "local_directory"}},
+      {"project_id", "name", "provider"});
+  check.operator()<holder::contract::NewLink>(
+      {{"target_type", "card"}, {"target_id", "target"}}, {"target_type", "target_id"});
+  check.operator()<holder::contract::MilestoneDate>(
+      {{"role", "due"}, {"date", "2026-12-01"}}, {"role"});
+  check.operator()<holder::contract::RecoveryTokenImportRequest>(
+      {{"pin", "1234"}, {"recovery_token", "token"}}, {"pin", "recovery_token"});
+}
+
+TEST_CASE("Generated optional request fields distinguish omission from forbidden nulls", "[generated]") {
+  using json = nlohmann::json;
+  const auto check = []<typename T>(const json& valid, const std::vector<std::string>& fields) {
+    REQUIRE_NOTHROW(contract_json::decode<T>(valid));
+    for (const auto& field : fields) {
+      CAPTURE(field);
+      auto invalid = valid;
+      invalid[field] = nullptr;
+      CHECK_THROWS_AS(contract_json::decode<T>(invalid), std::invalid_argument);
+    }
+  };
+  check.operator()<holder::contract::NewCard>(
+      {{"title", "Card"}}, {"content", "sort_key", "created_at", "updated_at"});
+  check.operator()<holder::contract::NewResource>(
+      {{"type", "file"}, {"label", "Asset"}}, {"resource_id", "metadata", "created_at", "updated_at"});
+  check.operator()<holder::contract::NewStorageLocation>(
+      {{"project_id", "p"}, {"name", "Storage"}, {"provider", "local_directory"}},
+      {"location_id", "configuration", "created_at", "updated_at"});
+  check.operator()<holder::contract::StorageLocationUpdate>(
+      json::object(), {"name", "configuration", "updated_at"});
+  check.operator()<holder::contract::MilestoneDate>(
+      {{"role", "due"}}, {"date", "datetime"});
+  check.operator()<holder::contract::HierarchyRepairRequest>(json::object(), {"apply"});
+}
+
+TEST_CASE("Generated AI update fields preserve clear operations and reject incorrect types", "[generated]") {
+  using Request = holder::api::AiRunnerUpdateRequest;
+  using json = nlohmann::json;
+  const auto cleared = ai_json::decode<Request>(
+      {{"name", nullptr}, {"base_url", nullptr}, {"enabled", nullptr}});
+  CHECK_FALSE(cleared.name);
+  REQUIRE(cleared.base_url);
+  CHECK_FALSE(cleared.enabled);
+  CHECK_FALSE(*cleared.base_url);
+  CHECK(ai_json::encode(cleared) == json{{"base_url", nullptr}});
+
+  const json values{{"name", "Office"}, {"base_url", "http://127.0.0.1:11434"}, {"enabled", false}};
+  const auto decoded = ai_json::decode<Request>(values);
+  CHECK(ai_json::encode(decoded) == values);
+  for (const auto& invalid : {
+           json{{"name", 1}}, json{{"base_url", true}}, json{{"enabled", "false"}},
+       }) {
+    CHECK_THROWS_AS(ai_json::decode<Request>(invalid), std::invalid_argument);
+  }
+}
+
+TEST_CASE("Generated query decoding preserves URI and query escaping semantics", "[generated]") {
+  CHECK(contract_http::decode_uri_component("a+b%2Fc", false) == "a+b/c");
+  CHECK(contract_http::decode_uri_component("a+b%2fc", true) == "a b/c");
+  CHECK(contract_http::decode_query("name=a+b&path=%2Ftmp%2Ffile&flag") ==
+        std::map<std::string, std::string>{{"name", "a b"}, {"path", "/tmp/file"}, {"flag", ""}});
+  for (const std::string query : {"key=one&key=two", "bad=%", "bad=%XZ"}) {
+    CHECK_THROWS_AS(contract_http::decode_query(query), std::invalid_argument);
+  }
+  for (const std::string body : {
+           R"({"timestamp":-9223372036854775809})",
+           R"({"timestamp":-99999999999999999999999999999999999999})",
+       }) {
+    CHECK_THROWS_AS(ai_http::decode_body<holder::api::AiThreadCreateRequest>(body),
+                    std::invalid_argument);
+  }
+  CHECK_NOTHROW(ai_http::check_negative_integer_tokens(
+      R"({"text":"quoted \"-9223372036854775809\"","number":-1e4})"));
 }
