@@ -219,7 +219,7 @@ static void capture_worker(GTask *task, gpointer source, gpointer argv, GCancell
         capture_result_free(result);
         g_task_return_error(task, error);
     } else {
-        g_task_return_pointer(task, result, capture_result_free);
+        g_task_return_pointer(task, result, capture_result_free); // LCOV_EXCL_LINE: Windows capture success; native Windows test covers this, non-Windows always returns NOT_SUPPORTED.
     }
 }
 
@@ -233,8 +233,10 @@ void holder_windows_capture_async(gchar **argv, GAsyncReadyCallback callback, gp
 gchar *holder_windows_capture_finish(GAsyncResult *async_result, gint *exit_code, GError **error) {
     CaptureResult *result = g_task_propagate_pointer(G_TASK(async_result), error);
     if (result == NULL) return NULL;
+    // LCOV_EXCL_START: Windows-only success result; non-Windows capture always returns NOT_SUPPORTED.
     *exit_code = result->status;
     gchar *output = result->output;
     g_free(result);
     return output;
+    // LCOV_EXCL_STOP
 }
