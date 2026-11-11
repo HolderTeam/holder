@@ -304,6 +304,81 @@ private void test_project_tags_and_cards_with_tag() {
     assert(transport.last_uri.contains("tag=android%2Fmobile"));
 }
 
+private void test_list_link_kinds_reads_the_catalog() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"kind\":\"depends_on\",\"forward_label\":\"Depends on\",\"reverse_label\":\"Required by\"}]}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.LinkKindLabels>? kinds = null;
+    client.list_link_kinds.begin((obj, res) => {
+        try { kinds = client.list_link_kinds.end(res); } catch (Error e) { kinds = null; }
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+    assert(kinds != null && kinds.size == 1);
+    assert(kinds[0].kind == "depends_on");
+    assert(kinds[0].forward_label == "Depends on");
+    assert(kinds[0].reverse_label == "Required by");
+    assert(transport.last_method == "GET");
+    assert(transport.last_uri.has_suffix("/link-kinds"));
+}
+
+private void test_card_context_follows_cursor() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"name\":\"Project One\"}}");
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"One\",\"rel_path\":\"cards/c1.md\",\"sort_key\":1.0,\"parent_card_id\":null,\"created_at\":1,\"updated_at\":2,\"child_count\":0}],\"next_cursor\":\"page two\"}}"
+    );
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c2\",\"project_id\":\"p1\",\"title\":\"Two\",\"rel_path\":\"cards/c2.md\",\"sort_key\":2.0,\"parent_card_id\":null,\"created_at\":3,\"updated_at\":4,\"child_count\":1}],\"next_cursor\":null}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    HolderLinux.CardContextData? ctx = null;
+    client.get_card_context.begin("p1", null, (obj, res) => {
+        try { ctx = client.get_card_context.end(res); } catch (Error e) { ctx = null; }
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+    assert(ctx != null && ctx.cards.size == 2);
+    assert(ctx.cards[0].card_id == "c1");
+    assert(ctx.cards[1].card_id == "c2");
+    assert(transport.last_uri.contains("cursor=page%20two"));
+}
+
+private void test_cards_with_tag_follows_cursor() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"First\",\"updated_at\":2}],\"next_cursor\":\"page two\"}}"
+    );
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c2\",\"project_id\":\"p1\",\"title\":\"Second\",\"updated_at\":1}],\"next_cursor\":null}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.CardSummary>? cards = null;
+    client.list_cards_with_tag.begin("p1", "android", (obj, res) => {
+        try { cards = client.list_cards_with_tag.end(res); } catch (Error e) { cards = null; }
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+    assert(cards != null && cards.size == 2);
+    assert(cards[0].title == "First");
+    assert(cards[1].title == "Second");
+    assert(transport.last_uri.contains("cursor=page%20two"));
+    assert(transport.last_uri.contains("tag=android"));
+}
+
 private void test_calendar_and_milestone_endpoints() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(200,
@@ -632,6 +707,10 @@ public static int main(string[] args) {
                   test_delete_card_sends_delete_to_card_path);
     Test.add_func("/api_client_cards/project_tags_and_cards_with_tag",
                   test_project_tags_and_cards_with_tag);
+    Test.add_func("/api_client_cards/list_link_kinds_reads_the_catalog",
+                  test_list_link_kinds_reads_the_catalog);
+    Test.add_func("/api_client_cards/card_context_follows_cursor", test_card_context_follows_cursor);
+    Test.add_func("/api_client_cards/cards_with_tag_follows_cursor", test_cards_with_tag_follows_cursor);
     Test.add_func("/api_client_cards/calendar_and_milestone_endpoints",
                   test_calendar_and_milestone_endpoints);
     Test.add_func("/api_client_cards/card_history_endpoints",
