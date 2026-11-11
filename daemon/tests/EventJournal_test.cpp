@@ -3,6 +3,7 @@
 #include "api/support/RunEventStore.h"
 #include "api/support/SseStream.h"
 #include "api/support/StreamServer.h"
+#include <boost/beast/core/flat_buffer.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <future>
 #include <thread>
@@ -65,9 +66,12 @@ TEST_CASE("SSE admission restores rejected sockets and bounds producer output", 
   auto stream = SseStream::reserve(one, registry);
   REQUIRE(stream);
   REQUIRE_FALSE(SseStream::reserve(two, registry));
+  REQUIRE(stream->send({"queued", {"chunk", {{"delta", "queued before cancellation"}}}}));
   REQUIRE_FALSE(stream->send({"id", {"chunk", {{"delta", std::string(2 * 1024 * 1024, 'x')}}}}));
   REQUIRE_FALSE(stream->open());
+  stream->activate();
   ioc.run();
+  REQUIRE_FALSE(stream->open());
 }
 
 TEST_CASE(
@@ -146,4 +150,33 @@ TEST_CASE("Event stream admission reports a full registry as server busy", "[eve
   REQUIRE_FALSE(serve(socket, response));
   CHECK(response.result() == boost::beast::http::status::service_unavailable);
   CHECK(nlohmann::json::parse(response.body()).at("error").at("code") == "server_busy");
+}
+
+TEST_CASE("SSE closes the client connection when its event source throws", "[events][http]") {
+  namespace http = boost::beast::http;
+  using tcp = boost::asio::ip::tcp;
+  boost::asio::io_context ioc;
+  tcp::acceptor acceptor(ioc, {boost::asio::ip::make_address("127.0.0.1"), 0});
+  tcp::socket client(ioc);
+  client.connect(acceptor.local_endpoint());
+  auto socket = acceptor.accept();
+  auto registry = std::make_shared<SseRegistry>();
+  std::promise<void> called;
+  auto source_called = called.get_future();
+
+  auto stream = SseStream::start(socket, registry, [&]() -> EventBatch {
+    called.set_value();
+    throw std::runtime_error("fixture event source failure");
+  });
+  REQUIRE(stream);
+  ioc.run();
+  REQUIRE(source_called.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+  CHECK_FALSE(stream->open());
+
+  boost::beast::flat_buffer buffer;
+  http::response<http::string_body> response;
+  http::read(client, buffer, response);
+  CHECK(response.result() == http::status::ok);
+  CHECK(response[http::field::content_type] == "text/event-stream");
+  CHECK(response.body().empty());
 }
