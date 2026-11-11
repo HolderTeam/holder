@@ -456,3 +456,41 @@ TEST_CASE("Generated request codecs retain explicit timestamps and move parent v
   CHECK_THROWS_AS(contract_json::decode<NewLink>({
       {"target_type", "unknown"}, {"target_id", "target"}}), std::invalid_argument);
 }
+
+TEST_CASE("Generated CardMetadata encoding preserves metadata and explicit null fields", "[generated][card-metadata]") {
+  holder::contract::CardMetadata metadata{
+      .card_id = "card",
+      .project_id = "project",
+      .title = "Card title",
+      .rel_path = "cards/card.md",
+      .parent_card_id = std::nullopt,
+      .sort_key = 1.25,
+      .created_at = 123,
+      .updated_at = 456,
+      .deleted_at = std::nullopt,
+  };
+  nlohmann::json expected{
+      {"card_id", "card"}, {"project_id", "project"}, {"title", "Card title"},
+      {"rel_path", "cards/card.md"}, {"parent_card_id", nullptr}, {"sort_key", 1.25},
+      {"created_at", 123}, {"updated_at", 456}, {"deleted_at", nullptr},
+  };
+  SECTION("a live root card emits null parent and deletion fields") {}
+  SECTION("a trashed child retains its parent and deletion timestamp") {
+    metadata.parent_card_id = "parent";
+    metadata.deleted_at = 789;
+    expected["parent_card_id"] = "parent";
+    expected["deleted_at"] = 789;
+  }
+  const auto encoded = contract_json::encode(metadata);
+  REQUIRE(encoded == expected);
+  const auto decoded = contract_json::decode<holder::contract::CardMetadata>(encoded);
+  CHECK(decoded.card_id == metadata.card_id);
+  CHECK(decoded.project_id == metadata.project_id);
+  CHECK(decoded.title == metadata.title);
+  CHECK(decoded.rel_path == metadata.rel_path);
+  CHECK(decoded.parent_card_id == metadata.parent_card_id);
+  CHECK(decoded.sort_key == metadata.sort_key);
+  CHECK(decoded.created_at == metadata.created_at);
+  CHECK(decoded.updated_at == metadata.updated_at);
+  CHECK(decoded.deleted_at == metadata.deleted_at);
+}
