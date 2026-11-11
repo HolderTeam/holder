@@ -467,6 +467,52 @@ private void test_the_board_canvas_draws_its_links_and_nothing_when_there_are_no
     assert(cv_drawn_pixels((!) canvas, 900, 600) > 50);
 }
 
+private uint64 canvas_color_sum(Gtk.DrawingArea canvas) {
+    canvas.allocate(900, 600, -1, null);
+    var snapshot = new Gtk.Snapshot();
+    canvas.snapshot(snapshot);
+    var node = snapshot.to_node();
+    assert(node != null);
+    var surface = new Cairo.ImageSurface(Cairo.Format.ARGB32, 900, 600);
+    var cr = new Cairo.Context(surface);
+    ((!) node).draw(cr);
+    surface.flush();
+    unowned uint8[] data = surface.get_data();
+    uint64 sum = 0;
+    for (int y = 0; y < 600; y++) {
+        for (int x = 0; x < 900; x++) {
+            int offset = y * surface.get_stride() + x * 4;
+            sum += data[offset] + data[offset + 1] + data[offset + 2];
+        }
+    }
+    return sum;
+}
+
+private void test_board_link_colors_follow_light_and_dark_theme_changes() {
+    var h = cvb_project_harness(3, false);
+    var links = new Gee.ArrayList<HolderLinux.CardLink>();
+    links.add(cv_link("c1", "c2", "depends_on"));
+    h.api.card_links_by_source = new Gee.HashMap<string, Gee.ArrayList<HolderLinux.CardLink>>();
+    ((!) h.api.card_links_by_source).set("c1", links);
+    h.start();
+    assert(h.wait_for_nodes(3));
+    var canvas = cv_find_drawing_area(h.content());
+    assert(canvas != null);
+    var style = Adw.StyleManager.get_for_display(((!) canvas).get_display());
+    var original = style.get_color_scheme();
+    style.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT);
+    assert(h.wait(() => !style.get_dark()));
+    assert(cv_drawn_pixels((!) canvas, 900, 600) > 50);
+    var light = canvas_color_sum((!) canvas);
+    style.set_color_scheme(Adw.ColorScheme.FORCE_DARK);
+    assert(h.wait(() => style.get_dark()));
+    assert(cv_drawn_pixels((!) canvas, 900, 600) > 50);
+    var dark = canvas_color_sum((!) canvas);
+    style.set_color_scheme(original);
+
+    assert(dark > light);
+}
+
 private void test_a_board_without_links_draws_nothing_on_the_canvas() {
     var h = new ConnectionsViewHarness();
     h.project_store.append(cv_project("p1", "Project One", 1));
@@ -485,6 +531,7 @@ public void register_connections_view_board_tests() {
     var prefix = "/holder/connections-tool-view/board/";
     Test.add_func(prefix + "no-projects", test_no_projects_means_a_hint_to_select_one);
     Test.add_func(prefix + "canvas-draws-links", test_the_board_canvas_draws_its_links_and_nothing_when_there_are_none);
+    Test.add_func(prefix + "canvas-theme-colors", test_board_link_colors_follow_light_and_dark_theme_changes);
     Test.add_func(prefix + "canvas-empty", test_a_board_without_links_draws_nothing_on_the_canvas);
     Test.add_func(prefix + "project-lost-keeps-board", test_losing_the_project_keeps_the_board_that_is_already_drawn);
     Test.add_func(prefix + "card-of-other-project", test_a_card_from_another_project_is_treated_as_no_card);

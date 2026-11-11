@@ -33,6 +33,17 @@ command_capture_lib = static_library(
   install: false,
 )
 
+if get_option('tests')
+  command_capture_portability_test = executable(
+    'holder-command-capture-portability-tests',
+    'tests/command_capture_portability_test.c',
+    dependencies: [dependency('gio-2.0')],
+    link_with: [command_capture_lib],
+    install: false,
+  )
+  test('holder-command-capture-portability-tests', command_capture_portability_test)
+endif
+
 if host_machine.system() == 'windows' and get_option('tests')
   command_capture_test = executable(
     'holder-windows-command-capture-tests',
