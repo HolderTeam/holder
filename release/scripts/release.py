@@ -47,6 +47,9 @@ WINDOWS_PROMOTION_SPEC.loader.exec_module(windows_promotion)
 PPA_SPEC = importlib.util.spec_from_file_location('release_launchpad', Path(__file__).with_name('launchpad-release.py'))
 ppa_tool = importlib.util.module_from_spec(PPA_SPEC)
 PPA_SPEC.loader.exec_module(ppa_tool)
+WEBSITE_SPEC = importlib.util.spec_from_file_location('release_website', Path(__file__).with_name('website-observation.py'))
+website_tool = importlib.util.module_from_spec(WEBSITE_SPEC)
+WEBSITE_SPEC.loader.exec_module(website_tool)
 require = manifest_tool.require
 WORKFLOWS = {'backend': 'daemon-ci.yml', 'desktop': 'desktop-ci.yml',
              'linux': 'staging-linux-appimage-stage.yml', 'windows': 'staging-windows-stage.yml',
@@ -859,6 +862,35 @@ class Coordinator:
             for target in ppa['targets'].values()) else 'awaiting_ppa'
         self.persist()
 
+    def advance_website_observation(self):
+        validate_record(self.record)
+        repository = self.record['repository']
+        require(repository == website_tool.generator.REPOSITORY, 'The public website serves HolderTeam/holder releases')
+        self.require_release_tag()
+        completed = self.record.get('website_verified')
+        if completed:
+            require(digest(completed['receipt']) == completed['sha256'], 'Saved website receipt changed')
+        releases = promotion_tool.pages(self.github, self.prefix + '/releases')
+        result = website_tool.observe(releases, self.record['version'],
+            assets=lambda release: promotion_tool.assets_for(self.github, repository, release),
+            contents=lambda asset: self.github.asset_contents(repository, asset))
+        if 'pending' in result:
+            self.record['website_pending'] = result['pending']
+            self.persist()
+            require(not completed, 'Previously verified website is no longer serving the recorded release')
+            self.record['status'] = 'awaiting_website'
+        else:
+            receipt = {**result['receipt'], 'candidate': self.record['candidate']}
+            if completed:
+                require(receipt == completed['receipt'], 'Accepted website release assets or feed changed')
+            else:
+                completed = {'receipt': receipt, 'sha256': digest(receipt)}
+                self.record['website_verified'] = completed
+            completed['checked_at'] = now().isoformat(timespec='seconds')
+            self.record.pop('website_pending', None)
+            self.record['status'] = 'website_verified'
+        self.persist()
+
     def prepare_sdk_publication(self):
         validate_record(self.record)
         require(self.record.get('manifest') and digest(self.record['manifest']['document']) == self.record['manifest']['sha256'],
@@ -974,6 +1006,14 @@ def summary(record):
         current = delivery['last_check']
         lines += ['', f'Windows development assets: {current["url"]}; draft={current["draft"]}',
                   f'Windows promotion receipt SHA256: `{delivery["sha256"]}`']
+    if record.get('website_pending'):
+        lines += ['', record['website_pending']]
+    if record.get('website_verified'):
+        website = record['website_verified']
+        receipt = website['receipt']
+        lines += ['', f'Website last verified at {website["checked_at"]} for {receipt["tag"]}',
+                  f'Feed: {receipt["site"]}version.json',
+                  f'Website receipt SHA256: `{website["sha256"]}`']
     if record.get('ppa'):
         ppa = record['ppa']
         lines += ['', 'PPA architecture coverage: ' + ', '.join(ppa['plan']['architectures']),
@@ -1061,7 +1101,7 @@ def validate_record(record):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'promote-windows', 'publish-sdk', 'observe-ppa', 'status'))
+    parser.add_argument('command', choices=('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'promote-windows', 'publish-sdk', 'observe-ppa', 'observe-website', 'status'))
     parser.add_argument('--record', type=Path, required=True)
     parser.add_argument('--repository', default=None)
     parser.add_argument('--candidate')
@@ -1078,8 +1118,8 @@ def main():
     args = parser.parse_args()
     if (args.ppa_revision or args.ppa_architecture) and args.command != 'observe-ppa':
         parser.error('PPA selections require observe-ppa')
-    if args.command == 'observe-ppa' and args.retry:
-        parser.error('observe-ppa only observes; repair/retry uploads or builds through their existing entry points')
+    if args.command in ('observe-ppa', 'observe-website') and args.retry:
+        parser.error('Observation commands do not retry workflows. Use the existing workflow entry point.')
     try:
         selected_ppa_revisions = ppa_tool.revisions(args.ppa_revision)
     except ValueError as error:
@@ -1133,7 +1173,7 @@ def main():
                 record = initialize(github, args.repository or 'HolderTeam/holder', args.candidate,
                                     args.version, args.number, args.windows_sign_test_installer != 'false')
                 save(args.record, record)
-            if args.command in ('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'promote-windows', 'publish-sdk', 'observe-ppa'):
+            if args.command in ('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'promote-windows', 'publish-sdk', 'observe-ppa', 'observe-website'):
                 coordinator = Coordinator(args.record, record, github)
                 try:
                     record.pop('error', None)
@@ -1143,7 +1183,9 @@ def main():
                         coordinator.retry(args.retry)
                     last_report = None
                     while True:
-                        if args.command == 'observe-ppa':
+                        if args.command == 'observe-website':
+                            coordinator.advance_website_observation()
+                        elif args.command == 'observe-ppa':
                             coordinator.advance_ppa_observation(selected_ppa_revisions, args.ppa_architecture)
                         elif args.command == 'publish-sdk':
                             coordinator.advance_sdk_publication()
@@ -1166,7 +1208,8 @@ def main():
                             last_report = report
                         target = {'packages': 'packages_prepared', 'prepare': 'candidate_staged',
                                   'publish-python': 'python_publication_completed', 'sign-linux': 'linux_signed',
-                                  'promote-linux': 'linux_promoted', 'promote-windows': 'windows_promoted', 'publish-sdk': 'core_sdk_published', 'observe-ppa': 'ppa_available'}[args.command]
+                                  'promote-linux': 'linux_promoted', 'promote-windows': 'windows_promoted', 'publish-sdk': 'core_sdk_published', 'observe-ppa': 'ppa_available',
+                                  'observe-website': 'website_verified'}[args.command]
                         if not args.wait or record['status'] == target:
                             break
                         time.sleep(args.poll_seconds)
