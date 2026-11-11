@@ -1,4 +1,5 @@
 #include "commands/MilestoneDateTime.h"
+#include "model/MilestoneDate.h"
 
 #if __has_include(<catch2/catch_test_macros.hpp>)
 #include <catch2/catch_test_macros.hpp>
@@ -169,3 +170,41 @@ TEST_CASE(
   CHECK(autumn.to - autumn.from + 1 == 25 * 60 * 60);
 }
 #endif
+
+TEST_CASE("Milestone UTC formatting enforces the RFC 3339 year boundaries", "[milestones][model-date]") {
+  using holder::model::milestone_datetime_utc;
+  constexpr long long first = -62135596800LL; // 0001-01-01T00:00:00Z
+  constexpr long long last = 253402300799LL; // 9999-12-31T23:59:59Z
+  CHECK(milestone_datetime_utc(first) == "0001-01-01T00:00:00Z");
+  CHECK(milestone_datetime_utc(last) == "9999-12-31T23:59:59Z");
+  CHECK_THROWS_AS(milestone_datetime_utc(first - 1), std::invalid_argument);
+  CHECK_THROWS_AS(milestone_datetime_utc(last + 1), std::invalid_argument);
+}
+
+TEST_CASE("Legacy milestone conversion preserves UTC days independently of local timezone", "[milestones][model-date]") {
+  using namespace holder::model;
+  TimeZoneGuard timezone("HST10");
+  struct Case { long long at; const char* day; const char* datetime; };
+  for (const auto& item : {
+      Case{-1, "1969-12-31", "1969-12-31T23:59:59Z"},
+      Case{0, "1970-01-01", "1970-01-01T00:00:00Z"},
+      Case{86399, "1970-01-01", "1970-01-01T23:59:59Z"},
+      Case{86400, "1970-01-02", "1970-01-02T00:00:00Z"},
+      Case{951868799, "2000-02-29", "2000-02-29T23:59:59Z"},
+  }) {
+    CAPTURE(item.at);
+    CHECK(milestone_utc_date(item.at) == item.day);
+    const auto all_day = milestone_date_from_legacy("due", item.at, true);
+    CHECK(all_day.role == "due");
+    CHECK(all_day.date == item.day);
+    CHECK_FALSE(all_day.datetime);
+    CHECK_NOTHROW(validate_milestone_date(all_day));
+    CHECK(milestone_legacy_epoch(all_day) == milestone_day_utc_epoch(item.day));
+    const auto instant = milestone_date_from_legacy("start", item.at, false);
+    CHECK(instant.role == "start");
+    CHECK_FALSE(instant.date);
+    CHECK(instant.datetime == item.datetime);
+    CHECK_NOTHROW(validate_milestone_date(instant));
+    CHECK(milestone_legacy_epoch(instant) == item.at);
+  }
+}
