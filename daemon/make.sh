@@ -498,6 +498,7 @@ coverage_all() {
     '*/submodules/*' \
     '*/tests/*' \
     '*/CMakeFiles/*/CompilerIdCXX/*' \
+    --filter brace \
     --output-file "${info_total}"
   genhtml "${info_total}" --output-directory "${report_dir}" --title "holder backend coverage"
   if command -v gcovr >/dev/null 2>&1; then
@@ -513,6 +514,7 @@ coverage_all() {
       --exclude-unreachable-branches \
       --exclude-throw-branches \
       --exclude-function-lines \
+      --exclude-noncode-lines \
       --json-pretty \
       --output "${coverage_json}" \
       "${build_dir}"
