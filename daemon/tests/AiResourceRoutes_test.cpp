@@ -751,3 +751,58 @@ TEST_CASE("Asset import reports a failed location lookup without accepting a job
   CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == "internal_error");
   CHECK(f.sequence == 0);
 }
+
+TEST_CASE("Resource routes validate metadata and leave rejected updates uncommitted",
+          "[resources][routes]") {
+  LocationRouteFixture f;
+  holder::git::RealGitOps git;
+  const std::string list = "/projects/project/resources";
+  const auto target = list + "/resource";
+  const auto call = [&](http::verb method, const std::string& path, const nlohmann::json& body) {
+    return f.call(method, path, body, "project", true, {}, &git);
+  };
+  const nlohmann::json resource{
+      {"resource_id", "resource"}, {"type", "file"}, {"label", "Original"},
+      {"metadata", {{"topic", {"work"}}, {"status", {"draft"}}}}};
+  REQUIRE(call(http::verb::post, list, resource).result() == http::status::created);
+  holder::git::GitRepo repo;
+  repo.open_or_init(f.root / "project");
+  const auto original_head = repo.head_oid();
+  REQUIRE(original_head);
+
+  struct InvalidRequest {
+    http::verb method;
+    std::string path;
+    nlohmann::json body;
+    const char* field;
+  };
+  auto bad_id = resource;
+  bad_id["resource_id"] = "bad/path";
+  for (const auto& item : {
+           InvalidRequest{http::verb::post, list, bad_id, "resource ID"},
+           InvalidRequest{http::verb::patch, target, {{"metadata", nullptr}}, "metadata"},
+           InvalidRequest{http::verb::patch, target, {{"metadata", {{"", {"x"}}}}}, "metadata name"},
+           InvalidRequest{http::verb::patch, target, {{"metadata", {{"topic", "work"}}}}, "metadata"},
+           InvalidRequest{http::verb::patch, target, {{"label", nullptr}}, "label"},
+           InvalidRequest{http::verb::get, list + "/x", {}, "resource_id"},
+       }) {
+    CAPTURE(item.path, item.body);
+    const auto res = call(item.method, item.path, item.body);
+    REQUIRE(res.result() == http::status::bad_request);
+    const auto error = nlohmann::json::parse(res.body()).at("error");
+    CHECK(error.at("code") == "invalid_argument");
+    CHECK(error.at("message").get<std::string>().find(item.field) != std::string::npos);
+  }
+  CHECK(repo.head_oid() == original_head);
+
+  const auto updated = call(
+      http::verb::patch, target, {{"metadata", {{"status", nlohmann::json::array()}}}});
+  REQUIRE(updated.result() == http::status::ok);
+  const auto metadata = nlohmann::json::parse(updated.body()).at("data").at("metadata");
+  CHECK(metadata.at("topic") == nlohmann::json::array({"work"}));
+  CHECK_FALSE(metadata.contains("status"));
+  const auto updated_head = repo.head_oid();
+  CHECK(updated_head != original_head);
+  REQUIRE(call(http::verb::patch, target, {{"label", "Original"}}).result() == http::status::ok);
+  CHECK(repo.head_oid() == updated_head);
+}
