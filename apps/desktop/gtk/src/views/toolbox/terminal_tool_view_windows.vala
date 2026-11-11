@@ -516,10 +516,13 @@ public class TerminalToolView : Object, IToolShellAdapter {
     private void start_transcript_monitor(TerminalSession session) {
         try {
             var directory = File.new_for_path(Path.get_dirname(session.transcript_path));
+            var transcript_name = Path.get_basename(session.transcript_path);
             transcript_monitor = directory.monitor_directory(FileMonitorFlags.WATCH_MOVES, null);
             ((!) transcript_monitor).changed.connect((file, other_file, event_type) => {
-                var changed_path = file.get_path();
-                if (changed_path == session.transcript_path) {
+                // The monitor watches only this session's directory, so the name identifies the
+                // transcript. Full paths can differ in form on Windows (separators, long-path
+                // prefix, 8.3 short names) between what the monitor reports and the stored path.
+                if (file.get_basename() == transcript_name) {
                     queue_transcript_refresh();
                 }
             });
