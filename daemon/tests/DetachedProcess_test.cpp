@@ -1,8 +1,10 @@
 #include "http_test_helpers.h"
 #include "platform/DetachedProcess.h"
 
+#include <cerrno>
 #include <chrono>
 #include <csignal>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -164,8 +166,15 @@ TEST_CASE("DetachedProcess reports unknown status after another caller reaps the
   REQUIRE(process);
   const auto pid = static_cast<pid_t>(process->pid());
   REQUIRE(pid > 0);
+  // Where Boost.Process has no pidfd (macOS), it watches SIGCHLD through a handler installed
+  // without SA_RESTART, so the child's exit can interrupt this wait.
   int status = 0;
-  REQUIRE(::waitpid(pid, &status, 0) == pid);
+  pid_t reaped = -1;
+  do {
+    reaped = ::waitpid(pid, &status, 0);
+  } while (reaped == -1 && errno == EINTR);
+  INFO("waitpid errno: " << std::strerror(errno));
+  REQUIRE(reaped == pid);
   REQUIRE(WIFEXITED(status));
   CHECK(WEXITSTATUS(status) == 23);
   CHECK(wait_for_exit(*process) == -1);
