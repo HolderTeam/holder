@@ -26,9 +26,9 @@ HealthResponse get_health(holder::platform::Db& db,
           db_ok,
           uptime_ms,
           CARD_SERVER_API_VERSION,
-          CARD_SERVER_VERSION,
+          CARD_SERVER_VERSION, // LCOV_EXCL_LINE: GCC attributes only unexecuted exception cleanup here; health response construction is tested.
           holder::core::current_pid(),
-          {"libsodium_xchacha20poly1305_ietf", true},
+          {"libsodium_xchacha20poly1305_ietf", true}, // LCOV_EXCL_LINE: GCC attributes only unexecuted exception cleanup here; privacy metadata is tested.
       },
   };
 }

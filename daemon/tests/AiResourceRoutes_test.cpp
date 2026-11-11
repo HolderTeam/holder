@@ -242,8 +242,12 @@ TEST_CASE(
     expected = http::status::unprocessable_entity;
   }
   LocationRouteFixture f;
+  unsigned head_requests = 0;
   Server server([&](const Server::Request& request) {
-    if (missing_after_put && request.method() == http::verb::head) return Server::response(404);
+    // S3 PUT verifies visibility itself; let that succeed, then lose the object
+    // before the location probe performs its own existence check.
+    if (missing_after_put && request.method() == http::verb::head && ++head_requests > 1)
+      return Server::response(404);
     return Server::response(response_status);
   });
   f.put(
@@ -265,10 +269,12 @@ TEST_CASE(
   CHECK(std::string(server.requests()[0].target()).starts_with("/bucket/archive/.holder-probes/"));
   CHECK(server.requests()[0]["x-amz-security-token"] == "session");
   if (missing_after_put) {
-    REQUIRE(server.requests().size() == 3);
+    REQUIRE(server.requests().size() == 4);
     CHECK(server.requests()[1].method() == http::verb::head);
-    CHECK(server.requests()[2].method() == http::verb::delete_);
+    CHECK(server.requests()[2].method() == http::verb::head);
+    CHECK(server.requests()[3].method() == http::verb::delete_);
     CHECK(nlohmann::json::parse(response.body())["error"]["code"] == "storage_integrity_failed");
+    CHECK(nlohmann::json::parse(response.body())["error"]["message"] == "storage probe not found");
   }
   CHECK(std::filesystem::is_empty(f.root / "cache/holder/asset-probes"));
 }
