@@ -193,3 +193,54 @@ TEST_CASE("Calendar requests validate dates and accept an explicit time zone", "
   CHECK(data.at("updated_cards") == nlohmann::json::array());
   CHECK(data.at("milestones") == nlohmann::json::array());
 }
+
+TEST_CASE("Card mutation routes distinguish malformed selectors from missing cards", "[http]") {
+  namespace http = boost::beast::http;
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  create_project(db, "project", (dir / "project").string());
+
+  struct Case {
+    http::verb method;
+    const char* suffix;
+    nlohmann::json body;
+    const char* invalid_field = nullptr;
+  };
+  for (const auto& item : {
+           Case{http::verb::post, "/restore", {}},
+           Case{http::verb::post, "/move", {{"intent", "invalid"}}, "intent"},
+           Case{http::verb::post, "/move", {{"intent", "to_start"}}},
+           Case{http::verb::put, "/tags/work", {}},
+           Case{http::verb::delete_, "/tags/work", {}},
+           Case{http::verb::post, "/links", {{"target_type", "card"}, {"target_id", "target"}}},
+           Case{http::verb::delete_, "/links", {}, "target_type"},
+           Case{http::verb::delete_, "/links?target_type=invalid", {}, "target_type"},
+           Case{http::verb::delete_, "/links?target_type=card", {}, "target_id"},
+           Case{http::verb::delete_, "/links?target_type=card&target_id=target", {}},
+           Case{http::verb::delete_, "/links?target_type=ai_message&target_id=target&kind=ref", {}},
+           Case{http::verb::delete_, "/links?target_type=ai_thread&target_id=target", {}},
+           Case{http::verb::delete_, "/links?target_type=resource&target_id=target&target_project_id=other", {}},
+           Case{http::verb::post, "/milestones", {{"dates", nlohmann::json::array()}}},
+           Case{http::verb::delete_, "/milestones/missing", {}},
+       }) {
+    CAPTURE(item.suffix, item.body);
+    http::request<http::string_body> req{
+        item.method, std::string("/projects/project/cards/missing") + item.suffix, 11};
+    if (!item.body.is_null()) {
+      req.body() = item.body.dump();
+      req.prepare_payload();
+    }
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    INFO(res.body());
+    const auto error = nlohmann::json::parse(res.body()).at("error");
+    if (item.invalid_field) {
+      CHECK(res.result() == http::status::bad_request);
+      CHECK(error.at("code") == "invalid_argument");
+      CHECK(error.at("message").get<std::string>().find(item.invalid_field) != std::string::npos);
+    } else {
+      CHECK(res.result() == http::status::not_found);
+      CHECK(error.at("code") == "not_found");
+    }
+  }
+}
