@@ -2,7 +2,10 @@
 #include "card/CardRepo.h"
 #include "card/TagRepo.h"
 #include "http_test_helpers.h"
+#include "privacy/ProjectPrivacy.h"
+#include "project/ProjectRepo.h"
 #include <cctype>
+#include <fstream>
 #include <unordered_map>
 
 namespace {
@@ -329,4 +332,131 @@ TEST_CASE("Project hierarchy repair reports and fixes hidden cards", "[card-page
   REQUIRE(holder::api::dispatch_generated_routes(no_store, res, db));
   CHECK(res.result() == http::status::ok);
   CHECK(nlohmann::json::parse(res.body())["data"]["changed_card_count"] == 0);
+}
+
+TEST_CASE("Locked projects allow hierarchy preview and metadata but reject card rewrites",
+          "[card-pages][repair]") {
+  const auto dir = holder::test::make_temp_dir();
+  holder::test::EnvGuard keys("HOLDER_TEST_KEYSTORE_DIR", (dir / "keys").string());
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  const auto root = dir / "project";
+  holder::test::create_project(db, "p", root.string());
+  holder::project::ProjectRepo projects(db);
+  projects.update_privacy_mode("p", "encrypted_git", 1);
+  const auto key_id = holder::privacy::ensure_project_key_material(
+      projects, "p", std::nullopt, 1, [] { return std::string("fixture-key"); });
+
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore store(db, &fts);
+  const std::string parent = "00000000-0000-4000-8000-000000000021";
+  const std::string child = "00000000-0000-4000-8000-000000000022";
+  const std::string sibling = "00000000-0000-4000-8000-000000000023";
+  holder::test::create_card_fixture(store, parent, "p", "Parent", "Parent body", 10);
+  holder::test::create_card_fixture(store, child, "p", "Child", "Child body", 11, parent);
+  holder::test::create_card_fixture(store, sibling, "p", "Sibling", "Sibling body", 12);
+  holder::card::CardRepo(db).soft_delete(parent, 20, 20);
+
+  holder::git::GitRepo git;
+  git.open_or_init(root);
+  const auto head = git.head_oid();
+  REQUIRE(head);
+  const auto key_file = dir / "keys" / (key_id + ".key");
+  const auto backup = dir / "saved-key";
+  std::filesystem::rename(key_file, backup);
+
+  const auto call = [&](http::verb method, const std::string& path,
+                        const nlohmann::json& body = nullptr) {
+    CAPTURE(path, body);
+    http::request<http::string_body> req{method, path, 11};
+    if (!body.is_null()) {
+      req.body() = body.dump();
+      req.prepare_payload();
+    }
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
+  };
+
+  const auto preview = call(http::verb::post, "/projects/p/repair-hierarchy");
+  REQUIRE(preview.first == http::status::ok);
+  CHECK(preview.second.at("data").at("changed_card_count") == 1);
+  CHECK(preview.second.at("data").at("applied") == false);
+
+  const auto metadata = call(http::verb::get, "/projects/p/cards");
+  REQUIRE(metadata.first == http::status::ok);
+  CHECK_FALSE(metadata.second.at("data").at("items").empty());
+
+  const auto check_locked = [](const auto& result) {
+    INFO(result.second.dump());
+    REQUIRE(result.first == http::status::conflict);
+    CHECK(result.second.at("error").at("code") == "key_missing");
+  };
+  check_locked(call(http::verb::get, "/projects/p/cards?include_content=true"));
+  check_locked(call(http::verb::post, "/projects/p/repair-hierarchy", {{"apply", true}}));
+  check_locked(call(http::verb::post, "/projects/p/cards/" + child + "/move",
+                    {{"intent", "into"}, {"target_card_id", sibling}}));
+  check_locked(call(http::verb::delete_, "/projects/p/cards/" + sibling));
+  CHECK(git.head_oid() == head);
+  REQUIRE(store.get(child));
+  REQUIRE(store.get(sibling));
+  CHECK(store.get(child)->parent_card_id == parent);
+  CHECK_FALSE(store.get(sibling)->parent_card_id);
+  CHECK_FALSE(store.get(sibling)->deleted_at);
+
+  std::filesystem::rename(backup, key_file);
+  const auto repaired = call(http::verb::post, "/projects/p/repair-hierarchy", {{"apply", true}});
+  REQUIRE(repaired.first == http::status::ok);
+  CHECK(repaired.second.at("data").at("applied") == true);
+  REQUIRE(store.get(child));
+  CHECK_FALSE(store.get(child)->parent_card_id);
+}
+
+TEST_CASE("Corrupt encrypted card content is reported without rewriting it", "[card-pages]") {
+  const auto dir = holder::test::make_temp_dir();
+  holder::test::EnvGuard keys("HOLDER_TEST_KEYSTORE_DIR", (dir / "keys").string());
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  const auto root = dir / "project";
+  holder::test::create_project(db, "p", root.string());
+  holder::project::ProjectRepo projects(db);
+  projects.update_privacy_mode("p", "encrypted_git", 1);
+  holder::privacy::ensure_project_key_material(
+      projects, "p", std::nullopt, 1, [] { return std::string("fixture-key"); });
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore store(db, &fts);
+  const std::string id = "00000000-0000-4000-8000-000000000031";
+  holder::test::create_card_fixture(store, id, "p", "Card", "Encrypted body", 10);
+  const auto card = store.get(id);
+  REQUIRE(card);
+  const auto path = root / card->rel_path;
+  const std::string truncated = "HolderPriv1\n";
+  std::ofstream(path, std::ios::binary | std::ios::trunc) << truncated;
+
+  holder::git::GitRepo git;
+  git.open_or_init(root);
+  const auto head = git.head_oid();
+  REQUIRE(head);
+
+  const auto card_path = "/projects/p/cards/" + id;
+  for (const auto& [method, target] : {
+           std::pair{http::verb::get, card_path},
+           std::pair{http::verb::get, std::string("/projects/p/cards?include_content=true")},
+           std::pair{http::verb::patch, card_path},
+       }) {
+    CAPTURE(target);
+    http::request<http::string_body> req{method, target, 11};
+    if (method == http::verb::patch) {
+      req.body() = R"({"content":"replacement"})";
+      req.prepare_payload();
+    }
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    INFO(res.body());
+    REQUIRE(res.result() == http::status::internal_server_error);
+    CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == "data_corrupted");
+  }
+  CHECK(git.head_oid() == head);
+  std::ifstream in(path, std::ios::binary);
+  REQUIRE(in.is_open());
+  CHECK(std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()) ==
+        truncated);
 }
