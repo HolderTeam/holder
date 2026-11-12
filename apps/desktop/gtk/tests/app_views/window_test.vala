@@ -101,6 +101,55 @@ private class WindowStorageApi : MainControllerFakeApi, HolderLinux.IResourceSto
     }
 }
 
+// Answers file choosers the way a test sets: a chosen file, nothing (cancelled), or an error.
+private class ScriptedFilePicker : Object, HolderLinux.IFilePicker {
+    public File? chosen = null;
+    public int asks = 0;
+
+    public async File? pick_folder(Gtk.Window parent, string title) throws Error {
+        asks++;
+        return chosen;
+    }
+
+    public async File? pick_file(Gtk.Window parent, string title, bool images_only) throws Error {
+        asks++;
+        return chosen;
+    }
+
+    public async File? save_file(Gtk.Window parent, string title, string initial_name) throws Error {
+        asks++;
+        return chosen;
+    }
+}
+
+// Recovery key files as the app writes them, except that "emailing" one is only recorded.
+private class RecordingRecoveryService : Object, HolderLinux.IRecoveryService {
+    private HolderLinux.RecoveryService files = new HolderLinux.RecoveryService();
+    public Gee.ArrayList<string> emailed = new Gee.ArrayList<string>();
+
+    public string build_safe_filename(string project_name) {
+        return files.build_safe_filename(project_name);
+    }
+
+    public string write_payload_to_temp_attachment(string project_name, string payload) throws Error {
+        var path = Path.build_filename(av_temp_dir(), build_safe_filename(project_name));
+        files.save_payload_to_path(path, payload);
+        return path;
+    }
+
+    public void open_email_with_attachment(string attachment_path) throws Error {
+        emailed.add(attachment_path);
+    }
+
+    public void save_payload_to_path(string path, string payload) throws Error {
+        files.save_payload_to_path(path, payload);
+    }
+
+    public string load_payload_from_path(string path) throws Error {
+        return files.load_payload_from_path(path);
+    }
+}
+
 private class WindowUriLauncher : Object, HolderLinux.IUriLauncher {
     public Gee.ArrayList<string> launched = new Gee.ArrayList<string>();
     public string? failure = null;
@@ -124,11 +173,16 @@ private class WindowFixture : Object {
     public RecordingPresence presence = new RecordingPresence();
     public OfflineUpdateTransport updates = new OfflineUpdateTransport();
     public WindowUriLauncher launcher = new WindowUriLauncher();
+    public ScriptedFilePicker picker = new ScriptedFilePicker();
+    public RecordingRecoveryService recovery = new RecordingRecoveryService();
     public Settings settings;
     public bool without_settings = false;
     // Null with find_backend unset uses a daemon that is already running, as most tests do.
     public HolderLinux.IBackendStarter? backend_starter = null;
     public bool find_backend = false;
+    // The size asked for on the command line; 0 uses the saved one.
+    public int startup_width = 1400;
+    public int startup_height = 900;
     public HolderLinux.MainWindow window;
 
     public WindowFixture() {
@@ -161,7 +215,9 @@ private class WindowFixture : Object {
         services.update_check = new HolderLinux.UpdateCheckService(updates);
         services.settings = without_settings ? null : settings;
         services.uri_launcher = launcher;
-        window = new HolderLinux.MainWindow(app(), 1400, 900, services);
+        services.file_picker = picker;
+        services.recovery_service = recovery;
+        window = new HolderLinux.MainWindow(app(), startup_width, startup_height, services);
         window.present();
     }
 
@@ -225,6 +281,18 @@ private class WindowFixture : Object {
             }
         }
         assert_not_reached();
+    }
+
+    // Types a PIN into the open PIN dialog and continues.
+    public void enter_pin(string pin, Adw.Dialog? previous = null) {
+        var dialog = wait_for_dialog(previous);
+        foreach (var widget in av_descendants(dialog)) {
+            var entry = widget as Gtk.Entry;
+            if (entry != null && ((!) entry).get_placeholder_text() == "PIN") {
+                ((!) entry).set_text(pin);
+            }
+        }
+        av_answer(dialog, "continue");
     }
 
     public bool has_toast(string title) {
@@ -685,6 +753,17 @@ private void test_holderctl_is_found_or_its_absence_logged() {
     assert(g.debug_log().contains("is not an executable"));
     g.destroy();
 
+    // Without HOLDER_CTL, the log says it can name one.
+    Environment.unset_variable("HOLDER_CTL");
+    Environment.set_variable("PATH", dir + "-empty", true);
+    var h = new WindowFixture();
+    h.find_backend = true;
+    h.open();
+    Environment.set_variable("PATH", previous_path, true);
+    assert(wait_for_condition(() => h.controller().selected_project_id() == "p1"));
+    assert(h.debug_log().contains("(HOLDER_CTL can name one)"));
+    h.destroy();
+
     if (previous_ctl != null) {
         Environment.set_variable("HOLDER_CTL", (!) previous_ctl, true);
     } else {
@@ -988,6 +1067,247 @@ private void test_attachments_that_fail_to_load_say_so_in_the_open_preview() {
     f.destroy();
 }
 
+private void test_an_asset_can_be_exported_where_the_user_chooses() {
+    var f = new WindowFixture();
+    var api = new WindowStorageApi();
+    f.api = api;
+    f.open_loaded();
+    f.open_card("c1");
+    var workspace = f.window.workspace_for_tests();
+    var resource = window_image_resource("r-export");
+    workspace.toolbox.asset_preview_requested(resource, resource.assets[0]);
+    assert(wait_for_condition(() => f.preview_state() == "image"));
+
+    // Cancelling the chooser exports nothing.
+    workspace.asset_preview.export_requested();
+    assert(wait_for_condition(() => f.picker.asks == 1));
+    av_settle();
+
+    var destination = Path.build_filename(av_temp_dir(), "exported.png");
+    f.picker.chosen = File.new_for_path(destination);
+    workspace.asset_preview.export_requested();
+    assert(wait_for_condition(() => f.has_toast("Asset exported.")));
+    assert(FileUtils.test(destination, FileTest.EXISTS));
+    f.destroy();
+}
+
+private void test_a_recovery_key_can_be_emailed_saved_and_imported() {
+    var f = new WindowFixture();
+    f.open_loaded();
+    var w = f.window;
+
+    w.request_send_recovery_key_as_email();
+    f.enter_pin("2468");
+    assert(wait_for_condition(() => f.recovery.emailed.size == 1));
+    assert(f.has_toast("Opened default email app with recovery key attachment."));
+
+    var saved = Path.build_filename(av_temp_dir(), "Project-1-recovery.hrk");
+    f.picker.chosen = File.new_for_path(saved);
+    w.request_save_recovery_key_to_usb();
+    f.enter_pin("2468");
+    assert(wait_for_condition(() => FileUtils.test(saved, FileTest.EXISTS)));
+    string contents;
+    try {
+        FileUtils.get_contents(saved, out contents);
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+    assert(contents == "{\"token\":\"fake\"}");
+
+    // Importing reads the chosen file, asks for its PIN, and summarises what it restored.
+    w.request_import_recovery_key();
+    f.enter_pin("2468");
+    var summary = f.wait_for_dialog();
+    assert(summary.get_heading() != "Unlock Recovery Key");
+    av_answer(summary, "ok");
+    f.destroy();
+}
+
+private void test_closing_waits_for_the_save_and_then_closes() {
+    var f = new WindowFixture();
+    f.open_loaded();
+    f.open_card("c1");
+    f.window.workspace_for_tests().editor_buffer.set_text("# Card 1\n\nLast words", -1);
+
+    // The card is saved first; the window closes once it is.
+    assert(f.window.on_window_close_requested());
+    assert(wait_for_condition(() => !f.window.get_visible()));
+    assert(f.api.last_updated_content == "# Card 1\n\nLast words");
+    assert(f.presence.leaves == 1);
+    f.destroy();
+}
+
+private void test_inline_image_previews_appear_when_turned_on() {
+    var f = new WindowFixture();
+    var api = new WindowStorageApi();
+    f.api = api;
+    api.resources.add(window_image_resource("r-inline"));
+    f.settings.set_boolean(HolderLinux.AppSettings.KEY_SHOW_INLINE_IMAGE_PREVIEWS, true);
+    f.open_loaded();
+    f.open_card("c1");
+    var workspace = f.window.workspace_for_tests();
+    f.window.on_app_state_changed();
+
+    workspace.editor_buffer.set_text("# Card 1\n\n![Boiler](holder://resource/r-inline)\n", -1);
+    f.window.on_editor_buffer_changed();
+
+    assert(wait_for_condition(() => workspace.inline_resource_images.decoration_count() == 1));
+    f.destroy();
+}
+
+private void test_the_intelligence_panel_follows_the_card() {
+    var f = new WindowFixture();
+    f.settings.set_int(HolderLinux.AppSettings.KEY_AI_PANEL_WIDTH, 720);
+    f.open_loaded();
+    f.open_card("c1");
+    var w = f.window;
+    var fatal = Log.set_always_fatal(LogLevelFlags.LEVEL_ERROR | LogLevelFlags.LEVEL_CRITICAL);
+    w.on_workspace_ai_panel_toggled(true);
+
+    // An autosave with the panel open asks for a title suggestion; accepting one renames the card.
+    var panel = w.workspace_for_tests().ai_panel;
+    w.workspace_for_tests().editor_buffer.set_text("# Card 1\n\nAutosaved", -1);
+    w.on_editor_buffer_changed();
+    assert(wait_for_condition(() => f.api.last_updated_content.has_suffix("Autosaved"), 8000));
+    av_settle();
+    panel.title_suggestion_apply_requested("n1", "c1", "Boiler service");
+    av_settle();
+    Log.set_always_fatal(fatal);
+    f.destroy();
+}
+
+private void test_a_window_saved_maximized_starts_maximized() {
+    var f = new WindowFixture();
+    f.settings.set_boolean(HolderLinux.AppSettings.KEY_WINDOW_MAXIMIZED, true);
+    // A size given on the command line would win over the saved state.
+    f.startup_width = 0;
+    f.startup_height = 0;
+    f.open_loaded();
+    av_settle();
+
+    assert(!f.window.on_window_close_requested());
+    // Whether the window manager maximized it is what is saved again.
+    assert(f.settings.get_boolean(HolderLinux.AppSettings.KEY_WINDOW_MAXIMIZED) == f.window.is_maximized());
+    f.destroy();
+}
+
+private void test_window_edge_cases_change_nothing() {
+    var f = new WindowFixture();
+    f.api.search_returns_card2 = true;
+    f.api.include_card2 = true;
+    f.open_loaded();
+    var w = f.window;
+    var workspace = w.workspace_for_tests();
+
+    // Nothing to append to, and no card id to trash.
+    var before = f.editor_text();
+    w.append_text_to_current_card("$ make");
+    assert(f.editor_text() == before);
+    w.confirm_move_card_to_trash("");
+    av_settle();
+    assert(w.get_visible_dialog() == null);
+
+    // A press that is not a real click, and an attachment that is not there.
+    w.on_internal_link_click_pressed(new Gtk.GestureClick(), 1, 0, 0);
+    workspace.asset_preview.attachment_selected(5);
+
+    // Clearing the project selection is a transient state the window ignores.
+    w.request_project_selection(null);
+    w.on_project_selection_changed();
+
+    // Moving to search results with none selected selects the first.
+    workspace.search_entry.set_text("card");
+    w.on_workspace_search_activated();
+    assert(wait_for_condition(() => w.search_store_for_tests().get_n_items() == 1));
+    workspace.search_selection.set_autoselect(false);
+    workspace.search_selection.set_can_unselect(true);
+    workspace.search_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+    w.on_workspace_search_focus_results_requested();
+    assert(workspace.search_selection.get_selected() == 0);
+
+    // A restored trash item whose project cannot be reloaded is left alone.
+    f.api.fail_list_cards = true;
+    var done = false;
+    w.on_trash_item_restored.begin("c1", (obj, res) => {
+        w.on_trash_item_restored.end(res);
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+    f.destroy();
+}
+
+private void test_a_card_with_children_asks_what_to_trash() {
+    var f = new WindowFixture();
+    f.open_loaded();
+    var w = f.window;
+    w.card_store_for_tests().append(
+        new HolderLinux.CardSummary("c1-child", "p1", "Child", "c1-child.md", 2.0, "c1", 30, 30)
+    );
+
+    w.confirm_move_card_to_trash("c1");
+    var dialog = f.wait_for_dialog();
+    av_answer(dialog, "subtree");
+    assert(wait_for_condition(() => f.api.delete_card_calls == 1));
+    f.destroy();
+}
+
+private void test_the_preferences_turn_inline_previews_on() {
+    var f = new WindowFixture();
+    f.open_loaded();
+    var w = f.window;
+
+    w.handle_show_preferences_action();
+    assert(wait_for_condition(() => w.get_visible_dialog() is HolderLinux.PreferencesDialog));
+    var dialog = (HolderLinux.PreferencesDialog) (!) w.get_visible_dialog();
+    dialog.inline_image_previews_changed(true);
+    dialog.force_close();
+    f.destroy();
+}
+
+private void test_recovery_keys_need_a_project_and_a_daemon() {
+    // With no project, there is nothing to export.
+    var f = new WindowFixture();
+    f.api.list_projects_empty = true;
+    f.open();
+    assert(wait_for_condition(() => f.api.list_projects_calls > 0));
+    av_settle();
+    f.window.request_save_recovery_key_to_usb();
+    f.enter_pin("2468");
+    assert(wait_for_condition(() => f.has_toast("Select a project first.")));
+    assert(f.picker.asks == 0);
+    f.destroy();
+
+    // Without a daemon, an import fails and says so.
+    var g = new WindowFixture();
+    g.discovery.should_fail = true;
+    var key = Path.build_filename(av_temp_dir(), "key.hrk");
+    try {
+        FileUtils.set_contents(key, "{\"token\":\"fake\"}");
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+    g.picker.chosen = File.new_for_path(key);
+    g.open();
+    g.window.request_import_recovery_key();
+    g.enter_pin("2468");
+    assert(wait_for_condition(() => g.shows_label("Recovery key import failed")));
+    g.destroy();
+}
+
+[CCode (cname = "g_object_run_dispose")]
+private extern void window_run_dispose(Object object);
+
+private void test_disposing_the_window_stops_intelligence_runs() {
+    var f = new WindowFixture();
+    f.open_loaded();
+    var window = f.window;
+    window.destroy();
+    av_settle();
+
+    // The window's own handlers keep it alive past destroy; dispose is what releases it.
+    window_run_dispose(window);
+}
+
 internal void register_window_tests() {
     Test.add_func("/app_views/window/starts_and_loads", test_the_window_starts_and_loads_the_first_project);
     Test.add_func("/app_views/window/toolbar_actions", test_the_toolbar_actions_reach_the_controller);
@@ -1017,6 +1337,17 @@ internal void register_window_tests() {
     Test.add_func("/app_views/window/asset_unavailable", test_an_asset_that_cannot_be_fetched_shows_why);
     Test.add_func("/app_views/window/card_attachments", test_a_cards_attachments_fill_the_preview);
     Test.add_func("/app_views/window/attachments_fail", test_attachments_that_fail_to_load_say_so_in_the_open_preview);
+    Test.add_func("/app_views/window/export_asset", test_an_asset_can_be_exported_where_the_user_chooses);
+    Test.add_func("/app_views/window/recovery_key", test_a_recovery_key_can_be_emailed_saved_and_imported);
+    Test.add_func("/app_views/window/close_after_save", test_closing_waits_for_the_save_and_then_closes);
+    Test.add_func("/app_views/window/inline_previews", test_inline_image_previews_appear_when_turned_on);
+    Test.add_func("/app_views/window/intelligence", test_the_intelligence_panel_follows_the_card);
+    Test.add_func("/app_views/window/maximized", test_a_window_saved_maximized_starts_maximized);
+    Test.add_func("/app_views/window/edge_cases", test_window_edge_cases_change_nothing);
+    Test.add_func("/app_views/window/trash_children", test_a_card_with_children_asks_what_to_trash);
+    Test.add_func("/app_views/window/preferences_previews", test_the_preferences_turn_inline_previews_on);
+    Test.add_func("/app_views/window/recovery_needs", test_recovery_keys_need_a_project_and_a_daemon);
+    Test.add_func("/app_views/window/dispose", test_disposing_the_window_stops_intelligence_runs);
 }
 
 }

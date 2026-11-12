@@ -345,7 +345,7 @@ public class PowerShellDiscoveryService : Object {
     internal virtual int run_hidden_process(string executable, string command_line, uint timeout_ms) throws Error {
         int exit_code;
         run_windows_process_hidden(executable, command_line, timeout_ms, out exit_code);
-        return exit_code;
+        return exit_code; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: Windows-only; elsewhere the hidden process helper always throws NOT_SUPPORTED
     }
 
     internal async int run_hidden_process_async(string executable, string command_line) throws Error {

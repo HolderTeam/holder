@@ -17,12 +17,18 @@ public class MainWindowServices : Object {
     public Settings? settings;
     // Opens web and email links and exported assets in the desktop's default apps.
     public IUriLauncher uri_launcher;
+    // Asks where to save or what to open: recovery keys and exported assets.
+    public IFilePicker file_picker;
+    // Writes, reads and emails recovery key files.
+    public IRecoveryService recovery_service;
 
     public MainWindowServices() {
         api_factory = new DefaultApiFactory();
         server_discovery = new FileServerDiscovery();
         update_check = new UpdateCheckService();
         uri_launcher = new AppInfoUriLauncher();
+        file_picker = new GtkFilePicker();
+        recovery_service = new RecoveryService();
         settings = AppSettings.open_or_null();
     }
 }

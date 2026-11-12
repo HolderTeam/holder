@@ -3,99 +3,100 @@ namespace HolderLinux {
 public class MainWindow : Adw.ApplicationWindow {
     private delegate void StateApplyFunc();
 
-    private Adw.ToastOverlay toast_overlay;
+    private Adw.ToastOverlay toast_overlay; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
-    private GLib.ListStore project_store;
-    private Gtk.SingleSelection project_selection;
-    private GLib.ListStore card_store;
-    private Gtk.SingleSelection card_selection;
-    private GLib.ListStore ai_thread_store;
-    private Gtk.SingleSelection ai_thread_selection;
-    private GLib.ListStore search_store;
+    private GLib.ListStore project_store; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection project_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private GLib.ListStore card_store; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection card_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private GLib.ListStore ai_thread_store; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection ai_thread_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private GLib.ListStore search_store; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
-    private WorkspacePane workspace;
-    private GtkSource.Buffer editor_buffer;
-    private GtkSource.View editor_view;
-    private EditorFontStyle editor_font_style;
-    private Gtk.SearchEntry search_entry;
-    private Gtk.Label search_summary_label;
-    private Gtk.SingleSelection search_selection;
-    private Gtk.ListView search_list;
-    private SidebarPane sidebar;
-    private Gtk.Paned root_paned;
-    private AiPanel ai_panel;
-    private AssetPreviewPane asset_preview;
-    private ToolboxPane toolbox;
-    private MainController controller;
-    private ProjectCreateController project_create_controller;
-    private ExplorerSelectionController explorer_selection_controller;
-    private SidebarDataRenderer sidebar_data_renderer;
-    private SidebarSelectionRenderer sidebar_selection_renderer;
-    private SearchSelectionController search_selection_controller;
-    private SelectionRequestController selection_request_controller;
-    private SelectionIntentController selection_intent_controller;
-    private SelectionIntentOrchestrator selection_intent_orchestrator;
-    private SelectionController selection_controller;
-    private SelectionTransitionController selection_transition_controller;
-    private ToolboxBreadcrumbController toolbox_breadcrumb_controller;
-    private ToolboxEventOrchestrator toolbox_event_orchestrator;
-    private WindowFeedbackOrchestrator window_feedback_orchestrator;
-    private WindowActionBinder window_action_binder;
-    private WindowSidebarEventBinder window_sidebar_event_binder;
-    private WindowWorkspaceEventBinder window_workspace_event_binder;
-    private WindowSelectionEditorEventBinder window_selection_editor_event_binder;
-    private WindowFlowboardEventBinder window_flowboard_event_binder;
-    private WindowLifecycleEventBinder window_lifecycle_event_binder;
-    private WindowStateEventBinder window_state_event_binder;
-    private ShareController share_controller;
-    private CardAppendController card_append_controller;
-    private RecoveryController recovery_controller;
-    private RecoveryUiController recovery_ui_controller;
-    private RecoveryDialogAdapter recovery_dialog_adapter;
-    private WindowInternalLinkNavigator internal_link_navigator;
-    private LocalInfoController local_info_controller;
-    private LocalInfoFlowController local_info_flow_controller;
-    private LocalInfoPresenter local_info_presenter;
-    private LocalInfoViewAdapter local_info_view_adapter;
-    private LocalInfoUiController local_info_ui_controller;
-    private WindowEditorRenderer editor_renderer;
-    private WindowActivityFeedback activity_feedback;
-    private WindowActionsAdapter window_actions_adapter;
-    private UpdateCheckService update_check_service;
-    private IUriLauncher uri_launcher;
-    private UpdateDialogAdapter update_dialog_adapter;
-    private CardActionDialogAdapter card_action_dialog_adapter;
-    private ProjectCreateDialogAdapter project_create_dialog_adapter;
-    private PrintService print_service;
-    private PrintAdapter print_ui_controller;
-    private AiRunController ai_run_controller;
-    private AiNudgeController ai_nudge_controller;
-    private AssetPreviewController asset_preview_controller;
-    private AssetCache asset_cache;
-    private MarkdownResourceImageController markdown_resource_image_controller;
-    private InlineResourceImageRenderer inline_resource_image_renderer;
-    private InlineImageRefresh inline_image_refresh;
+    private WorkspacePane workspace; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private GtkSource.Buffer editor_buffer; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private GtkSource.View editor_view; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private EditorFontStyle editor_font_style; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SearchEntry search_entry; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label search_summary_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection search_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.ListView search_list; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private SidebarPane sidebar; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Paned root_paned; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private AiPanel ai_panel; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private AssetPreviewPane asset_preview; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ToolboxPane toolbox; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private MainController controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ProjectCreateController project_create_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ExplorerSelectionController explorer_selection_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private SidebarDataRenderer sidebar_data_renderer; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private SidebarSelectionRenderer sidebar_selection_renderer; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private SearchSelectionController search_selection_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private SelectionRequestController selection_request_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private SelectionIntentController selection_intent_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private SelectionIntentOrchestrator selection_intent_orchestrator; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private SelectionController selection_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private SelectionTransitionController selection_transition_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ToolboxBreadcrumbController toolbox_breadcrumb_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ToolboxEventOrchestrator toolbox_event_orchestrator; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private WindowFeedbackOrchestrator window_feedback_orchestrator; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private WindowActionBinder window_action_binder; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private WindowSidebarEventBinder window_sidebar_event_binder; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private WindowWorkspaceEventBinder window_workspace_event_binder; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private WindowSelectionEditorEventBinder window_selection_editor_event_binder; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private WindowFlowboardEventBinder window_flowboard_event_binder; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private WindowLifecycleEventBinder window_lifecycle_event_binder; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private WindowStateEventBinder window_state_event_binder; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ShareController share_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private CardAppendController card_append_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private RecoveryController recovery_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private RecoveryUiController recovery_ui_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private RecoveryDialogAdapter recovery_dialog_adapter; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private WindowInternalLinkNavigator internal_link_navigator; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private LocalInfoController local_info_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private LocalInfoFlowController local_info_flow_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private LocalInfoPresenter local_info_presenter; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private LocalInfoViewAdapter local_info_view_adapter; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private LocalInfoUiController local_info_ui_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private WindowEditorRenderer editor_renderer; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private WindowActivityFeedback activity_feedback; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private WindowActionsAdapter window_actions_adapter; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private UpdateCheckService update_check_service; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IUriLauncher uri_launcher; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IFilePicker file_picker; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private UpdateDialogAdapter update_dialog_adapter; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private CardActionDialogAdapter card_action_dialog_adapter; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ProjectCreateDialogAdapter project_create_dialog_adapter; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private PrintService print_service; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private PrintAdapter print_ui_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private AiRunController ai_run_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private AiNudgeController ai_nudge_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private AssetPreviewController asset_preview_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private AssetCache asset_cache; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private MarkdownResourceImageController markdown_resource_image_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private InlineResourceImageRenderer inline_resource_image_renderer; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private InlineImageRefresh inline_image_refresh; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private AttachmentSelection attachment_selection = new AttachmentSelection();
-    private AssetImportFlow asset_import_flow;
-    private AiPanelEventOrchestrator ai_panel_event_orchestrator;
-    private FindReplaceController find_replace_controller;
-    private FlowboardController flowboard_controller;
-    private FlowboardContextController flowboard_context_controller;
-    private ToolHelpController tool_help_controller;
-    private AppStateStore app_state_store;
-    private ActivityLogStore activity_log_store;
-    private ActivityLogController activity_log_controller;
-    private IActivityReducer activity_reducer;
-    private AppTransitionController app_transition_controller;
-    private MainControllerSignalBinder main_controller_signal_binder;
-    private Settings? settings;
-    private uint flowboard_refresh_idle_id = 0;
-    private bool sidebar_visible = true;
-    private int last_sidebar_position = WindowGeometry.DEFAULT_SIDEBAR_WIDTH;
-    private WindowCloseGuard close_guard;
+    private AssetImportFlow asset_import_flow; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private AiPanelEventOrchestrator ai_panel_event_orchestrator; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private FindReplaceController find_replace_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private FlowboardController flowboard_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private FlowboardContextController flowboard_context_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ToolHelpController tool_help_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private AppStateStore app_state_store; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ActivityLogStore activity_log_store; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ActivityLogController activity_log_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IActivityReducer activity_reducer; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private AppTransitionController app_transition_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private MainControllerSignalBinder main_controller_signal_binder; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Settings? settings; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private uint flowboard_refresh_idle_id = 0; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private bool sidebar_visible = true; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private int last_sidebar_position = WindowGeometry.DEFAULT_SIDEBAR_WIDTH; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private WindowCloseGuard close_guard; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
-    private uint applying_state_depth = 0;
-    private uint rendered_sidebar_data_version = uint.MAX;
+    private uint applying_state_depth = 0; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private uint rendered_sidebar_data_version = uint.MAX; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
     public MainWindow(Adw.Application app,
                       int startup_width = 0,
@@ -213,6 +214,7 @@ public class MainWindow : Adw.ApplicationWindow {
         );
         update_check_service = services.update_check;
         uri_launcher = services.uri_launcher;
+        file_picker = services.file_picker;
         project_create_controller = new ProjectCreateController();
         explorer_selection_controller = new ExplorerSelectionController(
             project_store,
@@ -256,9 +258,12 @@ public class MainWindow : Adw.ApplicationWindow {
         project_create_dialog_adapter = new ProjectCreateDialogAdapter(this);
         print_service = new PrintService();
         print_ui_controller = new PrintAdapter(print_service);
-        recovery_controller = new RecoveryController(new WindowRecoveryContext(controller));
+        recovery_controller = new RecoveryController(
+            new WindowRecoveryContext(controller),
+            services.recovery_service
+        );
         recovery_ui_controller = new RecoveryUiController(recovery_controller);
-        recovery_dialog_adapter = new RecoveryDialogAdapter(this, recovery_ui_controller);
+        recovery_dialog_adapter = new RecoveryDialogAdapter(this, recovery_ui_controller, file_picker);
         ai_run_controller = new AiRunController(controller);
         ai_nudge_controller = new AiNudgeController(controller);
         asset_preview_controller = new AssetPreviewController();
@@ -498,11 +503,15 @@ public class MainWindow : Adw.ApplicationWindow {
                         : " (HOLDER_CTL can name one)"));
             }
         } else {
-            log_debug_line("BACKEND_ENSURE skipped: not done on %s yet".printf(PLATFORM));
+            log_debug_line("BACKEND_ENSURE skipped: not done on %s yet".printf(PLATFORM)); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the app builds only for Linux, Windows and macOS
         }
         if (services.presence != null) {
             controller.presence = services.presence;
         } else {
+            // The app's own presence stream; the window tests pass a recorded one so they never
+            // contact a daemon, and PresenceStream has tests of its own.
+            // LCOV_EXCL_START
+            // GCOVR_EXCL_START
             var presence_stream = new PresenceStream(
                 new SoupApiHttpTransport(),
                 new FileServerDiscovery(),
@@ -512,6 +521,8 @@ public class MainWindow : Adw.ApplicationWindow {
                 log_debug_line(line);
             });
             controller.presence = presence_stream;
+            // GCOVR_EXCL_STOP
+            // LCOV_EXCL_STOP
         }
         controller.bootstrap.begin();
         queue_update_check();
@@ -650,7 +661,7 @@ public class MainWindow : Adw.ApplicationWindow {
             return;
         }
 
-        settings.set_int(AppSettings.KEY_TINY_CLOSE_STREAK, 0);
+        settings.set_int(AppSettings.KEY_TINY_CLOSE_STREAK, 0); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: only a window manager maximizes the window, and the tests run without one
     }
 
     private void show_new_project_dialog() {
@@ -918,7 +929,7 @@ public class MainWindow : Adw.ApplicationWindow {
     internal bool on_internal_link_key_pressed(uint keyval, uint keycode, Gdk.ModifierType state) {
         return internal_link_navigator != null
             ? internal_link_navigator.handle_key(keyval, keycode, state)
-            : false;
+            : false; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the constructor always creates the navigator
     }
 
     internal void on_card_store_items_changed(uint position, uint removed, uint added) {
@@ -1169,10 +1180,11 @@ public class MainWindow : Adw.ApplicationWindow {
         try {
             var cached_path = attachment_selection.selected_cache_path ?? yield ensure_attachment_cached((!) attachment);
             attachment_selection.selected_cache_path = cached_path;
-            var dialog = new Gtk.FileDialog();
-            dialog.set_title("Export Asset");
-            dialog.set_initial_name(((!) attachment).asset.original_filename);
-            var destination = yield dialog.save(this, null);
+            var destination = yield file_picker.save_file(
+                this,
+                "Export Asset",
+                ((!) attachment).asset.original_filename
+            );
             if (destination == null || destination.get_path() == null) return;
             yield asset_cache.export_cached(cached_path, (!) destination.get_path());
             add_toast("Asset exported.");
@@ -1574,6 +1586,10 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal GLib.ListStore search_store_for_tests() {
         return search_store;
+    }
+
+    internal GLib.ListStore card_store_for_tests() {
+        return card_store;
     }
 
     protected override void dispose() {
