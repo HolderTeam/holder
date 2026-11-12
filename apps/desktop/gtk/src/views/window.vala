@@ -62,6 +62,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private WindowActivityFeedback activity_feedback;
     private WindowActionsAdapter window_actions_adapter;
     private UpdateCheckService update_check_service;
+    private IUriLauncher uri_launcher;
     private UpdateDialogAdapter update_dialog_adapter;
     private CardActionDialogAdapter card_action_dialog_adapter;
     private ProjectCreateDialogAdapter project_create_dialog_adapter;
@@ -211,6 +212,7 @@ public class MainWindow : Adw.ApplicationWindow {
             controller
         );
         update_check_service = services.update_check;
+        uri_launcher = services.uri_launcher;
         project_create_controller = new ProjectCreateController();
         explorer_selection_controller = new ExplorerSelectionController(
             project_store,
@@ -234,7 +236,7 @@ public class MainWindow : Adw.ApplicationWindow {
         );
         selection_intent_controller = new SelectionIntentController();
         selection_controller = new SelectionController(controller);
-        share_controller = new ShareController();
+        share_controller = new ShareController(uri_launcher);
         card_append_controller = new CardAppendController();
         local_info_flow_controller = new LocalInfoFlowController(
             new WindowLocalInfoFlowContext(controller),
@@ -294,7 +296,8 @@ public class MainWindow : Adw.ApplicationWindow {
             workspace,
             toast_overlay,
             null,
-            markdown_resource_image_controller
+            markdown_resource_image_controller,
+            uri_launcher
         );
         internal_link_navigator.resource_preview_requested.connect((resource_id) => {
             preview_inline_resource(resource_id);
@@ -1152,7 +1155,7 @@ public class MainWindow : Adw.ApplicationWindow {
         try {
             var cached_path = attachment_selection.selected_cache_path ?? yield ensure_attachment_cached((!) attachment);
             attachment_selection.selected_cache_path = cached_path;
-            AppInfo.launch_default_for_uri(File.new_for_path(cached_path).get_uri(), null);
+            uri_launcher.launch(File.new_for_path(cached_path).get_uri());
         } catch (Error e) {
             show_error("Failed to open Asset", e.message);
         }
@@ -1558,6 +1561,15 @@ public class MainWindow : Adw.ApplicationWindow {
             return;
         }
         internal_link_navigator.refresh_connections_from_editor();
+    }
+
+    // For the app view tests, built into the same program.
+    internal MainController controller_for_tests() {
+        return controller;
+    }
+
+    internal WorkspacePane workspace_for_tests() {
+        return workspace;
     }
 
     protected override void dispose() {

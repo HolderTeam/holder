@@ -1,8 +1,9 @@
 namespace HolderLinux {
 
 // What the main window reaches outside the app through: the daemon's API and where to find it,
-// starting the daemon, telling it the app is there, the update check, and saved settings. The app
-// uses these defaults; the window tests pass doubles, so a test never starts a daemon or goes online.
+// starting the daemon, telling it the app is there, the update check, saved settings, and the
+// desktop's default apps. The app uses these defaults; the window tests pass doubles, so a test
+// never starts a daemon, goes online or opens another app.
 public class MainWindowServices : Object {
     public IApiFactory api_factory;
     public IServerDiscovery server_discovery;
@@ -14,11 +15,14 @@ public class MainWindowServices : Object {
     public IPresence? presence = null;
     public UpdateCheckService update_check;
     public Settings? settings;
+    // Opens web and email links and exported assets in the desktop's default apps.
+    public IUriLauncher uri_launcher;
 
     public MainWindowServices() {
         api_factory = new DefaultApiFactory();
         server_discovery = new FileServerDiscovery();
         update_check = new UpdateCheckService();
+        uri_launcher = new AppInfoUriLauncher();
         settings = AppSettings.open_or_null();
     }
 }
