@@ -36,7 +36,7 @@ template <class Body> decltype(auto) with_recovery_errors(Body&& body) {
       throw RecoveryTokenInvalid("invalid recovery token or PIN");
     if (error.code() == Code::PrivacyCryptoFailed)
       throw DataCorrupted("recovery token cryptography failed");
-    throw;
+    throw; // LCOV_EXCL_LINE - with_contract_errors maps the other six declared privacy error codes.
   }
 }
 

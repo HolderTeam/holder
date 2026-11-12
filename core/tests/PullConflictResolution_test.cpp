@@ -8,6 +8,7 @@
 #include "sync/PullConflictResolution.h"
 
 #include "card/CardPaths.h"
+#include "card/CardFrontMatter.h"
 #include "card/CardRepo.h"
 #include "card/CardStore.h"
 #include "card/LinkRepo.h"
@@ -23,6 +24,8 @@
 
 #include <algorithm>
 #include <fstream>
+#include <iterator>
+#include <map>
 
 namespace {
 
@@ -48,6 +51,98 @@ void create_plain_project(
 }
 
 } // namespace
+
+TEST_CASE("Conflict preservation rejects duplicate identities and cyclic parents",
+          "[sync][conflict-validation]") {
+  const auto dir = make_temp_dir();
+  const std::string project_id = "proj-conflicts";
+  const std::string second_id = "22222222-2222-4222-8222-222222222222";
+  const auto remote_dir = dir / "remote";
+  const auto local_dir = dir / "local";
+  auto remote_db = open_db_with_schema(dir / "remote.db");
+  holder::index::FtsIndexer remote_fts(remote_db);
+  holder::project::ProjectRepo remote_projects(remote_db);
+  create_plain_project(remote_projects, project_id, remote_dir);
+  holder::git::RealGitOps remote_git;
+  holder::card::CardStore remote_store(remote_db, &remote_fts, nullptr, &remote_git);
+  for (const std::string id : {std::string(kSharedCardId), second_id}) {
+    holder::model::Card card;
+    card.card_id = id;
+    card.project_id = project_id;
+    card.title = id == kSharedCardId ? "First" : "Second";
+    card.created_at = card.updated_at = 1;
+    remote_store.create(card, "base body\n");
+  }
+  holder::git::RealGitOps local_git;
+  local_git.open_or_init(local_dir);
+  local_git.set_remote("origin", remote_dir.string());
+  local_git.pull_remote_ff_only("origin");
+  auto local_db = open_db_with_schema(dir / "local.db");
+  holder::index::FtsIndexer local_fts(local_db);
+  holder::project::ProjectRepo local_projects(local_db);
+  create_plain_project(local_projects, project_id, local_dir);
+  const auto local_project = local_projects.get(project_id).value();
+  holder::store::Rebuilder(local_db, &local_fts).rebuild_project(local_project);
+
+  bool duplicate = false;
+  bool malformed = false;
+  std::string expected;
+  SECTION("two conflicted files claim the same card ID") {
+    duplicate = true;
+    expected = "duplicate conflicted card ID: ";
+  }
+  SECTION("conflicted parents form a cycle") {
+    expected = "cannot preserve conflicted card parent cycle from commit ";
+  }
+  SECTION("malformed local files cannot be treated as card copies") { malformed = true; }
+  std::map<std::string, std::string> local_bytes;
+  for (const std::string id : {std::string(kSharedCardId), second_id}) {
+    const auto path = holder::core::card_rel_path(id);
+    std::ifstream input(local_dir / path);
+    REQUIRE(input.is_open());
+    const std::string bytes{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    auto parsed = holder::core::parse_card_file(bytes);
+    REQUIRE(parsed.has_front_matter);
+    if (duplicate)
+      parsed.card.card_id = kSharedCardId;
+    else
+      parsed.card.parent_card_id = id == kSharedCardId ? second_id : std::string(kSharedCardId);
+    const auto changed = malformed ? std::string("not card front matter\nlocal body to preserve\n")
+        : holder::core::render_card_front_matter(parsed.card, parsed.links, parsed.milestones) +
+          "local body to preserve\n";
+    local_bytes.emplace(path, changed);
+    local_git.write_file(path, changed);
+    local_git.stage_path(path);
+    remote_store.update_content(id, "remote body\n", std::nullopt, 2);
+  }
+  local_git.commit("Local conflicting metadata");
+  holder::git::NonFastForwardPullError diverged("", "", "");
+  bool seen = false;
+  try {
+    local_git.pull_remote_ff_only("origin");
+  } catch (const holder::git::NonFastForwardPullError& error) {
+    diverged = error;
+    seen = true;
+  }
+  REQUIRE(seen);
+  if (malformed) {
+    CHECK(holder::sync::resolve_pull_conflicts(local_db, &local_fts, local_project, local_git, diverged, 3) == 0);
+  } else {
+    REQUIRE_THROWS_WITH(holder::sync::resolve_pull_conflicts(
+      local_db, &local_fts, local_project, local_git, diverged, 3),
+      Catch::Matchers::ContainsSubstring(expected));
+  }
+  const auto cards = holder::card::CardRepo(local_db).list_all(project_id);
+  REQUIRE(cards.size() == 2);
+  for (const auto& card : cards) {
+    CHECK((card.card_id == kSharedCardId || card.card_id == second_id));
+    CHECK(card.title.find("conflicted copy") == std::string::npos);
+  }
+  // The pre-merge local commit remains available for explicit recovery after
+  // preservation fails; no partial set of replacement cards is created.
+  for (const auto& [path, bytes] : local_bytes)
+    CHECK(local_git.read_blob_at(diverged.local_oid_hex, path) == bytes);
+}
 
 TEST_CASE(
     "resolve_pull_conflicts decrypts the pre-merge local card for an encrypted_git project",

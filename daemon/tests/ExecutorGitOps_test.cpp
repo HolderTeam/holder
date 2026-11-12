@@ -9,6 +9,7 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -16,6 +17,7 @@ class RecordingGitOps final : public holder::git::GitOps {
  public:
   std::filesystem::path opened_repo;
   std::filesystem::path last_path;
+  std::vector<std::filesystem::path> staged_paths;
   std::string last_name;
   std::string last_url;
   std::string last_message;
@@ -40,6 +42,7 @@ class RecordingGitOps final : public holder::git::GitOps {
     last_path = relative_path;
   }
   void stage_path(const std::filesystem::path& relative_path) override {
+    staged_paths.push_back(relative_path);
     last_path = relative_path;
   }
   void remove_path(const std::filesystem::path& relative_path) override {
@@ -121,4 +124,28 @@ TEST_CASE("ExecutorGitOps delegates all operations through SerialExecutor", "[gi
   REQUIRE(push.status == holder::git::PushStatus::Pushed);
 
   REQUIRE(git.repo_dir() == std::filesystem::path("/tmp/repo"));
+}
+
+TEST_CASE("ExecutorGitOps stages a batch in order through the default adapter", "[git][executor]") {
+  holder::core::SerialExecutor executor("git-executor-test");
+  RecordingGitOps inner;
+  holder::git::ExecutorGitOps git(inner, executor);
+
+  git.stage_paths({});
+  CHECK(inner.staged_paths.empty());
+  const std::vector<std::filesystem::path> paths{"cards/b.md", "cards/a.md", "cards/c.md"};
+  git.stage_paths(paths);
+  CHECK(inner.staged_paths == paths);
+}
+
+TEST_CASE("GitOps defaults leave credentials alone and report unsupported URL probes", "[git]") {
+  RecordingGitOps git;
+  holder::git::GitOps& adapter = git;
+  CHECK_NOTHROW(adapter.set_credential_provider(nullptr));
+
+  const auto result = git.GitOps::probe_remote_url("https://example.com/repo.git");
+  CHECK(result.status == holder::git::RemoteProbeStatus::UnknownError);
+  CHECK_FALSE(result.remote_has_head);
+  CHECK(result.error_message == "URL probes are not supported by this Git adapter.");
+  CHECK(git.last_url.empty());
 }

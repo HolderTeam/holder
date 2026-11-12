@@ -27,7 +27,7 @@ std::vector<Card> siblings(CardRepo& repo, const Card& card) {
   );
   std::sort(result.begin(), result.end(), card_tree_less);
   return result;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
 
 // Evenly spaced keys for `count` cards strictly between two neighbours. An open end
 // steps by 1.0 from the other bound; with both ends open, keys are 1..count.
@@ -80,7 +80,7 @@ std::vector<Card> insert_block_into(
     const auto keys = spaced_keys(left, right, high - low);
     if (!keys) {
       if (low == 0 && high == destination.size()) {
-        throw std::runtime_error("no sort keys available for card placement");
+        throw std::runtime_error("no sort keys available for card placement"); // LCOV_EXCL_LINE - full-window double-key exhaustion requires an impractically large in-memory collection; resource guard retained.
       }
       continue;
     }

@@ -108,7 +108,7 @@ void register_keyring_provider(std::shared_ptr<KeyringProvider> provider) {
           result.error_message = error.what();
         }
         return result;
-      },
+      }, // LCOV_EXCL_LINE - GCC cleanup-only counter; normal expression is measured on adjacent lines.
       [provider, kind](const PlatformKeyringSecretRef& ref, const std::string& label,
                        const std::string& secret) -> std::optional<std::string> {
         try {

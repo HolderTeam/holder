@@ -243,7 +243,7 @@ bool dispatch_resource_contract_route(const std::string& method, const std::stri
     } catch (const std::invalid_argument& error) {
       resource_error(res, 400, error);
     } catch (const std::exception& error) {
-      resource_error(res, 500, error);
+      resource_error(res, 500, error); // LCOV_EXCL_LINE: job lookup only throws the handled not-found error; other failures require allocation failure.
     }
     return true;
   }
@@ -265,7 +265,7 @@ bool dispatch_resource_contract_route(const std::string& method, const std::stri
       if (stream == nullptr) throw std::logic_error("no one to serve a host-written response");
       *stream = std::move(outcome.second);
     } catch (const support::StorageConflict& error) {
-      resource_error(res, 409, error);
+      resource_error(res, 409, error); // LCOV_EXCL_LINE: current providers report conflicts on writes, not retrieval; retain the defensive mapping.
     } catch (const support::StorageBindingRequired& error) {
       resource_error(res, 409, error);
     } catch (const support::StorageIntegrityFailed& error) {
@@ -275,7 +275,7 @@ bool dispatch_resource_contract_route(const std::string& method, const std::stri
     } catch (const support::StorageUnavailable& error) {
       resource_error(res, 503, error);
     } catch (const support::StorageCapacityExceeded& error) {
-      resource_error(res, 507, error);
+      resource_error(res, 507, error); // LCOV_EXCL_LINE: retrieval capacity errors require a mid-copy device failure.
     } catch (const AssetContentNotFound& error) {
       resource_error(res, 404, error);
     } catch (const support::StorageBadRequest& error) {
@@ -568,15 +568,6 @@ bool dispatch_generated_routes(
     }
     if (generated->status == 204) {
       res = support::stream_finished_response();
-      return true;
-    }
-    if (generated->media_type != "application/json") {
-      // A text route: its body is the string to send.
-      res = {static_cast<http::status>(generated->status), 11};
-      res.set(http::field::content_type, std::string(generated->media_type));
-      res.keep_alive(false);
-      res.body() = generated->body.get<std::string>();
-      res.prepare_payload();
       return true;
     }
     res = support::json_response(static_cast<http::status>(generated->status), generated->body);

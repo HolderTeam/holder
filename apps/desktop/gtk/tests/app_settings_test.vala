@@ -126,6 +126,73 @@ private void test_open_or_null_uses_default_schema_lookup_when_available_subproc
     }
 }
 
+private void test_open_or_null_loads_local_schema_and_keeps_settings_writable() {
+    string tmp_dir = "";
+    try {
+        tmp_dir = DirUtils.make_tmp("holder-app-settings-local-XXXXXX");
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+    var data_dir = Path.build_filename(tmp_dir, "data");
+    assert(DirUtils.create_with_parents(data_dir, 0700) == 0);
+    var xml_path = Path.build_filename(data_dir, "team.holder.Holder.gschema.xml");
+    try {
+        FileUtils.set_contents(xml_path, """
+<schemalist>
+  <schema id='team.holder.Holder' path='/team/holder/test-local-schema/'>
+    <key name='style-variant' type='s'>
+      <default>'force-light'</default>
+    </key>
+  </schema>
+</schemalist>
+""");
+        int status;
+        Process.spawn_command_line_sync("glib-compile-schemas \"%s\"".printf(data_dir),
+                                        null, null, out status);
+        assert(status == 0);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+
+    bool warned = false;
+    HolderLinux.AppSettings.set_warning_sink((message) => { warned = true; });
+    HolderLinux.AppSettings.skip_default_schema_lookup_for_tests = true;
+    var settings = HolderLinux.AppSettings.open_or_null_for_executable_path(
+        Path.build_filename(tmp_dir, "holder-desktop"));
+    HolderLinux.AppSettings.skip_default_schema_lookup_for_tests = false;
+    HolderLinux.AppSettings.set_warning_sink(null);
+
+    assert(settings != null);
+    assert(!warned);
+    assert(settings.get_string(HolderLinux.AppSettings.KEY_STYLE_VARIANT) == "force-light");
+    assert(settings.set_string(HolderLinux.AppSettings.KEY_STYLE_VARIANT, "force-dark"));
+    assert(settings.get_string(HolderLinux.AppSettings.KEY_STYLE_VARIANT) == "force-dark");
+    settings.reset(HolderLinux.AppSettings.KEY_STYLE_VARIANT);
+    FileUtils.remove(Path.build_filename(data_dir, "gschemas.compiled"));
+    FileUtils.remove(xml_path);
+    DirUtils.remove(data_dir);
+    DirUtils.remove(tmp_dir);
+}
+
+private void test_open_or_null_discovers_local_schema_from_running_executable() {
+    if (!FileUtils.test("/proc/self/exe", FileTest.EXISTS)) {
+        Test.skip("Executable discovery requires /proc/self/exe.");
+        return;
+    }
+    bool warned = false;
+    HolderLinux.AppSettings.set_warning_sink((message) => { warned = true; });
+    HolderLinux.AppSettings.skip_default_schema_lookup_for_tests = true;
+    HolderLinux.AppSettings.force_read_link_failure_for_tests = false;
+    var settings = HolderLinux.AppSettings.open_or_null();
+    HolderLinux.AppSettings.skip_default_schema_lookup_for_tests = false;
+    HolderLinux.AppSettings.set_warning_sink(null);
+
+    assert(settings != null);
+    assert(!warned);
+    assert(settings.get_default_value(HolderLinux.AppSettings.KEY_CUSTOM_EDITOR_FONT).get_string()
+           == "Monospace 11");
+}
+
 private void test_open_or_null_when_read_link_fails_returns_null() {
     HolderLinux.AppSettings.skip_default_schema_lookup_for_tests = true;
     HolderLinux.AppSettings.force_read_link_failure_for_tests = true;
@@ -292,6 +359,10 @@ int main(string[] args) {
                   test_open_or_null_uses_default_schema_lookup_when_available_subprocess);
     Test.add_func("/app_settings/open_or_null_when_read_link_fails_returns_null",
                   test_open_or_null_when_read_link_fails_returns_null);
+    Test.add_func("/app_settings/open_or_null_loads_local_schema_and_keeps_settings_writable",
+                  test_open_or_null_loads_local_schema_and_keeps_settings_writable);
+    Test.add_func("/app_settings/open_or_null_discovers_local_schema_from_running_executable",
+                  test_open_or_null_discovers_local_schema_from_running_executable);
     Test.add_func("/app_settings/open_or_null_for_bad_local_schema_dir_emits_warning_and_returns_null",
                   test_open_or_null_for_bad_local_schema_dir_emits_warning_and_returns_null);
     Test.add_func("/app_settings/open_or_null_when_local_schema_missing_emits_specific_warning",

@@ -18,6 +18,7 @@ struct ParsedCardFile {
 };
 
 // Invalid front matter returns the original body with no partially parsed metadata.
+// Allocation failure propagates instead of reclassifying valid metadata as body text.
 ParsedCardFile parse_card_file(const std::string& raw);
 std::string render_card_front_matter(
     const holder::model::Card& card,

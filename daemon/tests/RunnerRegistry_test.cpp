@@ -1,5 +1,6 @@
 #include "ai/AiRunnerRepo.h"
 #include "http_test_helpers.h"
+#include "core/SerialExecutor.h"
 #include "llm/LocalModelRunner.h"
 #include "llm/LocalRunnerClient.h"
 #include "llm/RunnerRegistry.h"
@@ -180,4 +181,30 @@ TEST_CASE("RunnerRegistry instantiates manual runner clients for enabled ollama 
   REQUIRE(path_status.version == "fake");
   REQUIRE(path_status.models.size() == 1);
   REQUIRE(path_status.models[0].name == "fake-echo");
+}
+
+TEST_CASE("A shared manual runner stays usable after its registry entry is removed", "[db][llm]") {
+  holder::test::EnvGuard fake_env("HOLDER_MODEL_RUNNER_FAKE", "1");
+  auto db = holder::test::open_db_with_schema(holder::test::make_temp_dir() / "holder.db");
+  holder::ai::AiRunnerRepo repo(db);
+  repo.upsert({
+      .runner_id = "manual",
+      .name = "Office Ollama",
+      .kind = "ollama",
+      .base_url = "http://127.0.0.1:11434",
+      .source = "manual",
+      .enabled = true,
+      .created_at = 1,
+      .updated_at = 1,
+  });
+  holder::core::SerialExecutor executor("runner-registry-test");
+  holder::llm::RunnerRegistry registry(&db, nullptr, &executor);
+  auto client = registry.share_client("manual");
+  REQUIRE(client);
+  CHECK(client == registry.share_client("manual"));
+
+  repo.remove("manual");
+  registry.refresh();
+  CHECK_FALSE(registry.share_client("manual"));
+  CHECK(client->retry().available);
 }

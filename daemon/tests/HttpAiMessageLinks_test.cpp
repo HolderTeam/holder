@@ -100,6 +100,18 @@ TEST_CASE("AI message links preserve qualified card targets", "[http]") {
   );
   REQUIRE(res.result() == http::status::bad_request);
 
+  for (const auto& selector : {
+           nlohmann::json{{"target_project_id", "not-loaded"}},
+           nlohmann::json{{"to_card_id", "remote-card"}, {"to_type", "card"}, {"kind", "ref"},
+                          {"target_project_id", ""}},
+       }) {
+    CAPTURE(selector);
+    const auto error = request(http::verb::delete_, selector).at("error");
+    CHECK(res.result() == http::status::bad_request);
+    CHECK(error.at("message").get<std::string>().find("target_project_id") != std::string::npos);
+    CHECK(holder::card::LinkRepo(db).list_outgoing("proj-1", "msg-1").size() == 2);
+  }
+
   request(
       http::verb::delete_,
       {{"to_card_id", "remote-card"}, {"to_type", "card"}, {"kind", "ref"},
@@ -109,6 +121,10 @@ TEST_CASE("AI message links preserve qualified card targets", "[http]") {
   const auto remaining = holder::card::LinkRepo(db).list_outgoing("proj-1", "msg-1");
   REQUIRE(remaining.size() == 1);
   REQUIRE_FALSE(remaining[0].target_project_id.has_value());
+
+  request(http::verb::delete_, {{"to_card_id", "remote-card"}});
+  CHECK(res.result() == http::status::ok);
+  CHECK(holder::card::LinkRepo(db).list_outgoing("proj-1", "msg-1").empty());
 }
 
 void create_card(

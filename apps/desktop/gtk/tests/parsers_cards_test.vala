@@ -49,6 +49,50 @@ private void test_parse_cards_full_and_defaults() {
     assert(cards[2].sort_key == 0.0);
 }
 
+private void test_parse_link_kinds_preserves_order_and_direction_labels() {
+    var root = parse_json_object("""
+{"ok":true,"data":[
+  {"kind":"depends_on","forward_label":"Depends on","reverse_label":"Required by"},
+  {"kind":"child_of","forward_label":"Parent","reverse_label":"Child"}
+]}
+""");
+    try {
+        var kinds = HolderLinux.ApiParsersCards.parse_link_kinds(root);
+        assert(kinds.size == 2);
+        assert(kinds[0].kind == "depends_on");
+        assert(kinds[0].forward_label == "Depends on");
+        assert(kinds[0].reverse_label == "Required by");
+        assert(kinds[1].kind == "child_of");
+        assert(kinds[1].forward_label == "Parent");
+        assert(kinds[1].reverse_label == "Child");
+    } catch (Error e) {
+        assert_not_reached();
+    }
+}
+
+private void test_parse_link_kinds_accepts_an_empty_catalog() {
+    try {
+        var kinds = HolderLinux.ApiParsersCards.parse_link_kinds(
+            parse_json_object("{\"ok\":true,\"data\":[]}"));
+        assert(kinds.size == 0);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+}
+
+private void test_parse_link_kinds_missing_data_is_protocol_error() {
+    bool got_protocol = false;
+    try {
+        HolderLinux.ApiParsersCards.parse_link_kinds(parse_json_object("{\"ok\":true}"));
+    } catch (HolderLinux.ApiError.PROTOCOL e) {
+        assert(e.message == "Missing data for link kinds response");
+        got_protocol = true;
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    assert(got_protocol);
+}
+
 private void test_parse_cards_missing_data_is_protocol_error() {
     var root = parse_json_object("{\"ok\":true}");
     bool got_protocol = false;
@@ -438,6 +482,9 @@ public static int main(string[] args) {
     Test.init(ref args);
 
     Test.add_func("/parsers/cards/parse-cards-full-and-defaults", test_parse_cards_full_and_defaults);
+    Test.add_func("/parsers/cards/link-kinds-direction-labels", test_parse_link_kinds_preserves_order_and_direction_labels);
+    Test.add_func("/parsers/cards/link-kinds-empty-catalog", test_parse_link_kinds_accepts_an_empty_catalog);
+    Test.add_func("/parsers/cards/link-kinds-missing-data", test_parse_link_kinds_missing_data_is_protocol_error);
     Test.add_func("/parsers/cards/parse-cards-missing-data-protocol-error", test_parse_cards_missing_data_is_protocol_error);
     Test.add_func("/parsers/cards/card-detail-full-and-default", test_parse_card_detail_full_and_default);
     Test.add_func("/parsers/cards/project-tags", test_parse_project_tags);

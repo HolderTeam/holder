@@ -8,6 +8,7 @@ out
 .vscode
 scripts/__pycache__
 build-coverage
+*.gcov
 build-tidy
 build-san
 build-tsan

@@ -16,6 +16,7 @@
 #include "project/ProjectRepo.h"
 
 #include <string>
+#include <cstring>
 #include <set>
 #include <vector>
 
@@ -496,7 +497,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "Milestone replacement failures roll back inside the caller's transaction",
+    "Milestone mutation failures roll back inside the caller's transaction",
     "[milestonerepo][sqlite-errors]"
 ) {
   const auto dir = holder::test::make_temp_dir();
@@ -506,7 +507,10 @@ TEST_CASE(
   holder::card::MilestoneRepo repo(db);
   repo.replace_for_card("proj-1", "card-a", {make_milestone("original", "proj-1", "card-a", 10)});
   std::string expected;
+  bool deleting = false;
   SECTION("milestone delete preparation is denied") {
+    SECTION("replacement") { deleting = false; }
+    SECTION("deletion") { deleting = true; }
     expected = "prepare delete milestones failed";
     REQUIRE(
         sqlite3_set_authorizer(
@@ -543,7 +547,8 @@ TEST_CASE(
   REQUIRE_THROWS_WITH(
       [&] {
         holder::platform::Tx transaction(db);
-        repo.replace_for_card(
+        if (deleting) repo.delete_for_card("proj-1", "card-a");
+        else repo.replace_for_card(
             "proj-1",
             "card-a",
             {make_milestone("replacement", "proj-1", "card-a", 20)}
@@ -558,6 +563,77 @@ TEST_CASE(
   REQUIRE(remaining[0].milestone_id == "original");
   REQUIRE(remaining[0].dates.size() == 1);
   REQUIRE(remaining[0].dates[0].datetime == holder::model::milestone_datetime_utc(10));
+}
+
+TEST_CASE(
+    "Interrupted milestone reads release statements and allow retry",
+    "[milestonerepo][cancelled-query]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  create_project(db, "proj-1");
+  create_card(db, "card-a", "proj-1");
+  holder::card::MilestoneRepo repo(db);
+  auto milestone = make_milestone("original", "proj-1", "card-a", 10);
+  milestone.dates.push_back({"due", std::string("2026-11-02"), std::nullopt});
+  repo.replace_for_card("proj-1", "card-a", {milestone});
+
+  int reader = 0;
+  SECTION("card milestones") { reader = 0; }
+  SECTION("legacy epoch range") { reader = 1; }
+  SECTION("instant range") { reader = 2; }
+  SECTION("calendar day range") { reader = 3; }
+  const auto read = [&] {
+    if (reader == 0) return repo.list_for_card("proj-1", "card-a");
+    if (reader == 1) return repo.list_in_range("proj-1", 0, 100);
+    if (reader == 2) return repo.list_instants_in_range("proj-1", std::nullopt, 0, 100);
+    return repo.list_days_in_range("proj-1", std::nullopt, "2026-11-01", "2026-11-03");
+  };
+  for (bool nested : {false, true}) {
+    INFO("interrupt date loading: " << nested);
+    std::set<sqlite3_stmt*> existing;
+    for (auto* stmt = sqlite3_next_stmt(db.handle(), nullptr); stmt;
+         stmt = sqlite3_next_stmt(db.handle(), stmt))
+      existing.insert(stmt);
+    struct Interrupt {
+      sqlite3* db;
+      bool nested;
+      bool fired = false;
+      ~Interrupt() { sqlite3_trace_v2(db, 0, nullptr, nullptr); }
+    } interrupt{db.handle(), nested};
+    REQUIRE(sqlite3_trace_v2(
+        db.handle(), SQLITE_TRACE_STMT,
+        +[](unsigned, void* raw, void* statement, void*) {
+          auto& state = *static_cast<Interrupt*>(raw);
+          const char* sql = sqlite3_sql(static_cast<sqlite3_stmt*>(statement));
+          const char* needle = state.nested ? "SELECT role, date_value" : "FROM milestones";
+          if (!state.fired && sql && std::strstr(sql, needle)) {
+            state.fired = true;
+            sqlite3_interrupt(state.db);
+          }
+          return 0;
+        }, &interrupt) == SQLITE_OK);
+    const std::string expected = nested ? "list milestone dates failed"
+        : reader == 0 ? "list milestones for card failed"
+        : reader == 3 ? "list milestone days failed" : "list milestones in range failed";
+    REQUIRE_THROWS_WITH(read(), Catch::Matchers::ContainsSubstring(expected));
+    sqlite3_trace_v2(db.handle(), 0, nullptr, nullptr);
+    REQUIRE(interrupt.fired);
+    int leaked = 0;
+    for (auto* stmt = sqlite3_next_stmt(db.handle(), nullptr); stmt;) {
+      auto* next = sqlite3_next_stmt(db.handle(), stmt);
+      if (!existing.contains(stmt)) {
+        ++leaked;
+        sqlite3_finalize(stmt);
+      }
+      stmt = next;
+    }
+    REQUIRE(leaked == 0);
+    const auto result = read();
+    REQUIRE(result.size() == 1);
+    REQUIRE(result[0].milestone_id == "original");
+    REQUIRE(result[0].dates.size() == 2);
+  }
 }
 
 TEST_CASE(

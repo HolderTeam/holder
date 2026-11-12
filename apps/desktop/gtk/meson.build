@@ -1,5 +1,9 @@
 project('holder-gtk', ['vala', 'c'], version: run_command('python3', 'scripts/product_version.py', check: true).stdout().strip())
 
+if host_machine.system() == 'windows'
+  add_project_arguments('--define=HOLDER_WINDOWS', language: 'vala')
+endif
+
 fs = import('fs')
 version_source = fs.is_file('../../../VERSION') ? '../../../VERSION' : 'VERSION'
 # Register the version input so a version-only change reconfigures Meson too.
@@ -28,6 +32,17 @@ command_capture_lib = static_library(
   dependencies: [dependency('gio-2.0')],
   install: false,
 )
+
+if get_option('tests')
+  command_capture_portability_test = executable(
+    'holder-command-capture-portability-tests',
+    'tests/command_capture_portability_test.c',
+    dependencies: [dependency('gio-2.0')],
+    link_with: [command_capture_lib],
+    install: false,
+  )
+  test('holder-command-capture-portability-tests', command_capture_portability_test)
+endif
 
 if host_machine.system() == 'windows' and get_option('tests')
   command_capture_test = executable(
@@ -1272,25 +1287,35 @@ terminal_presenter_test_exe = executable(
 
 test('holder-gtk-terminal-presenter-tests', terminal_presenter_test_exe)
 
-windows_terminal_view_compile_test_exe = executable(
-  'holder-gtk-windows-terminal-view-compile-tests',
+windows_terminal_tool_view_test_exe = executable(
+  'holder-gtk-windows-terminal-tool-view-tests',
   [
+    'tests/support/test_utils.vala',
+    'src/services/editor_recovery_draft_service.vala',
+    'src/models/server.vala',
     'src/models/project.vala',
     'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
     'src/models/toolbox_nav.vala',
     'src/models/terminal_session.vala',
+    'src/services/core_interfaces.vala',
     'src/services/app_settings.vala',
     'src/services/powershell_transcript.vala',
     'src/services/windows/powershell_discovery.vala',
     'src/services/windows/terminal_session_store.vala',
     'src/services/windows/windows_terminal_launcher.vala',
-    'src/controllers/terminal.vala',
     'src/controllers/terminal_presenter.vala',
+    'src/controllers/tool_scope_presenter.vala',
     'src/views/toolbox/tool_adapter.vala',
     'src/views/adapters/windows_monospace.vala',
-    'src/controllers/tool_scope_presenter.vala',
     'src/views/toolbox/terminal_tool_view_windows.vala',
-    'tests/windows_terminal_view_compile_test.vala',
+    'tests/windows_terminal_tool_view_test.vala',
   ],
   dependencies: [
     dependency('gtk4'),
@@ -1307,7 +1332,7 @@ windows_terminal_view_compile_test_exe = executable(
   install: false,
 )
 
-test('holder-gtk-windows-terminal-view-compile-tests', windows_terminal_view_compile_test_exe)
+test('holder-gtk-windows-terminal-tool-view-tests', windows_terminal_tool_view_test_exe)
 
 git_sync_service_test_exe = executable(
   'holder-gtk-git-sync-service-tests',

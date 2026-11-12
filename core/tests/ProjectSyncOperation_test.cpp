@@ -515,6 +515,18 @@ TEST_CASE(
   remote_git.remove_path(live_rel);
   remote_git.commit("Delete card Parent (older client)");
 
+  bool reject_repair = false;
+  SECTION("repair succeeds during pull") {}
+  SECTION("a failed optional repair can be retried after the successful pull") {
+    reject_repair = true;
+    // Imported records keep their historical timestamps; only the optional
+    // repair stamps the new parent with this sync request's time (400).
+    local_db.exec(
+        "CREATE TRIGGER reject_parent_change BEFORE UPDATE OF parent_card_id ON cards "
+        "WHEN NEW.updated_at=400 AND OLD.parent_card_id IS NOT NEW.parent_card_id "
+        "BEGIN SELECT RAISE(ABORT, 'parent repair denied'); END;"
+    );
+  }
   holder::git::RealGitOps local_git;
   const auto result = holder::sync::run_project_sync(
       local_db,
@@ -533,8 +545,21 @@ TEST_CASE(
       result.pull.error_message.value_or("") + " / push: " + result.push.error_message.value_or("")
   );
   REQUIRE(result.succeeded());
-  REQUIRE(result.pull.hidden_cards_repaired == 1);
+  REQUIRE(result.pull.status == holder::sync::PullPhaseStatus::Succeeded);
   holder::card::CardRepo cards(local_db);
+  if (reject_repair) {
+    REQUIRE(result.pull.hidden_cards_repaired == 0);
+    REQUIRE(cards.get(child_id)->parent_card_id == parent_id);
+    const auto state = holder::project::ProjectSyncRepo(local_db).get("proj-1");
+    REQUIRE(state.has_value());
+    CHECK(state->last_pull_status == "succeeded");
+    local_db.exec("DROP TRIGGER reject_parent_change;");
+    const auto repaired = holder::card::CardStore(local_db, &local_fts).repair_hierarchy("proj-1", 500);
+    REQUIRE(repaired.moved_card_ids.size() == 1);
+    CHECK(repaired.moved_card_ids[0] == child_id);
+  } else {
+    REQUIRE(result.pull.hidden_cards_repaired == 1);
+  }
   REQUIRE(cards.get(parent_id)->deleted_at.has_value());
   REQUIRE_FALSE(cards.get(child_id)->parent_card_id.has_value());
   // The repair is in the child's file too, so it survives a rebuild and syncs onwards.

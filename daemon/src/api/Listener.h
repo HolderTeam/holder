@@ -51,6 +51,7 @@ class Listener {
   void run(const holder::core::SignalHandler& signals);
   void stop();
   std::size_t active_read_socket_count() const;
+  std::size_t active_write_socket_count() const;
   std::size_t pending_socket_count() const;
   // Open event streams (change feed and AI streams); 0 before the server has started.
   std::size_t open_stream_count();
@@ -59,6 +60,10 @@ class Listener {
   std::size_t background_queue_count() const;
   std::size_t dropped_socket_count_for_test() const;
   void enqueue_pending_socket_for_test();
+  // Applies SO_SNDBUF to sockets accepted after this call, so a test can hold a response in
+  // the writer. 0 is meaningful: on Windows only a zero send buffer keeps an overlapped send
+  // pending until the peer reads; any other size lets the kernel complete it at once.
+  void set_accepted_send_buffer_size_for_test(int bytes);
 
  private:
   using tcp = boost::asio::ip::tcp;
@@ -100,6 +105,7 @@ class Listener {
   std::unordered_set<Session::IoHandlePtr> active_write_sockets_;
   std::atomic<bool> stop_requested_{false};
   std::atomic<std::size_t> dropped_socket_count_for_test_{0};
+  std::atomic<int> accepted_send_buffer_size_for_test_{-1}; // negative: leave the OS default
   std::vector<std::thread> ingress_workers_;
   std::vector<std::thread> save_workers_;
   std::vector<std::thread> general_workers_;

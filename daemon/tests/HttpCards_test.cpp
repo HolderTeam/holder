@@ -376,6 +376,19 @@ TEST_CASE("HTTP card content stays plaintext over API for encrypted project", "[
   );
   REQUIRE(fetched["data"]["content"] == "this is secret plaintext");
 
+  namespace http = boost::beast::http;
+  const auto card_path = "/projects/proj-enc/cards/" + encrypted_card_id;
+  const nlohmann::json existing_link{
+      {"target_type", "card"}, {"target_id", "remote-card"}, {"target_project_id", "other-project"}};
+  http_json_request(bound.bind, bound.port, token, http::verb::post, card_path + "/links",
+                    existing_link, http::status::ok);
+  const nlohmann::json milestone_body{
+      {"dates", nlohmann::json::array({{{"role", "due"}, {"date", "2026-12-01"}}})}};
+  const auto milestone = http_json_request(
+      bound.bind, bound.port, token, http::verb::post, card_path + "/milestones",
+      milestone_body, http::status::created).at("data");
+  const auto milestone_path = card_path + "/milestones/" + milestone.at("milestone_id").get<std::string>();
+
   const auto rel_path = std::string(created_card["data"]["rel_path"]);
   const auto full_path = project_root / rel_path;
   std::ifstream in(full_path, std::ios::binary);
@@ -383,6 +396,65 @@ TEST_CASE("HTTP card content stays plaintext over API for encrypted project", "[
   const std::string raw((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
   REQUIRE(raw.rfind("HolderPriv1\n", 0) == 0);
   REQUIRE(raw.find("this is secret plaintext") == std::string::npos);
+
+  in.close();
+  holder::git::GitRepo git;
+  git.open_or_init(project_root);
+  const auto head = git.head_oid();
+  REQUIRE(head);
+  const auto key_id = created_project["data"]["project_key_id"].get<std::string>();
+  REQUIRE(std::filesystem::remove(dir / "keystore" / (key_id + ".key")));
+
+  const auto history_path = "/projects/proj-enc/history/cards/" + encrypted_card_id;
+  struct LockedRequest {
+    http::verb method;
+    std::string path;
+    nlohmann::json body;
+    const char* code;
+  };
+  for (const auto& request : {
+           LockedRequest{http::verb::get, card_path, {}, "key_missing"},
+           LockedRequest{http::verb::patch, card_path, {{"content", "replacement"}}, "key_missing"},
+           LockedRequest{http::verb::post, "/projects/proj-enc/cards",
+                         {{"title", "Another card"}, {"content", "new body"}}, "key_missing"},
+           LockedRequest{http::verb::put, card_path + "/tags/locked", {}, "key_missing"},
+           LockedRequest{http::verb::delete_, card_path + "/tags/locked", {}, "key_missing"},
+           LockedRequest{http::verb::post, card_path + "/links",
+                         {{"target_type", "card"}, {"target_id", "other-card"},
+                          {"target_project_id", "other-project"}}, "key_missing"},
+           LockedRequest{http::verb::delete_,
+                         card_path + "/links?target_type=card&target_id=remote-card&target_project_id=other-project",
+                         {}, "key_missing"},
+           LockedRequest{http::verb::post, card_path + "/milestones", milestone_body, "key_missing"},
+           LockedRequest{http::verb::patch, milestone_path, {{"description", "changed"}}, "key_missing"},
+           LockedRequest{http::verb::delete_, milestone_path, {}, "key_missing"},
+           LockedRequest{http::verb::get, history_path + "/snapshot?oid=" + *head, {},
+                         "history_key_unavailable"},
+           LockedRequest{http::verb::get, history_path + "/compare?mode=change&to_oid=" + *head, {},
+                         "history_key_unavailable"},
+           LockedRequest{http::verb::post, history_path + "/restore?oid=" + *head, {},
+                         "history_key_unavailable"},
+       }) {
+    CAPTURE(request.path);
+    const auto res = holder::test::http_request_raw(
+        bound.bind, bound.port, token, request.method, request.path, request.body);
+    INFO(res.body);
+    CHECK(res.status == http::status::conflict);
+    CHECK(nlohmann::json::parse(res.body).at("error").at("code") == request.code);
+  }
+  const auto links = http_json_request(
+      bound.bind, bound.port, token, http::verb::get, card_path + "/links", {}, http::status::ok);
+  REQUIRE(links.at("data").size() == 1);
+  CHECK(links.at("data").front().at("target_id") == "remote-card");
+  const auto milestones = http_json_request(
+      bound.bind, bound.port, token, http::verb::get, card_path + "/milestones", {}, http::status::ok);
+  REQUIRE(milestones.at("data").size() == 1);
+  CHECK(milestones.at("data").front() == milestone);
+  CHECK(git.head_oid() == head);
+  std::ifstream unchanged(full_path, std::ios::binary);
+  REQUIRE(unchanged.is_open());
+  CHECK(std::string(std::istreambuf_iterator<char>(unchanged), std::istreambuf_iterator<char>()) ==
+        raw);
 
   server_thread.stop();
 }

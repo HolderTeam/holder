@@ -1,3 +1,4 @@
+#include "api/GeneratedRoutes.h"
 #include "http_test_helpers.h"
 #include "project/ProjectRepo.h"
 
@@ -345,4 +346,44 @@ TEST_CASE("HTTP global recovery token import matches existing project_id", "[htt
   REQUIRE(imported["data"]["pull_error"].is_null());
 
   server_thread.stop();
+}
+
+TEST_CASE("Recovery routes distinguish a missing project from missing key material", "[http]") {
+  namespace http = boost::beast::http;
+  const auto dir = make_temp_dir();
+  EnvGuard keystore("HOLDER_TEST_KEYSTORE_DIR", (dir / "empty-keystore").string());
+  auto db = open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "plain", (dir / "plain").string());
+  holder::test::create_project(db, "locked", (dir / "locked").string());
+  holder::project::ProjectRepo projects(db);
+  projects.update_privacy_mode("locked", "encrypted_git", 2);
+  projects.update_project_key_id("locked", "absent-test-key", 2);
+
+  struct Case {
+    const char* target;
+    nlohmann::json body;
+    http::status status;
+    const char* code;
+  };
+  for (const auto& test : {
+           Case{"/projects/missing/recovery-token/export", {{"pin", "1234"}},
+                http::status::not_found, "not_found"},
+           Case{"/projects/plain/recovery-token/export", {{"pin", "1234"}},
+                http::status::bad_request, "invalid_argument"},
+           Case{"/projects/locked/recovery-token/export", {{"pin", "1234"}},
+                http::status::conflict, "key_missing"},
+           Case{"/projects/missing/recovery-token/import",
+                {{"pin", "1234"}, {"recovery_token", "unused"}},
+                http::status::not_found, "not_found"},
+       }) {
+    CAPTURE(test.target);
+    http::request<http::string_body> req{http::verb::post, test.target, 11};
+    req.body() = test.body.dump();
+    req.prepare_payload();
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    INFO(res.body());
+    REQUIRE(res.result() == test.status);
+    CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == test.code);
+  }
 }

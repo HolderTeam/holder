@@ -25,7 +25,7 @@ inline std::string encode_cursor(const nlohmann::json& value) {
     result += hex[byte & 15];
   }
   return result;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
 
 inline holder::card::CardPageCursor decode_cursor(const std::string& cursor, const nlohmann::json& scope, bool sort_key) {
   if (cursor.size() % 2) throw InvalidArgument("invalid cursor");

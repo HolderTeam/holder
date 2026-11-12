@@ -2,6 +2,7 @@
 // into a new project with the card tree, links, milestones and resources kept.
 #if __has_include(<catch2/catch_test_macros.hpp>)
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 #else
 #include <catch2/catch.hpp>
 #endif
@@ -410,6 +411,37 @@ TEST_CASE("Restore removes the new project when writing the cards fails", "[reco
   // Nothing is left under the projects directory but the source project.
   REQUIRE(std::distance(std::filesystem::directory_iterator(host.context.projects_root),
                         std::filesystem::directory_iterator()) == 1);
+}
+
+TEST_CASE("Failed restore retains its original error when database cleanup also fails",
+          "[recovery][cleanup-fallback]") {
+  Host host;
+  const auto original = host.card("Untouched source", std::nullopt, std::nullopt, "Keep source body");
+  const auto before = host.project_count();
+  const auto source_lines = host.lines(host.project_id);
+  host.git.fail_commit = "Restored from a recovery snapshot";
+  host.db.exec("CREATE TRIGGER reject_project_delete BEFORE DELETE ON projects "
+               "BEGIN SELECT RAISE(ABORT, 'database cleanup denied'); END;");
+  REQUIRE_THROWS_WITH(host.restore({line_of(bare_card("card-1", "Card"))}),
+                      Catch::Matchers::ContainsSubstring("commit failed"));
+  CHECK(host.project_count() == before + 1);
+  CHECK(host.lines(host.project_id) == source_lines);
+  CHECK(contract::get_card(host.context, host.project_id, original).content == "Keep source body");
+  // Filesystem compensation still runs if SQLite refuses the metadata removal.
+  CHECK(std::distance(std::filesystem::directory_iterator(host.context.projects_root),
+                      std::filesystem::directory_iterator()) == 1);
+  host.db.exec("DROP TRIGGER reject_project_delete;");
+  const auto remaining = contract::list_projects(host.context, std::nullopt, std::nullopt,
+      std::nullopt, std::nullopt, 1000, 0, false);
+  bool removed = false;
+  for (const auto& item : remaining) {
+    if (item.project_id == host.project_id) continue;
+    CHECK_FALSE(std::filesystem::exists(item.root_path));
+    contract::delete_project(host.context, item.project_id);
+    removed = true;
+  }
+  CHECK(removed);
+  CHECK(host.project_count() == before);
 }
 
 TEST_CASE("Restore writes a large snapshot as one commit", "[recovery]") {
@@ -908,6 +940,16 @@ TEST_CASE(
   SECTION("unknown link target type") {
     host.db.exec("UPDATE card_links SET to_type='future-target';");
     repair = "UPDATE card_links SET to_type='resource';";
+  }
+  SECTION("unknown persisted project privacy mode") {
+    // Model a database from an unsupported writer: normal writes cannot bypass
+    // this CHECK constraint. Readers must reject it rather than export plaintext
+    // under a guessed privacy mode.
+    host.db.exec("PRAGMA ignore_check_constraints=ON;");
+    host.db.exec("UPDATE projects SET privacy_mode='future-privacy';");
+    host.db.exec("PRAGMA ignore_check_constraints=OFF;");
+    repair = "UPDATE projects SET privacy_mode='plain';";
+    REQUIRE_THROWS_AS(contract::get_project(host.context, host.project_id), contract::Error);
   }
   const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
       holder_arena_new(),

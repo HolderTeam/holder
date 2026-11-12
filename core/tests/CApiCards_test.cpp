@@ -13,6 +13,7 @@
 #include <holder/holder_api.h>
 
 #include <fstream>
+#include <algorithm>
 #include <limits>
 #include <map>
 #include <set>
@@ -899,6 +900,37 @@ TEST_CASE("Milestone dates must be real days and instants, and their cards live 
   REQUIRE(f.failed(add(day("due", "2026-10-17"))) == HOLDER_ERROR_NOT_FOUND);
   REQUIRE(f.failed(holder_list_card_milestones(f.context, project, card_id.c_str(), f.arena, &list, &f.error)) ==
           HOLDER_ERROR_NOT_FOUND);
+}
+
+TEST_CASE("Calendar separates created and updated cards and sorts equal update times",
+          "[capi][calendar-updated-cards]") {
+  Fixture f;
+  constexpr int64_t created = 1790931600; // 2026-10-02 09:00 UTC
+  constexpr int64_t updated = 1791194400; // 2026-10-05 10:00 UTC
+  std::vector<std::string> edited;
+  for (const auto* title : {"First edit", "Second edit", "Unchanged"}) {
+    const bool unchanged = std::string(title) == "Unchanged";
+    holder_new_card request{};
+    request.title = title;
+    request.created_at = &created;
+    request.updated_at = unchanged ? &created : &updated;
+    const holder_card* card = nullptr;
+    REQUIRE(holder_create_card(f.context, f.project_id.c_str(), &request, f.arena, &card, &f.error) == HOLDER_OK);
+    if (!unchanged) edited.emplace_back(card->card_id);
+  }
+  std::sort(edited.begin(), edited.end());
+  const holder_calendar* calendar = nullptr;
+  REQUIRE(holder_get_calendar(f.context, f.project_id.c_str(), "2026-10-05", "2026-10-05", "UTC",
+      f.arena, &calendar, &f.error) == HOLDER_OK);
+  REQUIRE(calendar != nullptr);
+  CHECK(calendar->created_cards.count == 0);
+  REQUIRE(calendar->updated_cards.count == 2);
+  CHECK(std::string(calendar->updated_cards.items[0].card_id) == edited[0]);
+  CHECK(std::string(calendar->updated_cards.items[1].card_id) == edited[1]);
+  REQUIRE(holder_get_calendar(f.context, f.project_id.c_str(), "2026-10-02", "2026-10-02", "UTC",
+      f.arena, &calendar, &f.error) == HOLDER_OK);
+  CHECK(calendar->created_cards.count == 3);
+  CHECK(calendar->updated_cards.count == 0);
 }
 
 TEST_CASE("A project's milestones by day, by instant and on its calendar", "[capi][contract]") {

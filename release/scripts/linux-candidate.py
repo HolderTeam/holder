@@ -78,22 +78,10 @@ def read(repository, identifier, artifact_name, version, github, *, signed=False
 
 
 def bind(record, bundle):
-    """Bind packed component/SDK provenance to the accepted framework candidate."""
-    document = record['manifest']['document']
-    selection = record['manifest']['evidence']['core_selection']
-    pin = {**document['platforms']['linux'], 'core': document['core'], 'appimage_version': document['version']}
-    provenance = bundle['provenance']
-    require(document['version'] == provenance['appimage_version'] == record['version'] and
-            document['core']['commit'] == selection['commit'] == record['candidate'] and
-            selection['version'] == record['version'], 'Linux bundle differs from candidate version/source')
-    for name in ('desktop', 'backend'):
-        actual, expected = provenance[name], pin[name]
-        require(all(actual[key] == expected[key] for key in ('repository', 'run_id', 'commit')) and
-                actual['version'] == record['version'] and actual['repository'] == record['repository'] and
-                actual['commit'] == record['candidate'], f'Linux {name} differs from candidate pins')
-    core = manifest_tool.provenance.verify(selection, provenance['core'], provenance['desktop']['commit'],
-        provenance['backend']['commit'], pin, 'linux', 'x86_64', 'Release', record['repository'], pin['backend']['run_id'])
-    require(core == provenance['core'], 'Linux SDK provenance differs from the accepted selection')
+    spec = importlib.util.spec_from_file_location('candidate_bundle_provenance', Path(__file__).with_name('candidate-provenance.py'))
+    policy = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(policy)
+    policy.bind(record, bundle['provenance'], 'linux')
 
 
 def main():

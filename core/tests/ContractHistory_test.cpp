@@ -37,6 +37,15 @@ TEST_CASE("Contract project history reads activity and validates its cursor", "[
                     holder::contract::InvalidArgument);
   REQUIRE_THROWS_AS(holder::contract::list_project_history(context, "missing", 50, std::nullopt, std::nullopt),
                     holder::contract::NotFound);
+  for (const auto limit : {0, -1, 201}) {
+    REQUIRE_THROWS_AS(holder::contract::list_project_history(context, project.project_id, limit,
+        std::nullopt, std::nullopt), holder::contract::InvalidArgument);
+  }
+  REQUIRE_THROWS_AS(holder::contract::list_project_history(context, project.project_id, 50,
+      std::nullopt, static_cast<holder::contract::ListProjectHistoryKind>(-1)),
+      holder::contract::InvalidArgument);
+  CHECK_FALSE(holder::contract::list_project_history(context, project.project_id, 50,
+      std::nullopt, std::nullopt).activities.empty());
 }
 
 TEST_CASE("Contract card history lists, compares, snapshots, and restores", "[contract][history]") {
@@ -58,6 +67,10 @@ TEST_CASE("Contract card history lists, compares, snapshots, and restores", "[co
 
   const auto page = holder::contract::list_card_history(context, project.project_id, card.card_id, 50, std::nullopt);
   REQUIRE_FALSE(page.entries.empty());
+  for (const auto limit : {0, -1, 201}) {
+    REQUIRE_THROWS_AS(holder::contract::list_card_history(context, project.project_id, card.card_id,
+        limit, std::nullopt), holder::contract::InvalidArgument);
+  }
   const auto oid = page.entries.front().last_oid;
   const auto snapshot = holder::contract::get_card_history_snapshot(context, project.project_id, card.card_id,
                                                                     oid.substr(0, 8));
