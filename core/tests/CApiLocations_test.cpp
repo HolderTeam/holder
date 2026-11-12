@@ -161,6 +161,25 @@ TEST_CASE(
   REQUIRE(std::string(location->name) == "Archive");
   REQUIRE(std::filesystem::is_directory(f.project_root / ".git"));
 
+  // A configuration given replaces the stored one.
+  const holder_location_configuration_entry entries[] = {{"folder", "family-archive"}};
+  const holder_location_configuration configuration{entries, 1};
+  holder_storage_location_update reconfigure{};
+  reconfigure.configuration = &configuration;
+  REQUIRE(
+      holder_update_storage_location(
+          f.context,
+          "location-1234",
+          &reconfigure,
+          f.arena,
+          &location,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(location->configuration.count == 1);
+  REQUIRE(std::string(location->configuration.items[0].key) == "folder");
+  REQUIRE(std::string(location->configuration.items[0].values) == "family-archive");
+
   const holder_location_delete_result* removed = nullptr;
   REQUIRE(
       holder_delete_storage_location(f.context, "location-1234", f.arena, &removed, &f.error) ==

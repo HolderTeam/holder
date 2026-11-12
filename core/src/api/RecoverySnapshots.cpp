@@ -285,9 +285,7 @@ json to_json(const RecoverySnapshotCard& card) {
             {{"placement_id", placement.placement_id},
              {"location_id", placement.location_id},
              {"object_key", placement.object_key},
-             {"encoding", name(placement.encoding)
-             }, // LCOV_EXCL_LINE - GCC cleanup-only counter; normal expression is measured on
-                // adjacent lines.
+             {"encoding", name(placement.encoding)}, // LCOV_EXCL_LINE - GCC cleanup-only counter
              {"stored_byte_size", placement.stored_byte_size},
              {"stored_sha256", placement.stored_sha256},
              {"created_at", placement.created_at}}
@@ -532,9 +530,8 @@ holder::model::Location to_model(
       location.location_id,
       project_id,
       location.name,
-      name(location.provider),
-      location.configuration, // LCOV_EXCL_LINE - GCC cleanup-only counter; normal expression is
-                              // measured on adjacent lines.
+      name(location.provider), // LCOV_EXCL_LINE - GCC cleanup-only counter
+      location.configuration, // LCOV_EXCL_LINE - GCC cleanup-only counter
       location.created_at,
       location.updated_at
   };
@@ -572,9 +569,8 @@ holder::model::ResourceBundle to_model(
            asset.asset_id,
            placement.location_id,
            placement.object_key,
-           name(placement.encoding),
-           placement.stored_byte_size, // LCOV_EXCL_LINE - GCC cleanup-only counter; normal
-                                       // expression is measured on adjacent lines.
+           name(placement.encoding), // LCOV_EXCL_LINE - GCC cleanup-only counter
+           placement.stored_byte_size, // LCOV_EXCL_LINE - GCC cleanup-only counter
            placement.stored_sha256,
            placement.created_at}
       );
@@ -657,7 +653,7 @@ RecoverySnapshotPage read(
   }
   if (page.next_cursor) {
     out.next_cursor = encode_cursor(
-        {{"version", 1},
+        {{"version", 1}, // LCOV_EXCL_LINE - GCC cleanup-only counter
          {"query", scope},
          {"card_id", page.next_cursor->card_id},
          {"updated_at", *page.next_cursor->updated_at}}

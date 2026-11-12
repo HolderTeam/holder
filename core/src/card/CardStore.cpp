@@ -809,10 +809,11 @@ std::optional<holder::model::Milestone> CardStore::update_milestone(
           const auto end = find_role("end");
           std::optional<long long> end_at;
           if (end != updated.dates.end()) end_at = holder::model::milestone_legacy_epoch(*end);
+          // LCOV_EXCL_START - parsed milestone dates already require exactly one valid date or
+          // datetime.
           if (end != updated.dates.end() && !end_at && !update.has_end_at)
-            throw std::invalid_argument("legacy milestone update requires a single end value"
-            ); // LCOV_EXCL_LINE - parsed milestone dates already require exactly one valid date or
-               // datetime.
+            throw std::invalid_argument("legacy milestone update requires a single end value");
+          // LCOV_EXCL_STOP
           if (update.has_end_at) end_at = update.end_at;
           const auto normalized_start = holder::model::milestone_legacy_epoch(new_start).value();
           if (end_at) {

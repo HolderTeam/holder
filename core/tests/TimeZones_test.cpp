@@ -123,6 +123,12 @@ void host_destroy(void* user_data) { ++static_cast<HostZones*>(user_data)->destr
 
 int failing_current(void*, char**, char**) { return 1; }
 
+int offset_with_bad_presence(void*, const char*, int64_t, int64_t* out_offset, int* out_present, char**) {
+  *out_offset = 0;
+  *out_present = 2;
+  return 0;
+}
+
 } // namespace
 
 TEST_CASE("a host's provider replaces the built-in one and is released once", "[time_zone][capi]") {
@@ -155,6 +161,19 @@ TEST_CASE("a host's provider replaces the built-in one and is released once", "[
   );
   REQUIRE(refused.destroyed == 1);
   holder_error_destroy(error);
+}
+
+TEST_CASE("a host's presence flag other than 0 or 1 is an error", "[time_zone][capi]") {
+  HostZones host;
+  holder_time_zone_provider_callbacks callbacks{offset_with_bad_presence, host_current};
+  holder_error* error = nullptr;
+  REQUIRE(holder_register_time_zone_provider(&callbacks, &host, host_destroy, &error) == HOLDER_OK);
+  {
+    const auto provider = holder::platform::time_zone_provider();
+    REQUIRE_THROWS_AS(provider->utc_offset("Test/Plus2", 0), std::runtime_error);
+    holder::platform::set_time_zone_provider(nullptr);
+  }
+  REQUIRE(host.destroyed == 1);
 }
 
 TEST_CASE("a failed host callback is distinct from an unknown zone", "[time_zone][capi]") {

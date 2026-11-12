@@ -904,6 +904,11 @@ int fake_storage_exists(
   return 0;
 }
 
+int exists_neither_yes_nor_no(void*, const char*, int* out_exists, int*, char**) {
+  *out_exists = 2;
+  return 0;
+}
+
 int fake_storage_remove(
     void* user_data,
     const char* object_key,
@@ -1387,6 +1392,38 @@ TEST_CASE(
   REQUIRE(backend.exists_calls == 1);
   REQUIRE(backend.remove_calls == 1);
   holder_error_destroy(error);
+
+  holder_context_destroy(context);
+}
+
+TEST_CASE("C API storage providers must answer exists with 0 or 1", "[capi][resource]") {
+  const auto data_dir = holder::test::make_temp_dir();
+  const auto schema = read_schema_sql();
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+  FakeStorageBackend backend{.root = data_dir / "unsure-provider"};
+  const ClearStorageProvidersAtEnd clear_providers;
+  REQUIRE(
+      register_storage_provider(
+          HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE,
+          fake_storage_put,
+          fake_storage_get,
+          exists_neither_yes_nor_no,
+          fake_storage_remove,
+          &backend,
+          noop_storage_destroy,
+          &error
+      ) == HOLDER_OK
+  );
+
+  const auto provider = holder::capi::storage_provider(*context, "s3_compatible");
+  REQUIRE_THROWS_WITH(
+      provider->exists("assets/a1"),
+      Catch::Matchers::ContainsSubstring("StorageProvider.exists: invalid boolean result")
+  );
 
   holder_context_destroy(context);
 }

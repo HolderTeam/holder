@@ -262,7 +262,7 @@ RemoteTestResult test_remote(
   holder::git::RemoteProbeResult probe{
       holder::git::RemoteProbeStatus::RemoteUnset,
       false,
-      "The project has no Git remote."
+      "The project has no Git remote." // LCOV_EXCL_LINE - GCC cleanup-only counter
   };
   if (remote_url) probe = git.probe_remote_url(*remote_url);
   return {

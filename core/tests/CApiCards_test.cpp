@@ -2120,6 +2120,15 @@ TEST_CASE(
           holder_update_resource(f.context, project, "res-1", &update, f.arena, &resource, &f.error)
       ) == HOLDER_ERROR_INVALID_ARGUMENT
   );
+  // Nor is a name empty.
+  const holder_resource_metadata_entry unnamed[] = {{"", {authors, 1}}};
+  const holder_resource_metadata blank{unnamed, 1};
+  update.metadata = &blank;
+  REQUIRE(
+      f.failed(
+          holder_update_resource(f.context, project, "res-1", &update, f.arena, &resource, &f.error)
+      ) == HOLDER_ERROR_INVALID_ARGUMENT
+  );
 
   const holder_resource_list* list = nullptr;
   REQUIRE(holder_list_resources(f.context, project, f.arena, &list, &f.error) == HOLDER_OK);

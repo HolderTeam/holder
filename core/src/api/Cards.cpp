@@ -107,7 +107,7 @@ Page<CardListItem> list_page(
       {"project_id", project_id},
       {"tag", normalized_tag},
       {"parent", parent_value},
-      {"order", order_name(order)}
+      {"order", order_name(order)} // LCOV_EXCL_LINE - GCC cleanup-only counter
   };
   if (cursor) query.cursor = decode_cursor(*cursor, scope, order == ListCardsOrder::SortKeyAsc);
   if (!holder::project::ProjectRepo(context.db).get(project_id))
@@ -134,7 +134,7 @@ Page<CardListItem> list_page(
   Page<CardListItem> out;
   if (page.next_cursor) {
     out.next_cursor = encode_cursor(
-        {{"version", 1},
+        {{"version", 1}, // LCOV_EXCL_LINE - GCC cleanup-only counter
          {"query", scope},
          {"card_id", page.next_cursor->card_id},
          {"updated_at", *page.next_cursor->updated_at},
@@ -232,9 +232,11 @@ Card read_back(holder::card::CardStore& store, const std::string& card_id) {
     throw InvalidMove("the card is already at the top level");
   case Code::MissingTargetCardId:
     throw InvalidArgument("target_card_id is required for into, before and after");
+  // LCOV_EXCL_START - private translator; placement_intent rejects invalid intents before core
+  // resolution.
   case Code::InvalidMoveIntent:
-    break; // LCOV_EXCL_LINE - private translator; placement_intent rejects invalid intents before
-           // core resolution.
+    break;
+    // LCOV_EXCL_STOP
   }
   throw InvalidArgument(error.what()); // LCOV_EXCL_LINE - private translator; placement_intent
                                        // rejects invalid intents before core resolution.

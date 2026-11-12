@@ -150,7 +150,9 @@ std::size_t response_size(const ProjectHistoryPage& page) {
         items.push_back(std::move(item));
       }
       affected.push_back(
+          // LCOV_EXCL_START - GCC cleanup-only counter; the call is measured on adjacent lines.
           {{"kind", kind_name(object.kind)}, {"paths", object.paths}, {"items", std::move(items)}}
+          // LCOV_EXCL_STOP
       );
     } // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
     activities.push_back(
@@ -194,15 +196,12 @@ ProjectHistoryPage list_project_history(
     throw InvalidArgument(error.what());
   } catch (const holder::privacy::PrivacyError& error) {
     using Code = holder::privacy::PrivacyErrorCode;
-    if (error.code() == Code::KeyMaterialMissing ||
-        error.code() ==
-            Code::KeyringUnavailable) // LCOV_EXCL_LINE - current history enrichment absorbs privacy
-                                      // failures; retained for future backends.
-      throw HistoryKeyUnavailable(error.what()
-      ); // LCOV_EXCL_LINE - current history enrichment absorbs privacy failures; retained for
-         // future backends.
-    throw HistoryUnavailable(error.what()); // LCOV_EXCL_LINE - current history enrichment absorbs
-                                            // privacy failures; retained for future backends.
+    // LCOV_EXCL_START - current history enrichment absorbs privacy failures; retained for future
+    // backends.
+    if (error.code() == Code::KeyMaterialMissing || error.code() == Code::KeyringUnavailable)
+      throw HistoryKeyUnavailable(error.what());
+    throw HistoryUnavailable(error.what());
+    // LCOV_EXCL_STOP
   } catch (const std::exception& error) {
     throw HistoryUnavailable(error.what());
   }
