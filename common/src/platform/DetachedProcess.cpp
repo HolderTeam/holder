@@ -249,11 +249,13 @@ int move_above_stdio(int fd) {
 // starter's process group (Ctrl-C in a terminal, for one) does not reach it. A failure is
 // reported to the caller the same way a failed exec is.
 struct NewSession {
+  // LCOV_EXCL_START: runs only after fork in the child; exec discards its counters. The helper verifies getsid(0) == getpid().
   template <typename Launcher, typename Path>
   boost::system::error_code on_exec_setup(Launcher&, const Path&, const char* const*&) const {
     if (::setsid() == -1) return boost::system::error_code(errno, boost::system::system_category());
     return {};
   }
+  // LCOV_EXCL_STOP
 };
 
 } // namespace
@@ -269,8 +271,18 @@ std::optional<DetachedProcess> DetachedProcess::start(
 
   const std::string exe = request.executable.string();
 
-  int log_fd = -1;
   std::error_code ec;
+  const auto working_dir = request.working_dir.empty() ? std::filesystem::current_path(ec)
+                                                       : request.working_dir;
+
+  if (!request.working_dir.empty() && !std::filesystem::is_directory(working_dir, ec)) {
+    return fail(
+        "cannot start " + request.executable.string() + ": the working directory " +
+        working_dir.string() + " does not exist"
+    );
+  }
+
+  int log_fd = -1;
   if (!request.log_path.empty()) {
     std::filesystem::create_directories(request.log_path.parent_path(), ec);
     log_fd = move_above_stdio(
@@ -281,16 +293,6 @@ std::optional<DetachedProcess> DetachedProcess::start(
           "cannot open log file " + request.log_path.string() + ": " + std::strerror(errno)
       );
     }
-  }
-
-  const auto working_dir = request.working_dir.empty() ? std::filesystem::current_path(ec)
-                                                       : request.working_dir;
-
-  if (!request.working_dir.empty() && !std::filesystem::is_directory(working_dir, ec)) {
-    return fail(
-        "cannot start " + request.executable.string() + ": the working directory " +
-        working_dir.string() + " does not exist"
-    );
   }
 
   auto impl = std::make_unique<Impl>();
@@ -397,7 +399,7 @@ bool DetachedProcess::has_exited(int* exit_code) {
       } else if (WIFSIGNALED(status)) {
         impl_->exit_code = 128 + WTERMSIG(status);
       } else {
-        impl_->exit_code = -1;
+        impl_->exit_code = -1; // LCOV_EXCL_LINE: a completed POSIX wait reports normal exit or signal termination; retain the defensive fallback.
       }
 #endif
     }

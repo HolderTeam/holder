@@ -59,6 +59,26 @@ private void test_parse_git_push_result_full_and_defaults() {
     assert(defaults_result.next_action == "");
 }
 
+private void test_parse_git_push_result_maps_failure_statuses_to_next_actions() {
+    string[] statuses = {
+        "non_fast_forward", "auth_failed", "not_found", "network_error", "unknown_error",
+        "pushed", "up_to_date", "future-status"
+    };
+    string[] actions = {
+        "pull_then_retry", "fix_auth_then_retry", "fix_remote_url_then_retry", "retry", "retry",
+        "", "", ""
+    };
+    for (int i = 0; i < statuses.length; i++) {
+        var phase = new Json.Object();
+        phase.set_string_member("status", statuses[i]);
+        var data = new Json.Object();
+        data.set_object_member("push", phase);
+        var result = HolderLinux.ApiParsersGit.parse_git_push_result(data);
+        assert(result.status == statuses[i]);
+        assert(result.next_action == actions[i]);
+    }
+}
+
 private void test_parse_git_provider_catalog_missing_providers_returns_empty() {
     var root = parse_json_object("{\"ok\":true}");
 
@@ -116,6 +136,7 @@ public static int main(string[] args) {
 
     Test.add_func("/parsers/git/test-remote-full-and-defaults", test_parse_git_test_remote_result_full_and_defaults);
     Test.add_func("/parsers/git/push-result-full-and-defaults", test_parse_git_push_result_full_and_defaults);
+    Test.add_func("/parsers/git/push-failure-next-actions", test_parse_git_push_result_maps_failure_statuses_to_next_actions);
     Test.add_func("/parsers/git/provider-catalog-missing-providers", test_parse_git_provider_catalog_missing_providers_returns_empty);
     Test.add_func("/parsers/git/provider-catalog-full-and-defaults", test_parse_git_provider_catalog_full_and_defaults);
 

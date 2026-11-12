@@ -157,7 +157,7 @@ bool service_unit_failed() {
   if (systemctl.empty()) return false;
   const auto code = run_to_completion(
       systemctl,
-      {"--user", "is-failed", "--quiet", kServiceUnit},
+      {"--user", "is-failed", "--quiet", kServiceUnit}, // LCOV_EXCL_LINE: GCC attributes only unexecuted exception cleanup here; service polling is tested.
       std::chrono::seconds(5)
   );
   return code.has_value() && *code == 0;
@@ -576,7 +576,7 @@ nlohmann::json ensure_result_to_json(const EnsureResult& result) {
   nlohmann::json out = {
       {"ok", result.ok},
       {"state", result.state},
-      {"started", result.state == "started"},
+      {"started", result.state == "started"}, // LCOV_EXCL_LINE: GCC attributes only unexecuted exception cleanup here; both states are tested.
       {"exit_code", result.exit_code},
       {"elapsed_ms", result.elapsed_ms},
   };
@@ -615,8 +615,10 @@ int run_ensure_command(const holder::core::Paths& paths, int argc, char* argv[],
   options.keep_running = start;
   options.holderctl_path = holder::platform::current_executable_path();
   if (options.holderctl_path.empty() && argc > 0 && argv[0] != nullptr && *argv[0] != '\0') {
+    // LCOV_EXCL_START: defensive fallback requires OS executable-path discovery to fail.
     std::error_code ec;
     options.holderctl_path = std::filesystem::absolute(argv[0], ec);
+    // LCOV_EXCL_STOP
   }
 
   const auto result = ensure_daemon(paths, options);
@@ -628,7 +630,7 @@ int run_ensure_command(const holder::core::Paths& paths, int argc, char* argv[],
   if (result.ok) {
     std::cout << "Holder daemon: " << result.state << "\n";
     if (!result.mode.empty()) std::cout << "Mode: " << result.mode << "\n";
-    std::cout << "URL: " << result.daemon.value("url", "") << "\n"
+    std::cout << "URL: " << result.daemon.value("url", "") << "\n" // LCOV_EXCL_LINE: GCC attributes only unexecuted exception cleanup here; text output is tested.
               << "API version: " << result.daemon.value("api_version", "") << "\n"
               << "Server version: " << result.daemon.value("server_version", "") << "\n";
     if (start) {

@@ -205,3 +205,40 @@ TEST_CASE(
   CHECK(std::filesystem::exists(fresh));
   CHECK(std::filesystem::is_directory(cache / "directory-entry"));
 }
+
+TEST_CASE("HTTP location creation issues unique UUIDs with a configured seed", "[http][resources]") {
+  const char* seed = "1234";
+  SECTION("numeric seed") {}
+  SECTION("invalid seed falls back to random UUIDs") { seed = "invalid"; }
+  holder::test::EnvGuard uuid_seed("HOLDER_UUID_SEED", seed);
+
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  create_project(db, "proj-1", (dir / "project").string());
+  const std::string token = "testtoken";
+  RunningServer running(db, token);
+
+  namespace http = boost::beast::http;
+  const auto create_location = [&](const std::string& name) {
+    const auto response = http_json_request(
+        running.bound.bind,
+        running.bound.port,
+        token,
+        http::verb::post,
+        "/locations",
+        {{"project_id", "proj-1"},
+         {"name", name},
+         {"provider", "local_directory"},
+         {"configuration", nlohmann::json::object()}},
+        http::status::created);
+    return response.at("data").at("location_id").get<std::string>();
+  };
+  const auto first = create_location("First");
+  const auto second = create_location("Second");
+  for (const auto& id : {first, second}) {
+    REQUIRE(id.size() == 36);
+    CHECK(id[14] == '4');
+    CHECK(std::string_view("89ab").find(id[19]) != std::string_view::npos);
+  }
+  CHECK(first != second);
+}

@@ -56,6 +56,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
     private PowerShellDiscoveryService discovery;
     private TerminalSessionStore session_store;
     private WindowsTerminalLauncher launcher;
+    private IScheduler scheduler;
     private PowerShellPrerequisites? prerequisites;
     private PowerShellTranscriptSnapshot? transcript_snapshot;
     private TerminalSession? active_session;
@@ -80,20 +81,21 @@ public class TerminalToolView : Object, IToolShellAdapter {
     public signal void toast_requested(string message);
     public signal void copy_to_card_requested(string text);
 
-    public TerminalToolView() {
-        discovery = new PowerShellDiscoveryService(AppSettings.open_or_null());
-        session_store = new TerminalSessionStore();
-        launcher = new WindowsTerminalLauncher();
+    public TerminalToolView(PowerShellDiscoveryService? discovery = null,
+                            TerminalSessionStore? session_store = null,
+                            WindowsTerminalLauncher? launcher = null,
+                            IScheduler? scheduler = null) {
+        this.discovery = discovery ?? new PowerShellDiscoveryService(AppSettings.open_or_null());
+        this.session_store = session_store ?? new TerminalSessionStore();
+        this.launcher = launcher ?? new WindowsTerminalLauncher();
+        this.scheduler = scheduler ?? new MainLoopScheduler();
         widget = build_ui();
         refresh_prerequisites.begin();
     }
 
     ~TerminalToolView() {
         cancel_transcript_monitor();
-        if (install_poll_source != 0) {
-            Source.remove(install_poll_source);
-            install_poll_source = 0;
-        }
+        stop_install_polling();
     }
 
     public Gtk.Widget? get_actions_widget() {
@@ -331,7 +333,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
     private void render_prerequisites() {
         var current = prerequisites;
         if (current == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: defensive guard; only called after discover() has stored a non-null result
         }
         if (((!) current).ready) {
             content_stack.set_visible_child_name("sessions");
@@ -382,20 +384,23 @@ public class TerminalToolView : Object, IToolShellAdapter {
     private void start_install_polling() {
         stop_install_polling();
         install_poll_count = 0;
-        install_poll_source = Timeout.add_seconds(TerminalPresenter.INSTALL_POLL_INTERVAL_SECONDS, () => {
-            install_poll_count++;
-            refresh_prerequisites.begin();
-            if (TerminalPresenter.install_poll_exhausted(install_poll_count)) {
-                install_poll_source = 0;
-                return Source.REMOVE;
+        install_poll_source = scheduler.schedule_repeating(
+            TerminalPresenter.INSTALL_POLL_INTERVAL_SECONDS * 1000,
+            () => {
+                install_poll_count++;
+                refresh_prerequisites.begin();
+                if (TerminalPresenter.install_poll_exhausted(install_poll_count)) {
+                    install_poll_source = 0;
+                    return Source.REMOVE;
+                }
+                return Source.CONTINUE;
             }
-            return Source.CONTINUE;
-        });
+        );
     }
 
     private void stop_install_polling() {
         if (install_poll_source != 0) {
-            Source.remove(install_poll_source);
+            scheduler.cancel(install_poll_source);
             install_poll_source = 0;
         }
     }
@@ -437,7 +442,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
     private CardSummary? selected_card() {
         return card_selection != null
             ? ((!) card_selection).get_selected_item() as CardSummary
-            : null;
+            : null; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: bind_context sets both selections together, and this is reached only once a project is selected
     }
 
     private void load_project_sessions() {
@@ -511,15 +516,18 @@ public class TerminalToolView : Object, IToolShellAdapter {
     private void start_transcript_monitor(TerminalSession session) {
         try {
             var directory = File.new_for_path(Path.get_dirname(session.transcript_path));
+            var transcript_name = Path.get_basename(session.transcript_path);
             transcript_monitor = directory.monitor_directory(FileMonitorFlags.WATCH_MOVES, null);
             ((!) transcript_monitor).changed.connect((file, other_file, event_type) => {
-                var changed_path = file.get_path();
-                if (changed_path == session.transcript_path) {
+                // The monitor watches only this session's directory, so the name identifies the
+                // transcript. Full paths can differ in form on Windows (separators, long-path
+                // prefix, 8.3 short names) between what the monitor reports and the stored path.
+                if (file.get_basename() == transcript_name) {
                     queue_transcript_refresh();
                 }
             });
         } catch (Error e) {
-            debug_log_requested("Terminal transcript monitor failed: %s".printf(e.message));
+            debug_log_requested("Terminal transcript monitor failed: %s".printf(e.message)); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: GIO on Linux creates directory monitors even for missing paths, so this cannot fail on the test host
         }
     }
 
@@ -529,7 +537,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
             transcript_monitor = null;
         }
         if (transcript_refresh_source != 0) {
-            Source.remove(transcript_refresh_source);
+            scheduler.cancel(transcript_refresh_source);
             transcript_refresh_source = 0;
         }
     }
@@ -538,7 +546,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
         if (transcript_refresh_source != 0) {
             return;
         }
-        transcript_refresh_source = Timeout.add(100, () => {
+        transcript_refresh_source = scheduler.schedule_once(100, () => {
             transcript_refresh_source = 0;
             refresh_active_transcript();
             return Source.REMOVE;
@@ -548,7 +556,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
     private void refresh_active_transcript() {
         var session = active_session;
         if (session == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: defensive guard; set_active_row cancels any queued refresh before clearing the session
         }
         try {
             transcript_snapshot = session_store.read_transcript((!) session);

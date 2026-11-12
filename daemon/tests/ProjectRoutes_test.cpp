@@ -830,3 +830,107 @@ TEST_CASE("ProjectRoutes create and recovery required field branches", "[project
     REQUIRE(payload["error"]["code"] == "invalid_argument");
   }
 }
+
+TEST_CASE("Privacy failures retain their category when translated for HTTP", "[projects][routes]") {
+  using Code = holder::privacy::PrivacyErrorCode;
+  using namespace holder::api::support;
+  const auto check = []<typename Failure>(Code code) {
+    CAPTURE(static_cast<int>(code));
+    try {
+      throw_privacy_failure(holder::privacy::PrivacyError(code, "privacy detail"));
+    } catch (const Failure& failure) {
+      CHECK(failure.code() == code);
+      CHECK(std::string(failure.what()) == "privacy detail");
+    }
+  };
+  check.operator()<KeyringUnavailable>(Code::KeyringUnavailable);
+  check.operator()<PrivacyBroken>(Code::CryptMetadataMissing);
+  check.operator()<PrivacyRejected>(Code::EnvelopeInvalid);
+}
+
+TEST_CASE("Scheduled project sync validates intervals and skips projects without a remote",
+          "[project-routes]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "local", (dir / "project").string());
+  ProjectRoutesTestGitOps git;
+  const auto call = [&](const std::string& path) {
+    auto req = make_request(http::verb::post, path);
+    http::response<http::string_body> res;
+    REQUIRE(route_project(req, res, db, &git));
+    return res;
+  };
+
+  for (const auto& [query, field] : {
+           std::pair{"?push_interval_seconds=-1", "push_interval_seconds"},
+           std::pair{"?pull_interval_seconds=2147483648", "pull_interval_seconds"},
+       }) {
+    const auto res = call(std::string("/projects/local/git/sync-if-due") + query);
+    REQUIRE(res.result() == http::status::bad_request);
+    const auto error = nlohmann::json::parse(res.body()).at("error");
+    CHECK(error.at("code") == "invalid_argument");
+    CHECK(error.at("message").get<std::string>().find(field) != std::string::npos);
+  }
+
+  const auto missing = call("/projects/missing/git/sync-if-due");
+  REQUIRE(missing.result() == http::status::not_found);
+  CHECK(nlohmann::json::parse(missing.body()).at("error").at("code") == "not_found");
+
+  const auto skipped = call("/projects/local/git/sync-if-due?push_interval_seconds=20&pull_interval_seconds=30");
+  REQUIRE(skipped.result() == http::status::ok);
+  const auto data = nlohmann::json::parse(skipped.body()).at("data");
+  CHECK(data.at("project_id") == "local");
+  CHECK(data.at("remote_url").is_null());
+  CHECK(data.at("pull").at("attempted") == false);
+  CHECK(data.at("push").at("attempted") == false);
+  CHECK(git.calls.empty());
+}
+
+TEST_CASE("Project history routes page card activity and validate filters", "[project-routes]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "project", (dir / "project").string());
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore cards(db, &fts);
+  holder::test::create_card_fixture(cards, "first-card", "project", "First", "first", 10);
+  holder::test::create_card_fixture(cards, "second-card", "project", "Second", "second", 11);
+
+  const auto get = [&](const std::string& query) {
+    CAPTURE(query);
+    auto req = make_request(http::verb::get, "/projects/project/history" + query);
+    http::response<http::string_body> res;
+    REQUIRE(route_project(req, res, db, nullptr));
+    return res;
+  };
+
+  const auto first = get("?kind=card&limit=1");
+  REQUIRE(first.result() == http::status::ok);
+  const auto page = nlohmann::json::parse(first.body()).at("data");
+  REQUIRE(page.at("activities").size() == 1);
+  REQUIRE(page.at("next_cursor").is_string());
+  const auto next = get("?kind=card&limit=1&cursor=" + page.at("next_cursor").get<std::string>());
+  REQUIRE(next.result() == http::status::ok);
+  const auto next_page = nlohmann::json::parse(next.body()).at("data");
+  REQUIRE(next_page.at("activities").size() == 1);
+  CHECK(page.at("activities").front().at("oid") != next_page.at("activities").front().at("oid"));
+
+  for (const std::string kind : {"resource", "location", "ai_data", "project_settings", "unknown"}) {
+    CAPTURE(kind);
+    const auto filtered = get("?kind=" + kind);
+    REQUIRE(filtered.result() == http::status::ok);
+    const auto activities = nlohmann::json::parse(filtered.body()).at("data").at("activities");
+    for (const auto& activity : activities) {
+      bool matches_filter = false;
+      for (const auto& affected : activity.at("affected_objects"))
+        matches_filter |= affected.at("kind") == kind;
+      CHECK(matches_filter);
+    }
+  }
+
+  for (const std::string query : {"?kind=invalid", "?cursor=short", "?limit=201"}) {
+    CAPTURE(query);
+    const auto res = get(query);
+    REQUIRE(res.result() == http::status::bad_request);
+    CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == "invalid_argument");
+  }
+}

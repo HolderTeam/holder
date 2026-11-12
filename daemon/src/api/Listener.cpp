@@ -391,6 +391,11 @@ std::size_t Listener::active_read_socket_count() const {
   return active_read_sockets_.size();
 }
 
+std::size_t Listener::active_write_socket_count() const {
+  std::lock_guard<std::mutex> lock(active_socket_mutex_);
+  return active_write_sockets_.size();
+}
+
 std::size_t Listener::pending_socket_count() const {
   std::lock_guard<std::mutex> lock(ingress_queue_mutex_);
   return pending_sockets_.size();
@@ -423,6 +428,10 @@ std::size_t Listener::background_queue_count() const {
 
 std::size_t Listener::dropped_socket_count_for_test() const {
   return dropped_socket_count_for_test_.load();
+}
+
+void Listener::set_accepted_send_buffer_size_for_test(int bytes) {
+  accepted_send_buffer_size_for_test_.store(bytes);
 }
 
 void Listener::enqueue_pending_socket_for_test() {
@@ -459,6 +468,13 @@ void Listener::start_accept_loop() {
       return;
     }
     // LCOV_EXCL_STOP
+
+    if (const int send_buffer = accepted_send_buffer_size_for_test_.load(); send_buffer >= 0) {
+      boost::system::error_code option_ec;
+      ignore_result(socket.set_option(
+          boost::asio::socket_base::send_buffer_size(send_buffer), option_ec
+      )); // NOLINT(bugprone-unused-return-value)
+    }
 
     {
       std::lock_guard<std::mutex> lock(ingress_queue_mutex_);

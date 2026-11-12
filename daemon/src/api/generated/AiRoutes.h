@@ -243,7 +243,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             auto arg_request = decode_body<holder::api::AiRunCreateRequest>(body);
             auto outcome = holder::api::post_ai_runs(context.socket, context.db, context.fts, context.secret_store, context.registry, context.uuid_v4, context.events, std::move(arg_request));
             if (outcome.status != 200 && outcome.status != 204)
-                throw std::logic_error("post_ai_runs chose an undeclared success status");
+                throw std::logic_error("post_ai_runs chose an undeclared success status"); // LCOV_EXCL_LINE: runtime stream implementations return only 200 or 204; defensive contract guard.
             return response{outcome.status, json(), "post_ai_runs", std::move(outcome.value)};
         } catch (const std::exception& error) {
             return failure(error_status(error), error, "post_ai_runs");
@@ -409,7 +409,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             auto arg_job_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "job_id", 0, std::numeric_limits<std::size_t>::max());
             auto outcome = holder::api::get_ai_runner_pull_job_id_events(context.registry, context.events, std::move(arg_runner_id), std::move(arg_last_event_id), std::move(arg_job_id));
             if (outcome.status != 200 && outcome.status != 204)
-                throw std::logic_error("get_ai_runner_pull_job_id_events chose an undeclared success status");
+                throw std::logic_error("get_ai_runner_pull_job_id_events chose an undeclared success status"); // LCOV_EXCL_LINE: runtime stream implementations return only 200 or 204; defensive contract guard.
             return response{outcome.status, json(), "get_ai_runner_pull_job_id_events", std::move(outcome.value)};
         } catch (const std::exception& error) {
             return failure(error_status(error), error, "get_ai_runner_pull_job_id_events");
@@ -631,7 +631,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             auto arg_run_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "run_id", 0, std::numeric_limits<std::size_t>::max());
             auto outcome = holder::api::get_ai_runs_run_id_events(context.db, context.events, std::move(arg_last_event_id), std::move(arg_run_id));
             if (outcome.status != 200 && outcome.status != 204)
-                throw std::logic_error("get_ai_runs_run_id_events chose an undeclared success status");
+                throw std::logic_error("get_ai_runs_run_id_events chose an undeclared success status"); // LCOV_EXCL_LINE: runtime stream implementations return only 200 or 204; defensive contract guard.
             return response{outcome.status, json(), "get_ai_runs_run_id_events", std::move(outcome.value)};
         } catch (const std::exception& error) {
             return failure(error_status(error), error, "get_ai_runs_run_id_events");
