@@ -5,6 +5,7 @@
 #include "platform/Paths.h"
 #include "privacy/SecretStore.h"
 
+#include <array>
 #include <boost/beast/http.hpp>
 #include <nlohmann/json.hpp>
 
@@ -449,5 +450,37 @@ TEST_CASE("AiProviderCredentialRoutes map PrivacyError to service unavailable", 
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["error"]["code"] == "privacy_key_material_missing");
     REQUIRE(payload["error"]["message"] == "simulated secret store remove failure");
+  }
+}
+
+TEST_CASE("Credential errors preserve stable privacy codes in HTTP responses", "[http]") {
+  using Code = holder::privacy::PrivacyErrorCode;
+  struct Case {
+    Code code;
+    const char* response_code;
+  };
+  constexpr std::array cases{
+      Case{Code::KeyMaterialMissing, "privacy_key_material_missing"},
+      Case{Code::KeyringUnavailable, "privacy_keyring_unavailable"},
+      Case{Code::RecoveryTokenInvalid, "privacy_recovery_token_invalid"},
+      Case{Code::EnvelopeInvalid, "privacy_envelope_invalid"},
+      Case{Code::EnvelopeMetadataMismatch, "privacy_envelope_metadata_mismatch"},
+      Case{Code::CryptMetadataMissing, "privacy_metadata_missing"},
+      Case{Code::EncryptionSafetyCheckFailed, "privacy_safety_check_failed"},
+      Case{Code::PrivacyCryptoFailed, "privacy_crypto_failed"},
+      Case{static_cast<Code>(255), "privacy_error"},
+  };
+
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  const auto req = make_req(http::verb::delete_, "/ai/providers/credentials/switchyard");
+  for (const auto& test : cases) {
+    CAPTURE(test.response_code);
+    ThrowingSecretStore secret_store(test.code);
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(
+        req, res, db, nullptr, nullptr, &secret_store));
+    CHECK(res.result() == http::status::service_unavailable);
+    CHECK(nlohmann::json::parse(res.body())["error"]["code"] == test.response_code);
   }
 }

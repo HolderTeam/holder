@@ -6,6 +6,7 @@
 
 #include "ai/AiNudgeRepo.h"
 #include "ai/NudgeService.h"
+#include "api/AiNudges.h"
 #include "api/GeneratedRoutes.h"
 #include "http_test_helpers.h"
 
@@ -529,4 +530,26 @@ TEST_CASE("AI nudge routes handle query and lookup errors", "[ai][nudges]") {
     REQUIRE(res.result() == http::status::ok);
     REQUIRE(nlohmann::json::parse(res.body())["data"]["nudges"].empty());
   }
+}
+
+TEST_CASE("Listing nudges preserves suggestions with an empty card selector", "[ai][nudges]") {
+  auto db = holder::test::open_db_with_schema(holder::test::make_temp_dir() / "holder.db");
+  holder::test::create_project(db, "proj-1");
+  holder::ai::AiNudgeRepo(db).create({
+      .nudge_id = "nudge-with-suggestions",
+      .kind = "git.push_failed_repeated",
+      .project_id = "proj-1",
+      .card_id = std::nullopt,
+      .title = "Check sync",
+      .body = "The last push failed.",
+      .meta_json = {{"suggestions", {"Check the remote", "Retry the push"}}},
+      .created_at = 123,
+  });
+
+  const auto result = holder::api::get_ai_nudges(db, nullptr, "proj-1", std::string{});
+  REQUIRE(result.data.nudges.size() == 1);
+  CHECK(result.data.nudges.front().nudge_id == "nudge-with-suggestions");
+  REQUIRE(result.data.nudges.front().suggestions);
+  CHECK(*result.data.nudges.front().suggestions ==
+        std::vector<std::string>{"Check the remote", "Retry the push"});
 }

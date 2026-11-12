@@ -356,7 +356,7 @@ std::vector<CalendarEvent> calendar_events(const nlohmann::json& data, const Cal
       events.push_back({
           .when = when,
           .when_text = format_milestone_when(when, false),
-          .type = type,
+          .type = type, // LCOV_EXCL_LINE: GCC attributes only unused exception cleanup here; card calendar event construction is tested.
           .event_id = {},
           .card_id = json_string(card, "card_id"),
           .title = json_string(card, "title"),

@@ -2,6 +2,7 @@
 #include "http_test_helpers.h"
 #include "llm/LocalModelRunner.h"
 #include "llm/LocalRunnerClient.h"
+#include "storage_http_test_server.h"
 
 #include <boost/asio.hpp>
 #include <boost/beast/http.hpp>
@@ -133,6 +134,11 @@ TEST_CASE("Ai runner pull events route tells a reconnect to a finished pull to s
 
   const auto first = invoke_pull_event_route_and_capture(path, &runner_registry);
   REQUIRE(first.raw_response.find("event: completed") != std::string::npos);
+  const auto invalid = invoke_pull_event_route_and_capture(path, &runner_registry, "bad-cursor");
+  REQUIRE(invalid.route_result.handled);
+  REQUIRE_FALSE(invalid.route_result.streamed);
+  CHECK(invalid.status == http::status::bad_request);
+
   const auto cursor = holder::api::support::EventJournal().cursor();
   const auto reconnect = invoke_pull_event_route_and_capture(path, &runner_registry, cursor);
   REQUIRE(reconnect.route_result.handled);
@@ -160,4 +166,22 @@ TEST_CASE("Ai runner pull events route streams progress and completed for job", 
   REQUIRE(stream.raw_response.find("\"job_id\":\"" + job.job_id + "\"") != std::string::npos);
   REQUIRE(stream.raw_response.find("\"runner_id\":\"auto-local\"") != std::string::npos);
   REQUIRE(stream.raw_response.find("\"model_ref\":\"auto-local::fake-echo\"") != std::string::npos);
+}
+
+TEST_CASE("Ai runner pull events deliver the failed terminal event", "[http]") {
+  using Server = holder::test::StorageHttpTestServer;
+  Server backend([](const Server::Request&) { return Server::response(503); });
+  holder::llm::LocalModelRunner runner(
+      "127.0.0.1", std::to_string(backend.address().port()), "", false);
+  runner.set_fake_mode(false);
+  const auto job = runner.start_pull("unavailable-model");
+  holder::llm::LocalRunnerClient client(&runner);
+  holder::llm::RunnerRegistry registry(nullptr, &client);
+
+  const auto result = invoke_pull_event_route_and_capture(
+      "/ai/runner/pull/" + job.job_id + "/events?runner_id=auto-local", &registry);
+  REQUIRE(result.route_result.streamed);
+  CHECK(result.raw_response.find("event: failed") != std::string::npos);
+  CHECK(result.raw_response.find("HTTP 503") != std::string::npos);
+  CHECK(result.raw_response.find("event: completed") == std::string::npos);
 }
