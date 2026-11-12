@@ -106,7 +106,9 @@ jobs:
         name: Record daemon source revision
         run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   checks:
-    # Fast checks that need no build: no paths across the core boundary, and make.sh's core selection.
+    # Fast checks that need no build: no paths across the core boundary, make.sh's core selection,
+    # and formatting. The daemon's C++, hand-written and generated alike, follows .clang-format as
+    # clang-format-18 applies it; the version is pinned because another lays code out differently.
     needs: changes
     if: needs.changes.outputs.daemon == 'true'
     runs-on: ubuntu-24.04
@@ -119,6 +121,13 @@ jobs:
       - name: Test make.sh's core selection
         working-directory: daemon
         run: python3 -m unittest scripts/test_make.py -v
+      - name: Install clang-format-18
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-format-18
+      - name: Check formatting
+        working-directory: daemon
+        run: ./make.sh format-check
   core-sdk:
     # The daemon builds against core from this same commit, through core's installed SDK.
     needs: resolve
