@@ -1,28 +1,29 @@
 namespace HolderLinux {
 
 public class ToolboxPane : Object {
-    private ConnectionsToolView connections_tool;
-    private TagsToolView tags_tool;
-    private GitSyncToolView git_sync_tool;
-    private RecoveryKeyToolView recovery_key_tool;
-    private ResourcesToolView resources_tool;
-    private MilestonesToolView milestones_tool;
-    private HistoryToolView history_tool;
-    private SharingToolView sharing_tool;
-    private DebugToolView debug_tool;
-    private TerminalToolView terminal_tool;
-    private FlowboardToolView flowboard_tool;
-    private TrashToolView trash_tool;
-    private Gee.HashMap<string, IToolShellAdapter> tool_adapters;
-    private ToolShell? tool_shell;
-    private Gtk.Stack? toolbox_stack;
-    private NavigationBreadcrumbs? header_breadcrumbs;
-    private Gtk.SingleSelection? project_selection;
-    private GLib.ListStore? card_store;
-    private Gtk.SingleSelection? card_selection;
-    private IHolderApi? api;
-    private Settings? settings;
-    private ActivityLogStore? activity_log_store;
+    // Internal so the app view tests, built into the same program, can raise the tools' signals.
+    internal ConnectionsToolView connections_tool; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    internal TagsToolView tags_tool; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    internal GitSyncToolView git_sync_tool; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    internal RecoveryKeyToolView recovery_key_tool; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    internal ResourcesToolView resources_tool; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    internal MilestonesToolView milestones_tool; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    internal HistoryToolView history_tool; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    internal SharingToolView sharing_tool; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    internal DebugToolView debug_tool; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    internal TerminalToolView terminal_tool; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    internal FlowboardToolView flowboard_tool; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    internal TrashToolView trash_tool; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gee.HashMap<string, IToolShellAdapter> tool_adapters; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ToolShell? tool_shell; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Stack? toolbox_stack; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private NavigationBreadcrumbs? header_breadcrumbs; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection? project_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private GLib.ListStore? card_store; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection? card_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IHolderApi? api; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Settings? settings; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ActivityLogStore? activity_log_store; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private bool navigation_loading = false;
     public Gtk.Revealer widget { get; private set; }
 
@@ -164,7 +165,7 @@ public class ToolboxPane : Object {
 
     public void bind_flowboard_controller(FlowboardController controller) {
         if (flowboard_tool == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the tools are created in the constructor, so this is never null
         }
         flowboard_tool.bind_controller(controller);
     }
@@ -233,7 +234,7 @@ public class ToolboxPane : Object {
 
     public void show_flowboard_projects_root() {
         if (flowboard_tool == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the tools are created in the constructor, so this is never null
         }
         flowboard_tool.show_projects_root();
         apply_shell_state();
@@ -241,7 +242,7 @@ public class ToolboxPane : Object {
 
     public void show_flowboard_project_root() {
         if (flowboard_tool == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the tools are created in the constructor, so this is never null
         }
         flowboard_tool.show_project_root();
         apply_shell_state();
@@ -249,7 +250,7 @@ public class ToolboxPane : Object {
 
     public void show_connections_projects_root() {
         if (connections_tool == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the tools are created in the constructor, so this is never null
         }
         connections_tool.navigate_to_projects_root.begin(null);
         apply_shell_state();
@@ -317,7 +318,7 @@ public class ToolboxPane : Object {
         connections_tool.set_api_client(api);
         connections_tool.set_settings(settings);
         if (project_selection != null && card_store != null && card_selection != null) {
-            connections_tool.bind_context(project_selection, card_store, card_selection);
+            connections_tool.bind_context(project_selection, card_store, card_selection); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: build_ui runs from the constructor, before a context can be bound
         }
 
         var connections_page = stack.add_titled(connections_tool.widget, "connections", "Connections");
@@ -334,7 +335,7 @@ public class ToolboxPane : Object {
         });
         tags_tool.set_api_client(api);
         if (project_selection != null && card_selection != null) {
-            tags_tool.bind_context(project_selection, card_selection);
+            tags_tool.bind_context(project_selection, card_selection); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: build_ui runs from the constructor, before a context can be bound
         }
         var tags_page = stack.add_titled(tags_tool.widget, "tags", "Tags");
         tags_page.set_icon_name("holder-tag-symbolic");
@@ -381,7 +382,7 @@ public class ToolboxPane : Object {
         });
         milestones_tool.set_api_client(api);
         if (project_selection != null && card_store != null && card_selection != null) {
-            milestones_tool.bind_context(project_selection, card_store, card_selection);
+            milestones_tool.bind_context(project_selection, card_store, card_selection); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: build_ui runs from the constructor, before a context can be bound
         }
         var milestones_page = stack.add_titled(
             milestones_tool.widget, "milestones", "Milestones"
@@ -415,7 +416,7 @@ public class ToolboxPane : Object {
         });
         history_tool.set_api_client(api);
         if (project_selection != null && card_selection != null) {
-            history_tool.bind_context(project_selection, card_selection);
+            history_tool.bind_context(project_selection, card_selection); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: build_ui runs from the constructor, before a context can be bound
         }
         var history_page = stack.add_titled(history_tool.widget, "history", "History");
         history_page.set_icon_name("document-open-recent-symbolic");
@@ -440,7 +441,7 @@ public class ToolboxPane : Object {
             terminal_copy_to_card_requested(text);
         });
         if (project_selection != null && card_selection != null) {
-            terminal_tool.bind_context(project_selection, card_selection);
+            terminal_tool.bind_context(project_selection, card_selection); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: build_ui runs from the constructor, before a context can be bound
         }
         var terminals_page = stack.add_titled(terminal_tool.widget, "terminals", "Terminals");
         terminals_page.set_icon_name("utilities-terminal-symbolic");
@@ -500,7 +501,7 @@ public class ToolboxPane : Object {
 
         debug_tool = new DebugToolView();
         if (activity_log_store != null) {
-            debug_tool.bind_activity_log((!) activity_log_store);
+            debug_tool.bind_activity_log((!) activity_log_store); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: build_ui runs from the constructor, before a context can be bound
         }
         tool_adapters.set("debug", debug_tool);
         var debug_page = stack.add_titled(debug_tool.widget, "debug", "Debug");
@@ -605,7 +606,7 @@ public class ToolboxPane : Object {
 
     private void refresh_sharing_action_state() {
         if (sharing_tool == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: build_sharing_tab creates the sharing tool before its first refresh
         }
         var selected_card = card_selection != null
             ? card_selection.get_selected_item() as CardSummary
@@ -615,24 +616,24 @@ public class ToolboxPane : Object {
 
     private void refresh_tool_actions_row() {
         if (tool_shell == null || toolbox_stack == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the stack and shell are created in the constructor and the stack always shows a page
         }
         var child = toolbox_stack.get_visible_child();
         if (child == null) {
-            ((!) tool_shell).set_actions_widget(null);
-            return;
+            ((!) tool_shell).set_actions_widget(null); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the stack and shell are created in the constructor and the stack always shows a page
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the stack and shell are created in the constructor and the stack always shows a page
         }
         var page = toolbox_stack.get_page(child);
         if (page == null || page.name == null) {
-            ((!) tool_shell).set_actions_widget(null);
-            return;
+            ((!) tool_shell).set_actions_widget(null); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the stack and shell are created in the constructor and the stack always shows a page
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the stack and shell are created in the constructor and the stack always shows a page
         }
         var adapter = tool_adapters.get(page.name);
         if (adapter != null) {
             ((!) tool_shell).set_actions_widget(adapter.get_actions_widget());
             return;
         }
-        ((!) tool_shell).set_actions_widget(null);
+        ((!) tool_shell).set_actions_widget(null); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: every page in the stack has an adapter
     }
 
     private void apply_shell_state() {
@@ -645,7 +646,7 @@ public class ToolboxPane : Object {
 
     private void refresh_header_breadcrumbs() {
         if (header_breadcrumbs == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the breadcrumbs are created in the constructor
         }
 
         var selected_project = project_selection != null
@@ -663,6 +664,9 @@ public class ToolboxPane : Object {
             return;
         }
 
+        // Every page in the stack has an adapter, so this fallback never runs.
+        // LCOV_EXCL_START
+        // GCOVR_EXCL_START
         string? page_title = null;
         if (toolbox_stack != null) {
             var visible = toolbox_stack.get_visible_child();
@@ -676,6 +680,8 @@ public class ToolboxPane : Object {
         ((!) header_breadcrumbs).set_segments(
             ToolboxHeaderBreadcrumbs.from_selection(page_title, selected_project, selected_card)
         );
+        // GCOVR_EXCL_STOP
+        // LCOV_EXCL_STOP
     }
 
     private void on_header_breadcrumb_clicked(int segment_index) {
@@ -698,21 +704,26 @@ public class ToolboxPane : Object {
             return;
         }
 
+        // Every page in the stack has an adapter, so this fallback never runs.
+        // LCOV_EXCL_START
+        // GCOVR_EXCL_START
         breadcrumb_navigation_requested(
             tool_id,
             segment_index,
             selected_project != null ? selected_project.project_id : null,
             selected_card != null ? selected_card.card_id : null
         );
+        // GCOVR_EXCL_STOP
+        // LCOV_EXCL_STOP
     }
 
     private string current_tool_id() {
         if (toolbox_stack == null) {
-            return ToolboxHeaderBreadcrumbs.DEFAULT_TOOL_ID;
+            return ToolboxHeaderBreadcrumbs.DEFAULT_TOOL_ID; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the stack and shell are created in the constructor and the stack always shows a page
         }
         var child = toolbox_stack.get_visible_child();
         if (child == null) {
-            return ToolboxHeaderBreadcrumbs.DEFAULT_TOOL_ID;
+            return ToolboxHeaderBreadcrumbs.DEFAULT_TOOL_ID; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the stack and shell are created in the constructor and the stack always shows a page
         }
         var page = toolbox_stack.get_page(child);
         return ToolboxHeaderBreadcrumbs.tool_id_for_page(page != null ? page.name : null);
