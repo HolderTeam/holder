@@ -439,9 +439,14 @@ private void test_closing_saves_the_window_and_says_goodbye() {
     assert(!f.window.on_window_close_requested());
 
     assert(f.presence.leaves == 1);
-    assert(f.settings.get_int(HolderLinux.AppSettings.KEY_WINDOW_WIDTH) == f.window.get_width());
-    assert(f.settings.get_int(HolderLinux.AppSettings.KEY_WINDOW_HEIGHT) == f.window.get_height());
-    assert(!f.settings.get_boolean(HolderLinux.AppSettings.KEY_WINDOW_MAXIMIZED));
+    // The size is saved unless the window is maximized (macOS zooms a window larger than the
+    // screen, so the CI runners may maximize this one).
+    var maximized = f.window.is_maximized();
+    assert(f.settings.get_boolean(HolderLinux.AppSettings.KEY_WINDOW_MAXIMIZED) == maximized);
+    if (!maximized) {
+        assert(f.settings.get_int(HolderLinux.AppSettings.KEY_WINDOW_WIDTH) == f.window.get_width());
+        assert(f.settings.get_int(HolderLinux.AppSettings.KEY_WINDOW_HEIGHT) == f.window.get_height());
+    }
     f.destroy();
 }
 
