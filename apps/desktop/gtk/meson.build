@@ -588,6 +588,8 @@ main_controller_test_exe = executable(
     'src/controllers/editor_save.vala',
     'src/controllers/search.vala',
     'src/controllers/ai_threads.vala',
+    'src/controllers/window_close_guard.vala',
+    'src/views/adapters/window_close_host.vala',
     'tests/main_controller_test.vala',
   ],
   dependencies: [
