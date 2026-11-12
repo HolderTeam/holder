@@ -1,8 +1,10 @@
 /*
- * Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/home.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/runtime/hosts.py, contract/interface/runtime/models.py, contract/interface/runtime/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by compiler.
- * Do not edit; change the contract, then run make -C contract update.
+ * Generated from contract/interface (ai, cards, daemon, documents, errors.py, events, git, history,
+ * links, locations, maintenance, milestones, pagination, projects, recovery, resources, runtime,
+ * search, trash) by compiler. Do not edit; change the contract, then run make -C contract update.
  *
- * The standalone C declarations for the contract's operations. Results live in the holder_arena the caller passes, until holder_arena_free.
+ * The standalone C declarations for the contract's operations. Results live in the holder_arena the
+ * caller passes, until holder_arena_free.
  */
 #ifndef HOLDER_API_H
 #define HOLDER_API_H
@@ -33,7 +35,10 @@ typedef struct holder_arena holder_arena;
 #define HOLDER_ERROR_REBUILD_FAILED 4002
 /* The thing asked for does not exist, or is in the trash. */
 #define HOLDER_ERROR_NOT_FOUND 4040
-/* The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash, or removing a tag that a card would still carry in its prose. */
+/* The request conflicts with what exists: what would be created already exists, such as a card with
+ * the same ID or file, or the thing to change is not in the state the request needs, such as
+ * restoring a card that is not in the trash, or removing a tag that a card would still carry in its
+ * prose. */
 #define HOLDER_ERROR_CONFLICT 4090
 /* An encrypted project's key is not on this device; the project's recovery token restores it. */
 #define HOLDER_ERROR_KEY_MISSING 4091
@@ -47,11 +52,14 @@ typedef struct holder_arena holder_arena;
 #define HOLDER_ERROR_NOT_TRASHED 4095
 /* The bounded History response would exceed 2 MiB. */
 #define HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE 4130
-/* A card cannot go where it was asked to: under itself or one of its descendants, beside a card that cannot be its sibling, or up a level from the top. */
+/* A card cannot go where it was asked to: under itself or one of its descendants, beside a card
+ * that cannot be its sibling, or up a level from the top. */
 #define HOLDER_ERROR_INVALID_MOVE 4220
-/* A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. */
+/* A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds
+ * plaintext. */
 #define HOLDER_ERROR_DATA_CORRUPTED 5002
-/* The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none. */
+/* The keyring that holds an encrypted project's key cannot be used: it is locked, or this device
+ * has none. */
 #define HOLDER_ERROR_KEYRING_UNAVAILABLE 5030
 /* The project's Git history cannot be read right now. */
 #define HOLDER_ERROR_HISTORY_UNAVAILABLE 5031
@@ -60,8 +68,8 @@ holder_arena* holder_arena_new(void);
 void holder_arena_free(holder_arena* arena);
 
 typedef struct holder_string_list {
-    const char* const* items;
-    size_t count;
+  const char* const* items;
+  size_t count;
 } holder_string_list;
 
 /* Called once to release callback user data, including on rejected registration. */
@@ -69,10 +77,17 @@ typedef void (*holder_destroy_fn)(void* user_data);
 
 /* The device's time-zone rules, used where core has no native zone database. */
 typedef struct holder_time_zone_provider_callbacks {
-    /* The zone's seconds east of UTC at an instant, or null when the zone is unknown. */
-    int (*utc_offset)(void* user_data, const char* zone, int64_t utc_seconds, int64_t* out_value, int* out_present, char** out_error);
-    /* The device's current time-zone identifier, such as Europe/London. */
-    int (*current_zone)(void* user_data, char** out_value, char** out_error);
+  /* The zone's seconds east of UTC at an instant, or null when the zone is unknown. */
+  int (*utc_offset)(
+      void* user_data,
+      const char* zone,
+      int64_t utc_seconds,
+      int64_t* out_value,
+      int* out_present,
+      char** out_error
+  );
+  /* The device's current time-zone identifier, such as Europe/London. */
+  int (*current_zone)(void* user_data, char** out_value, char** out_error);
 } holder_time_zone_provider_callbacks;
 
 /* Each callback returns zero on success; nonzero may set malloc-owned *out_error.
@@ -82,12 +97,36 @@ typedef struct holder_time_zone_provider_callbacks {
 
 /* A process-wide secure store for device secrets and project encryption keys. */
 typedef struct holder_keyring_provider_callbacks {
-    /* Return a secret, or null when absent. Failure is distinct from absence. */
-    int (*lookup)(void* user_data, int32_t kind, const char* service, const char* account, const char* project_id, char** out_value, char** out_error);
-    /* Store a secret; failure leaves the caller informed. */
-    int (*store)(void* user_data, int32_t kind, const char* service, const char* account, const char* project_id, const char* label, const char* secret, char** out_error);
-    /* Remove a secret; an absent secret is not a failure. */
-    int (*remove)(void* user_data, int32_t kind, const char* service, const char* account, const char* project_id, char** out_error);
+  /* Return a secret, or null when absent. Failure is distinct from absence. */
+  int (*lookup)(
+      void* user_data,
+      int32_t kind,
+      const char* service,
+      const char* account,
+      const char* project_id,
+      char** out_value,
+      char** out_error
+  );
+  /* Store a secret; failure leaves the caller informed. */
+  int (*store)(
+      void* user_data,
+      int32_t kind,
+      const char* service,
+      const char* account,
+      const char* project_id,
+      const char* label,
+      const char* secret,
+      char** out_error
+  );
+  /* Remove a secret; an absent secret is not a failure. */
+  int (*remove)(
+      void* user_data,
+      int32_t kind,
+      const char* service,
+      const char* account,
+      const char* project_id,
+      char** out_error
+  );
 } holder_keyring_provider_callbacks;
 
 /* Each callback returns zero on success; nonzero may set malloc-owned *out_error.
@@ -97,8 +136,15 @@ typedef struct holder_keyring_provider_callbacks {
 
 /* Signs SSH authentication challenges with a host-owned private key. */
 typedef struct holder_ssh_signer_callbacks {
-    /* Return a DER-encoded P-256 ECDSA signature for the challenge bytes. */
-    int (*sign)(void* user_data, const unsigned char* data, size_t data_len, unsigned char** out_value, size_t* out_value_len, char** out_error);
+  /* Return a DER-encoded P-256 ECDSA signature for the challenge bytes. */
+  int (*sign)(
+      void* user_data,
+      const unsigned char* data,
+      size_t data_len,
+      unsigned char** out_value,
+      size_t* out_value_len,
+      char** out_error
+  );
 } holder_ssh_signer_callbacks;
 
 /* Each callback returns zero on success; nonzero may set malloc-owned *out_error.
@@ -107,26 +153,46 @@ typedef struct holder_ssh_signer_callbacks {
  * A null numeric result sets *out_present=0. */
 
 typedef enum holder_storage_error_code {
-    HOLDER_STORAGE_ERROR_UNAVAILABLE = 0,
-    HOLDER_STORAGE_ERROR_AUTHENTICATION = 1,
-    HOLDER_STORAGE_ERROR_PERMISSION = 2,
-    HOLDER_STORAGE_ERROR_CAPACITY = 3,
-    HOLDER_STORAGE_ERROR_INTEGRITY = 4,
-    HOLDER_STORAGE_ERROR_CONFLICT = 5,
-    HOLDER_STORAGE_ERROR_INVALID_CONFIGURATION = 6,
-    HOLDER_STORAGE_ERROR_TRANSIENT = 7,
+  HOLDER_STORAGE_ERROR_UNAVAILABLE = 0,
+  HOLDER_STORAGE_ERROR_AUTHENTICATION = 1,
+  HOLDER_STORAGE_ERROR_PERMISSION = 2,
+  HOLDER_STORAGE_ERROR_CAPACITY = 3,
+  HOLDER_STORAGE_ERROR_INTEGRITY = 4,
+  HOLDER_STORAGE_ERROR_CONFLICT = 5,
+  HOLDER_STORAGE_ERROR_INVALID_CONFIGURATION = 6,
+  HOLDER_STORAGE_ERROR_TRANSIENT = 7,
 } holder_storage_error_code;
 
 /* Stores opaque asset objects under a host-managed provider name. */
 typedef struct holder_storage_provider_callbacks {
-    /* Upload a staged file. A typed failure leaves the source intact. */
-    int (*put)(void* user_data, const char* object_key, const char* staged_file_path, int64_t stored_size, const char* stored_sha256, int* out_error_code, char** out_error);
-    /* Download an object to the destination file. */
-    int (*get)(void* user_data, const char* object_key, const char* destination_file_path, int* out_error_code, char** out_error);
-    /* Return false when absent; an inability to check is a failure. */
-    int (*exists)(void* user_data, const char* object_key, int* out_value, int* out_error_code, char** out_error);
-    /* Remove an object; absence is not a failure. */
-    int (*remove)(void* user_data, const char* object_key, int* out_error_code, char** out_error);
+  /* Upload a staged file. A typed failure leaves the source intact. */
+  int (*put)(
+      void* user_data,
+      const char* object_key,
+      const char* staged_file_path,
+      int64_t stored_size,
+      const char* stored_sha256,
+      int* out_error_code,
+      char** out_error
+  );
+  /* Download an object to the destination file. */
+  int (*get)(
+      void* user_data,
+      const char* object_key,
+      const char* destination_file_path,
+      int* out_error_code,
+      char** out_error
+  );
+  /* Return false when absent; an inability to check is a failure. */
+  int (*exists)(
+      void* user_data,
+      const char* object_key,
+      int* out_value,
+      int* out_error_code,
+      char** out_error
+  );
+  /* Remove an object; absence is not a failure. */
+  int (*remove)(void* user_data, const char* object_key, int* out_error_code, char** out_error);
 } holder_storage_provider_callbacks;
 
 /* Each callback returns zero on success; nonzero may set malloc-owned *out_error.
@@ -136,1264 +202,1429 @@ typedef struct holder_storage_provider_callbacks {
 
 /* Portable non-secret provider options. */
 typedef struct holder_location_configuration_entry {
-    const char* key;
-    const char* values;
+  const char* key;
+  const char* values;
 } holder_location_configuration_entry;
 
 typedef struct holder_location_configuration {
-    const holder_location_configuration_entry* items;
-    size_t count;
+  const holder_location_configuration_entry* items;
+  size_t count;
 } holder_location_configuration;
 
-/* What is known about a resource: each name, such as identifier or author, with its values in order. A name is
- * not empty.
+/* What is known about a resource: each name, such as identifier or author, with its values in
+ * order. A name is not empty.
  */
 typedef struct holder_resource_metadata_entry {
-    const char* key;
-    holder_string_list values;
+  const char* key;
+  holder_string_list values;
 } holder_resource_metadata_entry;
 
 typedef struct holder_resource_metadata {
-    const holder_resource_metadata_entry* items;
-    size_t count;
+  const holder_resource_metadata_entry* items;
+  size_t count;
 } holder_resource_metadata;
 
 /* What a partial update does to a field. */
 typedef enum holder_change {
-    HOLDER_KEEP = 0, /* Leave it as it is. */
-    HOLDER_SET = 1, /* Set it to value. */
-    HOLDER_CLEAR = 2, /* Make it null. */
-    HOLDER_CHANGE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_KEEP = 0, /* Leave it as it is. */
+  HOLDER_SET = 1, /* Set it to value. */
+  HOLDER_CLEAR = 2, /* Make it null. */
+  HOLDER_CHANGE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_change;
 
 typedef struct holder_string_change {
-    holder_change change;
-    const char* value; /* Read when change is HOLDER_SET. */
+  holder_change change;
+  const char* value; /* Read when change is HOLDER_SET. */
 } holder_string_change;
 
 /* Storage provider kind. */
 typedef enum holder_new_storage_location_provider {
-    HOLDER_NEW_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY = 1,
-    HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE = 2,
-    HOLDER_NEW_STORAGE_LOCATION_PROVIDER_GOOGLE_DRIVE = 3,
-    HOLDER_NEW_STORAGE_LOCATION_PROVIDER_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_NEW_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY = 1,
+  HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE = 2,
+  HOLDER_NEW_STORAGE_LOCATION_PROVIDER_GOOGLE_DRIVE = 3,
+  HOLDER_NEW_STORAGE_LOCATION_PROVIDER_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_new_storage_location_provider;
 
 /* A portable location declaration to create. */
 typedef struct holder_new_storage_location {
-    const char* location_id; /* Optional imported ID; Holder makes one when omitted or empty. NULL when absent. */
-    const char* project_id; /* The owning project. */
-    const char* name; /* Display name. */
-    holder_new_storage_location_provider provider; /* Storage provider kind. */
-    const holder_location_configuration* configuration; /* Portable non-secret provider configuration; empty when omitted. NULL when absent. */
-    const int64_t* created_at; /* Imported creation time; current time when omitted. NULL when absent. */
-    const int64_t* updated_at; /* Imported update time; creation time when omitted. NULL when absent. */
+  const char* location_id; /* Optional imported ID; Holder makes one when omitted or empty. NULL
+                              when absent. */
+  const char* project_id; /* The owning project. */
+  const char* name; /* Display name. */
+  holder_new_storage_location_provider provider; /* Storage provider kind. */
+  const holder_location_configuration* configuration; /* Portable non-secret provider configuration;
+                                                         empty when omitted. NULL when absent. */
+  const int64_t*
+      created_at; /* Imported creation time; current time when omitted. NULL when absent. */
+  const int64_t*
+      updated_at; /* Imported update time; creation time when omitted. NULL when absent. */
 } holder_new_storage_location;
 
 /* Changes to a portable location declaration. */
 typedef struct holder_storage_location_update {
-    const char* name; /* Replacement display name. NULL when absent. */
-    const holder_location_configuration* configuration; /* Replacement configuration map. NULL when absent. */
-    const int64_t* updated_at; /* Update time; current time when omitted. NULL when absent. */
+  const char* name; /* Replacement display name. NULL when absent. */
+  const holder_location_configuration*
+      configuration; /* Replacement configuration map. NULL when absent. */
+  const int64_t* updated_at; /* Update time; current time when omitted. NULL when absent. */
 } holder_storage_location_update;
 
 /* Which cards may match. */
 typedef enum holder_card_reference_resolve_request_scope {
-    HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_LIVE = 1,
-    HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_TRASHED = 2,
-    HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_EITHER = 3,
-    HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_LIVE = 1,
+  HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_TRASHED = 2,
+  HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_EITHER = 3,
+  HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_card_reference_resolve_request_scope;
 
 /* A reference to resolve among one project's cards. */
 typedef struct holder_card_reference_resolve_request {
-    const char* project_id; /* The project to search. */
-    const char* reference; /* A full canonical UUID, eligible UUID prefix, or exact card title. */
-    holder_card_reference_resolve_request_scope scope; /* Which cards may match. */
+  const char* project_id; /* The project to search. */
+  const char* reference; /* A full canonical UUID, eligible UUID prefix, or exact card title. */
+  holder_card_reference_resolve_request_scope scope; /* Which cards may match. */
 } holder_card_reference_resolve_request;
 
 /* A card to create. */
 typedef struct holder_new_card {
-    const char* title; /* The card's title. */
-    const char* content; /* The card's body. NULL for the default, "". */
-    const char* parent_card_id; /* The card's parent; null or omitted for a root card. May be NULL. */
-    const double* sort_key; /* The card's place among its siblings; omit to let Holder choose. NULL when absent. */
-    const int64_t* created_at; /* When the card was created, for imports; omit for now. NULL when absent. */
-    const int64_t* updated_at; /* When the card was last changed, for imports; omit to use created_at. NULL when absent. */
+  const char* title; /* The card's title. */
+  const char* content; /* The card's body. NULL for the default, "". */
+  const char* parent_card_id; /* The card's parent; null or omitted for a root card. May be NULL. */
+  const double* sort_key; /* The card's place among its siblings; omit to let Holder choose. NULL
+                             when absent. */
+  const int64_t*
+      created_at; /* When the card was created, for imports; omit for now. NULL when absent. */
+  const int64_t* updated_at; /* When the card was last changed, for imports; omit to use created_at.
+                                NULL when absent. */
 } holder_new_card;
 
 /* Changes to a card. Each field left out keeps its value. */
 typedef struct holder_card_update {
-    const char* title; /* The card's new title. NULL when absent. */
-    const char* content; /* The card's new body. NULL when absent. */
-    holder_string_change parent_card_id; /* The card's new parent; null makes it a root card. Zero keeps it. */
-    const double* sort_key; /* The card's new place among its siblings. NULL when absent. */
-    const int64_t* updated_at; /* When the card was changed, for imports; omit for now. NULL when absent. */
+  const char* title; /* The card's new title. NULL when absent. */
+  const char* content; /* The card's new body. NULL when absent. */
+  holder_string_change
+      parent_card_id; /* The card's new parent; null makes it a root card. Zero keeps it. */
+  const double* sort_key; /* The card's new place among its siblings. NULL when absent. */
+  const int64_t*
+      updated_at; /* When the card was changed, for imports; omit for now. NULL when absent. */
 } holder_card_update;
 
-/* into makes the card target_card_id's last child; before and after place it beside target_card_id, as its sibling; left and right swap it with its previous or next sibling; to_start and to_end make it the first or last of its siblings; up_level makes it its grandparent's last child. */
+/* into makes the card target_card_id's last child; before and after place it beside target_card_id,
+ * as its sibling; left and right swap it with its previous or next sibling; to_start and to_end
+ * make it the first or last of its siblings; up_level makes it its grandparent's last child. */
 typedef enum holder_card_move_intent {
-    HOLDER_CARD_MOVE_INTENT_INTO = 1,
-    HOLDER_CARD_MOVE_INTENT_BEFORE = 2,
-    HOLDER_CARD_MOVE_INTENT_AFTER = 3,
-    HOLDER_CARD_MOVE_INTENT_LEFT = 4,
-    HOLDER_CARD_MOVE_INTENT_RIGHT = 5,
-    HOLDER_CARD_MOVE_INTENT_TO_START = 6,
-    HOLDER_CARD_MOVE_INTENT_TO_END = 7,
-    HOLDER_CARD_MOVE_INTENT_UP_LEVEL = 8,
-    HOLDER_CARD_MOVE_INTENT_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_CARD_MOVE_INTENT_INTO = 1,
+  HOLDER_CARD_MOVE_INTENT_BEFORE = 2,
+  HOLDER_CARD_MOVE_INTENT_AFTER = 3,
+  HOLDER_CARD_MOVE_INTENT_LEFT = 4,
+  HOLDER_CARD_MOVE_INTENT_RIGHT = 5,
+  HOLDER_CARD_MOVE_INTENT_TO_START = 6,
+  HOLDER_CARD_MOVE_INTENT_TO_END = 7,
+  HOLDER_CARD_MOVE_INTENT_UP_LEVEL = 8,
+  HOLDER_CARD_MOVE_INTENT_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_card_move_intent;
 
 /* Where to move a card, relative to another card or among its siblings. */
 typedef struct holder_card_move {
-    holder_card_move_intent intent; /* into makes the card target_card_id's last child; before and after place it beside target_card_id, as its sibling; left and right swap it with its previous or next sibling; to_start and to_end make it the first or last of its siblings; up_level makes it its grandparent's last child. */
-    const char* target_card_id; /* The card to move into, before or after; required for those intents, and ignored by the others. NULL when absent. */
-    holder_string_change parent_card_id; /* For left, right, to_start and to_end: the parent among whose children to place it, null for the root cards; omit for its current parent. Ignored by the other intents. Zero keeps it. */
+  holder_card_move_intent
+      intent; /* into makes the card target_card_id's last child; before and after place it beside
+                 target_card_id, as its sibling; left and right swap it with its previous or next
+                 sibling; to_start and to_end make it the first or last of its siblings; up_level
+                 makes it its grandparent's last child. */
+  const char* target_card_id; /* The card to move into, before or after; required for those intents,
+                                 and ignored by the others. NULL when absent. */
+  holder_string_change
+      parent_card_id; /* For left, right, to_start and to_end: the parent among whose children to
+                         place it, null for the root cards; omit for its current parent. Ignored by
+                         the other intents. Zero keeps it. */
 } holder_card_move;
 
 /* What the link points at. */
 typedef enum holder_new_link_target_type {
-    HOLDER_NEW_LINK_TARGET_TYPE_CARD = 1,
-    HOLDER_NEW_LINK_TARGET_TYPE_AI_MESSAGE = 2,
-    HOLDER_NEW_LINK_TARGET_TYPE_AI_THREAD = 3,
-    HOLDER_NEW_LINK_TARGET_TYPE_RESOURCE = 4,
-    HOLDER_NEW_LINK_TARGET_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_NEW_LINK_TARGET_TYPE_CARD = 1,
+  HOLDER_NEW_LINK_TARGET_TYPE_AI_MESSAGE = 2,
+  HOLDER_NEW_LINK_TARGET_TYPE_AI_THREAD = 3,
+  HOLDER_NEW_LINK_TARGET_TYPE_RESOURCE = 4,
+  HOLDER_NEW_LINK_TARGET_TYPE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_new_link_target_type;
 
 /* A link to make from a card. Its source is the card it is made from. */
 typedef struct holder_new_link {
-    holder_new_link_target_type target_type; /* What the link points at. */
-    const char* target_id; /* The ID of what the link points at. */
-    const char* target_project_id; /* The project of a card the link points at; omit for the card's own project. Only a card can be in another project, which need not be on this device. NULL when absent. */
-    const char* kind; /* What the link means. NULL for the default, ref. */
-    const char* label; /* A note on the link; null or omitted for none. May be NULL. */
-    const int64_t* created_at; /* When the link was made, for imports; omit for now. A link that already exists keeps its own. NULL when absent. */
+  holder_new_link_target_type target_type; /* What the link points at. */
+  const char* target_id; /* The ID of what the link points at. */
+  const char* target_project_id; /* The project of a card the link points at; omit for the card's
+                                    own project. Only a card can be in another project, which need
+                                    not be on this device. NULL when absent. */
+  const char* kind; /* What the link means. NULL for the default, ref. */
+  const char* label; /* A note on the link; null or omitted for none. May be NULL. */
+  const int64_t* created_at; /* When the link was made, for imports; omit for now. A link that
+                                already exists keeps its own. NULL when absent. */
 } holder_new_link;
 
 /* One of a milestone's dates: a role and exactly one of a day or an instant. */
 typedef struct holder_milestone_date {
-    const char* role; /* What the date is for. */
-    const char* date; /* The calendar day; present when the date is a day. NULL when absent. */
-    const char* datetime; /* The instant; present when the date is an instant. NULL when absent. */
+  const char* role; /* What the date is for. */
+  const char* date; /* The calendar day; present when the date is a day. NULL when absent. */
+  const char* datetime; /* The instant; present when the date is an instant. NULL when absent. */
 } holder_milestone_date;
 
 typedef struct holder_milestone_date_list {
-    const holder_milestone_date* items;
-    size_t count;
+  const holder_milestone_date* items;
+  size_t count;
 } holder_milestone_date_list;
 
 /* A milestone to put on a card. */
 typedef struct holder_new_milestone {
-    holder_milestone_date_list dates; /* The milestone's dates, in order; empty for a milestone without a date. */
-    const char* kind; /* What kind of milestone it is; null or omitted for none. May be NULL. */
-    const char* description; /* A note on the milestone; null or omitted for none. May be NULL. */
+  holder_milestone_date_list
+      dates; /* The milestone's dates, in order; empty for a milestone without a date. */
+  const char* kind; /* What kind of milestone it is; null or omitted for none. May be NULL. */
+  const char* description; /* A note on the milestone; null or omitted for none. May be NULL. */
 } holder_new_milestone;
 
 /* A change to a milestone. Each field left out keeps its value. */
 typedef struct holder_milestone_update {
-    const holder_milestone_date_list* dates; /* The milestone's new dates, replacing all of them; empty for none. NULL when absent. */
-    holder_string_change kind; /* What kind of milestone it is; null for none. Zero keeps it. */
-    holder_string_change description; /* A note on the milestone; null for none. Zero keeps it. */
+  const holder_milestone_date_list* dates; /* The milestone's new dates, replacing all of them;
+                                              empty for none. NULL when absent. */
+  holder_string_change kind; /* What kind of milestone it is; null for none. Zero keeps it. */
+  holder_string_change description; /* A note on the milestone; null for none. Zero keeps it. */
 } holder_milestone_update;
 
 /* A local file to import into a project resource and attach to a card. */
 typedef struct holder_asset_import_request {
-    const char* project_id; /* The project that will own the asset. */
-    const char* card_id; /* The card to attach the imported resource to. */
-    const char* location_id; /* The storage location to receive the asset. */
-    const char* source_path; /* A local readable regular file; its path is never saved in project metadata. */
+  const char* project_id; /* The project that will own the asset. */
+  const char* card_id; /* The card to attach the imported resource to. */
+  const char* location_id; /* The storage location to receive the asset. */
+  const char*
+      source_path; /* A local readable regular file; its path is never saved in project metadata. */
 } holder_asset_import_request;
 
 /* A resource to make. */
 typedef struct holder_new_resource {
-    const char* resource_id; /* The resource's ID, for imports; omit for a new one. NULL when absent. */
-    const char* type; /* What kind of thing the resource is. */
-    const char* label; /* The resource's name. */
-    const holder_resource_metadata* metadata; /* What is known about the resource; omit for nothing. A name without values is left out. NULL when absent. */
-    const int64_t* created_at; /* When the resource was made, for imports; omit for now. NULL when absent. */
-    const int64_t* updated_at; /* When the resource was last changed, for imports; omit for when it was made. NULL when absent. */
+  const char*
+      resource_id; /* The resource's ID, for imports; omit for a new one. NULL when absent. */
+  const char* type; /* What kind of thing the resource is. */
+  const char* label; /* The resource's name. */
+  const holder_resource_metadata* metadata; /* What is known about the resource; omit for nothing. A
+                                               name without values is left out. NULL when absent. */
+  const int64_t*
+      created_at; /* When the resource was made, for imports; omit for now. NULL when absent. */
+  const int64_t* updated_at; /* When the resource was last changed, for imports; omit for when it
+                                was made. NULL when absent. */
 } holder_new_resource;
 
 /* A change to a resource. Each field left out keeps its value. */
 typedef struct holder_resource_update {
-    const char* type; /* What kind of thing the resource is. NULL when absent. */
-    const char* label; /* The resource's name. NULL when absent. */
-    const holder_resource_metadata* metadata; /* Names whose values change: each name's values replace its old ones, an empty list removes the name, and names left out are kept. NULL when absent. */
-    const int64_t* updated_at; /* When the resource was changed, for imports; omit for now. NULL when absent. */
+  const char* type; /* What kind of thing the resource is. NULL when absent. */
+  const char* label; /* The resource's name. NULL when absent. */
+  const holder_resource_metadata*
+      metadata; /* Names whose values change: each name's values replace its old ones, an empty list
+                   removes the name, and names left out are kept. NULL when absent. */
+  const int64_t*
+      updated_at; /* When the resource was changed, for imports; omit for now. NULL when absent. */
 } holder_resource_update;
 
 /* How the project's files are stored. */
 typedef enum holder_new_project_privacy_mode {
-    HOLDER_NEW_PROJECT_PRIVACY_MODE_DEFAULT = 0, /* encrypted_git */
-    HOLDER_NEW_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT = 1,
-    HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN = 2,
-    HOLDER_NEW_PROJECT_PRIVACY_MODE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_NEW_PROJECT_PRIVACY_MODE_DEFAULT = 0, /* encrypted_git */
+  HOLDER_NEW_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT = 1,
+  HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN = 2,
+  HOLDER_NEW_PROJECT_PRIVACY_MODE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_new_project_privacy_mode;
 
 /* A project to make. */
 typedef struct holder_new_project {
-    const char* project_id; /* The project's ID, for imports; omit for a new one. NULL when absent. */
-    const char* name; /* The project's name. */
-    const char* root_path; /* The directory for the project's repository, an absolute path; omit for one under this device's projects directory, named for the project. NULL when absent. */
-    const char* git_remote_url; /* The Git remote to sync with; null or omitted for none. One Git does not accept is an invalid argument. May be NULL. */
-    const char* git_provider; /* Who hosts the Git remote; null or omitted when unknown. May be NULL. */
-    holder_new_project_privacy_mode privacy_mode; /* How the project's files are stored. Zero for the default, encrypted_git. */
-    const int64_t* created_at; /* When the project was made, for imports, after the epoch; omit for now. NULL when absent. */
-    const int64_t* updated_at; /* When the project's settings last changed, for imports, after the epoch; omit for when it was made. NULL when absent. */
+  const char* project_id; /* The project's ID, for imports; omit for a new one. NULL when absent. */
+  const char* name; /* The project's name. */
+  const char*
+      root_path; /* The directory for the project's repository, an absolute path; omit for one under
+                    this device's projects directory, named for the project. NULL when absent. */
+  const char* git_remote_url; /* The Git remote to sync with; null or omitted for none. One Git does
+                                 not accept is an invalid argument. May be NULL. */
+  const char*
+      git_provider; /* Who hosts the Git remote; null or omitted when unknown. May be NULL. */
+  holder_new_project_privacy_mode
+      privacy_mode; /* How the project's files are stored. Zero for the default, encrypted_git. */
+  const int64_t* created_at; /* When the project was made, for imports, after the epoch; omit for
+                                now. NULL when absent. */
+  const int64_t* updated_at; /* When the project's settings last changed, for imports, after the
+                                epoch; omit for when it was made. NULL when absent. */
 } holder_new_project;
 
 /* A change to a project's settings. Each field left out keeps its value. */
 typedef struct holder_project_update {
-    const char* name; /* The project's name. NULL when absent. */
-    holder_string_change git_remote_url; /* The Git remote to sync with; null for none. Zero keeps it. */
-    holder_string_change git_provider; /* Who hosts the Git remote; null when unknown. Zero keeps it. */
+  const char* name; /* The project's name. NULL when absent. */
+  holder_string_change
+      git_remote_url; /* The Git remote to sync with; null for none. Zero keeps it. */
+  holder_string_change
+      git_provider; /* Who hosts the Git remote; null when unknown. Zero keeps it. */
 } holder_project_update;
 
 /* Ask for a repair plan, or apply it. */
 typedef struct holder_hierarchy_repair_request {
-    const bool* apply; /* Apply the repair. Without it, only report. NULL for the default, false. */
+  const bool* apply; /* Apply the repair. Without it, only report. NULL for the default, false. */
 } holder_hierarchy_repair_request;
 
 /* The project whose files should be read into the database. */
 typedef struct holder_rebuild_request {
-    const char* project_id; /* The project to rebuild. */
+  const char* project_id; /* The project to rebuild. */
 } holder_rebuild_request;
 
 /* The new project's privacy mode. */
 typedef enum holder_recovery_snapshot_restore_privacy_mode {
-    HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_ENCRYPTED_GIT = 1,
-    HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_PLAIN = 2,
-    HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_ENCRYPTED_GIT = 1,
+  HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_PLAIN = 2,
+  HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_recovery_snapshot_restore_privacy_mode;
 
 /* A snapshot's cards to restore into a new project. */
 typedef struct holder_recovery_snapshot_restore {
-    const char* project_name; /* The new project's name. */
-    holder_recovery_snapshot_restore_privacy_mode privacy_mode; /* The new project's privacy mode. */
-    const char* snapshot; /* The cards' lines from read_recovery_snapshot, one per line. */
-    const char* commit_message; /* The message of the commit that adds the restored cards. */
+  const char* project_name; /* The new project's name. */
+  holder_recovery_snapshot_restore_privacy_mode privacy_mode; /* The new project's privacy mode. */
+  const char* snapshot; /* The cards' lines from read_recovery_snapshot, one per line. */
+  const char* commit_message; /* The message of the commit that adds the restored cards. */
 } holder_recovery_snapshot_restore;
 
 /* PIN used to wrap the project key. */
 typedef struct holder_recovery_token_export_request {
-    const char* pin; /* User-provided PIN used to wrap or unwrap the key. */
+  const char* pin; /* User-provided PIN used to wrap or unwrap the key. */
 } holder_recovery_token_export_request;
 
 /* PIN and serialized .hrk token to restore. */
 typedef struct holder_recovery_token_import_request {
-    const char* pin; /* User-provided PIN used to wrap or unwrap the key. */
-    const char* recovery_token; /* Serialized .hrk token JSON. */
+  const char* pin; /* User-provided PIN used to wrap or unwrap the key. */
+  const char* recovery_token; /* Serialized .hrk token JSON. */
 } holder_recovery_token_import_request;
 
 /* How to push. */
 typedef struct holder_push_options {
-    const char* branch; /* The branch to push; omit for the repository's default. NULL when absent. */
-    const bool* set_upstream; /* Whether the remote branch becomes the local branch's upstream. NULL for the default, true. */
+  const char* branch; /* The branch to push; omit for the repository's default. NULL when absent. */
+  const bool* set_upstream; /* Whether the remote branch becomes the local branch's upstream. NULL
+                               for the default, true. */
 } holder_push_options;
 
 /* A remote to test. */
 typedef struct holder_remote_test {
-    const char* remote_url; /* The Git remote to test; omit for the project's own. NULL when absent. */
+  const char*
+      remote_url; /* The Git remote to test; omit for the project's own. NULL when absent. */
 } holder_remote_test;
 
 /* The version of the core library loaded. */
 typedef struct holder_core_version {
-    const char* version; /* The whole version, such as 1.4.2. */
-    int32_t major; /* Its major number. */
-    int32_t minor; /* Its minor number. */
-    int32_t patch; /* Its patch number. */
+  const char* version; /* The whole version, such as 1.4.2. */
+  int32_t major; /* Its major number. */
+  int32_t minor; /* Its minor number. */
+  int32_t patch; /* Its patch number. */
 } holder_core_version;
 
 /* What rebuilding a data directory's database from its project files found, or would find. */
 typedef struct holder_database_rebuild_report {
-    bool dry_run; /* Whether the database was left as it was and only counted. */
-    const char* previous_health; /* The old database's state: healthy, missing, corrupt or stale. */
-    int32_t projects; /* Projects read. */
-    int32_t cards; /* Cards read. */
-    int32_t ai_threads; /* AI threads read. */
-    int32_t ai_messages; /* AI messages read. */
-    int32_t resources; /* Resources read. */
-    int32_t assets; /* Assets read. */
-    int32_t placements; /* Asset placements read. */
-    int32_t locations; /* Storage locations read. */
-    int32_t quarantined_cards; /* Cards left out because their file is missing; each is logged beside the database. */
-    const char* backup_path; /* Where the old database was kept; null when there was none to keep, or on a dry run. May be NULL. */
+  bool dry_run; /* Whether the database was left as it was and only counted. */
+  const char* previous_health; /* The old database's state: healthy, missing, corrupt or stale. */
+  int32_t projects; /* Projects read. */
+  int32_t cards; /* Cards read. */
+  int32_t ai_threads; /* AI threads read. */
+  int32_t ai_messages; /* AI messages read. */
+  int32_t resources; /* Resources read. */
+  int32_t assets; /* Assets read. */
+  int32_t placements; /* Asset placements read. */
+  int32_t locations; /* Storage locations read. */
+  int32_t quarantined_cards; /* Cards left out because their file is missing; each is logged beside
+                                the database. */
+  const char* backup_path; /* Where the old database was kept; null when there was none to keep, or
+                              on a dry run. May be NULL. */
 } holder_database_rebuild_report;
 
 /* Storage provider kind. */
 typedef enum holder_project_storage_location_provider {
-    HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY = 1,
-    HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE = 2,
-    HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_GOOGLE_DRIVE = 3,
-    HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY = 1,
+  HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE = 2,
+  HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_GOOGLE_DRIVE = 3,
+  HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_project_storage_location_provider;
 
 /* A portable declaration with this device's binding status. */
 typedef struct holder_project_storage_location {
-    const char* location_id; /* The location's ID. */
-    const char* project_id; /* The owning project. */
-    const char* name; /* Display name. */
-    holder_project_storage_location_provider provider; /* Storage provider kind. */
-    holder_location_configuration configuration; /* Portable non-secret provider configuration. */
-    bool bound; /* Whether this device has a private binding. */
-    const char* binding_preview; /* Safe binding display text, or null; credentials are never returned. May be NULL. */
-    int64_t created_at; /* When the declaration was created. */
-    int64_t updated_at; /* When the declaration was last updated. */
+  const char* location_id; /* The location's ID. */
+  const char* project_id; /* The owning project. */
+  const char* name; /* Display name. */
+  holder_project_storage_location_provider provider; /* Storage provider kind. */
+  holder_location_configuration configuration; /* Portable non-secret provider configuration. */
+  bool bound; /* Whether this device has a private binding. */
+  const char* binding_preview; /* Safe binding display text, or null; credentials are never
+                                  returned. May be NULL. */
+  int64_t created_at; /* When the declaration was created. */
+  int64_t updated_at; /* When the declaration was last updated. */
 } holder_project_storage_location;
 
 typedef struct holder_project_storage_location_list {
-    const holder_project_storage_location* items;
-    size_t count;
+  const holder_project_storage_location* items;
+  size_t count;
 } holder_project_storage_location_list;
 
-/* A project's storage locations, with this device's binding status, and this device's preferred one. */
+/* A project's storage locations, with this device's binding status, and this device's preferred
+ * one. */
 typedef struct holder_storage_location_list {
-    holder_project_storage_location_list data; /* The project's locations, most recently updated first; none for a project with none, or one this device does not have. */
-    const char* preferred_location_id; /* This device's preferred location for the project; null when it has none. May be NULL. */
+  holder_project_storage_location_list
+      data; /* The project's locations, most recently updated first; none for a project with none,
+               or one this device does not have. */
+  const char* preferred_location_id; /* This device's preferred location for the project; null when
+                                        it has none. May be NULL. */
 } holder_storage_location_list;
 
 /* The location affected by an action. */
 typedef struct holder_location_delete_result {
-    const char* location_id; /* The affected location ID. */
+  const char* location_id; /* The affected location ID. */
 } holder_location_delete_result;
 
 /* A tag written in a card's content. */
 typedef struct holder_tag_occurrence {
-    const char* tag; /* The normalized tag. */
-    int64_t byte_start; /* Inclusive byte offset of the leading # in the content. */
-    int64_t byte_end; /* Exclusive byte offset after the tag's name. */
+  const char* tag; /* The normalized tag. */
+  int64_t byte_start; /* Inclusive byte offset of the leading # in the content. */
+  int64_t byte_end; /* Exclusive byte offset after the tag's name. */
 } holder_tag_occurrence;
 
 typedef struct holder_tag_occurrence_list {
-    const holder_tag_occurrence* items;
-    size_t count;
+  const holder_tag_occurrence* items;
+  size_t count;
 } holder_tag_occurrence_list;
 
 /* A card, with its content and tags. */
 typedef struct holder_card {
-    const char* card_id; /* The card's ID. */
-    const char* project_id; /* The project the card belongs to. */
-    const char* title; /* The card's title. */
-    const char* rel_path; /* The card's file, relative to the project's root. */
-    const char* parent_card_id; /* The card's parent; null for a root card. May be NULL. */
-    double sort_key; /* The card's place among its siblings; lower comes first. */
-    int64_t created_at; /* When the card was created. */
-    int64_t updated_at; /* When the card was last changed. */
-    const int64_t* deleted_at; /* When the card was moved to the trash; null when it is not in the trash. May be NULL. */
-    const char* content; /* The card's body. */
-    holder_string_list tags; /* The card's normalized tags. */
-    holder_tag_occurrence_list tag_occurrences; /* Each tag written in the content, in order. */
-    holder_string_list removable_tags; /* The tags remove_card_tag would take off the card: each is on its trailing tag line and nowhere else in its content. A tag also written in prose stays until the content is edited. */
+  const char* card_id; /* The card's ID. */
+  const char* project_id; /* The project the card belongs to. */
+  const char* title; /* The card's title. */
+  const char* rel_path; /* The card's file, relative to the project's root. */
+  const char* parent_card_id; /* The card's parent; null for a root card. May be NULL. */
+  double sort_key; /* The card's place among its siblings; lower comes first. */
+  int64_t created_at; /* When the card was created. */
+  int64_t updated_at; /* When the card was last changed. */
+  const int64_t* deleted_at; /* When the card was moved to the trash; null when it is not in the
+                                trash. May be NULL. */
+  const char* content; /* The card's body. */
+  holder_string_list tags; /* The card's normalized tags. */
+  holder_tag_occurrence_list tag_occurrences; /* Each tag written in the content, in order. */
+  holder_string_list removable_tags; /* The tags remove_card_tag would take off the card: each is on
+                                        its trailing tag line and nowhere else in its content. A tag
+                                        also written in prose stays until the content is edited. */
 } holder_card;
 
 /* Everything about a card except its content. */
 typedef struct holder_card_metadata {
-    const char* card_id; /* The card's ID. */
-    const char* project_id; /* The project the card belongs to. */
-    const char* title; /* The card's title. */
-    const char* rel_path; /* The card's file, relative to the project's root. */
-    const char* parent_card_id; /* The card's parent; null for a root card. May be NULL. */
-    double sort_key; /* The card's place among its siblings; lower comes first. */
-    int64_t created_at; /* When the card was created. */
-    int64_t updated_at; /* When the card was last changed. */
-    const int64_t* deleted_at; /* When the card was moved to the trash; null when it is not in the trash. May be NULL. */
+  const char* card_id; /* The card's ID. */
+  const char* project_id; /* The project the card belongs to. */
+  const char* title; /* The card's title. */
+  const char* rel_path; /* The card's file, relative to the project's root. */
+  const char* parent_card_id; /* The card's parent; null for a root card. May be NULL. */
+  double sort_key; /* The card's place among its siblings; lower comes first. */
+  int64_t created_at; /* When the card was created. */
+  int64_t updated_at; /* When the card was last changed. */
+  const int64_t* deleted_at; /* When the card was moved to the trash; null when it is not in the
+                                trash. May be NULL. */
 } holder_card_metadata;
 
 typedef struct holder_card_metadata_list {
-    const holder_card_metadata* items;
-    size_t count;
+  const holder_card_metadata* items;
+  size_t count;
 } holder_card_metadata_list;
 
 /* Whether this step names the project or a card. */
 typedef enum holder_card_breadcrumb_kind {
-    HOLDER_CARD_BREADCRUMB_KIND_PROJECT = 1,
-    HOLDER_CARD_BREADCRUMB_KIND_CARD = 2,
-    HOLDER_CARD_BREADCRUMB_KIND_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_CARD_BREADCRUMB_KIND_PROJECT = 1,
+  HOLDER_CARD_BREADCRUMB_KIND_CARD = 2,
+  HOLDER_CARD_BREADCRUMB_KIND_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_card_breadcrumb_kind;
 
 /* One project or live card in a card's path from its project root. */
 typedef struct holder_card_breadcrumb {
-    holder_card_breadcrumb_kind kind; /* Whether this step names the project or a card. */
-    const char* id; /* The project or card ID. */
-    const char* title; /* The project or card title. */
+  holder_card_breadcrumb_kind kind; /* Whether this step names the project or a card. */
+  const char* id; /* The project or card ID. */
+  const char* title; /* The project or card title. */
 } holder_card_breadcrumb;
 
 typedef struct holder_card_breadcrumb_list {
-    const holder_card_breadcrumb* items;
-    size_t count;
+  const holder_card_breadcrumb* items;
+  size_t count;
 } holder_card_breadcrumb_list;
 
 /* A card that matches a reference. */
 typedef struct holder_card_reference_candidate {
-    const char* card_id; /* The card's canonical full UUID. */
-    const char* title; /* The card's title. */
-    const int64_t* deleted_at; /* When the card entered Trash, or null while live. May be NULL. */
+  const char* card_id; /* The card's canonical full UUID. */
+  const char* title; /* The card's title. */
+  const int64_t* deleted_at; /* When the card entered Trash, or null while live. May be NULL. */
 } holder_card_reference_candidate;
 
 typedef struct holder_card_reference_candidate_list {
-    const holder_card_reference_candidate* items;
-    size_t count;
+  const holder_card_reference_candidate* items;
+  size_t count;
 } holder_card_reference_candidate_list;
 
 /* The resolution outcome. */
 typedef enum holder_card_reference_resolve_data_status {
-    HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_RESOLVED = 1,
-    HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_AMBIGUOUS = 2,
-    HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_NOT_FOUND = 3,
-    HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_RESOLVED = 1,
+  HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_AMBIGUOUS = 2,
+  HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_NOT_FOUND = 3,
+  HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_card_reference_resolve_data_status;
 
 /* A resolved, ambiguous, or absent card reference. */
 typedef struct holder_card_reference_resolve_data {
-    holder_card_reference_resolve_data_status status; /* The resolution outcome. */
-    const char* match_kind; /* How a reference matched: full_id, id_prefix or exact_title. Absent when no card matched. NULL when absent. */
-    const holder_card_reference_candidate* card; /* The matching card for a resolved reference. NULL when absent. */
-    const holder_card_reference_candidate_list* candidates; /* Two candidate cards for an ambiguous reference. NULL when absent. */
+  holder_card_reference_resolve_data_status status; /* The resolution outcome. */
+  const char* match_kind; /* How a reference matched: full_id, id_prefix or exact_title. Absent when
+                             no card matched. NULL when absent. */
+  const holder_card_reference_candidate*
+      card; /* The matching card for a resolved reference. NULL when absent. */
+  const holder_card_reference_candidate_list*
+      candidates; /* Two candidate cards for an ambiguous reference. NULL when absent. */
 } holder_card_reference_resolve_data;
 
 /* A card in a listing. */
 typedef struct holder_card_list_item {
-    const char* card_id; /* The card's ID. */
-    const char* project_id; /* The project the card belongs to. */
-    const char* title; /* The card's title. */
-    const char* rel_path; /* The card's file, relative to the project's root. */
-    const char* parent_card_id; /* The card's parent; null for a root card. May be NULL. */
-    double sort_key; /* The card's place among its siblings; lower comes first. */
-    int64_t created_at; /* When the card was created. */
-    int64_t updated_at; /* When the card was last changed. */
-    const int64_t* deleted_at; /* When the card was moved to the trash; null when it is not in the trash. May be NULL. */
-    const int32_t* child_count; /* The card's live children; present when asked for. NULL when absent. */
-    const char* content; /* The card's body; present when asked for. NULL when absent. */
+  const char* card_id; /* The card's ID. */
+  const char* project_id; /* The project the card belongs to. */
+  const char* title; /* The card's title. */
+  const char* rel_path; /* The card's file, relative to the project's root. */
+  const char* parent_card_id; /* The card's parent; null for a root card. May be NULL. */
+  double sort_key; /* The card's place among its siblings; lower comes first. */
+  int64_t created_at; /* When the card was created. */
+  int64_t updated_at; /* When the card was last changed. */
+  const int64_t* deleted_at; /* When the card was moved to the trash; null when it is not in the
+                                trash. May be NULL. */
+  const int32_t*
+      child_count; /* The card's live children; present when asked for. NULL when absent. */
+  const char* content; /* The card's body; present when asked for. NULL when absent. */
 } holder_card_list_item;
 
 typedef struct holder_card_list_item_list {
-    const holder_card_list_item* items;
-    size_t count;
+  const holder_card_list_item* items;
+  size_t count;
 } holder_card_list_item_list;
 
 /* One page of a listing. */
 typedef struct holder_card_list_item_page {
-    holder_card_list_item_list items; /* The page's items. */
-    const char* next_cursor; /* Pass back to get the next page; null on the last page. May be NULL. */
+  holder_card_list_item_list items; /* The page's items. */
+  const char* next_cursor; /* Pass back to get the next page; null on the last page. May be NULL. */
 } holder_card_list_item_page;
 
 /* A tag and how many of a project's live cards carry it. */
 typedef struct holder_tag_count {
-    const char* tag; /* The tag, normalized: in lower case. */
-    int32_t card_count; /* The live cards in the project that carry the tag: at least one, or the tag is not listed. */
+  const char* tag; /* The tag, normalized: in lower case. */
+  int32_t card_count; /* The live cards in the project that carry the tag: at least one, or the tag
+                         is not listed. */
 } holder_tag_count;
 
 typedef struct holder_tag_count_list {
-    const holder_tag_count* items;
-    size_t count;
+  const holder_tag_count* items;
+  size_t count;
 } holder_tag_count_list;
 
-/* One of the link kinds Holder knows, with how it reads from each end of a link. A link's kind is free text;
- * a kind Holder does not know has no labels of its own.
+/* One of the link kinds Holder knows, with how it reads from each end of a link. A link's kind is
+ * free text; a kind Holder does not know has no labels of its own.
  */
 typedef struct holder_link_kind_labels {
-    const char* kind; /* The kind, as a link names it. */
-    const char* forward_label; /* How the link reads from the card it is from, such as Depends on. */
-    const char* reverse_label; /* How the link reads from what it points at, such as Required by. */
+  const char* kind; /* The kind, as a link names it. */
+  const char* forward_label; /* How the link reads from the card it is from, such as Depends on. */
+  const char* reverse_label; /* How the link reads from what it points at, such as Required by. */
 } holder_link_kind_labels;
 
 typedef struct holder_link_kind_labels_list {
-    const holder_link_kind_labels* items;
-    size_t count;
+  const holder_link_kind_labels* items;
+  size_t count;
 } holder_link_kind_labels_list;
 
 /* What the link is from. */
 typedef enum holder_link_source_type {
-    HOLDER_LINK_SOURCE_TYPE_CARD = 1,
-    HOLDER_LINK_SOURCE_TYPE_AI_MESSAGE = 2,
-    HOLDER_LINK_SOURCE_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_LINK_SOURCE_TYPE_CARD = 1,
+  HOLDER_LINK_SOURCE_TYPE_AI_MESSAGE = 2,
+  HOLDER_LINK_SOURCE_TYPE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_link_source_type;
 
 /* What the link points at. */
 typedef enum holder_link_target_type {
-    HOLDER_LINK_TARGET_TYPE_CARD = 1,
-    HOLDER_LINK_TARGET_TYPE_AI_MESSAGE = 2,
-    HOLDER_LINK_TARGET_TYPE_AI_THREAD = 3,
-    HOLDER_LINK_TARGET_TYPE_RESOURCE = 4,
-    HOLDER_LINK_TARGET_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_LINK_TARGET_TYPE_CARD = 1,
+  HOLDER_LINK_TARGET_TYPE_AI_MESSAGE = 2,
+  HOLDER_LINK_TARGET_TYPE_AI_THREAD = 3,
+  HOLDER_LINK_TARGET_TYPE_RESOURCE = 4,
+  HOLDER_LINK_TARGET_TYPE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_link_target_type;
 
-/* A link from a card, or from an AI message, to something in a project. A link names both of its ends in full:
- * each end's project, type and ID.
+/* A link from a card, or from an AI message, to something in a project. A link names both of its
+ * ends in full: each end's project, type and ID.
  */
 typedef struct holder_link {
-    const char* source_project_id; /* The project of the card or AI message the link is from. */
-    holder_link_source_type source_type; /* What the link is from. */
-    const char* source_id; /* The ID of the card or AI message the link is from. */
-    const char* target_project_id; /* The project of what the link points at: the source's own project, or, for a card, another project, which need not be on this device. A link grants no access to its target. */
-    holder_link_target_type target_type; /* What the link points at. */
-    const char* target_id; /* The ID of what the link points at. */
-    const char* kind; /* What the link means. */
-    const char* label; /* A note on the link; null when it has none. May be NULL. */
-    int64_t created_at; /* When the link was made. */
+  const char* source_project_id; /* The project of the card or AI message the link is from. */
+  holder_link_source_type source_type; /* What the link is from. */
+  const char* source_id; /* The ID of the card or AI message the link is from. */
+  const char* target_project_id; /* The project of what the link points at: the source's own
+                                    project, or, for a card, another project, which need not be on
+                                    this device. A link grants no access to its target. */
+  holder_link_target_type target_type; /* What the link points at. */
+  const char* target_id; /* The ID of what the link points at. */
+  const char* kind; /* What the link means. */
+  const char* label; /* A note on the link; null when it has none. May be NULL. */
+  int64_t created_at; /* When the link was made. */
 } holder_link;
 
 typedef struct holder_link_list {
-    const holder_link* items;
-    size_t count;
+  const holder_link* items;
+  size_t count;
 } holder_link_list;
 
 /* A milestone on a card: its dates, which may repeat a role or be none, and what it is. */
 typedef struct holder_milestone {
-    const char* milestone_id; /* The milestone's ID. */
-    const char* project_id; /* The project of the card the milestone is on. */
-    const char* card_id; /* The card the milestone is on. */
-    holder_milestone_date_list dates; /* The milestone's dates, in the order they were given. */
-    const char* kind; /* What kind of milestone it is; null when it has none. May be NULL. */
-    const char* description; /* A note on the milestone; null when it has none. May be NULL. */
-    int64_t created_at; /* When the milestone was made. */
-    int64_t updated_at; /* When the milestone was last changed. */
+  const char* milestone_id; /* The milestone's ID. */
+  const char* project_id; /* The project of the card the milestone is on. */
+  const char* card_id; /* The card the milestone is on. */
+  holder_milestone_date_list dates; /* The milestone's dates, in the order they were given. */
+  const char* kind; /* What kind of milestone it is; null when it has none. May be NULL. */
+  const char* description; /* A note on the milestone; null when it has none. May be NULL. */
+  int64_t created_at; /* When the milestone was made. */
+  int64_t updated_at; /* When the milestone was last changed. */
 } holder_milestone;
 
 typedef struct holder_milestone_list {
-    const holder_milestone* items;
-    size_t count;
+  const holder_milestone* items;
+  size_t count;
 } holder_milestone_list;
 
 /* A milestone on a calendar, with the title of its card. */
 typedef struct holder_calendar_milestone {
-    const char* milestone_id; /* The milestone's ID. */
-    const char* project_id; /* The project of the card the milestone is on. */
-    const char* card_id; /* The card the milestone is on. */
-    holder_milestone_date_list dates; /* The milestone's dates, in the order they were given. */
-    const char* kind; /* What kind of milestone it is; null when it has none. May be NULL. */
-    const char* description; /* A note on the milestone; null when it has none. May be NULL. */
-    int64_t created_at; /* When the milestone was made. */
-    int64_t updated_at; /* When the milestone was last changed. */
-    const char* card_title; /* The title of the card the milestone is on. */
+  const char* milestone_id; /* The milestone's ID. */
+  const char* project_id; /* The project of the card the milestone is on. */
+  const char* card_id; /* The card the milestone is on. */
+  holder_milestone_date_list dates; /* The milestone's dates, in the order they were given. */
+  const char* kind; /* What kind of milestone it is; null when it has none. May be NULL. */
+  const char* description; /* A note on the milestone; null when it has none. May be NULL. */
+  int64_t created_at; /* When the milestone was made. */
+  int64_t updated_at; /* When the milestone was last changed. */
+  const char* card_title; /* The title of the card the milestone is on. */
 } holder_calendar_milestone;
 
 typedef struct holder_calendar_milestone_list {
-    const holder_calendar_milestone* items;
-    size_t count;
+  const holder_calendar_milestone* items;
+  size_t count;
 } holder_calendar_milestone_list;
 
-/* What happens in a project over a window of time: its milestones, and the cards made and changed. */
+/* What happens in a project over a window of time: its milestones, and the cards made and changed.
+ */
 typedef struct holder_calendar {
-    holder_calendar_milestone_list milestones; /* The milestones with a date in the window, as a day in its days or an instant in its instants, each once, by when they were made and then by ID. */
-    holder_card_metadata_list created_cards; /* The live cards made in the window, by when they were made and then by ID. */
-    holder_card_metadata_list updated_cards; /* The live cards last changed in the window, other than by being made, by when and then by ID. */
+  holder_calendar_milestone_list
+      milestones; /* The milestones with a date in the window, as a day in its days or an instant in
+                     its instants, each once, by when they were made and then by ID. */
+  holder_card_metadata_list
+      created_cards; /* The live cards made in the window, by when they were made and then by ID. */
+  holder_card_metadata_list updated_cards; /* The live cards last changed in the window, other than
+                                              by being made, by when and then by ID. */
 } holder_calendar;
 
 /* What importing a local file made or reused. */
 typedef struct holder_asset_import {
-    const char* resource_id; /* The resource holding the file: a new one, or the one already holding the same bytes. */
-    const char* asset_id; /* The asset holding the file's bytes. */
-    bool duplicate_reused; /* Whether the project already held the same bytes, so nothing new was stored. */
-    bool link_created; /* Whether an attachment link from the card was made; false when it already existed. */
+  const char* resource_id; /* The resource holding the file: a new one, or the one already holding
+                              the same bytes. */
+  const char* asset_id; /* The asset holding the file's bytes. */
+  bool duplicate_reused; /* Whether the project already held the same bytes, so nothing new was
+                            stored. */
+  bool link_created; /* Whether an attachment link from the card was made; false when it already
+                        existed. */
 } holder_asset_import;
 
 /* A file an asset's bytes were written to. */
 typedef struct holder_asset_file {
-    const char* path; /* The local file written. */
-    const char* original_filename; /* The file's name when it was imported. */
-    const char* media_type; /* The file's media type. */
-    int64_t byte_size; /* The file's size in bytes. */
+  const char* path; /* The local file written. */
+  const char* original_filename; /* The file's name when it was imported. */
+  const char* media_type; /* The file's media type. */
+  int64_t byte_size; /* The file's size in bytes. */
 } holder_asset_file;
 
 /* How the copy is stored: as the file is, or encrypted for the project. */
 typedef enum holder_asset_placement_encoding {
-    HOLDER_ASSET_PLACEMENT_ENCODING_PLAIN = 1,
-    HOLDER_ASSET_PLACEMENT_ENCODING_HOLDER_ASSET_V1 = 2,
-    HOLDER_ASSET_PLACEMENT_ENCODING_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_ASSET_PLACEMENT_ENCODING_PLAIN = 1,
+  HOLDER_ASSET_PLACEMENT_ENCODING_HOLDER_ASSET_V1 = 2,
+  HOLDER_ASSET_PLACEMENT_ENCODING_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_asset_placement_encoding;
 
 /* One stored copy of an asset. */
 typedef struct holder_asset_placement {
-    const char* placement_id; /* The copy's ID. */
-    const char* location_id; /* The storage location that holds the copy. */
-    holder_asset_placement_encoding encoding; /* How the copy is stored: as the file is, or encrypted for the project. */
-    int64_t stored_byte_size; /* The size of the stored copy, in bytes. */
-    int64_t created_at; /* When the copy was stored. */
+  const char* placement_id; /* The copy's ID. */
+  const char* location_id; /* The storage location that holds the copy. */
+  holder_asset_placement_encoding
+      encoding; /* How the copy is stored: as the file is, or encrypted for the project. */
+  int64_t stored_byte_size; /* The size of the stored copy, in bytes. */
+  int64_t created_at; /* When the copy was stored. */
 } holder_asset_placement;
 
 typedef struct holder_asset_placement_list {
-    const holder_asset_placement* items;
-    size_t count;
+  const holder_asset_placement* items;
+  size_t count;
 } holder_asset_placement_list;
 
 /* A file that belongs to a resource. */
 typedef struct holder_resource_asset {
-    const char* asset_id; /* The asset's ID. */
-    const char* original_filename; /* The file's name when it was imported. */
-    const char* media_type; /* The file's media type, such as application/pdf. */
-    int64_t byte_size; /* The file's size, in bytes. */
-    const char* plaintext_sha256; /* The SHA-256 of the file's content, in lower-case hex. */
-    holder_asset_placement_list placements; /* The stored copies of the file. */
-    int64_t created_at; /* When the asset was imported. */
-    int64_t updated_at; /* When the asset was last changed. */
+  const char* asset_id; /* The asset's ID. */
+  const char* original_filename; /* The file's name when it was imported. */
+  const char* media_type; /* The file's media type, such as application/pdf. */
+  int64_t byte_size; /* The file's size, in bytes. */
+  const char* plaintext_sha256; /* The SHA-256 of the file's content, in lower-case hex. */
+  holder_asset_placement_list placements; /* The stored copies of the file. */
+  int64_t created_at; /* When the asset was imported. */
+  int64_t updated_at; /* When the asset was last changed. */
 } holder_resource_asset;
 
 typedef struct holder_resource_asset_list {
-    const holder_resource_asset* items;
-    size_t count;
+  const holder_resource_asset* items;
+  size_t count;
 } holder_resource_asset_list;
 
 /* A resource in a project, with its files. */
 typedef struct holder_resource {
-    const char* resource_id; /* The resource's ID. */
-    const char* project_id; /* The project the resource belongs to. */
-    const char* type; /* What kind of thing the resource is. */
-    const char* label; /* The resource's name. */
-    holder_resource_metadata metadata; /* What is known about the resource, by name. */
-    holder_resource_asset_list assets; /* The resource's files. */
-    int64_t created_at; /* When the resource was made. */
-    int64_t updated_at; /* When the resource was last changed. */
+  const char* resource_id; /* The resource's ID. */
+  const char* project_id; /* The project the resource belongs to. */
+  const char* type; /* What kind of thing the resource is. */
+  const char* label; /* The resource's name. */
+  holder_resource_metadata metadata; /* What is known about the resource, by name. */
+  holder_resource_asset_list assets; /* The resource's files. */
+  int64_t created_at; /* When the resource was made. */
+  int64_t updated_at; /* When the resource was last changed. */
 } holder_resource;
 
 typedef struct holder_resource_list {
-    const holder_resource* items;
-    size_t count;
+  const holder_resource* items;
+  size_t count;
 } holder_resource_list;
 
 /* How the project's files are stored. */
 typedef enum holder_project_privacy_mode {
-    HOLDER_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT = 1,
-    HOLDER_PROJECT_PRIVACY_MODE_PLAIN = 2,
-    HOLDER_PROJECT_PRIVACY_MODE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT = 1,
+  HOLDER_PROJECT_PRIVACY_MODE_PLAIN = 2,
+  HOLDER_PROJECT_PRIVACY_MODE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_project_privacy_mode;
 
 /* A project on this device. */
 typedef struct holder_project {
-    const char* project_id; /* The project's ID. */
-    const char* name; /* The project's name. */
-    const char* root_path; /* The directory that holds the project's repository on this device. */
-    const char* git_remote_url; /* The Git remote the project syncs with; null when it has none. May be NULL. */
-    const char* git_provider; /* Who hosts the Git remote, such as github; null when unknown. May be NULL. */
-    holder_project_privacy_mode privacy_mode; /* How the project's files are stored. */
-    const char* project_key_id; /* The ID of an encrypted project's key; null for a plain project. May be NULL. */
-    int64_t created_at; /* When the project was made. */
-    int64_t updated_at; /* When the project's settings last changed. */
+  const char* project_id; /* The project's ID. */
+  const char* name; /* The project's name. */
+  const char* root_path; /* The directory that holds the project's repository on this device. */
+  const char* git_remote_url; /* The Git remote the project syncs with; null when it has none. May
+                                 be NULL. */
+  const char*
+      git_provider; /* Who hosts the Git remote, such as github; null when unknown. May be NULL. */
+  holder_project_privacy_mode privacy_mode; /* How the project's files are stored. */
+  const char* project_key_id; /* The ID of an encrypted project's key; null for a plain project. May
+                                 be NULL. */
+  int64_t created_at; /* When the project was made. */
+  int64_t updated_at; /* When the project's settings last changed. */
 } holder_project;
 
 /* What ensure_home_project did. */
 typedef struct holder_home_project {
-    const holder_project* project; /* The Home project it made; null when the device already had a project, which it left alone. May be NULL. */
+  const holder_project* project; /* The Home project it made; null when the device already had a
+                                    project, which it left alone. May be NULL. */
 } holder_home_project;
 
 /* A project in a listing. */
 typedef struct holder_project_list_item {
-    const char* project_id; /* The project's ID. */
-    const char* name; /* The project's name. */
-    const char* root_path; /* The directory that holds the project's repository on this device. */
-    const char* git_remote_url; /* The Git remote the project syncs with; null when it has none. May be NULL. */
-    const char* git_provider; /* Who hosts the Git remote, such as github; null when unknown. May be NULL. */
-    holder_project_privacy_mode privacy_mode; /* How the project's files are stored. */
-    const char* project_key_id; /* The ID of an encrypted project's key; null for a plain project. May be NULL. */
-    int64_t created_at; /* When the project was made. */
-    int64_t updated_at; /* When the project's settings last changed. */
-    const int32_t* card_count; /* The project's live cards; present when asked for. NULL when absent. */
-    const int32_t* root_card_count; /* The project's live root cards; present when asked for. NULL when absent. */
+  const char* project_id; /* The project's ID. */
+  const char* name; /* The project's name. */
+  const char* root_path; /* The directory that holds the project's repository on this device. */
+  const char* git_remote_url; /* The Git remote the project syncs with; null when it has none. May
+                                 be NULL. */
+  const char*
+      git_provider; /* Who hosts the Git remote, such as github; null when unknown. May be NULL. */
+  holder_project_privacy_mode privacy_mode; /* How the project's files are stored. */
+  const char* project_key_id; /* The ID of an encrypted project's key; null for a plain project. May
+                                 be NULL. */
+  int64_t created_at; /* When the project was made. */
+  int64_t updated_at; /* When the project's settings last changed. */
+  const int32_t*
+      card_count; /* The project's live cards; present when asked for. NULL when absent. */
+  const int32_t* root_card_count; /* The project's live root cards; present when asked for. NULL
+                                     when absent. */
 } holder_project_list_item;
 
 typedef struct holder_project_list_item_list {
-    const holder_project_list_item* items;
-    size_t count;
+  const holder_project_list_item* items;
+  size_t count;
 } holder_project_list_item_list;
 
 /* Whether an encrypted project's card files are safe to push. */
 typedef struct holder_encryption_safety_check {
-    bool ok; /* Whether every checked file passed. */
-    int32_t checked_files; /* Card files examined. */
-    int32_t unsafe_files; /* Card files that failed the safety check. */
-    holder_string_list unsafe_paths; /* Project-relative paths of unsafe files. */
-    const char* message; /* A short explanation of the result. */
+  bool ok; /* Whether every checked file passed. */
+  int32_t checked_files; /* Card files examined. */
+  int32_t unsafe_files; /* Card files that failed the safety check. */
+  holder_string_list unsafe_paths; /* Project-relative paths of unsafe files. */
+  const char* message; /* A short explanation of the result. */
 } holder_encryption_safety_check;
 
 /* How the project's files are stored. */
 typedef enum holder_project_encryption_check_privacy_mode {
-    HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_ENCRYPTED_GIT = 1,
-    HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_PLAIN = 2,
-    HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_ENCRYPTED_GIT = 1,
+  HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_PLAIN = 2,
+  HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_project_encryption_check_privacy_mode;
 
 /* A project's privacy mode and the result of checking its files. */
 typedef struct holder_project_encryption_check {
-    const char* project_id; /* The project checked. */
-    holder_project_encryption_check_privacy_mode privacy_mode; /* How the project's files are stored. */
-    holder_encryption_safety_check check; /* The safety check's result. */
+  const char* project_id; /* The project checked. */
+  holder_project_encryption_check_privacy_mode
+      privacy_mode; /* How the project's files are stored. */
+  holder_encryption_safety_check check; /* The safety check's result. */
 } holder_project_encryption_check;
 
 /* A hidden branch's top card and its new parent. */
 typedef struct holder_hierarchy_repair_move {
-    const char* card_id; /* The hidden branch's top card. */
-    const char* parent_card_id; /* Its new parent, or null for a project root. May be NULL. */
+  const char* card_id; /* The hidden branch's top card. */
+  const char* parent_card_id; /* Its new parent, or null for a project root. May be NULL. */
 } holder_hierarchy_repair_move;
 
 typedef struct holder_hierarchy_repair_move_list {
-    const holder_hierarchy_repair_move* items;
-    size_t count;
+  const holder_hierarchy_repair_move* items;
+  size_t count;
 } holder_hierarchy_repair_move_list;
 
 /* A plan to make hidden live cards reachable, and whether it was applied. */
 typedef struct holder_hierarchy_repair {
-    bool applied; /* Whether changes were written. */
-    holder_hierarchy_repair_move_list moved; /* The hidden branches whose top cards move. */
-    int32_t changed_card_count; /* Cards moved or re-spaced to make room. */
-    holder_string_list cycle_card_ids; /* Cards in parent cycles; left for manual repair. */
+  bool applied; /* Whether changes were written. */
+  holder_hierarchy_repair_move_list moved; /* The hidden branches whose top cards move. */
+  int32_t changed_card_count; /* Cards moved or re-spaced to make room. */
+  holder_string_list cycle_card_ids; /* Cards in parent cycles; left for manual repair. */
 } holder_hierarchy_repair;
 
 /* The numbers of entities restored from a project's files. */
 typedef struct holder_rebuild_result {
-    const char* project_id; /* The project rebuilt. */
-    int32_t cards; /* Cards restored. */
-    int32_t ai_messages; /* AI messages restored. */
-    int32_t ai_threads; /* AI threads restored. */
-    int32_t links; /* Links restored. */
+  const char* project_id; /* The project rebuilt. */
+  int32_t cards; /* Cards restored. */
+  int32_t ai_messages; /* AI messages restored. */
+  int32_t ai_threads; /* AI threads restored. */
+  int32_t links; /* Links restored. */
 } holder_rebuild_result;
 
 /* Completion of a full database search-index rebuild. */
 typedef struct holder_reindex_result {
-    const char* message; /* A short completion message. */
+  const char* message; /* A short completion message. */
 } holder_reindex_result;
 
 /* What the link points at. Restore keeps links to cards and resources and drops the rest. */
 typedef enum holder_recovery_snapshot_link_target_type {
-    HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_CARD = 1,
-    HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_MESSAGE = 2,
-    HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_THREAD = 3,
-    HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_RESOURCE = 4,
-    HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_CARD = 1,
+  HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_MESSAGE = 2,
+  HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_THREAD = 3,
+  HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_RESOURCE = 4,
+  HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_recovery_snapshot_link_target_type;
 
 /* A card's link, as a snapshot holds it. */
 typedef struct holder_recovery_snapshot_link {
-    holder_recovery_snapshot_link_target_type target_type; /* What the link points at. Restore keeps links to cards and resources and drops the rest. */
-    const char* target_id; /* What the link points at, by its ID when the snapshot was read. */
-    const char* target_project_id; /* For a card in another project, that project; restore keeps such a link as it is. NULL when absent. */
-    const char* kind; /* What the link means. */
-    const char* label; /* The link's label; null when it has none. May be NULL. */
+  holder_recovery_snapshot_link_target_type
+      target_type; /* What the link points at. Restore keeps links to cards and resources and drops
+                      the rest. */
+  const char* target_id; /* What the link points at, by its ID when the snapshot was read. */
+  const char* target_project_id; /* For a card in another project, that project; restore keeps such
+                                    a link as it is. NULL when absent. */
+  const char* kind; /* What the link means. */
+  const char* label; /* The link's label; null when it has none. May be NULL. */
 } holder_recovery_snapshot_link;
 
 typedef struct holder_recovery_snapshot_link_list {
-    const holder_recovery_snapshot_link* items;
-    size_t count;
+  const holder_recovery_snapshot_link* items;
+  size_t count;
 } holder_recovery_snapshot_link_list;
 
 /* A card's milestone, as a snapshot holds it. */
 typedef struct holder_recovery_snapshot_milestone {
-    holder_milestone_date_list dates; /* The milestone's dates. */
-    const char* kind; /* What the milestone is; null when unset. May be NULL. */
-    const char* description; /* More about the milestone; null when unset. May be NULL. */
+  holder_milestone_date_list dates; /* The milestone's dates. */
+  const char* kind; /* What the milestone is; null when unset. May be NULL. */
+  const char* description; /* More about the milestone; null when unset. May be NULL. */
 } holder_recovery_snapshot_milestone;
 
 typedef struct holder_recovery_snapshot_milestone_list {
-    const holder_recovery_snapshot_milestone* items;
-    size_t count;
+  const holder_recovery_snapshot_milestone* items;
+  size_t count;
 } holder_recovery_snapshot_milestone_list;
 
 /* How the copy's bytes are stored. */
 typedef enum holder_recovery_snapshot_placement_encoding {
-    HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_PLAIN = 1,
-    HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_HOLDER_ASSET_V1 = 2,
-    HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_PLAIN = 1,
+  HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_HOLDER_ASSET_V1 = 2,
+  HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_recovery_snapshot_placement_encoding;
 
 /* Where a stored copy of an asset's bytes is, so a restored resource can still be read. */
 typedef struct holder_recovery_snapshot_placement {
-    const char* placement_id; /* The placement's ID when the snapshot was read; restore gives it a new one. */
-    const char* location_id; /* The storage location holding the copy, one of the snapshot card's locations. */
-    const char* object_key; /* The copy's key within its storage location. */
-    holder_recovery_snapshot_placement_encoding encoding; /* How the copy's bytes are stored. */
-    int64_t stored_byte_size; /* The stored copy's size in bytes. */
-    const char* stored_sha256; /* The SHA-256 of the stored copy's bytes, as hex. */
-    int64_t created_at; /* When the copy was stored. */
+  const char*
+      placement_id; /* The placement's ID when the snapshot was read; restore gives it a new one. */
+  const char* location_id; /* The storage location holding the copy, one of the snapshot card's
+                              locations. */
+  const char* object_key; /* The copy's key within its storage location. */
+  holder_recovery_snapshot_placement_encoding encoding; /* How the copy's bytes are stored. */
+  int64_t stored_byte_size; /* The stored copy's size in bytes. */
+  const char* stored_sha256; /* The SHA-256 of the stored copy's bytes, as hex. */
+  int64_t created_at; /* When the copy was stored. */
 } holder_recovery_snapshot_placement;
 
 typedef struct holder_recovery_snapshot_placement_list {
-    const holder_recovery_snapshot_placement* items;
-    size_t count;
+  const holder_recovery_snapshot_placement* items;
+  size_t count;
 } holder_recovery_snapshot_placement_list;
 
 /* A file kept for a resource, as a snapshot holds it. */
 typedef struct holder_recovery_snapshot_asset {
-    const char* asset_id; /* The asset's ID when the snapshot was read; restore gives it a new one. */
-    const char* original_filename; /* The file's name when it was imported. */
-    const char* media_type; /* The file's media type. */
-    int64_t byte_size; /* The file's size in bytes. */
-    const char* plaintext_sha256; /* The SHA-256 of the file's bytes, as hex. */
-    holder_recovery_snapshot_placement_list placements; /* Where stored copies of the file are. */
-    int64_t created_at; /* When the asset was imported. */
-    int64_t updated_at; /* When the asset last changed. */
+  const char* asset_id; /* The asset's ID when the snapshot was read; restore gives it a new one. */
+  const char* original_filename; /* The file's name when it was imported. */
+  const char* media_type; /* The file's media type. */
+  int64_t byte_size; /* The file's size in bytes. */
+  const char* plaintext_sha256; /* The SHA-256 of the file's bytes, as hex. */
+  holder_recovery_snapshot_placement_list placements; /* Where stored copies of the file are. */
+  int64_t created_at; /* When the asset was imported. */
+  int64_t updated_at; /* When the asset last changed. */
 } holder_recovery_snapshot_asset;
 
 typedef struct holder_recovery_snapshot_asset_list {
-    const holder_recovery_snapshot_asset* items;
-    size_t count;
+  const holder_recovery_snapshot_asset* items;
+  size_t count;
 } holder_recovery_snapshot_asset_list;
 
 /* A resource a card links to, as a snapshot holds it. */
 typedef struct holder_recovery_snapshot_resource {
-    const char* resource_id; /* The resource's ID when the snapshot was read; restore gives it a new one and updates links and holder://resource/ references in content to it. */
-    const char* type; /* What kind of thing the resource is. */
-    const char* label; /* The resource's label. */
-    holder_resource_metadata metadata; /* The resource's metadata. */
-    holder_recovery_snapshot_asset_list assets; /* The files kept for the resource. */
-    int64_t created_at; /* When the resource was made. */
-    int64_t updated_at; /* When the resource last changed. */
+  const char*
+      resource_id; /* The resource's ID when the snapshot was read; restore gives it a new one and
+                      updates links and holder://resource/ references in content to it. */
+  const char* type; /* What kind of thing the resource is. */
+  const char* label; /* The resource's label. */
+  holder_resource_metadata metadata; /* The resource's metadata. */
+  holder_recovery_snapshot_asset_list assets; /* The files kept for the resource. */
+  int64_t created_at; /* When the resource was made. */
+  int64_t updated_at; /* When the resource last changed. */
 } holder_recovery_snapshot_resource;
 
 typedef struct holder_recovery_snapshot_resource_list {
-    const holder_recovery_snapshot_resource* items;
-    size_t count;
+  const holder_recovery_snapshot_resource* items;
+  size_t count;
 } holder_recovery_snapshot_resource_list;
 
 /* Storage provider kind. */
 typedef enum holder_recovery_snapshot_location_provider {
-    HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_LOCAL_DIRECTORY = 1,
-    HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_S3_COMPATIBLE = 2,
-    HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_GOOGLE_DRIVE = 3,
-    HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_LOCAL_DIRECTORY = 1,
+  HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_S3_COMPATIBLE = 2,
+  HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_GOOGLE_DRIVE = 3,
+  HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_recovery_snapshot_location_provider;
 
-/* A storage location a card's resources use, as a snapshot holds it: its portable declaration only. */
+/* A storage location a card's resources use, as a snapshot holds it: its portable declaration only.
+ */
 typedef struct holder_recovery_snapshot_location {
-    const char* location_id; /* The location's ID when the snapshot was read; restore gives it a new one. */
-    const char* name; /* Display name. */
-    holder_recovery_snapshot_location_provider provider; /* Storage provider kind. */
-    holder_location_configuration configuration; /* Portable non-secret provider configuration. */
-    int64_t created_at; /* When the declaration was made. */
-    int64_t updated_at; /* When the declaration last changed. */
+  const char*
+      location_id; /* The location's ID when the snapshot was read; restore gives it a new one. */
+  const char* name; /* Display name. */
+  holder_recovery_snapshot_location_provider provider; /* Storage provider kind. */
+  holder_location_configuration configuration; /* Portable non-secret provider configuration. */
+  int64_t created_at; /* When the declaration was made. */
+  int64_t updated_at; /* When the declaration last changed. */
 } holder_recovery_snapshot_location;
 
 typedef struct holder_recovery_snapshot_location_list {
-    const holder_recovery_snapshot_location* items;
-    size_t count;
+  const holder_recovery_snapshot_location* items;
+  size_t count;
 } holder_recovery_snapshot_location_list;
 
 /* That project's privacy mode. */
 typedef enum holder_recovery_snapshot_card_privacy_mode {
-    HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_ENCRYPTED_GIT = 1,
-    HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_PLAIN = 2,
-    HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_ENCRYPTED_GIT = 1,
+  HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_PLAIN = 2,
+  HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_recovery_snapshot_card_privacy_mode;
 
 /* A card, as a snapshot holds it. */
 typedef struct holder_recovery_snapshot_card {
-    const char* card_id; /* The card's ID when the snapshot was read. Restore gives every card a new ID and uses this one only to keep links and the card tree between the cards it restores. */
-    const char* project_id; /* The project the card was read from. */
-    const char* project_name; /* That project's name. */
-    holder_recovery_snapshot_card_privacy_mode privacy_mode; /* That project's privacy mode. */
-    const char* title; /* The card's title. */
-    const char* content; /* The card's body. */
-    const char* parent_card_id; /* The card's parent; null for a root card. Restore keeps a parent it also restores, and otherwise makes the card a root. May be NULL. */
-    double sort_key; /* The card's place among its siblings; lower comes first. */
-    int64_t created_at; /* When the card was created. */
-    int64_t updated_at; /* When the card was last changed. */
-    holder_recovery_snapshot_link_list links; /* The card's outgoing links. */
-    holder_recovery_snapshot_milestone_list milestones; /* The card's milestones. */
-    holder_recovery_snapshot_resource_list resources; /* The resources the card links to. */
-    holder_recovery_snapshot_location_list locations; /* The storage locations those resources' assets are placed in. */
+  const char* card_id; /* The card's ID when the snapshot was read. Restore gives every card a new
+                          ID and uses this one only to keep links and the card tree between the
+                          cards it restores. */
+  const char* project_id; /* The project the card was read from. */
+  const char* project_name; /* That project's name. */
+  holder_recovery_snapshot_card_privacy_mode privacy_mode; /* That project's privacy mode. */
+  const char* title; /* The card's title. */
+  const char* content; /* The card's body. */
+  const char* parent_card_id; /* The card's parent; null for a root card. Restore keeps a parent it
+                                 also restores, and otherwise makes the card a root. May be NULL. */
+  double sort_key; /* The card's place among its siblings; lower comes first. */
+  int64_t created_at; /* When the card was created. */
+  int64_t updated_at; /* When the card was last changed. */
+  holder_recovery_snapshot_link_list links; /* The card's outgoing links. */
+  holder_recovery_snapshot_milestone_list milestones; /* The card's milestones. */
+  holder_recovery_snapshot_resource_list resources; /* The resources the card links to. */
+  holder_recovery_snapshot_location_list
+      locations; /* The storage locations those resources' assets are placed in. */
 } holder_recovery_snapshot_card;
 
 typedef struct holder_recovery_snapshot_card_list {
-    const holder_recovery_snapshot_card* items;
-    size_t count;
+  const holder_recovery_snapshot_card* items;
+  size_t count;
 } holder_recovery_snapshot_card_list;
 
 /* One page of a project's recovery snapshot. */
 typedef struct holder_recovery_snapshot_page {
-    holder_recovery_snapshot_card_list cards; /* The page's cards, most recently updated first. */
-    holder_string_list lines; /* Each card in core's encoding, in the same order: what a platform stores and later restores. */
-    const char* next_cursor; /* Pass back to read the next page; null on the last page. May be NULL. */
+  holder_recovery_snapshot_card_list cards; /* The page's cards, most recently updated first. */
+  holder_string_list lines; /* Each card in core's encoding, in the same order: what a platform
+                               stores and later restores. */
+  const char*
+      next_cursor; /* Pass back to read the next page; null on the last page. May be NULL. */
 } holder_recovery_snapshot_page;
 
 /* A portable encrypted project key. */
 typedef struct holder_project_recovery_token_export_result {
-    const char* project_id; /* The project whose key was exported. */
-    const char* key_id; /* The encrypted project's key ID. */
-    const char* recovery_token; /* Serialized .hrk token JSON. */
+  const char* project_id; /* The project whose key was exported. */
+  const char* key_id; /* The encrypted project's key ID. */
+  const char* recovery_token; /* Serialized .hrk token JSON. */
 } holder_project_recovery_token_export_result;
 
 /* The project whose key was restored. */
 typedef struct holder_project_recovery_token_import_result {
-    const char* project_id; /* The project whose key was restored. */
+  const char* project_id; /* The project whose key was restored. */
 } holder_project_recovery_token_import_result;
 
 /* Outcome of the attempted pull. */
 typedef enum holder_recovery_token_global_import_result_pull_status {
-    HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_NOT_ATTEMPTED = 1,
-    HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED = 2,
-    HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_FAILED = 3,
-    HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_NOT_ATTEMPTED = 1,
+  HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED = 2,
+  HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_FAILED = 3,
+  HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_recovery_token_global_import_result_pull_status;
 
 /* The result of restoring a token to this device. */
 typedef struct holder_recovery_token_global_import_result {
-    const char* project_id; /* The project whose key was restored. */
-    bool project_created; /* Whether this device made the project from the token. */
-    bool remote_hint_present; /* Whether the token names a Git remote. */
-    bool remote_configured; /* Whether that remote was configured. */
-    const char* remote_error; /* Why remote configuration failed, or null. May be NULL. */
-    holder_recovery_token_global_import_result_pull_status pull_status; /* Outcome of the attempted pull. */
-    const char* pull_error; /* Why pulling failed, or null. May be NULL. */
+  const char* project_id; /* The project whose key was restored. */
+  bool project_created; /* Whether this device made the project from the token. */
+  bool remote_hint_present; /* Whether the token names a Git remote. */
+  bool remote_configured; /* Whether that remote was configured. */
+  const char* remote_error; /* Why remote configuration failed, or null. May be NULL. */
+  holder_recovery_token_global_import_result_pull_status
+      pull_status; /* Outcome of the attempted pull. */
+  const char* pull_error; /* Why pulling failed, or null. May be NULL. */
 } holder_recovery_token_global_import_result;
 
-/* What this device last recorded about a project's sync: its last pull and push, what is waiting to go, and
- * when it will retry.
+/* What this device last recorded about a project's sync: its last pull and push, what is waiting to
+ * go, and when it will retry.
  */
 typedef struct holder_sync_state {
-    const char* project_id; /* The project. */
-    const int64_t* last_commit_at; /* When the project's repository last had a commit; null when unknown. May be NULL. */
-    const int64_t* last_push_at; /* When the project was last pushed; null when never. May be NULL. */
-    const int64_t* last_pull_at; /* When the project was last pulled; null when never. May be NULL. */
-    int32_t uncommitted_changes_count; /* Files changed and not yet committed. */
-    int32_t unpushed_commits_count; /* Commits not yet on the remote. */
-    const char* last_push_status; /* How the last push ended, as a PushStatus; null when never. May be NULL. */
-    const char* last_pull_status; /* How the last pull ended; null when never. May be NULL. */
-    const char* last_sync_error; /* The last failure's message; null when the last sync succeeded. May be NULL. */
-    const int64_t* last_sync_error_at; /* When the last failure happened; null when none is recorded. May be NULL. */
-    int32_t retry_count; /* Failed pushes in a row. */
-    const int64_t* next_retry_at; /* When a push will next be tried; null when none is waiting. May be NULL. */
-    int32_t pull_retry_count; /* Failed pulls in a row. */
-    const int64_t* next_pull_retry_at; /* When a pull will next be tried; null when none is waiting. May be NULL. */
-    const int64_t* updated_at; /* When this state was last recorded; null when nothing has been. May be NULL. */
+  const char* project_id; /* The project. */
+  const int64_t* last_commit_at; /* When the project's repository last had a commit; null when
+                                    unknown. May be NULL. */
+  const int64_t* last_push_at; /* When the project was last pushed; null when never. May be NULL. */
+  const int64_t* last_pull_at; /* When the project was last pulled; null when never. May be NULL. */
+  int32_t uncommitted_changes_count; /* Files changed and not yet committed. */
+  int32_t unpushed_commits_count; /* Commits not yet on the remote. */
+  const char* last_push_status; /* How the last push ended, as a PushStatus; null when never. May be
+                                   NULL. */
+  const char* last_pull_status; /* How the last pull ended; null when never. May be NULL. */
+  const char* last_sync_error; /* The last failure's message; null when the last sync succeeded. May
+                                  be NULL. */
+  const int64_t* last_sync_error_at; /* When the last failure happened; null when none is recorded.
+                                        May be NULL. */
+  int32_t retry_count; /* Failed pushes in a row. */
+  const int64_t*
+      next_retry_at; /* When a push will next be tried; null when none is waiting. May be NULL. */
+  int32_t pull_retry_count; /* Failed pulls in a row. */
+  const int64_t* next_pull_retry_at; /* When a pull will next be tried; null when none is waiting.
+                                        May be NULL. */
+  const int64_t*
+      updated_at; /* When this state was last recorded; null when nothing has been. May be NULL. */
 } holder_sync_state;
 
 /* How the pull ended. */
 typedef enum holder_pull_phase_status {
-    HOLDER_PULL_PHASE_STATUS_NOT_ATTEMPTED = 1,
-    HOLDER_PULL_PHASE_STATUS_SUCCEEDED = 2,
-    HOLDER_PULL_PHASE_STATUS_REMOTE_UNSET = 3,
-    HOLDER_PULL_PHASE_STATUS_FAILED = 4,
-    HOLDER_PULL_PHASE_STATUS_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_PULL_PHASE_STATUS_NOT_ATTEMPTED = 1,
+  HOLDER_PULL_PHASE_STATUS_SUCCEEDED = 2,
+  HOLDER_PULL_PHASE_STATUS_REMOTE_UNSET = 3,
+  HOLDER_PULL_PHASE_STATUS_FAILED = 4,
+  HOLDER_PULL_PHASE_STATUS_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_pull_phase_status;
 
 /* What a pull did. */
 typedef struct holder_pull_phase {
-    bool attempted; /* Whether a pull was tried. */
-    holder_pull_phase_status status; /* How the pull ended. */
-    int32_t conflicts_resolved; /* Cards changed both here and on the remote, merged by Holder's card rules. */
-    int32_t hidden_cards_repaired; /* Live cards the pull left under a missing or trashed parent, made reachable again. */
-    const char* error_message; /* Why the pull failed; null when it did not. May be NULL. */
+  bool attempted; /* Whether a pull was tried. */
+  holder_pull_phase_status status; /* How the pull ended. */
+  int32_t conflicts_resolved; /* Cards changed both here and on the remote, merged by Holder's card
+                                 rules. */
+  int32_t hidden_cards_repaired; /* Live cards the pull left under a missing or trashed parent, made
+                                    reachable again. */
+  const char* error_message; /* Why the pull failed; null when it did not. May be NULL. */
 } holder_pull_phase;
 
 /* How the push ended. */
 typedef enum holder_push_phase_status {
-    HOLDER_PUSH_PHASE_STATUS_NOT_ATTEMPTED = 1,
-    HOLDER_PUSH_PHASE_STATUS_PUSHED = 2,
-    HOLDER_PUSH_PHASE_STATUS_UP_TO_DATE = 3,
-    HOLDER_PUSH_PHASE_STATUS_AUTH_FAILED = 4,
-    HOLDER_PUSH_PHASE_STATUS_NOT_FOUND = 5,
-    HOLDER_PUSH_PHASE_STATUS_NETWORK_ERROR = 6,
-    HOLDER_PUSH_PHASE_STATUS_NON_FAST_FORWARD = 7,
-    HOLDER_PUSH_PHASE_STATUS_REMOTE_UNSET = 8,
-    HOLDER_PUSH_PHASE_STATUS_UNKNOWN_ERROR = 9,
-    HOLDER_PUSH_PHASE_STATUS_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_PUSH_PHASE_STATUS_NOT_ATTEMPTED = 1,
+  HOLDER_PUSH_PHASE_STATUS_PUSHED = 2,
+  HOLDER_PUSH_PHASE_STATUS_UP_TO_DATE = 3,
+  HOLDER_PUSH_PHASE_STATUS_AUTH_FAILED = 4,
+  HOLDER_PUSH_PHASE_STATUS_NOT_FOUND = 5,
+  HOLDER_PUSH_PHASE_STATUS_NETWORK_ERROR = 6,
+  HOLDER_PUSH_PHASE_STATUS_NON_FAST_FORWARD = 7,
+  HOLDER_PUSH_PHASE_STATUS_REMOTE_UNSET = 8,
+  HOLDER_PUSH_PHASE_STATUS_UNKNOWN_ERROR = 9,
+  HOLDER_PUSH_PHASE_STATUS_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_push_phase_status;
 
 /* What a push did. */
 typedef struct holder_push_phase {
-    bool attempted; /* Whether a push was tried. */
-    holder_push_phase_status status; /* How the push ended. */
-    int32_t ahead_count; /* Commits here that the remote does not have. */
-    int32_t behind_count; /* Commits on the remote that are not here. */
-    const char* local_head_commit; /* The commit this device's branch is at; null when unknown. May be NULL. */
-    const char* error_message; /* Why the push failed; null when it did not. May be NULL. */
+  bool attempted; /* Whether a push was tried. */
+  holder_push_phase_status status; /* How the push ended. */
+  int32_t ahead_count; /* Commits here that the remote does not have. */
+  int32_t behind_count; /* Commits on the remote that are not here. */
+  const char* local_head_commit; /* The commit this device's branch is at; null when unknown. May be
+                                    NULL. */
+  const char* error_message; /* Why the push failed; null when it did not. May be NULL. */
 } holder_push_phase;
 
 /* Whether every phase tried succeeded. */
 typedef enum holder_sync_result_status {
-    HOLDER_SYNC_RESULT_STATUS_SUCCEEDED = 1,
-    HOLDER_SYNC_RESULT_STATUS_FAILED = 2,
-    HOLDER_SYNC_RESULT_STATUS_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_SYNC_RESULT_STATUS_SUCCEEDED = 1,
+  HOLDER_SYNC_RESULT_STATUS_FAILED = 2,
+  HOLDER_SYNC_RESULT_STATUS_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_sync_result_status;
 
-/* What a pull, a push or a sync did, as recorded in the project's sync state. A Git failure is an outcome
- * here, not an error.
+/* What a pull, a push or a sync did, as recorded in the project's sync state. A Git failure is an
+ * outcome here, not an error.
  */
 typedef struct holder_sync_result {
-    const char* project_id; /* The project. */
-    holder_sync_result_status status; /* Whether every phase tried succeeded. */
-    const char* remote_url; /* The Git remote used; null when the project has none. May be NULL. */
-    holder_pull_phase pull; /* The pull; not attempted for a push. */
-    holder_push_phase push; /* The push; not attempted for a pull, or after a pull that failed. */
+  const char* project_id; /* The project. */
+  holder_sync_result_status status; /* Whether every phase tried succeeded. */
+  const char* remote_url; /* The Git remote used; null when the project has none. May be NULL. */
+  holder_pull_phase pull; /* The pull; not attempted for a push. */
+  holder_push_phase push; /* The push; not attempted for a pull, or after a pull that failed. */
 } holder_sync_result;
 
-/* A scheduled sync's pull and push outcomes. Both phases are not attempted when neither is due or the
- * project has no remote. A due push may still run after a failed pull so local changes get another chance.
+/* A scheduled sync's pull and push outcomes. Both phases are not attempted when neither is due or
+ * the project has no remote. A due push may still run after a failed pull so local changes get
+ * another chance.
  */
 typedef struct holder_due_sync_result {
-    const char* project_id; /* The project. */
-    const char* remote_url; /* The configured remote; null when there is none. May be NULL. */
-    holder_pull_phase pull; /* The pull, or not attempted when it is not due. */
-    holder_push_phase push; /* The push, or not attempted when it is not due. */
+  const char* project_id; /* The project. */
+  const char* remote_url; /* The configured remote; null when there is none. May be NULL. */
+  holder_pull_phase pull; /* The pull, or not attempted when it is not due. */
+  holder_push_phase push; /* The push, or not attempted when it is not due. */
 } holder_due_sync_result;
 
 /* What testing the remote found; remote_unset when there was none to test. */
 typedef enum holder_remote_test_result_status {
-    HOLDER_REMOTE_TEST_RESULT_STATUS_REACHABLE = 1,
-    HOLDER_REMOTE_TEST_RESULT_STATUS_AUTH_FAILED = 2,
-    HOLDER_REMOTE_TEST_RESULT_STATUS_NOT_FOUND = 3,
-    HOLDER_REMOTE_TEST_RESULT_STATUS_NETWORK_ERROR = 4,
-    HOLDER_REMOTE_TEST_RESULT_STATUS_INVALID_REMOTE_URL = 5,
-    HOLDER_REMOTE_TEST_RESULT_STATUS_REMOTE_UNSET = 6,
-    HOLDER_REMOTE_TEST_RESULT_STATUS_UNKNOWN_ERROR = 7,
-    HOLDER_REMOTE_TEST_RESULT_STATUS_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_REMOTE_TEST_RESULT_STATUS_REACHABLE = 1,
+  HOLDER_REMOTE_TEST_RESULT_STATUS_AUTH_FAILED = 2,
+  HOLDER_REMOTE_TEST_RESULT_STATUS_NOT_FOUND = 3,
+  HOLDER_REMOTE_TEST_RESULT_STATUS_NETWORK_ERROR = 4,
+  HOLDER_REMOTE_TEST_RESULT_STATUS_INVALID_REMOTE_URL = 5,
+  HOLDER_REMOTE_TEST_RESULT_STATUS_REMOTE_UNSET = 6,
+  HOLDER_REMOTE_TEST_RESULT_STATUS_UNKNOWN_ERROR = 7,
+  HOLDER_REMOTE_TEST_RESULT_STATUS_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_remote_test_result_status;
 
 /* Whether a Git remote can be reached with this device's credentials. */
 typedef struct holder_remote_test_result {
-    const char* project_id; /* The project. */
-    holder_remote_test_result_status status; /* What testing the remote found; remote_unset when there was none to test. */
-    const char* remote_url; /* The remote tested; null when there was none. May be NULL. */
-    bool remote_has_head; /* Whether the remote has any commits. */
-    const char* error_message; /* Why the remote could not be reached; null when it could. May be NULL. */
+  const char* project_id; /* The project. */
+  holder_remote_test_result_status
+      status; /* What testing the remote found; remote_unset when there was none to test. */
+  const char* remote_url; /* The remote tested; null when there was none. May be NULL. */
+  bool remote_has_head; /* Whether the remote has any commits. */
+  const char*
+      error_message; /* Why the remote could not be reached; null when it could. May be NULL. */
 } holder_remote_test_result;
 
 /* The author recorded on a Git commit. */
 typedef struct holder_history_author {
-    const char* name; /* The author's name. */
-    const char* email; /* The author's email address. */
+  const char* name; /* The author's name. */
+  const char* email; /* The author's email address. */
 } holder_history_author;
 
 /* A changed path with any display details found in its historical version. */
 typedef struct holder_history_affected_path {
-    const char* path; /* The path relative to the project root. */
-    const char* title; /* A historical title, when available. NULL when absent. */
-    const char* detail; /* A historical detail, when available. NULL when absent. */
+  const char* path; /* The path relative to the project root. */
+  const char* title; /* A historical title, when available. NULL when absent. */
+  const char* detail; /* A historical detail, when available. NULL when absent. */
 } holder_history_affected_path;
 
 typedef struct holder_history_affected_path_list {
-    const holder_history_affected_path* items;
-    size_t count;
+  const holder_history_affected_path* items;
+  size_t count;
 } holder_history_affected_path_list;
 
 /* What kind of object these paths belong to. */
 typedef enum holder_history_affected_object_kind {
-    HOLDER_HISTORY_AFFECTED_OBJECT_KIND_CARD = 1,
-    HOLDER_HISTORY_AFFECTED_OBJECT_KIND_RESOURCE = 2,
-    HOLDER_HISTORY_AFFECTED_OBJECT_KIND_LOCATION = 3,
-    HOLDER_HISTORY_AFFECTED_OBJECT_KIND_AI_DATA = 4,
-    HOLDER_HISTORY_AFFECTED_OBJECT_KIND_PROJECT_SETTINGS = 5,
-    HOLDER_HISTORY_AFFECTED_OBJECT_KIND_UNKNOWN = 6,
-    HOLDER_HISTORY_AFFECTED_OBJECT_KIND_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_HISTORY_AFFECTED_OBJECT_KIND_CARD = 1,
+  HOLDER_HISTORY_AFFECTED_OBJECT_KIND_RESOURCE = 2,
+  HOLDER_HISTORY_AFFECTED_OBJECT_KIND_LOCATION = 3,
+  HOLDER_HISTORY_AFFECTED_OBJECT_KIND_AI_DATA = 4,
+  HOLDER_HISTORY_AFFECTED_OBJECT_KIND_PROJECT_SETTINGS = 5,
+  HOLDER_HISTORY_AFFECTED_OBJECT_KIND_UNKNOWN = 6,
+  HOLDER_HISTORY_AFFECTED_OBJECT_KIND_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_history_affected_object_kind;
 
 /* Paths changed together in one commit, grouped by Holder object kind. */
 typedef struct holder_history_affected_object {
-    holder_history_affected_object_kind kind; /* What kind of object these paths belong to. */
-    holder_string_list paths; /* The changed paths, retained for existing clients. */
-    holder_history_affected_path_list items; /* The changed paths with historical display details. */
+  holder_history_affected_object_kind kind; /* What kind of object these paths belong to. */
+  holder_string_list paths; /* The changed paths, retained for existing clients. */
+  holder_history_affected_path_list items; /* The changed paths with historical display details. */
 } holder_history_affected_object;
 
 typedef struct holder_history_affected_object_list {
-    const holder_history_affected_object* items;
-    size_t count;
+  const holder_history_affected_object* items;
+  size_t count;
 } holder_history_affected_object_list;
 
 /* One Git commit affecting a project. */
 typedef struct holder_project_activity {
-    const char* oid; /* The full commit object ID. */
-    holder_string_list parent_oids; /* The commit's parents. */
-    holder_history_author author; /* The commit's author. */
-    int64_t authored_at; /* When the commit was authored. */
-    int64_t committed_at; /* When the commit was committed. */
-    const char* message; /* The commit message. */
-    holder_history_affected_object_list affected_objects; /* Changed paths grouped by Holder object kind. */
-    bool is_merge; /* Whether the commit has multiple parents. */
+  const char* oid; /* The full commit object ID. */
+  holder_string_list parent_oids; /* The commit's parents. */
+  holder_history_author author; /* The commit's author. */
+  int64_t authored_at; /* When the commit was authored. */
+  int64_t committed_at; /* When the commit was committed. */
+  const char* message; /* The commit message. */
+  holder_history_affected_object_list
+      affected_objects; /* Changed paths grouped by Holder object kind. */
+  bool is_merge; /* Whether the commit has multiple parents. */
 } holder_project_activity;
 
 typedef struct holder_project_activity_list {
-    const holder_project_activity* items;
-    size_t count;
+  const holder_project_activity* items;
+  size_t count;
 } holder_project_activity_list;
 
 /* One bounded page of project activity, newest first. */
 typedef struct holder_project_history_page {
-    const char* head_oid; /* The project HEAD captured for this page; null for an empty repository. May be NULL. */
-    holder_project_activity_list activities; /* The activities on this page, newest first. */
-    const char* next_cursor; /* The cursor for another page; null at the end. May be NULL. */
-    bool scan_limited; /* Whether History reached its bounded scan before the end. */
+  const char* head_oid; /* The project HEAD captured for this page; null for an empty repository.
+                           May be NULL. */
+  holder_project_activity_list activities; /* The activities on this page, newest first. */
+  const char* next_cursor; /* The cursor for another page; null at the end. May be NULL. */
+  bool scan_limited; /* Whether History reached its bounded scan before the end. */
 } holder_project_history_page;
 
 /* One exact commit saved for a card. */
 typedef struct holder_card_history_save {
-    const char* oid; /* The full commit ID. */
-    holder_string_list parent_oids; /* The commit's parents. */
-    int64_t authored_at; /* When the commit was authored. */
-    int64_t committed_at; /* When the commit was committed. */
-    const char* message; /* The commit message. */
+  const char* oid; /* The full commit ID. */
+  holder_string_list parent_oids; /* The commit's parents. */
+  int64_t authored_at; /* When the commit was authored. */
+  int64_t committed_at; /* When the commit was committed. */
+  const char* message; /* The commit message. */
 } holder_card_history_save;
 
 typedef struct holder_card_history_save_list {
-    const holder_card_history_save* items;
-    size_t count;
+  const holder_card_history_save* items;
+  size_t count;
 } holder_card_history_save_list;
 
 /* One displayed card change, possibly grouping adjacent autosaves. */
 typedef struct holder_card_history_entry {
-    const char* first_oid; /* The first commit in the entry. */
-    const char* last_oid; /* The last commit in the entry. */
-    holder_string_list parent_oids; /* Parents of the first commit. */
-    holder_string_list visible_parent_oids; /* Direct parents represented on this page; omitted connections must not be inferred. */
-    holder_history_author author; /* The author's name and email. */
-    int64_t started_at; /* When the first commit was authored. */
-    int64_t ended_at; /* When the last commit was committed. */
-    const char* kind; /* The kind of change shown. */
-    const char* summary; /* A short description of the change. */
-    int32_t commit_count; /* The number of commits grouped in this entry. */
-    bool is_merge; /* Whether this entry includes a merge commit. */
-    holder_card_history_save_list saves; /* Exact saved commits in chronological order. */
+  const char* first_oid; /* The first commit in the entry. */
+  const char* last_oid; /* The last commit in the entry. */
+  holder_string_list parent_oids; /* Parents of the first commit. */
+  holder_string_list visible_parent_oids; /* Direct parents represented on this page; omitted
+                                             connections must not be inferred. */
+  holder_history_author author; /* The author's name and email. */
+  int64_t started_at; /* When the first commit was authored. */
+  int64_t ended_at; /* When the last commit was committed. */
+  const char* kind; /* The kind of change shown. */
+  const char* summary; /* A short description of the change. */
+  int32_t commit_count; /* The number of commits grouped in this entry. */
+  bool is_merge; /* Whether this entry includes a merge commit. */
+  holder_card_history_save_list saves; /* Exact saved commits in chronological order. */
 } holder_card_history_entry;
 
 typedef struct holder_card_history_entry_list {
-    const holder_card_history_entry* items;
-    size_t count;
+  const holder_card_history_entry* items;
+  size_t count;
 } holder_card_history_entry_list;
 
 /* One bounded page of saved card changes, newest first. */
 typedef struct holder_card_history_page {
-    const char* head_oid; /* The project HEAD captured for this page; null for an empty repository. May be NULL. */
-    holder_card_history_entry_list entries; /* The card changes on this page. */
-    const char* next_cursor; /* The cursor for another page; null at the end. May be NULL. */
-    bool scan_limited; /* Whether History reached its bounded scan before the end. */
+  const char* head_oid; /* The project HEAD captured for this page; null for an empty repository.
+                           May be NULL. */
+  holder_card_history_entry_list entries; /* The card changes on this page. */
+  const char* next_cursor; /* The cursor for another page; null at the end. May be NULL. */
+  bool scan_limited; /* Whether History reached its bounded scan before the end. */
 } holder_card_history_page;
 
 /* A card's saved state at one commit, including an explicit absent state. */
 typedef struct holder_card_history_version {
-    bool exists; /* Whether the card existed in this snapshot. */
-    const char* oid; /* The full commit ID. */
-    const char* title; /* The card's saved title, empty when absent. */
-    const char* body; /* The card's saved body, empty when absent. */
+  bool exists; /* Whether the card existed in this snapshot. */
+  const char* oid; /* The full commit ID. */
+  const char* title; /* The card's saved title, empty when absent. */
+  const char* body; /* The card's saved body, empty when absent. */
 } holder_card_history_version;
 
 /* One line in a card comparison. */
 typedef struct holder_card_history_diff_line {
-    const char* origin; /* Space for unchanged, plus for added, minus for removed. */
-    const char* text; /* The line's text. */
-    const int64_t* old_line; /* Its old line number; null for an addition. May be NULL. */
-    const int64_t* new_line; /* Its new line number; null for a removal. May be NULL. */
+  const char* origin; /* Space for unchanged, plus for added, minus for removed. */
+  const char* text; /* The line's text. */
+  const int64_t* old_line; /* Its old line number; null for an addition. May be NULL. */
+  const int64_t* new_line; /* Its new line number; null for a removal. May be NULL. */
 } holder_card_history_diff_line;
 
 typedef struct holder_card_history_diff_line_list {
-    const holder_card_history_diff_line* items;
-    size_t count;
+  const holder_card_history_diff_line* items;
+  size_t count;
 } holder_card_history_diff_line_list;
 
 /* A bounded line comparison of two saved card states. */
 typedef struct holder_card_history_comparison {
-    holder_card_history_version before; /* The earlier state. */
-    holder_card_history_version after; /* The later state. */
-    const char* summary; /* A short description of the difference. */
-    holder_card_history_diff_line_list lines; /* The comparison's lines. */
-    bool truncated; /* Whether the line comparison was cut short. */
+  holder_card_history_version before; /* The earlier state. */
+  holder_card_history_version after; /* The later state. */
+  const char* summary; /* A short description of the difference. */
+  holder_card_history_diff_line_list lines; /* The comparison's lines. */
+  bool truncated; /* Whether the line comparison was cut short. */
 } holder_card_history_comparison;
 
 /* A card's state at a selected revision. */
 typedef struct holder_card_history_snapshot {
-    const char* card_id; /* The card being inspected. */
-    holder_card_history_version snapshot; /* The state at the selected commit. */
+  const char* card_id; /* The card being inspected. */
+  holder_card_history_version snapshot; /* The state at the selected commit. */
 } holder_card_history_snapshot;
 
 /* A card restored from a saved state by creating a new commit. */
 typedef struct holder_card_history_restore_result {
-    const char* card_id; /* The restored card. */
-    const char* restored_from_oid; /* The full commit ID of the selected historical snapshot. */
-    const char* result_oid; /* The full commit ID created by restoring it. */
-    const char* title; /* The card's title after restoration. */
-    int64_t updated_at; /* When the restored card was updated. */
-    const int64_t* deleted_at; /* When the restored card is in Trash; null when live. May be NULL. */
+  const char* card_id; /* The restored card. */
+  const char* restored_from_oid; /* The full commit ID of the selected historical snapshot. */
+  const char* result_oid; /* The full commit ID created by restoring it. */
+  const char* title; /* The card's title after restoration. */
+  int64_t updated_at; /* When the restored card was updated. */
+  const int64_t* deleted_at; /* When the restored card is in Trash; null when live. May be NULL. */
 } holder_card_history_restore_result;
 
 /* The kind of item. */
 typedef enum holder_trash_item_type {
-    HOLDER_TRASH_ITEM_TYPE_CARD = 1,
-    HOLDER_TRASH_ITEM_TYPE_AI_MESSAGE = 2,
-    HOLDER_TRASH_ITEM_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_TRASH_ITEM_TYPE_CARD = 1,
+  HOLDER_TRASH_ITEM_TYPE_AI_MESSAGE = 2,
+  HOLDER_TRASH_ITEM_TYPE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_trash_item_type;
 
 /* A trashed card or AI message. */
 typedef struct holder_trash_item {
-    holder_trash_item_type type; /* The kind of item. */
-    const char* project_id; /* The project that owns the item. */
-    const char* card_id; /* The card ID, present for a card. May be NULL. */
-    const char* message_id; /* The message ID, present for an AI message. May be NULL. */
-    const char* thread_id; /* The AI thread containing a message. May be NULL. */
-    const char* title; /* The card title, if this is a card. May be NULL. */
-    const char* role; /* The AI message role, if this is a message. May be NULL. */
-    int64_t deleted_at; /* When the item entered Trash. */
-    const int64_t* created_at; /* When the AI message was created. May be NULL. */
-    const char* rel_path; /* The card's relative file path. May be NULL. */
+  holder_trash_item_type type; /* The kind of item. */
+  const char* project_id; /* The project that owns the item. */
+  const char* card_id; /* The card ID, present for a card. May be NULL. */
+  const char* message_id; /* The message ID, present for an AI message. May be NULL. */
+  const char* thread_id; /* The AI thread containing a message. May be NULL. */
+  const char* title; /* The card title, if this is a card. May be NULL. */
+  const char* role; /* The AI message role, if this is a message. May be NULL. */
+  int64_t deleted_at; /* When the item entered Trash. */
+  const int64_t* created_at; /* When the AI message was created. May be NULL. */
+  const char* rel_path; /* The card's relative file path. May be NULL. */
 } holder_trash_item;
 
 typedef struct holder_trash_item_list {
-    const holder_trash_item* items;
-    size_t count;
+  const holder_trash_item* items;
+  size_t count;
 } holder_trash_item_list;
 
 /* The project whose Trash was emptied. */
 typedef struct holder_trash_empty_result {
-    const char* project_id; /* The requested project, including when it had no trashed items. */
+  const char* project_id; /* The requested project, including when it had no trashed items. */
 } holder_trash_empty_result;
 
 /* The ID of a permanently removed item. */
 typedef struct holder_trash_delete_result {
-    const char* card_id; /* The removed card's ID, or null for a message. May be NULL. */
-    const char* message_id; /* The removed AI message's ID, or null for a card. May be NULL. */
+  const char* card_id; /* The removed card's ID, or null for a message. May be NULL. */
+  const char* message_id; /* The removed AI message's ID, or null for a card. May be NULL. */
 } holder_trash_delete_result;
 
 /* A card matching a full-text query. */
 typedef struct holder_search_card {
-    const char* card_id; /* The matching card's ID. */
-    const char* title; /* The card's current title. */
-    int64_t updated_at; /* When the card was last updated. */
-    int64_t created_at; /* When the card was created. */
-    const char* snippet; /* A highlighted excerpt from the match. */
-    double rank; /* The FTS relevance score; lower scores rank first. */
+  const char* card_id; /* The matching card's ID. */
+  const char* title; /* The card's current title. */
+  int64_t updated_at; /* When the card was last updated. */
+  int64_t created_at; /* When the card was created. */
+  const char* snippet; /* A highlighted excerpt from the match. */
+  double rank; /* The FTS relevance score; lower scores rank first. */
 } holder_search_card;
 
 typedef struct holder_search_card_list {
-    const holder_search_card* items;
-    size_t count;
+  const holder_search_card* items;
+  size_t count;
 } holder_search_card_list;
 
 /* An AI message matching a full-text query. */
 typedef struct holder_search_message {
-    const char* message_id; /* The matching message's ID. */
-    int64_t created_at; /* When the message was created. */
-    const char* snippet; /* A highlighted excerpt from the match. */
-    double rank; /* The FTS relevance score; lower scores rank first. */
+  const char* message_id; /* The matching message's ID. */
+  int64_t created_at; /* When the message was created. */
+  const char* snippet; /* A highlighted excerpt from the match. */
+  double rank; /* The FTS relevance score; lower scores rank first. */
 } holder_search_message;
 
 typedef struct holder_search_message_list {
-    const holder_search_message* items;
-    size_t count;
+  const holder_search_message* items;
+  size_t count;
 } holder_search_message_list;
 
 /* The version of the core library loaded. */
-int holder_version(holder_arena* arena, const holder_core_version** out_core_version, holder_error** out_error);
+int holder_version(
+    holder_arena* arena,
+    const holder_core_version** out_core_version,
+    holder_error** out_error
+);
 
 /* Install this device's time-zone provider for the process.
  * Registration takes ownership of the provider even when validation fails. A replacement
  * releases the previous provider after active callbacks finish. Callbacks may run on any
  * thread. Null offset means an unknown zone; a callback failure is an unexpected error.
  */
-int holder_register_time_zone_provider(const holder_time_zone_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error);
+int holder_register_time_zone_provider(
+    const holder_time_zone_provider_callbacks* callbacks,
+    void* user_data,
+    holder_destroy_fn destroy_user_data,
+    holder_error** out_error
+);
 
 /* Install a process-wide secure store for secrets.
  * Registration takes ownership even on failure. Replacement releases the previous provider
  * after active callbacks finish. Callbacks may run on any thread. A null lookup result means
  * no secret; callback failure remains distinct from a miss.
  */
-int holder_register_keyring_provider(const holder_keyring_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error);
+int holder_register_keyring_provider(
+    const holder_keyring_provider_callbacks* callbacks,
+    void* user_data,
+    holder_destroy_fn destroy_user_data,
+    holder_error** out_error
+);
 
 /* Install a context's SSH identity, replacing its previous signer.
  * public_key_blob is the raw SSH wire-format ecdsa-sha2-nistp256 key. Registration
  * takes ownership of the signer even when validation fails; replacement or context
  * destruction releases it after active signing calls finish. Callbacks may run on any thread.
  */
-int holder_register_ssh_signer(holder_context* context, const char* username, const unsigned char* public_key_blob, size_t public_key_blob_len, const holder_ssh_signer_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error);
+int holder_register_ssh_signer(
+    holder_context* context,
+    const char* username,
+    const unsigned char* public_key_blob,
+    size_t public_key_blob_len,
+    const holder_ssh_signer_callbacks* callbacks,
+    void* user_data,
+    holder_destroy_fn destroy_user_data,
+    holder_error** out_error
+);
 
 typedef enum holder_register_storage_provider_kind {
-    HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE = 1,
-    HOLDER_REGISTER_STORAGE_PROVIDER_KIND_GOOGLE_DRIVE = 2,
-    HOLDER_REGISTER_STORAGE_PROVIDER_KIND_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE = 1,
+  HOLDER_REGISTER_STORAGE_PROVIDER_KIND_GOOGLE_DRIVE = 2,
+  HOLDER_REGISTER_STORAGE_PROVIDER_KIND_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_register_storage_provider_kind;
 
 /* Install or replace the process-wide storage provider for one location provider kind.
@@ -1402,7 +1633,13 @@ typedef enum holder_register_storage_provider_kind {
  * operations finish. Callbacks may run on any thread. Storage callback failures carry
  * one of StorageProvider's declared error codes and a message.
  */
-int holder_register_storage_provider(holder_register_storage_provider_kind kind, const holder_storage_provider_callbacks* callbacks, void* user_data, holder_destroy_fn destroy_user_data, holder_error** out_error);
+int holder_register_storage_provider(
+    holder_register_storage_provider_kind kind,
+    const holder_storage_provider_callbacks* callbacks,
+    void* user_data,
+    holder_destroy_fn destroy_user_data,
+    holder_error** out_error
+);
 
 /* Set libgit2's process-wide home directory before Git operations.
  * On Android, pass a writable app-private directory so SSH can find its known_hosts file.
@@ -1418,7 +1655,12 @@ int holder_configure_git_home(const char* path, holder_error** out_error);
  * encrypted projects may need rebuilding. Release the context with context_destroy.
  * schema_sql: May be NULL.
  */
-int holder_context_open(const char* data_dir, const char* schema_sql, holder_context** out_context, holder_error** out_error);
+int holder_context_open(
+    const char* data_dir,
+    const char* schema_sql,
+    holder_context** out_context,
+    holder_error** out_error
+);
 
 /* Release a context. No call on it may still be running, and it must not be used again. */
 void holder_context_destroy(holder_context* context);
@@ -1428,11 +1670,18 @@ void holder_context_destroy(holder_context* context);
  * again after. The platform keyring must be registered first when encrypted projects are present.
  * A dry run only counts what a rebuild would read.
  */
-int holder_database_rebuild(const char* data_dir, const char* schema_sql, bool dry_run, holder_arena* arena, const holder_database_rebuild_report** out_database_rebuild_report, holder_error** out_error);
+int holder_database_rebuild(
+    const char* data_dir,
+    const char* schema_sql,
+    bool dry_run,
+    holder_arena* arena,
+    const holder_database_rebuild_report** out_database_rebuild_report,
+    holder_error** out_error
+);
 
 /* The message of an error core returned, as UTF-8 text.
- * The text belongs to the error and lasts until error_destroy releases it. An error that is null has the
- * empty message.
+ * The text belongs to the error and lasts until error_destroy releases it. An error that is null
+ * has the empty message.
  */
 const char* holder_error_message(const holder_error* error);
 
@@ -1440,278 +1689,528 @@ const char* holder_error_message(const holder_error* error);
 void holder_error_destroy(holder_error* error);
 
 /* List a project's storage declarations, with this device's binding status and preferred location.
- * Locations are most recently updated first. A project with none, or one this device does not have, lists none.
- * The daemon serves this as GET /locations.
+ * Locations are most recently updated first. A project with none, or one this device does not have,
+ * lists none. The daemon serves this as GET /locations.
  */
-int holder_list_storage_locations(holder_context* context, const char* project_id, holder_arena* arena, const holder_storage_location_list** out_storage_location_list, holder_error** out_error);
+int holder_list_storage_locations(
+    holder_context* context,
+    const char* project_id,
+    holder_arena* arena,
+    const holder_storage_location_list** out_storage_location_list,
+    holder_error** out_error
+);
 
 /* Get a storage declaration and this device's binding status.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_get_storage_location(holder_context* context, const char* location_id, holder_arena* arena, const holder_project_storage_location** out_project_storage_location, holder_error** out_error);
+int holder_get_storage_location(
+    holder_context* context,
+    const char* location_id,
+    holder_arena* arena,
+    const holder_project_storage_location** out_project_storage_location,
+    holder_error** out_error
+);
 
 /* Create a project's portable storage declaration.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_create_storage_location(holder_context* context, const holder_new_storage_location* request, holder_arena* arena, const holder_project_storage_location** out_project_storage_location, holder_error** out_error);
+int holder_create_storage_location(
+    holder_context* context,
+    const holder_new_storage_location* request,
+    holder_arena* arena,
+    const holder_project_storage_location** out_project_storage_location,
+    holder_error** out_error
+);
 
 /* Change a storage declaration; configuration replaces the whole map.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_update_storage_location(holder_context* context, const char* location_id, const holder_storage_location_update* request, holder_arena* arena, const holder_project_storage_location** out_project_storage_location, holder_error** out_error);
+int holder_update_storage_location(
+    holder_context* context,
+    const char* location_id,
+    const holder_storage_location_update* request,
+    holder_arena* arena,
+    const holder_project_storage_location** out_project_storage_location,
+    holder_error** out_error
+);
 
 /* Delete an unused declaration, its binding and its preferred setting on this device.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT.
  */
-int holder_delete_storage_location(holder_context* context, const char* location_id, holder_arena* arena, const holder_location_delete_result** out_location_delete_result, holder_error** out_error);
+int holder_delete_storage_location(
+    holder_context* context,
+    const char* location_id,
+    holder_arena* arena,
+    const holder_location_delete_result** out_location_delete_result,
+    holder_error** out_error
+);
 
 /* Fetch a card.
  * A card in the trash or in another project is not found.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
+ * HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_get_card(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_get_card(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    holder_arena* arena,
+    const holder_card** out_card,
+    holder_error** out_error
+);
 
 /* Fetch a live card's metadata without reading its content.
  * A card in the trash or in another project is not found.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_get_card_metadata(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card_metadata** out_card_metadata, holder_error** out_error);
+int holder_get_card_metadata(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    holder_arena* arena,
+    const holder_card_metadata** out_card_metadata,
+    holder_error** out_error
+);
 
 /* Read a card's metadata in its owning project, including a card in Trash.
  * Embedders use this to keep a card handle usable for restore and purge. It does
  * not read the card's content or expose a cross-project lookup.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_get_card_any_state(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card_metadata** out_card_metadata, holder_error** out_error);
+int holder_get_card_any_state(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    holder_arena* arena,
+    const holder_card_metadata** out_card_metadata,
+    holder_error** out_error
+);
 
 /* Read a live card's path from its project root.
  * The project comes first, then live ancestor cards and the requested card. A missing or trashed
  * card is not found; a broken or cyclic ancestor chain is invalid.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_HIERARCHY_INVALID.
  */
-int holder_get_card_breadcrumbs(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card_breadcrumb_list** out_card_breadcrumb_list, holder_error** out_error);
+int holder_get_card_breadcrumbs(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    holder_arena* arena,
+    const holder_card_breadcrumb_list** out_card_breadcrumb_list,
+    holder_error** out_error
+);
 
 /* Resolve a card reference within a project and deletion scope.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_resolve_card_reference(holder_context* context, const holder_card_reference_resolve_request* request, holder_arena* arena, const holder_card_reference_resolve_data** out_card_reference_resolve_data, holder_error** out_error);
+int holder_resolve_card_reference(
+    holder_context* context,
+    const holder_card_reference_resolve_request* request,
+    holder_arena* arena,
+    const holder_card_reference_resolve_data** out_card_reference_resolve_data,
+    holder_error** out_error
+);
 
 typedef enum holder_list_cards_parent_kind {
-    HOLDER_LIST_CARDS_PARENT_NONE = 0,
-    HOLDER_LIST_CARDS_PARENT_ROOTS,
-    HOLDER_LIST_CARDS_PARENT_CARD_ID,
-    HOLDER_LIST_CARDS_PARENT_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_LIST_CARDS_PARENT_NONE = 0,
+  HOLDER_LIST_CARDS_PARENT_ROOTS,
+  HOLDER_LIST_CARDS_PARENT_CARD_ID,
+  HOLDER_LIST_CARDS_PARENT_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_list_cards_parent_kind;
 
 typedef struct holder_list_cards_parent {
-    holder_list_cards_parent_kind kind;
-    const char* card_id; /* Set when kind is HOLDER_LIST_CARDS_PARENT_CARD_ID. */
+  holder_list_cards_parent_kind kind;
+  const char* card_id; /* Set when kind is HOLDER_LIST_CARDS_PARENT_CARD_ID. */
 } holder_list_cards_parent;
 
 typedef enum holder_list_cards_order {
-    HOLDER_LIST_CARDS_ORDER_DEFAULT = 0, /* card_id_asc */
-    HOLDER_LIST_CARDS_ORDER_CARD_ID_ASC = 1,
-    HOLDER_LIST_CARDS_ORDER_UPDATED_DESC = 2,
-    HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC = 3,
-    HOLDER_LIST_CARDS_ORDER_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_LIST_CARDS_ORDER_DEFAULT = 0, /* card_id_asc */
+  HOLDER_LIST_CARDS_ORDER_CARD_ID_ASC = 1,
+  HOLDER_LIST_CARDS_ORDER_UPDATED_DESC = 2,
+  HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC = 3,
+  HOLDER_LIST_CARDS_ORDER_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_list_cards_order;
 
 /* Page through a project's live cards.
  * Filters combine. Each page reads current data; iterating is not a snapshot.
- * parent: Omit for every level; roots selects root cards; a card ID selects its children. The zero value is null.
- * tag: Only cards with this tag. May be NULL.
- * order: updated_desc breaks ties by descending card ID; sort_key_asc follows sibling order.
- * limit: At most 1000 when include_content is true. NULL for 200.
- * cursor: The previous page's next_cursor. Keep the project, filters and order unchanged. May be NULL.
- * include_content: Include each card's body.
- * include_child_count: Include each card's count of live children.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * parent: Omit for every level; roots selects root cards; a card ID selects its children. The zero
+ * value is null. tag: Only cards with this tag. May be NULL. order: updated_desc breaks ties by
+ * descending card ID; sort_key_asc follows sibling order. limit: At most 1000 when include_content
+ * is true. NULL for 200. cursor: The previous page's next_cursor. Keep the project, filters and
+ * order unchanged. May be NULL. include_content: Include each card's body. include_child_count:
+ * Include each card's count of live children. Errors: HOLDER_ERROR_NOT_FOUND,
+ * HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_list_cards(holder_context* context, const char* project_id, holder_list_cards_parent parent, const char* tag, holder_list_cards_order order, const int32_t* limit, const char* cursor, bool include_content, bool include_child_count, holder_arena* arena, const holder_card_list_item_page** out_page, holder_error** out_error);
+int holder_list_cards(
+    holder_context* context,
+    const char* project_id,
+    holder_list_cards_parent parent,
+    const char* tag,
+    holder_list_cards_order order,
+    const int32_t* limit,
+    const char* cursor,
+    bool include_content,
+    bool include_child_count,
+    holder_arena* arena,
+    const holder_card_list_item_page** out_page,
+    holder_error** out_error
+);
 
 /* Create a card.
  * Fails with NotFound when the project or the parent does not exist.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_create_card(holder_context* context, const char* project_id, const holder_new_card* card, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_create_card(
+    holder_context* context,
+    const char* project_id,
+    const holder_new_card* card,
+    holder_arena* arena,
+    const holder_card** out_card,
+    holder_error** out_error
+);
 
 /* Change a card.
- * Each field left out keeps its value, and an update that leaves every field out changes nothing. The title and
- * content are written first, then the parent and place, each as its own change in the project's history. A card
- * in the trash or in another project is not found, and neither is a new parent that does not exist or is in the
- * trash; a parent under the card itself is an InvalidMove.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_INVALID_MOVE, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Each field left out keeps its value, and an update that leaves every field out changes nothing.
+ * The title and content are written first, then the parent and place, each as its own change in the
+ * project's history. A card in the trash or in another project is not found, and neither is a new
+ * parent that does not exist or is in the trash; a parent under the card itself is an InvalidMove.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_INVALID_MOVE, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_update_card(holder_context* context, const char* project_id, const char* card_id, const holder_card_update* update, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_update_card(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const holder_card_update* update,
+    holder_arena* arena,
+    const holder_card** out_card,
+    holder_error** out_error
+);
 
 typedef enum holder_trash_card_children {
-    HOLDER_TRASH_CARD_CHILDREN_DEFAULT = 0, /* promote */
-    HOLDER_TRASH_CARD_CHILDREN_PROMOTE = 1,
-    HOLDER_TRASH_CARD_CHILDREN_TRASH_SUBTREE = 2,
-    HOLDER_TRASH_CARD_CHILDREN_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_TRASH_CARD_CHILDREN_DEFAULT = 0, /* promote */
+  HOLDER_TRASH_CARD_CHILDREN_PROMOTE = 1,
+  HOLDER_TRASH_CARD_CHILDREN_TRASH_SUBTREE = 2,
+  HOLDER_TRASH_CARD_CHILDREN_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_trash_card_children;
 
 /* Move a card to the trash.
- * The card and every card that changes with it are written as one change in the project's history. A card already
- * in the trash, or in another project, is not found. Returns the card as it is in the trash.
- * children: promote moves the card's live children into its place among its siblings, keeping their own descendants; trash_subtree moves every live descendant to the trash with it.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * The card and every card that changes with it are written as one change in the project's history.
+ * A card already in the trash, or in another project, is not found. Returns the card as it is in
+ * the trash. children: promote moves the card's live children into its place among its siblings,
+ * keeping their own descendants; trash_subtree moves every live descendant to the trash with it.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
+ * HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_trash_card(holder_context* context, const char* project_id, const char* card_id, holder_trash_card_children children, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_trash_card(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    holder_trash_card_children children,
+    holder_arena* arena,
+    const holder_card** out_card,
+    holder_error** out_error
+);
 
 /* Restore a card from the trash.
- * Restores this card only. It returns to its parent when that parent is live and reachable, otherwise to its
- * nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where they are;
- * descendants trashed with it stay in the trash, and come back under it when restored. A card in another
- * project is not found, and one that is not in the trash is a Conflict.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Restores this card only. It returns to its parent when that parent is live and reachable,
+ * otherwise to its nearest live, reachable ancestor or the top level. Children promoted when it was
+ * trashed stay where they are; descendants trashed with it stay in the trash, and come back under
+ * it when restored. A card in another project is not found, and one that is not in the trash is a
+ * Conflict. Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT,
+ * HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_restore_card(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_restore_card(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    holder_arena* arena,
+    const holder_card** out_card,
+    holder_error** out_error
+);
 
 /* Move a card in its project's hierarchy.
- * When the card's new neighbours leave no room between their places, nearby siblings are re-spaced in the same
- * change, keeping their order; other cards' sort_key values a caller holds may then be out of date. A card in the
- * trash or in another project is not found, and neither is a target or parent that does not exist or is in the
- * trash. A move that changes nothing writes nothing.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_INVALID_MOVE, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * When the card's new neighbours leave no room between their places, nearby siblings are re-spaced
+ * in the same change, keeping their order; other cards' sort_key values a caller holds may then be
+ * out of date. A card in the trash or in another project is not found, and neither is a target or
+ * parent that does not exist or is in the trash. A move that changes nothing writes nothing.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_INVALID_MOVE, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_move_card(holder_context* context, const char* project_id, const char* card_id, const holder_card_move* move, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_move_card(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const holder_card_move* move,
+    holder_arena* arena,
+    const holder_card** out_card,
+    holder_error** out_error
+);
 
 /* Tag a card.
- * The tag is added to the card's trailing tag line, which is made when the card has none. A card that already
- * carries the tag, anywhere in its content, is left as it is. A card in the trash or in another project is not
- * found.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * The tag is added to the card's trailing tag line, which is made when the card has none. A card
+ * that already carries the tag, anywhere in its content, is left as it is. A card in the trash or
+ * in another project is not found. Errors: HOLDER_ERROR_NOT_FOUND,
+ * HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_add_card_tag(holder_context* context, const char* project_id, const char* card_id, const char* tag, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_add_card_tag(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* tag,
+    holder_arena* arena,
+    const holder_card** out_card,
+    holder_error** out_error
+);
 
 /* Take a tag off a card.
- * The tag is removed from the card's trailing tag line, and the line with it when it is left empty, so that the
- * card no longer carries it. A card that does not carry the tag is left as it is. Holder does not rewrite prose,
- * so a card that would still carry the tag in its prose is a Conflict, and is left as it is. A card in the trash
- * or in another project is not found.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * The tag is removed from the card's trailing tag line, and the line with it when it is left empty,
+ * so that the card no longer carries it. A card that does not carry the tag is left as it is.
+ * Holder does not rewrite prose, so a card that would still carry the tag in its prose is a
+ * Conflict, and is left as it is. A card in the trash or in another project is not found. Errors:
+ * HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_remove_card_tag(holder_context* context, const char* project_id, const char* card_id, const char* tag, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_remove_card_tag(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* tag,
+    holder_arena* arena,
+    const holder_card** out_card,
+    holder_error** out_error
+);
 
 /* List a project's tags.
- * Each tag carried by a live card in the project, with how many carry it, by descending count and then by tag.
- * Errors: HOLDER_ERROR_NOT_FOUND.
+ * Each tag carried by a live card in the project, with how many carry it, by descending count and
+ * then by tag. Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_list_project_tags(holder_context* context, const char* project_id, holder_arena* arena, const holder_tag_count_list** out_tag_count_list, holder_error** out_error);
+int holder_list_project_tags(
+    holder_context* context,
+    const char* project_id,
+    holder_arena* arena,
+    const holder_tag_count_list** out_tag_count_list,
+    holder_error** out_error
+);
 
 /* List the link kinds Holder knows, with their labels.
  * The list is the same for every project and device. A link may have any other kind.
  */
-int holder_list_link_kinds(holder_context* context, holder_arena* arena, const holder_link_kind_labels_list** out_link_kind_labels_list, holder_error** out_error);
+int holder_list_link_kinds(
+    holder_context* context,
+    holder_arena* arena,
+    const holder_link_kind_labels_list** out_link_kind_labels_list,
+    holder_error** out_error
+);
 
 /* List a card's links.
  * The links the card makes, newest first. A card in the trash or in another project is not found.
- * include_deleted: Include links to targets in the trash. A link to a card in another project is listed whether or not that card can be found here.
- * Errors: HOLDER_ERROR_NOT_FOUND.
+ * include_deleted: Include links to targets in the trash. A link to a card in another project is
+ * listed whether or not that card can be found here. Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_list_card_links(holder_context* context, const char* project_id, const char* card_id, bool include_deleted, holder_arena* arena, const holder_link_list** out_link_list, holder_error** out_error);
+int holder_list_card_links(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    bool include_deleted,
+    holder_arena* arena,
+    const holder_link_list** out_link_list,
+    holder_error** out_error
+);
 
 typedef enum holder_list_card_backlinks_scope {
-    HOLDER_LIST_CARD_BACKLINKS_SCOPE_DEFAULT = 0, /* local */
-    HOLDER_LIST_CARD_BACKLINKS_SCOPE_LOCAL = 1,
-    HOLDER_LIST_CARD_BACKLINKS_SCOPE_EXTERNAL = 2,
-    HOLDER_LIST_CARD_BACKLINKS_SCOPE_ALL_AVAILABLE = 3,
-    HOLDER_LIST_CARD_BACKLINKS_SCOPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_LIST_CARD_BACKLINKS_SCOPE_DEFAULT = 0, /* local */
+  HOLDER_LIST_CARD_BACKLINKS_SCOPE_LOCAL = 1,
+  HOLDER_LIST_CARD_BACKLINKS_SCOPE_EXTERNAL = 2,
+  HOLDER_LIST_CARD_BACKLINKS_SCOPE_ALL_AVAILABLE = 3,
+  HOLDER_LIST_CARD_BACKLINKS_SCOPE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_list_card_backlinks_scope;
 
 /* List the links to a card.
- * Links from cards and AI messages, newest first. External links come only from projects on this device, so
- * they are never all there may be. A card in the trash or in another project is not found.
- * scope: local lists links from the card's own project; external, links from the other projects on this device; all_available, both.
- * include_deleted: Include links from cards and AI messages in the trash.
- * Errors: HOLDER_ERROR_NOT_FOUND.
+ * Links from cards and AI messages, newest first. External links come only from projects on this
+ * device, so they are never all there may be. A card in the trash or in another project is not
+ * found. scope: local lists links from the card's own project; external, links from the other
+ * projects on this device; all_available, both. include_deleted: Include links from cards and AI
+ * messages in the trash. Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_list_card_backlinks(holder_context* context, const char* project_id, const char* card_id, holder_list_card_backlinks_scope scope, bool include_deleted, holder_arena* arena, const holder_link_list** out_link_list, holder_error** out_error);
+int holder_list_card_backlinks(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    holder_list_card_backlinks_scope scope,
+    bool include_deleted,
+    holder_arena* arena,
+    const holder_link_list** out_link_list,
+    holder_error** out_error
+);
 
 /* Link a card to something.
- * A link is one target, of one type in one project, with one kind. Making a link that already exists sets its
- * label and keeps when it was made. A target in the card's project must exist and not be in the trash; a card in
- * another project may be one this device does not have. A card in the trash or in another project is not found,
- * and neither is a target that does not exist or is in the trash.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * A link is one target, of one type in one project, with one kind. Making a link that already
+ * exists sets its label and keeps when it was made. A target in the card's project must exist and
+ * not be in the trash; a card in another project may be one this device does not have. A card in
+ * the trash or in another project is not found, and neither is a target that does not exist or is
+ * in the trash. Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_add_card_link(holder_context* context, const char* project_id, const char* card_id, const holder_new_link* link, holder_arena* arena, const holder_link** out_link, holder_error** out_error);
+int holder_add_card_link(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const holder_new_link* link,
+    holder_arena* arena,
+    const holder_link** out_link,
+    holder_error** out_error
+);
 
 typedef enum holder_remove_card_link_target_type {
-    HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_CARD = 1,
-    HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_MESSAGE = 2,
-    HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_THREAD = 3,
-    HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_RESOURCE = 4,
-    HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_CARD = 1,
+  HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_MESSAGE = 2,
+  HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_THREAD = 3,
+  HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_RESOURCE = 4,
+  HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_remove_card_link_target_type;
 
 /* Remove a link from a card.
- * Removes the one link to that target, of that type in that project, with that kind, and returns the card's
- * remaining links as list_card_links lists them by default. A card without that link is left as it is. A card in
- * the trash or in another project is not found.
- * kind: NULL for ref.
+ * Removes the one link to that target, of that type in that project, with that kind, and returns
+ * the card's remaining links as list_card_links lists them by default. A card without that link is
+ * left as it is. A card in the trash or in another project is not found. kind: NULL for ref.
  * target_project_id: Omit for the card's own project. May be NULL.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
+ * HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_remove_card_link(holder_context* context, const char* project_id, const char* card_id, holder_remove_card_link_target_type target_type, const char* target_id, const char* kind, const char* target_project_id, holder_arena* arena, const holder_link_list** out_link_list, holder_error** out_error);
+int holder_remove_card_link(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    holder_remove_card_link_target_type target_type,
+    const char* target_id,
+    const char* kind,
+    const char* target_project_id,
+    holder_arena* arena,
+    const holder_link_list** out_link_list,
+    holder_error** out_error
+);
 
 /* List a card's milestones.
  * By when they were made, then by ID. A card in the trash or in another project is not found.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_list_card_milestones(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_milestone_list** out_milestone_list, holder_error** out_error);
+int holder_list_card_milestones(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    holder_arena* arena,
+    const holder_milestone_list** out_milestone_list,
+    holder_error** out_error
+);
 
 /* Put a milestone on a card.
- * The milestone gets a new ID. Each date must be a real day or instant. A card in the trash or in another project
- * is not found.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * The milestone gets a new ID. Each date must be a real day or instant. A card in the trash or in
+ * another project is not found. Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_add_card_milestone(holder_context* context, const char* project_id, const char* card_id, const holder_new_milestone* milestone, holder_arena* arena, const holder_milestone** out_milestone, holder_error** out_error);
+int holder_add_card_milestone(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const holder_new_milestone* milestone,
+    holder_arena* arena,
+    const holder_milestone** out_milestone,
+    holder_error** out_error
+);
 
 /* Change a milestone.
- * Each field left out keeps its value, and an update that changes nothing writes nothing. Each date must be a real
- * day or instant. A card in the trash or in another project is not found, and neither is a milestone that is not
- * on the card.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Each field left out keeps its value, and an update that changes nothing writes nothing. Each date
+ * must be a real day or instant. A card in the trash or in another project is not found, and
+ * neither is a milestone that is not on the card. Errors: HOLDER_ERROR_NOT_FOUND,
+ * HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_update_card_milestone(holder_context* context, const char* project_id, const char* card_id, const char* milestone_id, const holder_milestone_update* update, holder_arena* arena, const holder_milestone** out_milestone, holder_error** out_error);
+int holder_update_card_milestone(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* milestone_id,
+    const holder_milestone_update* update,
+    holder_arena* arena,
+    const holder_milestone** out_milestone,
+    holder_error** out_error
+);
 
 /* Take a milestone off a card.
- * Returns the card's remaining milestones, as list_card_milestones lists them. A card without the milestone is
- * left as it is. A card in the trash or in another project is not found.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Returns the card's remaining milestones, as list_card_milestones lists them. A card without the
+ * milestone is left as it is. A card in the trash or in another project is not found. Errors:
+ * HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
+ * HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_remove_card_milestone(holder_context* context, const char* project_id, const char* card_id, const char* milestone_id, holder_arena* arena, const holder_milestone_list** out_milestone_list, holder_error** out_error);
+int holder_remove_card_milestone(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* milestone_id,
+    holder_arena* arena,
+    const holder_milestone_list** out_milestone_list,
+    holder_error** out_error
+);
 
 /* List a project's milestones with a day in a range.
- * The range holds first_day, last_day and the days between; it is empty when first_day is after last_day. A
- * milestone is listed once, by its first day in the range and then by ID. Milestones on cards in the trash are
- * left out.
- * role: Only dates with this role; omit for any. May be NULL.
+ * The range holds first_day, last_day and the days between; it is empty when first_day is after
+ * last_day. A milestone is listed once, by its first day in the range and then by ID. Milestones on
+ * cards in the trash are left out. role: Only dates with this role; omit for any. May be NULL.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_list_milestones_by_day(holder_context* context, const char* project_id, const char* first_day, const char* last_day, const char* role, holder_arena* arena, const holder_milestone_list** out_milestone_list, holder_error** out_error);
+int holder_list_milestones_by_day(
+    holder_context* context,
+    const char* project_id,
+    const char* first_day,
+    const char* last_day,
+    const char* role,
+    holder_arena* arena,
+    const holder_milestone_list** out_milestone_list,
+    holder_error** out_error
+);
 
 /* List a project's milestones with an instant in a range.
- * The range holds first_instant, last_instant and the instants between; it is empty when first_instant is after
- * last_instant. A milestone is listed once, by its first instant in the range and then by ID. Milestones on cards
- * in the trash are left out.
- * role: Only dates with this role; omit for any. May be NULL.
- * Errors: HOLDER_ERROR_NOT_FOUND.
+ * The range holds first_instant, last_instant and the instants between; it is empty when
+ * first_instant is after last_instant. A milestone is listed once, by its first instant in the
+ * range and then by ID. Milestones on cards in the trash are left out. role: Only dates with this
+ * role; omit for any. May be NULL. Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_list_milestones_by_instant(holder_context* context, const char* project_id, int64_t first_instant, int64_t last_instant, const char* role, holder_arena* arena, const holder_milestone_list** out_milestone_list, holder_error** out_error);
+int holder_list_milestones_by_instant(
+    holder_context* context,
+    const char* project_id,
+    int64_t first_instant,
+    int64_t last_instant,
+    const char* role,
+    holder_arena* arena,
+    const holder_milestone_list** out_milestone_list,
+    holder_error** out_error
+);
 
 /* What happens in a project over a window of days in a time zone.
- * The window runs from the start of first_day to the end of last_day in the zone, so it is empty when first_day is
- * after last_day. A milestone is in it when one of its days is in the days, or one of its instants falls in the
- * window; a day has no time zone, so it is compared with the days, never turned into an instant. Cards are made and
- * changed at instants. Core works out the window's instants from the zone, across daylight-saving changes, so every
- * client gets the same answer. An unknown zone is an invalid argument.
- * time_zone: The zone the days are in, such as Europe/London; omit for this device's zone. May be NULL.
- * Errors: HOLDER_ERROR_NOT_FOUND.
+ * The window runs from the start of first_day to the end of last_day in the zone, so it is empty
+ * when first_day is after last_day. A milestone is in it when one of its days is in the days, or
+ * one of its instants falls in the window; a day has no time zone, so it is compared with the days,
+ * never turned into an instant. Cards are made and changed at instants. Core works out the window's
+ * instants from the zone, across daylight-saving changes, so every client gets the same answer. An
+ * unknown zone is an invalid argument. time_zone: The zone the days are in, such as Europe/London;
+ * omit for this device's zone. May be NULL. Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_get_calendar(holder_context* context, const char* project_id, const char* first_day, const char* last_day, const char* time_zone, holder_arena* arena, const holder_calendar** out_calendar, holder_error** out_error);
+int holder_get_calendar(
+    holder_context* context,
+    const char* project_id,
+    const char* first_day,
+    const char* last_day,
+    const char* time_zone,
+    holder_arena* arena,
+    const holder_calendar** out_calendar,
+    holder_error** out_error
+);
 
 /* Import a local file into a project and attach it to a card.
  * The file is hashed, stored in the storage location through this device's provider for it,
@@ -1719,80 +2218,167 @@ int holder_get_calendar(holder_context* context, const char* project_id, const c
  * Bytes the project already holds reuse their resource. The card gets an attachment link to the
  * resource; its content is not changed. The source path is never saved. The source must be a
  * readable regular file. The daemon does not serve this: its asset imports run as jobs.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
+ * HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_import_asset_file(holder_context* context, const holder_asset_import_request* request, holder_arena* arena, const holder_asset_import** out_asset_import, holder_error** out_error);
+int holder_import_asset_file(
+    holder_context* context,
+    const holder_asset_import_request* request,
+    holder_arena* arena,
+    const holder_asset_import** out_asset_import,
+    holder_error** out_error
+);
 
 /* Write an asset's bytes from one of its placements to a local file.
  * The stored copy is fetched through this device's provider for its storage location, checked
  * against the asset's size and hash, and decrypted in an encrypted project. Bytes that fail the
  * check are data corrupted, and nothing is left at the destination. The daemon does not serve
  * this: it streams asset content over HTTP.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
+ * HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_retrieve_asset_file(holder_context* context, const char* resource_id, const char* asset_id, const char* placement_id, const char* destination_path, holder_arena* arena, const holder_asset_file** out_asset_file, holder_error** out_error);
+int holder_retrieve_asset_file(
+    holder_context* context,
+    const char* resource_id,
+    const char* asset_id,
+    const char* placement_id,
+    const char* destination_path,
+    holder_arena* arena,
+    const holder_asset_file** out_asset_file,
+    holder_error** out_error
+);
 
 /* List a project's resources.
  * By when they last changed, latest first, then by ID.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_list_resources(holder_context* context, const char* project_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error);
+int holder_list_resources(
+    holder_context* context,
+    const char* project_id,
+    holder_arena* arena,
+    const holder_resource_list** out_resource_list,
+    holder_error** out_error
+);
 
 /* Fetch a resource.
  * A resource in another project is not found.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_get_resource(holder_context* context, const char* project_id, const char* resource_id, holder_arena* arena, const holder_resource** out_resource, holder_error** out_error);
+int holder_get_resource(
+    holder_context* context,
+    const char* project_id,
+    const char* resource_id,
+    holder_arena* arena,
+    const holder_resource** out_resource,
+    holder_error** out_error
+);
 
 /* Make a resource.
- * A project that does not exist is not found. Resource IDs are unique on this device, so an ID already in use,
- * in this project or another, is a Conflict.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * A project that does not exist is not found. Resource IDs are unique on this device, so an ID
+ * already in use, in this project or another, is a Conflict. Errors: HOLDER_ERROR_NOT_FOUND,
+ * HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
+ * HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_create_resource(holder_context* context, const char* project_id, const holder_new_resource* resource, holder_arena* arena, const holder_resource** out_resource, holder_error** out_error);
+int holder_create_resource(
+    holder_context* context,
+    const char* project_id,
+    const holder_new_resource* resource,
+    holder_arena* arena,
+    const holder_resource** out_resource,
+    holder_error** out_error
+);
 
 /* Change a resource.
  * Each field left out keeps its value. A resource in another project is not found.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
+ * HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_update_resource(holder_context* context, const char* project_id, const char* resource_id, const holder_resource_update* update, holder_arena* arena, const holder_resource** out_resource, holder_error** out_error);
+int holder_update_resource(
+    holder_context* context,
+    const char* project_id,
+    const char* resource_id,
+    const holder_resource_update* update,
+    holder_arena* arena,
+    const holder_resource** out_resource,
+    holder_error** out_error
+);
 
 /* Delete a resource.
- * The resource goes, and so do the links to it from cards. Its files' stored copies are left where they are.
- * Returns the resource as it was. A resource in another project is not found.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * The resource goes, and so do the links to it from cards. Its files' stored copies are left where
+ * they are. Returns the resource as it was. A resource in another project is not found. Errors:
+ * HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
+ * HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_delete_resource(holder_context* context, const char* project_id, const char* resource_id, holder_arena* arena, const holder_resource** out_resource, holder_error** out_error);
+int holder_delete_resource(
+    holder_context* context,
+    const char* project_id,
+    const char* resource_id,
+    holder_arena* arena,
+    const holder_resource** out_resource,
+    holder_error** out_error
+);
 
 /* List the links to a resource.
- * Links of every kind, attachments among them, from cards and AI messages in the resource's project, newest
- * first. A resource in another project is not found.
- * include_deleted: Include links from cards and AI messages in the trash.
- * Errors: HOLDER_ERROR_NOT_FOUND.
+ * Links of every kind, attachments among them, from cards and AI messages in the resource's
+ * project, newest first. A resource in another project is not found. include_deleted: Include links
+ * from cards and AI messages in the trash. Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_list_resource_backlinks(holder_context* context, const char* project_id, const char* resource_id, bool include_deleted, holder_arena* arena, const holder_link_list** out_link_list, holder_error** out_error);
+int holder_list_resource_backlinks(
+    holder_context* context,
+    const char* project_id,
+    const char* resource_id,
+    bool include_deleted,
+    holder_arena* arena,
+    const holder_link_list** out_link_list,
+    holder_error** out_error
+);
 
 /* List the resources attached to a card.
- * By when they last changed, latest first, then by ID. A card in the trash or in another project is not found.
- * Errors: HOLDER_ERROR_NOT_FOUND.
+ * By when they last changed, latest first, then by ID. A card in the trash or in another project is
+ * not found. Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_list_card_resources(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error);
+int holder_list_card_resources(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    holder_arena* arena,
+    const holder_resource_list** out_resource_list,
+    holder_error** out_error
+);
 
 /* Attach a resource to a card.
- * An attachment is the card's link of kind attachment to the resource. A card that has it already is left as it
- * is. Returns the card's attached resources, as list_card_resources lists them. A card in the trash or in another
- * project is not found, and neither is a resource that is not in the card's project.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * An attachment is the card's link of kind attachment to the resource. A card that has it already
+ * is left as it is. Returns the card's attached resources, as list_card_resources lists them. A
+ * card in the trash or in another project is not found, and neither is a resource that is not in
+ * the card's project. Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_attach_card_resource(holder_context* context, const char* project_id, const char* card_id, const char* resource_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error);
+int holder_attach_card_resource(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* resource_id,
+    holder_arena* arena,
+    const holder_resource_list** out_resource_list,
+    holder_error** out_error
+);
 
 /* Detach a resource from a card.
- * The resource itself is kept. A card without the attachment is left as it is, and a resource that no longer
- * exists can still be detached. Returns the card's attached resources, as list_card_resources lists them. A card
- * in the trash or in another project is not found.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * The resource itself is kept. A card without the attachment is left as it is, and a resource that
+ * no longer exists can still be detached. Returns the card's attached resources, as
+ * list_card_resources lists them. A card in the trash or in another project is not found. Errors:
+ * HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
+ * HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_detach_card_resource(holder_context* context, const char* project_id, const char* card_id, const char* resource_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error);
+int holder_detach_card_resource(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* resource_id,
+    holder_arena* arena,
+    const holder_resource_list** out_resource_list,
+    holder_error** out_error
+);
 
 /* Make Home, with its welcome card, on a device that has no project; otherwise do nothing.
  * Home is named HOME_PROJECT_NAME, is encrypted_git, and holds one card with WELCOME_CARD as its
@@ -1801,7 +2387,12 @@ int holder_detach_card_resource(holder_context* context, const char* project_id,
  * decides when to call it: the daemon calls it when it starts, and does not serve it over HTTP.
  * Errors: HOLDER_ERROR_KEYRING_UNAVAILABLE.
  */
-int holder_ensure_home_project(holder_context* context, holder_arena* arena, const holder_home_project** out_home_project, holder_error** out_error);
+int holder_ensure_home_project(
+    holder_context* context,
+    holder_arena* arena,
+    const holder_home_project** out_home_project,
+    holder_error** out_error
+);
 
 /* Register a durable plain project in an empty context database.
  * The project must be an immediate child of the context's projects directory and
@@ -1809,17 +2400,24 @@ int holder_ensure_home_project(holder_context* context, holder_arena* arena, con
  * rebuilds indexes, and leaves the durable files untouched. Encrypted projects are
  * not supported. No other operation may use this context during import.
  */
-int holder_import_project(holder_context* context, const char* project_root, holder_arena* arena, const holder_project** out_project, holder_error** out_error);
+int holder_import_project(
+    holder_context* context,
+    const char* project_root,
+    holder_arena* arena,
+    const holder_project** out_project,
+    holder_error** out_error
+);
 
 typedef enum holder_list_projects_order {
-    HOLDER_LIST_PROJECTS_ORDER_NONE = 0, /* null */
-    HOLDER_LIST_PROJECTS_ORDER_UPDATED_AT_DESC = 1,
-    HOLDER_LIST_PROJECTS_ORDER_UPDATED_AT_ASC = 2,
-    HOLDER_LIST_PROJECTS_ORDER_CREATED_AT_DESC = 3,
-    HOLDER_LIST_PROJECTS_ORDER_CREATED_AT_ASC = 4,
-    HOLDER_LIST_PROJECTS_ORDER_NAME_DESC = 5,
-    HOLDER_LIST_PROJECTS_ORDER_NAME_ASC = 6,
-    HOLDER_LIST_PROJECTS_ORDER_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_LIST_PROJECTS_ORDER_NONE = 0, /* null */
+  HOLDER_LIST_PROJECTS_ORDER_UPDATED_AT_DESC = 1,
+  HOLDER_LIST_PROJECTS_ORDER_UPDATED_AT_ASC = 2,
+  HOLDER_LIST_PROJECTS_ORDER_CREATED_AT_DESC = 3,
+  HOLDER_LIST_PROJECTS_ORDER_CREATED_AT_ASC = 4,
+  HOLDER_LIST_PROJECTS_ORDER_NAME_DESC = 5,
+  HOLDER_LIST_PROJECTS_ORDER_NAME_ASC = 6,
+  HOLDER_LIST_PROJECTS_ORDER_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_list_projects_order;
 
 /* List the projects on this device.
@@ -1832,56 +2430,119 @@ typedef enum holder_list_projects_order {
  * offset: How many of the ordered projects to skip.
  * include_card_counts: Include each project's counts of live cards.
  */
-int holder_list_projects(holder_context* context, const char* name, const int64_t* updated_after, const int64_t* updated_before, holder_list_projects_order order, const int32_t* limit, int32_t offset, bool include_card_counts, holder_arena* arena, const holder_project_list_item_list** out_project_list_item_list, holder_error** out_error);
+int holder_list_projects(
+    holder_context* context,
+    const char* name,
+    const int64_t* updated_after,
+    const int64_t* updated_before,
+    holder_list_projects_order order,
+    const int32_t* limit,
+    int32_t offset,
+    bool include_card_counts,
+    holder_arena* arena,
+    const holder_project_list_item_list** out_project_list_item_list,
+    holder_error** out_error
+);
 
 /* Fetch a project.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_get_project(holder_context* context, const char* project_id, holder_arena* arena, const holder_project** out_project, holder_error** out_error);
+int holder_get_project(
+    holder_context* context,
+    const char* project_id,
+    holder_arena* arena,
+    const holder_project** out_project,
+    holder_error** out_error
+);
 
 /* Make a project.
- * Its repository is made, with its settings, and an encrypted project's key. An ID a project on this device has
- * is a Conflict. Making a project that was removed from this device makes it known here again.
- * Errors: HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Its repository is made, with its settings, and an encrypted project's key. An ID a project on
+ * this device has is a Conflict. Making a project that was removed from this device makes it known
+ * here again. Errors: HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_create_project(holder_context* context, const holder_new_project* project, holder_arena* arena, const holder_project** out_project, holder_error** out_error);
+int holder_create_project(
+    holder_context* context,
+    const holder_new_project* project,
+    holder_arena* arena,
+    const holder_project** out_project,
+    holder_error** out_error
+);
 
 /* Change a project's settings.
- * Each field left out keeps its value, and an update that changes nothing writes nothing. The settings are
- * committed to the project's repository; a Git remote is set there before it is stored, and one Git does not
- * accept is an invalid argument.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Each field left out keeps its value, and an update that changes nothing writes nothing. The
+ * settings are committed to the project's repository; a Git remote is set there before it is
+ * stored, and one Git does not accept is an invalid argument. Errors: HOLDER_ERROR_NOT_FOUND,
+ * HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_update_project(holder_context* context, const char* project_id, const holder_project_update* update, holder_arena* arena, const holder_project** out_project, holder_error** out_error);
+int holder_update_project(
+    holder_context* context,
+    const char* project_id,
+    const holder_project_update* update,
+    holder_arena* arena,
+    const holder_project** out_project,
+    holder_error** out_error
+);
 
 /* Remove a project from this device.
- * The project's files and keys are kept, and its removal is remembered, so that looking for projects does not
- * bring it back; making it again does. Returns the project as it was.
- * Errors: HOLDER_ERROR_NOT_FOUND.
+ * The project's files and keys are kept, and its removal is remembered, so that looking for
+ * projects does not bring it back; making it again does. Returns the project as it was. Errors:
+ * HOLDER_ERROR_NOT_FOUND.
  */
-int holder_delete_project(holder_context* context, const char* project_id, holder_arena* arena, const holder_project** out_project, holder_error** out_error);
+int holder_delete_project(
+    holder_context* context,
+    const char* project_id,
+    holder_arena* arena,
+    const holder_project** out_project,
+    holder_error** out_error
+);
 
 /* Check whether an encrypted project's card files are safe to push.
  * A plain project needs no check and reports a successful result with zero files.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_check_project_encryption(holder_context* context, const char* project_id, holder_arena* arena, const holder_project_encryption_check** out_project_encryption_check, holder_error** out_error);
+int holder_check_project_encryption(
+    holder_context* context,
+    const char* project_id,
+    holder_arena* arena,
+    const holder_project_encryption_check** out_project_encryption_check,
+    holder_error** out_error
+);
 
 /* Find hidden live card branches, and optionally move them into the reachable tree.
  * An empty body plans without writing. Applying moves each hidden branch to its nearest reachable
- * ancestor in one commit; a second apply changes nothing. Parent cycles are reported and left alone.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * ancestor in one commit; a second apply changes nothing. Parent cycles are reported and left
+ * alone. Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_repair_project_hierarchy(holder_context* context, const char* project_id, const holder_hierarchy_repair_request* request, holder_arena* arena, const holder_hierarchy_repair** out_hierarchy_repair, holder_error** out_error);
+int holder_repair_project_hierarchy(
+    holder_context* context,
+    const char* project_id,
+    const holder_hierarchy_repair_request* request,
+    holder_arena* arena,
+    const holder_hierarchy_repair** out_hierarchy_repair,
+    holder_error** out_error
+);
 
 /* Rebuild a project's database state from its files.
  * A missing project is NotFound. Files that cannot be read back give RebuildFailed.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_REBUILD_FAILED.
  */
-int holder_rebuild_project(holder_context* context, const holder_rebuild_request* request, holder_arena* arena, const holder_rebuild_result** out_rebuild_result, holder_error** out_error);
+int holder_rebuild_project(
+    holder_context* context,
+    const holder_rebuild_request* request,
+    holder_arena* arena,
+    const holder_rebuild_result** out_rebuild_result,
+    holder_error** out_error
+);
 
 /* Rebuild all search indexes from database state. */
-int holder_reindex_search(holder_context* context, holder_arena* arena, const holder_reindex_result** out_reindex_result, holder_error** out_error);
+int holder_reindex_search(
+    holder_context* context,
+    holder_arena* arena,
+    const holder_reindex_result** out_reindex_result,
+    holder_error** out_error
+);
 
 /* Read one page of a project's recovery snapshot: its live cards, most recently updated first.
  * Each card comes as a record and as a line in core's encoding; a platform keeps the lines and
@@ -1890,198 +2551,377 @@ int holder_reindex_search(holder_context* context, holder_arena* arena, const ho
  * limit: NULL for 500.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_read_recovery_snapshot(holder_context* context, const char* project_id, const char* cursor, const int32_t* limit, holder_arena* arena, const holder_recovery_snapshot_page** out_recovery_snapshot_page, holder_error** out_error);
+int holder_read_recovery_snapshot(
+    holder_context* context,
+    const char* project_id,
+    const char* cursor,
+    const int32_t* limit,
+    holder_arena* arena,
+    const holder_recovery_snapshot_page** out_recovery_snapshot_page,
+    holder_error** out_error
+);
 
 /* Make a new project from a recovery snapshot's lines and commit the restored cards to it.
- * Cards, resources, assets, placements and storage locations get new IDs; links between the restored
- * cards and resources, holder://resource/ references in content and the card tree follow them. Lines
- * are restored in any order. A line core cannot read fails the restore and leaves no project behind.
- * The daemon does not serve this.
+ * Cards, resources, assets, placements and storage locations get new IDs; links between the
+ * restored cards and resources, holder://resource/ references in content and the card tree follow
+ * them. Lines are restored in any order. A line core cannot read fails the restore and leaves no
+ * project behind. The daemon does not serve this.
  */
-int holder_restore_recovery_snapshot(holder_context* context, const holder_recovery_snapshot_restore* request, holder_arena* arena, const holder_project** out_project, holder_error** out_error);
+int holder_restore_recovery_snapshot(
+    holder_context* context,
+    const holder_recovery_snapshot_restore* request,
+    holder_arena* arena,
+    const holder_project** out_project,
+    holder_error** out_error
+);
 
 /* Wrap an encrypted project's key in a portable token protected by a PIN.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
+ * HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_export_project_recovery_token(holder_context* context, const char* project_id, const holder_recovery_token_export_request* request, holder_arena* arena, const holder_project_recovery_token_export_result** out_project_recovery_token_export_result, holder_error** out_error);
+int holder_export_project_recovery_token(
+    holder_context* context,
+    const char* project_id,
+    const holder_recovery_token_export_request* request,
+    holder_arena* arena,
+    const holder_project_recovery_token_export_result** out_project_recovery_token_export_result,
+    holder_error** out_error
+);
 
 /* Restore an encrypted project's key from a token for that project.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_RECOVERY_TOKEN_INVALID, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_DATA_CORRUPTED.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_RECOVERY_TOKEN_INVALID,
+ * HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_import_project_recovery_token(holder_context* context, const char* project_id, const holder_recovery_token_import_request* request, holder_arena* arena, const holder_project_recovery_token_import_result** out_project_recovery_token_import_result, holder_error** out_error);
+int holder_import_project_recovery_token(
+    holder_context* context,
+    const char* project_id,
+    const holder_recovery_token_import_request* request,
+    holder_arena* arena,
+    const holder_project_recovery_token_import_result** out_project_recovery_token_import_result,
+    holder_error** out_error
+);
 
 /* Restore a token, finding its project here or making one from the token's metadata.
  * If the token names a Git remote, configure it and attempt a pull. Remote and pull failures
  * are reported in the result. Returns 201 when the project was created, otherwise 200.
- * Errors: HOLDER_ERROR_RECOVERY_TOKEN_INVALID, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_DATA_CORRUPTED.
+ * Errors: HOLDER_ERROR_RECOVERY_TOKEN_INVALID, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_import_recovery_token_global(holder_context* context, const holder_recovery_token_import_request* request, holder_arena* arena, const holder_recovery_token_global_import_result** out_recovery_token_global_import_result, holder_error** out_error);
+int holder_import_recovery_token_global(
+    holder_context* context,
+    const holder_recovery_token_import_request* request,
+    holder_arena* arena,
+    const holder_recovery_token_global_import_result** out_recovery_token_global_import_result,
+    holder_error** out_error
+);
 
 /* What this device last recorded about a project's sync.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_get_project_sync_state(holder_context* context, const char* project_id, holder_arena* arena, const holder_sync_state** out_sync_state, holder_error** out_error);
+int holder_get_project_sync_state(
+    holder_context* context,
+    const char* project_id,
+    holder_arena* arena,
+    const holder_sync_state** out_sync_state,
+    holder_error** out_error
+);
 
 /* Pull a project's checked-out branch from its Git remote.
- * Changes fast-forward, or merge card by card where both sides changed, and the project's index is updated
- * before the result returns. A Git failure is an outcome in the result, recorded in the sync state. Git work on
- * one project runs one at a time.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Changes fast-forward, or merge card by card where both sides changed, and the project's index is
+ * updated before the result returns. A Git failure is an outcome in the result, recorded in the
+ * sync state. Git work on one project runs one at a time. Errors: HOLDER_ERROR_NOT_FOUND,
+ * HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_pull_project(holder_context* context, const char* project_id, holder_arena* arena, const holder_sync_result** out_sync_result, holder_error** out_error);
+int holder_pull_project(
+    holder_context* context,
+    const char* project_id,
+    holder_arena* arena,
+    const holder_sync_result** out_sync_result,
+    holder_error** out_error
+);
 
 /* Push a project to its Git remote.
- * An encrypted project is checked first, so no plaintext card leaves the device: one whose files are not safe
- * to push is DataCorrupted, and nothing is pushed. A Git failure is an outcome in the result, recorded in the
- * sync state.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * An encrypted project is checked first, so no plaintext card leaves the device: one whose files
+ * are not safe to push is DataCorrupted, and nothing is pushed. A Git failure is an outcome in the
+ * result, recorded in the sync state. Errors: HOLDER_ERROR_NOT_FOUND,
+ * HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_push_project(holder_context* context, const char* project_id, const holder_push_options* options, holder_arena* arena, const holder_sync_result** out_sync_result, holder_error** out_error);
+int holder_push_project(
+    holder_context* context,
+    const char* project_id,
+    const holder_push_options* options,
+    holder_arena* arena,
+    const holder_sync_result** out_sync_result,
+    holder_error** out_error
+);
 
 /* Pull a project, then push it.
  * The push is tried only when the pull succeeds. Otherwise as pull_project and push_project.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
+ * HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_sync_project(holder_context* context, const char* project_id, const holder_push_options* options, holder_arena* arena, const holder_sync_result** out_sync_result, holder_error** out_error);
+int holder_sync_project(
+    holder_context* context,
+    const char* project_id,
+    const holder_push_options* options,
+    holder_arena* arena,
+    const holder_sync_result** out_sync_result,
+    holder_error** out_error
+);
 
 /* Try the project's pull and push phases only when their cadence and retry policy say they are due.
- * Zero uses the built-in intervals (20 minutes for push, 5 minutes for pull). A project without a remote and
- * a project with nothing due return both phases as not attempted without changing sync state. A due push can
- * run after a failed pull; this keeps scheduled pushes independent from the pull retry schedule.
- * Git failures are phase outcomes and are recorded in the project's sync state.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Zero uses the built-in intervals (20 minutes for push, 5 minutes for pull). A project without a
+ * remote and a project with nothing due return both phases as not attempted without changing sync
+ * state. A due push can run after a failed pull; this keeps scheduled pushes independent from the
+ * pull retry schedule. Git failures are phase outcomes and are recorded in the project's sync
+ * state. Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_sync_project_if_due(holder_context* context, const char* project_id, int32_t push_interval_seconds, int32_t pull_interval_seconds, holder_arena* arena, const holder_due_sync_result** out_due_sync_result, holder_error** out_error);
+int holder_sync_project_if_due(
+    holder_context* context,
+    const char* project_id,
+    int32_t push_interval_seconds,
+    int32_t pull_interval_seconds,
+    holder_arena* arena,
+    const holder_due_sync_result** out_due_sync_result,
+    holder_error** out_error
+);
 
 /* Test whether a Git remote can be reached, with this device's credentials.
- * Lists the remote's refs and nothing more: nothing is fetched, and neither the project nor its repository
- * changes.
- * Errors: HOLDER_ERROR_NOT_FOUND.
+ * Lists the remote's refs and nothing more: nothing is fetched, and neither the project nor its
+ * repository changes. Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_test_project_remote(holder_context* context, const char* project_id, const holder_remote_test* remote, holder_arena* arena, const holder_remote_test_result** out_remote_test_result, holder_error** out_error);
+int holder_test_project_remote(
+    holder_context* context,
+    const char* project_id,
+    const holder_remote_test* remote,
+    holder_arena* arena,
+    const holder_remote_test_result** out_remote_test_result,
+    holder_error** out_error
+);
 
 typedef enum holder_list_project_history_kind {
-    HOLDER_LIST_PROJECT_HISTORY_KIND_NONE = 0, /* null */
-    HOLDER_LIST_PROJECT_HISTORY_KIND_CARD = 1,
-    HOLDER_LIST_PROJECT_HISTORY_KIND_RESOURCE = 2,
-    HOLDER_LIST_PROJECT_HISTORY_KIND_LOCATION = 3,
-    HOLDER_LIST_PROJECT_HISTORY_KIND_AI_DATA = 4,
-    HOLDER_LIST_PROJECT_HISTORY_KIND_PROJECT_SETTINGS = 5,
-    HOLDER_LIST_PROJECT_HISTORY_KIND_UNKNOWN = 6,
-    HOLDER_LIST_PROJECT_HISTORY_KIND_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_LIST_PROJECT_HISTORY_KIND_NONE = 0, /* null */
+  HOLDER_LIST_PROJECT_HISTORY_KIND_CARD = 1,
+  HOLDER_LIST_PROJECT_HISTORY_KIND_RESOURCE = 2,
+  HOLDER_LIST_PROJECT_HISTORY_KIND_LOCATION = 3,
+  HOLDER_LIST_PROJECT_HISTORY_KIND_AI_DATA = 4,
+  HOLDER_LIST_PROJECT_HISTORY_KIND_PROJECT_SETTINGS = 5,
+  HOLDER_LIST_PROJECT_HISTORY_KIND_UNKNOWN = 6,
+  HOLDER_LIST_PROJECT_HISTORY_KIND_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_list_project_history_kind;
 
 /* Return bounded, cursor-paginated Git activities for a project.
- * Each commit groups its changed paths by Holder object kind. Unrecognised paths remain visible as unknown.
- * A missing decryption key is HistoryKeyUnavailable; other history read failures are HistoryUnavailable.
- * limit: NULL for 50.
- * cursor: A full commit OID from next_cursor. May be NULL.
+ * Each commit groups its changed paths by Holder object kind. Unrecognised paths remain visible as
+ * unknown. A missing decryption key is HistoryKeyUnavailable; other history read failures are
+ * HistoryUnavailable. limit: NULL for 50. cursor: A full commit OID from next_cursor. May be NULL.
  * kind: Only activities affecting this object kind. The zero value is null.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, HOLDER_ERROR_HISTORY_UNAVAILABLE.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE,
+ * HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, HOLDER_ERROR_HISTORY_UNAVAILABLE.
  */
-int holder_list_project_history(holder_context* context, const char* project_id, const int32_t* limit, const char* cursor, holder_list_project_history_kind kind, holder_arena* arena, const holder_project_history_page** out_project_history_page, holder_error** out_error);
+int holder_list_project_history(
+    holder_context* context,
+    const char* project_id,
+    const int32_t* limit,
+    const char* cursor,
+    holder_list_project_history_kind kind,
+    holder_arena* arena,
+    const holder_project_history_page** out_project_history_page,
+    holder_error** out_error
+);
 
 /* List saved history for a card.
- * Returns commits reachable from the captured project HEAD that changed the card. Adjacent autosaves may be
- * grouped into one displayed entry.
- * limit: NULL for 50.
- * cursor: A full commit ID from next_cursor. May be NULL.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, HOLDER_ERROR_HISTORY_UNAVAILABLE.
+ * Returns commits reachable from the captured project HEAD that changed the card. Adjacent
+ * autosaves may be grouped into one displayed entry. limit: NULL for 50. cursor: A full commit ID
+ * from next_cursor. May be NULL. Errors: HOLDER_ERROR_NOT_FOUND,
+ * HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE,
+ * HOLDER_ERROR_HISTORY_UNAVAILABLE.
  */
-int holder_list_card_history(holder_context* context, const char* project_id, const char* card_id, const int32_t* limit, const char* cursor, holder_arena* arena, const holder_card_history_page** out_card_history_page, holder_error** out_error);
+int holder_list_card_history(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const int32_t* limit,
+    const char* cursor,
+    holder_arena* arena,
+    const holder_card_history_page** out_card_history_page,
+    holder_error** out_error
+);
 
 typedef enum holder_compare_card_history_mode {
-    HOLDER_COMPARE_CARD_HISTORY_MODE_DEFAULT = 0, /* since */
-    HOLDER_COMPARE_CARD_HISTORY_MODE_SINCE = 1,
-    HOLDER_COMPARE_CARD_HISTORY_MODE_CHANGE = 2,
-    HOLDER_COMPARE_CARD_HISTORY_MODE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_COMPARE_CARD_HISTORY_MODE_DEFAULT = 0, /* since */
+  HOLDER_COMPARE_CARD_HISTORY_MODE_SINCE = 1,
+  HOLDER_COMPARE_CARD_HISTORY_MODE_CHANGE = 2,
+  HOLDER_COMPARE_CARD_HISTORY_MODE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_compare_card_history_mode;
 
 /* Compare saved card versions or one revision's change.
- * In since mode, compares the selected before and after snapshots. In change mode, compares the first parent
- * of to_oid with to_oid. A root commit has a previously nonexistent card as its before state; a merge uses only
- * its first parent.
- * to_oid: The ending revision, or the change to inspect.
+ * In since mode, compares the selected before and after snapshots. In change mode, compares the
+ * first parent of to_oid with to_oid. A root commit has a previously nonexistent card as its before
+ * state; a merge uses only its first parent. to_oid: The ending revision, or the change to inspect.
  * from_oid: Required in since mode; ignored in change mode. May be NULL.
  * mode: Compare two snapshots or one introduced change.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_REVISION_AMBIGUOUS, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, HOLDER_ERROR_HISTORY_UNAVAILABLE.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_REVISION_AMBIGUOUS,
+ * HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE,
+ * HOLDER_ERROR_HISTORY_UNAVAILABLE.
  */
-int holder_compare_card_history(holder_context* context, const char* project_id, const char* card_id, const char* to_oid, const char* from_oid, holder_compare_card_history_mode mode, holder_arena* arena, const holder_card_history_comparison** out_card_history_comparison, holder_error** out_error);
+int holder_compare_card_history(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* to_oid,
+    const char* from_oid,
+    holder_compare_card_history_mode mode,
+    holder_arena* arena,
+    const holder_card_history_comparison** out_card_history_comparison,
+    holder_error** out_error
+);
 
 /* Read a card snapshot at a selected revision, including an explicit absent state.
  * oid: The revision containing the card snapshot.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_REVISION_AMBIGUOUS, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, HOLDER_ERROR_HISTORY_UNAVAILABLE.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_REVISION_AMBIGUOUS,
+ * HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE,
+ * HOLDER_ERROR_HISTORY_UNAVAILABLE.
  */
-int holder_get_card_history_snapshot(holder_context* context, const char* project_id, const char* card_id, const char* oid, holder_arena* arena, const holder_card_history_snapshot** out_card_history_snapshot, holder_error** out_error);
+int holder_get_card_history_snapshot(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* oid,
+    holder_arena* arena,
+    const holder_card_history_snapshot** out_card_history_snapshot,
+    holder_error** out_error
+);
 
 /* Restore a card to a saved snapshot.
- * Restores the complete snapshot as a new commit, preserving the old history. Lifecycle rules still apply:
- * restoring a trashed snapshot promotes live children, and restoring a live snapshot places the card under a
- * reachable parent.
- * oid: The revision containing the snapshot to restore.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_REVISION_AMBIGUOUS, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_UNAVAILABLE.
+ * Restores the complete snapshot as a new commit, preserving the old history. Lifecycle rules still
+ * apply: restoring a trashed snapshot promotes live children, and restoring a live snapshot places
+ * the card under a reachable parent. oid: The revision containing the snapshot to restore. Errors:
+ * HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_REVISION_AMBIGUOUS, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE,
+ * HOLDER_ERROR_HISTORY_UNAVAILABLE.
  */
-int holder_restore_card_history_snapshot(holder_context* context, const char* project_id, const char* card_id, const char* oid, holder_arena* arena, const holder_card_history_restore_result** out_card_history_restore_result, holder_error** out_error);
+int holder_restore_card_history_snapshot(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* oid,
+    holder_arena* arena,
+    const holder_card_history_restore_result** out_card_history_restore_result,
+    holder_error** out_error
+);
 
 /* List a project's trashed cards and AI messages.
  * A project that is not registered has an empty Trash.
  * project_id: The project whose Trash is listed.
  * type: card, ai_message, or all; an unknown type lists nothing. May be NULL.
  */
-int holder_list_trash(holder_context* context, const char* project_id, const char* type, holder_arena* arena, const holder_trash_item_list** out_trash_item_list, holder_error** out_error);
+int holder_list_trash(
+    holder_context* context,
+    const char* project_id,
+    const char* type,
+    holder_arena* arena,
+    const holder_trash_item_list** out_trash_item_list,
+    holder_error** out_error
+);
 
 typedef enum holder_empty_trash_type {
-    HOLDER_EMPTY_TRASH_TYPE_DEFAULT = 0, /* all */
-    HOLDER_EMPTY_TRASH_TYPE_CARD = 1,
-    HOLDER_EMPTY_TRASH_TYPE_AI_MESSAGE = 2,
-    HOLDER_EMPTY_TRASH_TYPE_ALL = 3,
-    HOLDER_EMPTY_TRASH_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_EMPTY_TRASH_TYPE_DEFAULT = 0, /* all */
+  HOLDER_EMPTY_TRASH_TYPE_CARD = 1,
+  HOLDER_EMPTY_TRASH_TYPE_AI_MESSAGE = 2,
+  HOLDER_EMPTY_TRASH_TYPE_ALL = 3,
+  HOLDER_EMPTY_TRASH_TYPE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_empty_trash_type;
 
 /* Permanently remove a project's trashed items.
- * An empty or unregistered project succeeds without changes. Old Git revisions of cards remain available.
- * project_id: The project whose Trash is emptied.
- * type: Which item kinds to remove.
+ * An empty or unregistered project succeeds without changes. Old Git revisions of cards remain
+ * available. project_id: The project whose Trash is emptied. type: Which item kinds to remove.
  * Errors: HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_empty_trash(holder_context* context, const char* project_id, holder_empty_trash_type type, holder_arena* arena, const holder_trash_empty_result** out_trash_empty_result, holder_error** out_error);
+int holder_empty_trash(
+    holder_context* context,
+    const char* project_id,
+    holder_empty_trash_type type,
+    holder_arena* arena,
+    const holder_trash_empty_result** out_trash_empty_result,
+    holder_error** out_error
+);
 
 typedef enum holder_delete_trash_item_type {
-    HOLDER_DELETE_TRASH_ITEM_TYPE_CARD = 1,
-    HOLDER_DELETE_TRASH_ITEM_TYPE_AI_MESSAGE = 2,
-    HOLDER_DELETE_TRASH_ITEM_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_DELETE_TRASH_ITEM_TYPE_CARD = 1,
+  HOLDER_DELETE_TRASH_ITEM_TYPE_AI_MESSAGE = 2,
+  HOLDER_DELETE_TRASH_ITEM_TYPE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_delete_trash_item_type;
 
 /* Permanently remove a trashed item by its global ID (legacy route).
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_NOT_TRASHED, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_NOT_TRASHED, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_delete_trash_item(holder_context* context, holder_delete_trash_item_type type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error);
+int holder_delete_trash_item(
+    holder_context* context,
+    holder_delete_trash_item_type type,
+    const char* id,
+    holder_arena* arena,
+    const holder_trash_delete_result** out_trash_delete_result,
+    holder_error** out_error
+);
 
 typedef enum holder_delete_project_trash_item_type {
-    HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_CARD = 1,
-    HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_AI_MESSAGE = 2,
-    HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+  HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_CARD = 1,
+  HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_AI_MESSAGE = 2,
+  HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_delete_project_trash_item_type;
 
 /* Permanently remove a trashed item from the named project.
  * Old Git revisions of cards remain available.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_NOT_TRASHED, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_NOT_TRASHED, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_delete_project_trash_item(holder_context* context, const char* project_id, holder_delete_project_trash_item_type type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error);
+int holder_delete_project_trash_item(
+    holder_context* context,
+    const char* project_id,
+    holder_delete_project_trash_item_type type,
+    const char* id,
+    holder_arena* arena,
+    const holder_trash_delete_result** out_trash_delete_result,
+    holder_error** out_error
+);
 
 /* Search a project's cards, ordered by relevance, best first.
  * project_id: The project to search.
  * q: An SQLite FTS5 query for card titles and bodies.
  * limit: NULL for 20.
  */
-int holder_search_cards(holder_context* context, const char* project_id, const char* q, const int32_t* limit, int32_t offset, holder_arena* arena, const holder_search_card_list** out_search_card_list, holder_error** out_error);
+int holder_search_cards(
+    holder_context* context,
+    const char* project_id,
+    const char* q,
+    const int32_t* limit,
+    int32_t offset,
+    holder_arena* arena,
+    const holder_search_card_list** out_search_card_list,
+    holder_error** out_error
+);
 
 /* Search a project's AI messages, ordered by relevance, best first.
  * project_id: The project to search.
  * q: An SQLite FTS5 query for AI message content.
  * limit: NULL for 20.
  */
-int holder_search_ai_messages(holder_context* context, const char* project_id, const char* q, const int32_t* limit, int32_t offset, holder_arena* arena, const holder_search_message_list** out_search_message_list, holder_error** out_error);
+int holder_search_ai_messages(
+    holder_context* context,
+    const char* project_id,
+    const char* q,
+    const int32_t* limit,
+    int32_t offset,
+    holder_arena* arena,
+    const holder_search_message_list** out_search_message_list,
+    holder_error** out_error
+);
 
 #ifdef __cplusplus
 }

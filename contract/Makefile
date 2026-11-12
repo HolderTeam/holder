@@ -1,4 +1,5 @@
-# The contract's tooling. Needs Python 3.12 or later with requirements.txt installed.
+# The contract's tooling. Needs Python 3.12 or later with requirements.txt installed, and
+# clang-format-18, which lays out core's generated C and C++ files.
 PYTHON ?= python3
 
 .PHONY: check lint test ir update
