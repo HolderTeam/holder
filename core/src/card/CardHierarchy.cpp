@@ -249,7 +249,11 @@ HierarchyRepairPlan plan_hierarchy_repair(
   for (auto& head : heads)
     by_destination[head.destination].push_back(std::move(head));
   std::map<std::string, Card> changed;
-  for (auto& [destination, group] : by_destination) {
+  for (auto& entry : by_destination) {
+    // Named references rather than a structured binding: clang-tidy 18's analyzer does not follow
+    // structured bindings into the lambda below and reports them as uninitialized.
+    const auto& destination = entry.first;
+    auto& group = entry.second;
     std::vector<Card> siblings;
     for (const auto& [id, card] : by_id)
       if (!card.deleted_at && card.parent_card_id == destination) siblings.push_back(card);

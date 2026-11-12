@@ -158,8 +158,10 @@ TEST_CASE("SSH file credentials skip missing keys and decline memory-only reques
 // Opt-in: the caller supplies a disposable SSH remote and isolated HOME with
 // its trusted known_hosts entry. Never run against a production repository.
 TEST_CASE("Git over SSH can push probe and fetch", "[.ssh-smoke]") {
-  const char* url = std::getenv("HOLDER_TEST_SSH_REMOTE_URL");
-  if (url == nullptr) SKIP("Set HOLDER_TEST_SSH_REMOTE_URL to a disposable SSH remote");
+  // Copied at once: setting GIT_DEFAULT_BRANCH below may invalidate what getenv returned.
+  const char* configured_url = std::getenv("HOLDER_TEST_SSH_REMOTE_URL");
+  if (configured_url == nullptr) SKIP("Set HOLDER_TEST_SSH_REMOTE_URL to a disposable SSH remote");
+  const std::string url = configured_url;
   REQUIRE((git_libgit2_features() & GIT_FEATURE_SSH) != 0);
   holder::test::EnvGuard branch_guard("GIT_DEFAULT_BRANCH", "ssh-smoke");
   const auto root = holder::test::make_temp_dir();

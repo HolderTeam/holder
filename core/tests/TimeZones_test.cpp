@@ -112,9 +112,10 @@ int host_offset(void* user_data, const char* zone, int64_t utc_seconds, int64_t*
 }
 
 int host_current(void*, char** out_zone, char**) {
-  *out_zone = static_cast<char*>(std::malloc(std::strlen("Test/Plus2") + 1));
+  static constexpr char zone[] = "Test/Plus2";
+  *out_zone = static_cast<char*>(std::malloc(sizeof(zone)));
   if (!*out_zone) return 1;
-  std::strcpy(*out_zone, "Test/Plus2");
+  std::memcpy(*out_zone, zone, sizeof(zone));
   return 0;
 }
 
