@@ -590,6 +590,7 @@ main_controller_test_exe = executable(
     'src/controllers/ai_threads.vala',
     'src/controllers/window_close_guard.vala',
     'src/views/adapters/window_close_host.vala',
+    'src/views/adapters/window_recovery_context.vala',
     'tests/main_controller_test.vala',
   ],
   dependencies: [

@@ -3323,8 +3323,31 @@ private void test_window_close_host_reports_and_saves_through_the_controller() {
     api.update_card_before_complete_hook = null;
 }
 
+private void test_window_recovery_context_hands_over_the_api_and_reloads() {
+    var api = new MainControllerFakeApi();
+    var harness = make_harness(api, new TestScheduler(), new FakeClock());
+    var controller = harness.controller;
+    HolderLinux.IRecoveryContext context = new HolderLinux.WindowRecoveryContext(controller);
+
+    assert(context.get_api_client() == controller.get_api_client());
+    assert(context.get_api_client() == api);
+
+    bool reloaded = false;
+    context.reload_everything.begin((obj, result) => {
+        context.reload_everything.end(result);
+        reloaded = true;
+    });
+
+    assert(wait_for_condition(() => reloaded));
+    assert(controller.get_current_project() != null);
+}
+
 int main(string[] args) {
     Test.init(ref args);
+    Test.add_func(
+        "/main_controller/window_recovery_context_hands_over_the_api_and_reloads",
+        test_window_recovery_context_hands_over_the_api_and_reloads
+    );
     Test.add_func(
         "/main_controller/window_close_host_reports_and_saves",
         test_window_close_host_reports_and_saves_through_the_controller
