@@ -1015,6 +1015,10 @@ TEST_CASE("Listener stop cancels in-flight writer response and returns promptly"
     SKIP(std::string("Socket bind not available in test environment: ") + ex.what());
   }
 
+  // A non-reading client with a tiny receive window keeps the 8 MiB response in the writer.
+  // Windows also needs a zero send buffer: otherwise its overlapped sends complete at once.
+  listener.set_accepted_send_buffer_size_for_test(0);
+
   holder::core::SignalHandler signals;
   auto run_future = std::async(std::launch::async, [&listener, &signals]() {
     listener.run(signals);
@@ -1027,13 +1031,12 @@ TEST_CASE("Listener stop cancels in-flight writer response and returns promptly"
   REQUIRE(wait_for_http_listener(bound.bind, bound.port));
 
   boost::asio::io_context ioc;
-  tcp::resolver resolver(ioc);
-  auto endpoints = resolver.resolve(bound.bind, std::to_string(bound.port));
   tcp::socket socket(ioc);
   socket.open(tcp::v4());
-  // Keep the response blocked in the writer without depending on host buffer sizes.
   socket.set_option(boost::asio::socket_base::receive_buffer_size(1024));
-  boost::asio::connect(socket, endpoints);
+  // Connect the configured socket directly: the range overload of boost::asio::connect
+  // closes and reopens the socket per endpoint, which discards the receive buffer size.
+  socket.connect(tcp::endpoint(boost::asio::ip::make_address(bound.bind), bound.port));
   const std::string request = "GET /locations?project_id=large HTTP/1.1\r\n"
                               "Host: " +
                               bound.bind +
