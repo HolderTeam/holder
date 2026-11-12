@@ -3,7 +3,13 @@ using GLib;
 namespace HolderLinuxTests {
 
 public static int main(string[] args) {
-    Test.init(ref args);
+    av_report_warnings_as_failures();
+    // Keep going past a failed test, so one run reports them all. (A failed assert still stops it.)
+    string[] all_args = args;
+    all_args += "--keep-going";
+    unowned string[] test_args = all_args;
+    Test.init(ref test_args);
+    av_stop_aborting_on_warnings();
     av_isolate_cache();
     if (!Gtk.init_check()) {
         stdout.printf("Skipping app view tests: GTK display is unavailable.\n");

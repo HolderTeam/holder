@@ -475,13 +475,13 @@ private void test_the_workspace_panels_follow_their_toggles() {
     assert(f.shows_label("Projects"));
     // Hiding the explorer briefly measures the workspace narrower than its header needs, and GTK
     // warns ("Trying to measure GtkBox ... for width of 350, but it needs at least 621"). That is an
-    // existing layout problem, not this test's, so warnings are not failures for these two steps.
-    var fatal = Log.set_always_fatal(LogLevelFlags.LEVEL_ERROR | LogLevelFlags.LEVEL_CRITICAL);
+    // existing layout problem, not this test's, so that warning fails nothing for these two steps.
+    av_tolerate_warning("Trying to measure GtkBox");
     w.on_workspace_explorer_panel_toggled(false);
     assert(!f.shows_label("Projects"));
     w.on_workspace_explorer_panel_toggled(true);
     assert(f.shows_label("Projects"));
-    Log.set_always_fatal(fatal);
+    av_stop_tolerating();
     // Dragging the sidebar divider is remembered for the next start.
     w.on_root_paned_position_changed(300);
 
@@ -1161,7 +1161,6 @@ private void test_the_intelligence_panel_follows_the_card() {
     f.open_loaded();
     f.open_card("c1");
     var w = f.window;
-    var fatal = Log.set_always_fatal(LogLevelFlags.LEVEL_ERROR | LogLevelFlags.LEVEL_CRITICAL);
     w.on_workspace_ai_panel_toggled(true);
 
     // An autosave with the panel open asks for a title suggestion; accepting one renames the card.
@@ -1172,7 +1171,6 @@ private void test_the_intelligence_panel_follows_the_card() {
     av_settle();
     panel.title_suggestion_apply_requested("n1", "c1", "Boiler service");
     av_settle();
-    Log.set_always_fatal(fatal);
     f.destroy();
 }
 

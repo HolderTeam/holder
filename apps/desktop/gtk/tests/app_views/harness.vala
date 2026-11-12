@@ -2,6 +2,80 @@ using GLib;
 
 namespace HolderLinuxTests {
 
+// Warnings GTK logs on some platforms through no fault of the app. They never fail a test.
+private const string[] AV_KNOWN_PLATFORM_WARNINGS = {
+    // GTK's macOS backend reports timings for a frame it skipped when a window is first shown.
+    "gdk_frame_timings_presented() called on skipped frame",
+};
+
+// Warnings a test has said it expects, for as long as it expects them.
+private Gee.ArrayList<string>? av_tolerated_warnings = null;
+
+private string av_log_message(LogField[] fields) {
+    foreach (var field in fields) {
+        if (field.key == "MESSAGE" && field.value != null) {
+            var text = (string) field.value;
+            return field.length < 0 ? text : text.substring(0, (long) field.length);
+        }
+    }
+    return "";
+}
+
+private bool av_warning_tolerated(string message) {
+    foreach (var known in AV_KNOWN_PLATFORM_WARNINGS) {
+        if (message.contains(known)) {
+            return true;
+        }
+    }
+    if (av_tolerated_warnings != null) {
+        foreach (var expected in (!) av_tolerated_warnings) {
+            if (message.contains(expected)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// A warning or critical fails the test that logs it, as GLib's test framework makes it do, but
+// without aborting the program, so one run reports every failing test rather than only the first.
+// Known platform warnings, and those a test says it expects, fail nothing. Call before Test.init.
+internal void av_report_warnings_as_failures() {
+    Log.set_writer_func((level, fields) => {
+        var serious = level & (LogLevelFlags.LEVEL_WARNING | LogLevelFlags.LEVEL_CRITICAL);
+        if (serious != 0 && !av_warning_tolerated(av_log_message(fields))) {
+            Test.fail();
+        }
+        return Log.writer_default(level, fields);
+    });
+}
+
+// Test.init makes warnings and criticals abort; after it, only errors do. Messages logged the older,
+// unstructured way go to the default handler Test.init installs rather than to the writer, so the
+// same rule is applied there.
+internal void av_stop_aborting_on_warnings() {
+    Log.set_always_fatal(LogLevelFlags.LEVEL_ERROR);
+    Log.set_default_handler((domain, level, message) => {
+        var serious = level & (LogLevelFlags.LEVEL_WARNING | LogLevelFlags.LEVEL_CRITICAL);
+        if (serious != 0 && !av_warning_tolerated(message)) {
+            Test.fail();
+        }
+        Log.default_handler(domain, level, message);
+    });
+}
+
+// A warning the code under test is known to log; it fails nothing until av_stop_tolerating().
+internal void av_tolerate_warning(string message_part) {
+    if (av_tolerated_warnings == null) {
+        av_tolerated_warnings = new Gee.ArrayList<string>();
+    }
+    ((!) av_tolerated_warnings).add(message_part);
+}
+
+internal void av_stop_tolerating() {
+    av_tolerated_warnings = null;
+}
+
 // Installed, the app's Markdown language is found among the data directories. The tests use the
 // one in the source tree, named by HOLDER_MARKDOWN_LANGUAGE_DIR.
 internal void av_use_source_markdown_language() {
