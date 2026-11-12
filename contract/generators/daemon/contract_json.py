@@ -64,22 +64,14 @@ def field_decoder(types: CoreTypes, slot: Slot, label: str) -> str:
         raise Unsupported(f"{label}: bounds on a float64")
     if isinstance(t, MapType):
         # Each key and each value is checked as text.
-        if types.kind(t.values) == "string":
-            return (f'[&] {{ auto entries = {value}; for (const auto& [key, text] : entries) {{ '
-                    f'check_text(key, "{label} key", 0, std::numeric_limits<std::size_t>::max()); '
-                    f'check_text(text, "{label}", 0, std::numeric_limits<std::size_t>::max()); }} return entries; }}()')
-        return (f'[&] {{ auto entries = {value}; for (const auto& [key, values] : entries) {{ '
-                f'check_text(key, "{label} key", 0, std::numeric_limits<std::size_t>::max()); '
-                f'for (const auto& text : values) '
-                f'check_text(text, "{label}", 0, std::numeric_limits<std::size_t>::max()); }} return entries; }}()')
+        return f'check_text_entries({value}, "{label}")'
     if isinstance(t, ListType):
         items = types.resolve(t.items).type
         if constrained(items, "min_length", "max_length", "ge", "le", "pattern"):
             raise Unsupported(f"{label}: constraints on list items")
         if items.kind == "string":
             # Each item is checked as text.
-            return (f'[&] {{ auto items = {value}; for (const auto& text : items) '
-                    f'check_text(text, "{label}", 0, std::numeric_limits<std::size_t>::max()); return items; }}()')
+            return f'check_text_items({value}, "{label}")'
     return value
 
 

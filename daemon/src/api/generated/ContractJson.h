@@ -74,6 +74,38 @@ inline const std::string& check_text(
   return value;
 }
 
+// Lists and maps of text: every item, key and value is text the contract accepts, of any length.
+inline std::vector<std::string> check_text_items(std::vector<std::string> items, const char* name) {
+  for (const auto& text : items)
+    check_text(text, name, 0, std::numeric_limits<std::size_t>::max());
+  return items;
+}
+
+inline std::map<std::string, std::string> check_text_entries(
+    std::map<std::string, std::string> entries,
+    const char* name
+) {
+  const auto key_name = std::string(name) + " key";
+  for (const auto& [key, text] : entries) {
+    check_text(key, key_name.c_str(), 0, std::numeric_limits<std::size_t>::max());
+    check_text(text, name, 0, std::numeric_limits<std::size_t>::max());
+  }
+  return entries;
+}
+
+inline std::map<std::string, std::vector<std::string>> check_text_entries(
+    std::map<std::string, std::vector<std::string>> entries,
+    const char* name
+) {
+  const auto key_name = std::string(name) + " key";
+  for (const auto& [key, values] : entries) {
+    check_text(key, key_name.c_str(), 0, std::numeric_limits<std::size_t>::max());
+    for (const auto& text : values)
+      check_text(text, name, 0, std::numeric_limits<std::size_t>::max());
+  }
+  return entries;
+}
+
 template <typename T> T check_range(T value, const char* name, T minimum, T maximum) {
   if (value < minimum || value > maximum)
     throw std::invalid_argument(
@@ -1432,14 +1464,10 @@ inline holder::contract::ProjectStorageLocation codec<
   }
   if (value.contains("configuration") && !value.at("configuration").is_null()) {
     const auto& item = value.at("configuration");
-    out.configuration = [&] {
-      auto entries = decode_field<std::map<std::string, std::string>>(item, "configuration");
-      for (const auto& [key, text] : entries) {
-        check_text(key, "configuration key", 0, std::numeric_limits<std::size_t>::max());
-        check_text(text, "configuration", 0, std::numeric_limits<std::size_t>::max());
-      }
-      return entries;
-    }();
+    out.configuration = check_text_entries(
+        decode_field<std::map<std::string, std::string>>(item, "configuration"),
+        "configuration"
+    );
   } else {
     throw std::invalid_argument("configuration is required and must not be null");
   }
@@ -1701,12 +1729,7 @@ inline holder::contract::Card codec<holder::contract::Card>::decode(const json& 
   }
   if (value.contains("tags") && !value.at("tags").is_null()) {
     const auto& item = value.at("tags");
-    out.tags = [&] {
-      auto items = decode_field<std::vector<std::string>>(item, "tags");
-      for (const auto& text : items)
-        check_text(text, "tags", 0, std::numeric_limits<std::size_t>::max());
-      return items;
-    }();
+    out.tags = check_text_items(decode_field<std::vector<std::string>>(item, "tags"), "tags");
   } else {
     throw std::invalid_argument("tags is required and must not be null");
   }
@@ -1719,12 +1742,10 @@ inline holder::contract::Card codec<holder::contract::Card>::decode(const json& 
   }
   if (value.contains("removable_tags") && !value.at("removable_tags").is_null()) {
     const auto& item = value.at("removable_tags");
-    out.removable_tags = [&] {
-      auto items = decode_field<std::vector<std::string>>(item, "removable_tags");
-      for (const auto& text : items)
-        check_text(text, "removable_tags", 0, std::numeric_limits<std::size_t>::max());
-      return items;
-    }();
+    out.removable_tags = check_text_items(
+        decode_field<std::vector<std::string>>(item, "removable_tags"),
+        "removable_tags"
+    );
   } else {
     throw std::invalid_argument("removable_tags is required and must not be null");
   }
@@ -2969,16 +2990,10 @@ inline holder::contract::Resource codec<holder::contract::Resource>::decode(cons
   }
   if (value.contains("metadata") && !value.at("metadata").is_null()) {
     const auto& item = value.at("metadata");
-    out.metadata = [&] {
-      auto entries =
-          decode_field<std::map<std::string, std::vector<std::string>>>(item, "metadata");
-      for (const auto& [key, values] : entries) {
-        check_text(key, "metadata key", 0, std::numeric_limits<std::size_t>::max());
-        for (const auto& text : values)
-          check_text(text, "metadata", 0, std::numeric_limits<std::size_t>::max());
-      }
-      return entries;
-    }();
+    out.metadata = check_text_entries(
+        decode_field<std::map<std::string, std::vector<std::string>>>(item, "metadata"),
+        "metadata"
+    );
   } else {
     throw std::invalid_argument("metadata is required and must not be null");
   }
@@ -3306,12 +3321,10 @@ inline holder::contract::EncryptionSafetyCheck codec<
   }
   if (value.contains("unsafe_paths") && !value.at("unsafe_paths").is_null()) {
     const auto& item = value.at("unsafe_paths");
-    out.unsafe_paths = [&] {
-      auto items = decode_field<std::vector<std::string>>(item, "unsafe_paths");
-      for (const auto& text : items)
-        check_text(text, "unsafe_paths", 0, std::numeric_limits<std::size_t>::max());
-      return items;
-    }();
+    out.unsafe_paths = check_text_items(
+        decode_field<std::vector<std::string>>(item, "unsafe_paths"),
+        "unsafe_paths"
+    );
   } else {
     throw std::invalid_argument("unsafe_paths is required and must not be null");
   }
@@ -3459,12 +3472,10 @@ inline holder::contract::HierarchyRepair codec<holder::contract::HierarchyRepair
   }
   if (value.contains("cycle_card_ids") && !value.at("cycle_card_ids").is_null()) {
     const auto& item = value.at("cycle_card_ids");
-    out.cycle_card_ids = [&] {
-      auto items = decode_field<std::vector<std::string>>(item, "cycle_card_ids");
-      for (const auto& text : items)
-        check_text(text, "cycle_card_ids", 0, std::numeric_limits<std::size_t>::max());
-      return items;
-    }();
+    out.cycle_card_ids = check_text_items(
+        decode_field<std::vector<std::string>>(item, "cycle_card_ids"),
+        "cycle_card_ids"
+    );
   } else {
     throw std::invalid_argument("cycle_card_ids is required and must not be null");
   }
@@ -3946,16 +3957,10 @@ inline holder::contract::RecoverySnapshotResource codec<
   }
   if (value.contains("metadata") && !value.at("metadata").is_null()) {
     const auto& item = value.at("metadata");
-    out.metadata = [&] {
-      auto entries =
-          decode_field<std::map<std::string, std::vector<std::string>>>(item, "metadata");
-      for (const auto& [key, values] : entries) {
-        check_text(key, "metadata key", 0, std::numeric_limits<std::size_t>::max());
-        for (const auto& text : values)
-          check_text(text, "metadata", 0, std::numeric_limits<std::size_t>::max());
-      }
-      return entries;
-    }();
+    out.metadata = check_text_entries(
+        decode_field<std::map<std::string, std::vector<std::string>>>(item, "metadata"),
+        "metadata"
+    );
   } else {
     throw std::invalid_argument("metadata is required and must not be null");
   }
@@ -4033,14 +4038,10 @@ inline holder::contract::RecoverySnapshotLocation codec<
   }
   if (value.contains("configuration") && !value.at("configuration").is_null()) {
     const auto& item = value.at("configuration");
-    out.configuration = [&] {
-      auto entries = decode_field<std::map<std::string, std::string>>(item, "configuration");
-      for (const auto& [key, text] : entries) {
-        check_text(key, "configuration key", 0, std::numeric_limits<std::size_t>::max());
-        check_text(text, "configuration", 0, std::numeric_limits<std::size_t>::max());
-      }
-      return entries;
-    }();
+    out.configuration = check_text_entries(
+        decode_field<std::map<std::string, std::string>>(item, "configuration"),
+        "configuration"
+    );
   } else {
     throw std::invalid_argument("configuration is required and must not be null");
   }
@@ -4246,12 +4247,7 @@ inline holder::contract::RecoverySnapshotPage codec<holder::contract::RecoverySn
   }
   if (value.contains("lines") && !value.at("lines").is_null()) {
     const auto& item = value.at("lines");
-    out.lines = [&] {
-      auto items = decode_field<std::vector<std::string>>(item, "lines");
-      for (const auto& text : items)
-        check_text(text, "lines", 0, std::numeric_limits<std::size_t>::max());
-      return items;
-    }();
+    out.lines = check_text_items(decode_field<std::vector<std::string>>(item, "lines"), "lines");
   } else {
     throw std::invalid_argument("lines is required and must not be null");
   }
@@ -4991,12 +4987,7 @@ inline holder::contract::HistoryAffectedObject codec<
   }
   if (value.contains("paths") && !value.at("paths").is_null()) {
     const auto& item = value.at("paths");
-    out.paths = [&] {
-      auto items = decode_field<std::vector<std::string>>(item, "paths");
-      for (const auto& text : items)
-        check_text(text, "paths", 0, std::numeric_limits<std::size_t>::max());
-      return items;
-    }();
+    out.paths = check_text_items(decode_field<std::vector<std::string>>(item, "paths"), "paths");
   } else {
     throw std::invalid_argument("paths is required and must not be null");
   }
@@ -5048,12 +5039,10 @@ inline holder::contract::ProjectActivity codec<holder::contract::ProjectActivity
   }
   if (value.contains("parent_oids") && !value.at("parent_oids").is_null()) {
     const auto& item = value.at("parent_oids");
-    out.parent_oids = [&] {
-      auto items = decode_field<std::vector<std::string>>(item, "parent_oids");
-      for (const auto& text : items)
-        check_text(text, "parent_oids", 0, std::numeric_limits<std::size_t>::max());
-      return items;
-    }();
+    out.parent_oids = check_text_items(
+        decode_field<std::vector<std::string>>(item, "parent_oids"),
+        "parent_oids"
+    );
   } else {
     throw std::invalid_argument("parent_oids is required and must not be null");
   }
@@ -5193,12 +5182,10 @@ inline holder::contract::CardHistorySave codec<holder::contract::CardHistorySave
   }
   if (value.contains("parent_oids") && !value.at("parent_oids").is_null()) {
     const auto& item = value.at("parent_oids");
-    out.parent_oids = [&] {
-      auto items = decode_field<std::vector<std::string>>(item, "parent_oids");
-      for (const auto& text : items)
-        check_text(text, "parent_oids", 0, std::numeric_limits<std::size_t>::max());
-      return items;
-    }();
+    out.parent_oids = check_text_items(
+        decode_field<std::vector<std::string>>(item, "parent_oids"),
+        "parent_oids"
+    );
   } else {
     throw std::invalid_argument("parent_oids is required and must not be null");
   }
@@ -5282,23 +5269,19 @@ inline holder::contract::CardHistoryEntry codec<holder::contract::CardHistoryEnt
   }
   if (value.contains("parent_oids") && !value.at("parent_oids").is_null()) {
     const auto& item = value.at("parent_oids");
-    out.parent_oids = [&] {
-      auto items = decode_field<std::vector<std::string>>(item, "parent_oids");
-      for (const auto& text : items)
-        check_text(text, "parent_oids", 0, std::numeric_limits<std::size_t>::max());
-      return items;
-    }();
+    out.parent_oids = check_text_items(
+        decode_field<std::vector<std::string>>(item, "parent_oids"),
+        "parent_oids"
+    );
   } else {
     throw std::invalid_argument("parent_oids is required and must not be null");
   }
   if (value.contains("visible_parent_oids") && !value.at("visible_parent_oids").is_null()) {
     const auto& item = value.at("visible_parent_oids");
-    out.visible_parent_oids = [&] {
-      auto items = decode_field<std::vector<std::string>>(item, "visible_parent_oids");
-      for (const auto& text : items)
-        check_text(text, "visible_parent_oids", 0, std::numeric_limits<std::size_t>::max());
-      return items;
-    }();
+    out.visible_parent_oids = check_text_items(
+        decode_field<std::vector<std::string>>(item, "visible_parent_oids"),
+        "visible_parent_oids"
+    );
   } else {
     throw std::invalid_argument("visible_parent_oids is required and must not be null");
   }
@@ -6074,14 +6057,10 @@ inline holder::contract::NewStorageLocation codec<holder::contract::NewStorageLo
   }
   if (value.contains("configuration") && !value.at("configuration").is_null()) {
     const auto& item = value.at("configuration");
-    out.configuration = [&] {
-      auto entries = decode_field<std::map<std::string, std::string>>(item, "configuration");
-      for (const auto& [key, text] : entries) {
-        check_text(key, "configuration key", 0, std::numeric_limits<std::size_t>::max());
-        check_text(text, "configuration", 0, std::numeric_limits<std::size_t>::max());
-      }
-      return entries;
-    }();
+    out.configuration = check_text_entries(
+        decode_field<std::map<std::string, std::string>>(item, "configuration"),
+        "configuration"
+    );
   } else if (value.contains("configuration")) {
     throw std::invalid_argument("configuration must not be null");
   }
@@ -6131,14 +6110,10 @@ inline holder::contract::StorageLocationUpdate codec<
   }
   if (value.contains("configuration") && !value.at("configuration").is_null()) {
     const auto& item = value.at("configuration");
-    out.configuration = [&] {
-      auto entries = decode_field<std::map<std::string, std::string>>(item, "configuration");
-      for (const auto& [key, text] : entries) {
-        check_text(key, "configuration key", 0, std::numeric_limits<std::size_t>::max());
-        check_text(text, "configuration", 0, std::numeric_limits<std::size_t>::max());
-      }
-      return entries;
-    }();
+    out.configuration = check_text_entries(
+        decode_field<std::map<std::string, std::string>>(item, "configuration"),
+        "configuration"
+    );
   } else if (value.contains("configuration")) {
     throw std::invalid_argument("configuration must not be null");
   }
@@ -6680,16 +6655,10 @@ inline holder::contract::NewResource codec<holder::contract::NewResource>::decod
   }
   if (value.contains("metadata") && !value.at("metadata").is_null()) {
     const auto& item = value.at("metadata");
-    out.metadata = [&] {
-      auto entries =
-          decode_field<std::map<std::string, std::vector<std::string>>>(item, "metadata");
-      for (const auto& [key, values] : entries) {
-        check_text(key, "metadata key", 0, std::numeric_limits<std::size_t>::max());
-        for (const auto& text : values)
-          check_text(text, "metadata", 0, std::numeric_limits<std::size_t>::max());
-      }
-      return entries;
-    }();
+    out.metadata = check_text_entries(
+        decode_field<std::map<std::string, std::vector<std::string>>>(item, "metadata"),
+        "metadata"
+    );
   } else if (value.contains("metadata")) {
     throw std::invalid_argument("metadata must not be null");
   }
@@ -6754,16 +6723,10 @@ inline holder::contract::ResourceUpdate codec<holder::contract::ResourceUpdate>:
   }
   if (value.contains("metadata") && !value.at("metadata").is_null()) {
     const auto& item = value.at("metadata");
-    out.metadata = [&] {
-      auto entries =
-          decode_field<std::map<std::string, std::vector<std::string>>>(item, "metadata");
-      for (const auto& [key, values] : entries) {
-        check_text(key, "metadata key", 0, std::numeric_limits<std::size_t>::max());
-        for (const auto& text : values)
-          check_text(text, "metadata", 0, std::numeric_limits<std::size_t>::max());
-      }
-      return entries;
-    }();
+    out.metadata = check_text_entries(
+        decode_field<std::map<std::string, std::vector<std::string>>>(item, "metadata"),
+        "metadata"
+    );
   } else if (value.contains("metadata")) {
     throw std::invalid_argument("metadata must not be null");
   }

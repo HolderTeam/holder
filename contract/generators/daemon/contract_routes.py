@@ -248,13 +248,13 @@ def operation_lines(contract: ContractView, route: HttpRoute, index: int,
                   f'            return failure({status}, "{code}", error.what(), "{name}");',
                   "        }"]
     call = f"holder::contract::{name}(context{''.join(', ' + a for a in arguments)})"
-    lines.append("        try {")
-    if created_when := binding.created_when:
-        lines += [f"            auto result = {call};",
-                  (f'            return success(result.{created_when} ? 201 : {binding.status}, '
-                   f'contract_json::encode(result), "{name}");')]
-    else:
-        lines.append(f'            return success({binding.status}, contract_json::encode({call}), "{name}");')
+    # The result is held in a variable, not encoded straight from the call: GCC otherwise counts
+    # the temporary's cleanup on its own line once clang-format spreads the call over several,
+    # and coverage reports that line as never run.
+    status_expression = (f"result.{binding.created_when} ? 201 : {binding.status}"
+                         if binding.created_when else str(binding.status))
+    lines += ["        try {", f"            auto result = {call};",
+              f'            return success({status_expression}, contract_json::encode(result), "{name}");']
     for error in op.errors:
         lines += [f"        }} catch (const holder::contract::{error}& error) {{",
                   f'            return failure({statuses[error]}, "{snake(error)}", error.what(), "{name}");']

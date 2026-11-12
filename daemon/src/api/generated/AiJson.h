@@ -77,6 +77,38 @@ inline const std::string& check_text(
   return value;
 }
 
+// Lists and maps of text: every item, key and value is text the contract accepts, of any length.
+inline std::vector<std::string> check_text_items(std::vector<std::string> items, const char* name) {
+  for (const auto& text : items)
+    check_text(text, name, 0, std::numeric_limits<std::size_t>::max());
+  return items;
+}
+
+inline std::map<std::string, std::string> check_text_entries(
+    std::map<std::string, std::string> entries,
+    const char* name
+) {
+  const auto key_name = std::string(name) + " key";
+  for (const auto& [key, text] : entries) {
+    check_text(key, key_name.c_str(), 0, std::numeric_limits<std::size_t>::max());
+    check_text(text, name, 0, std::numeric_limits<std::size_t>::max());
+  }
+  return entries;
+}
+
+inline std::map<std::string, std::vector<std::string>> check_text_entries(
+    std::map<std::string, std::vector<std::string>> entries,
+    const char* name
+) {
+  const auto key_name = std::string(name) + " key";
+  for (const auto& [key, values] : entries) {
+    check_text(key, key_name.c_str(), 0, std::numeric_limits<std::size_t>::max());
+    for (const auto& text : values)
+      check_text(text, name, 0, std::numeric_limits<std::size_t>::max());
+  }
+  return entries;
+}
+
 template <typename T> T check_range(T value, const char* name, T minimum, T maximum) {
   if (value < minimum || value > maximum)
     throw std::invalid_argument(
