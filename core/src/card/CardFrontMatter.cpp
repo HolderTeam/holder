@@ -177,8 +177,7 @@ ParsedCardFile parse_card_file(const std::string& raw) {
           if (!item["dates"].IsSequence())
             throw std::invalid_argument("milestone dates must be a sequence");
           for (const auto& date_node : item["dates"]) {
-            if (!date_node.IsMap())
-              throw std::invalid_argument("milestone date must be a map");
+            if (!date_node.IsMap()) throw std::invalid_argument("milestone date must be a map");
             holder::model::MilestoneDate value;
             if (date_node["role"]) value.role = date_node["role"].as<std::string>();
             if (date_node["date"] && !date_node["date"].IsNull())

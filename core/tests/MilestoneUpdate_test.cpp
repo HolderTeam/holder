@@ -10,7 +10,6 @@
 #include "card/CardStore.h"
 #include "card/MilestoneRepo.h"
 #include "core_test_helpers.h"
-#include "sqlite_read_race_test_helpers.h"
 #include "git/GitRepo.h"
 #include "index/FtsIndexer.h"
 #include "model/Card.h"
@@ -18,6 +17,7 @@
 #include "model/Project.h"
 #include "project/ProjectRepo.h"
 #include "project/Rebuilder.h"
+#include "sqlite_read_race_test_helpers.h"
 
 #include <filesystem>
 #include <fstream>
@@ -87,60 +87,77 @@ std::string read_file(const std::filesystem::path& path) {
 
 } // namespace
 
-TEST_CASE("Milestone edits recheck whether the card became trashed",
-          "[cardstore][broad-milestone-race]") {
+TEST_CASE(
+    "Milestone edits recheck whether the card became trashed",
+    "[cardstore][broad-milestone-race]"
+) {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   const auto project = create_project(db, "proj-1", dir / "project");
   holder::index::FtsIndexer fts(db);
   holder::card::CardStore store(db, &fts);
   const auto card = create_card(store, project.project_id, "aaaaaaaa-1111-4111-8111-111111111111");
-  const auto original = milestone_for(project.project_id, card.card_id,
-                                      "11111111-1111-4111-8111-111111111111");
+  const auto original =
+      milestone_for(project.project_id, card.card_id, "11111111-1111-4111-8111-111111111111");
   store.add_milestone(original, 10);
   holder::git::GitRepo git;
   git.open_existing(project.root_path);
   const auto head = git.head_oid();
-  const auto path = std::filesystem::path(project.root_path) / holder::core::card_rel_path(card.card_id);
+  const auto path = std::filesystem::path(project.root_path) /
+                    holder::core::card_rel_path(card.card_id);
   const auto bytes = read_file(path);
   bool updating = false;
   SECTION("adding reports a missing live card") {}
   SECTION("updating reports no matching live milestone") { updating = true; }
-  holder::test::SqliteReadRace race(db.handle(), "FROM cards WHERE card_id", card.card_id, updating ? 3 : 2,
-      "UPDATE cards SET deleted_at=20 WHERE card_id='" + card.card_id + "';");
+  holder::test::SqliteReadRace race(
+      db.handle(),
+      "FROM cards WHERE card_id",
+      card.card_id,
+      updating ? 3 : 2,
+      "UPDATE cards SET deleted_at=20 WHERE card_id='" + card.card_id + "';"
+  );
   if (updating) {
     holder::card::MilestoneUpdate update;
     update.has_kind = true;
     update.kind = "Changed";
-    CHECK_FALSE(store.update_milestone(project.project_id, card.card_id, original.milestone_id, update, 30));
+    CHECK_FALSE(
+        store.update_milestone(project.project_id, card.card_id, original.milestone_id, update, 30)
+    );
   } else {
     auto next = original;
     next.milestone_id = "22222222-2222-4222-8222-222222222222";
-    REQUIRE_THROWS_WITH(store.add_milestone(next, 30), Catch::Matchers::ContainsSubstring("live card not found"));
+    REQUIRE_THROWS_WITH(
+        store.add_milestone(next, 30),
+        Catch::Matchers::ContainsSubstring("live card not found")
+    );
   }
   REQUIRE(race.fired);
   REQUIRE(race.result == SQLITE_OK);
   CHECK(git.head_oid() == head);
   CHECK(read_file(path) == bytes);
-  const auto saved = holder::card::MilestoneRepo(db).list_for_card(project.project_id, card.card_id);
+  const auto saved =
+      holder::card::MilestoneRepo(db).list_for_card(project.project_id, card.card_id);
   REQUIRE(saved.size() == 1);
   CHECK(saved[0].kind == original.kind);
   CHECK(saved[0].updated_at == 10);
 }
 
-TEST_CASE("Milestone additions reject duplicates and damaged authoritative cards atomically",
-          "[cardstore][milestone-guards]") {
+TEST_CASE(
+    "Milestone additions reject duplicates and damaged authoritative cards atomically",
+    "[cardstore][milestone-guards]"
+) {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   const auto project = create_project(db, "proj-1", dir / "project");
   holder::index::FtsIndexer fts(db);
   holder::card::CardStore store(db, &fts);
   const auto card = create_card(store, project.project_id, "aaaaaaaa-1111-4111-8111-111111111111");
-  const auto original = milestone_for(project.project_id, card.card_id,
-                                      "11111111-1111-4111-8111-111111111111");
+  const auto original =
+      milestone_for(project.project_id, card.card_id, "11111111-1111-4111-8111-111111111111");
   store.add_milestone(original, 10);
   auto request = original;
-  const auto path = std::filesystem::path(project.root_path) / holder::core::card_rel_path(card.card_id);
+  const auto path = std::filesystem::path(project.root_path) /
+                    holder::core::card_rel_path(card.card_id);
   const auto original_bytes = read_file(path);
   std::string expected;
   bool missing_file = false;
@@ -172,7 +189,10 @@ TEST_CASE("Milestone additions reject duplicates and damaged authoritative cards
   git.open_existing(project.root_path);
   const auto head = git.head_oid();
   const auto before = missing_file ? std::string() : read_file(path);
-  REQUIRE_THROWS_WITH(store.add_milestone(request, 30), Catch::Matchers::ContainsSubstring(expected));
+  REQUIRE_THROWS_WITH(
+      store.add_milestone(request, 30),
+      Catch::Matchers::ContainsSubstring(expected)
+  );
   CHECK(git.head_oid() == head);
   const auto rows = holder::card::MilestoneRepo(db).list_for_card(project.project_id, card.card_id);
   REQUIRE(rows.size() == 1);
@@ -197,8 +217,8 @@ TEST_CASE(
   holder::index::FtsIndexer fts(db);
   holder::card::CardStore store(db, &fts);
   const auto card = create_card(store, project.project_id, "aaaaaaaa-1111-4111-8111-111111111111");
-  auto original = milestone_for(project.project_id, card.card_id,
-                                "11111111-1111-4111-8111-111111111111");
+  auto original =
+      milestone_for(project.project_id, card.card_id, "11111111-1111-4111-8111-111111111111");
   const holder::model::MilestoneDate due{"due", std::string("2026-11-02"), std::nullopt};
   original.dates.push_back(due);
   holder::card::MilestoneUpdate update;
@@ -222,11 +242,17 @@ TEST_CASE(
     expected.erase(expected.begin() + 1);
   }
   SECTION("convert existing calendar dates back to instants") {
-    original.dates = {holder::model::milestone_date_from_legacy("start", 86400, true),
-                      holder::model::milestone_date_from_legacy("end", 172800, true), due};
+    original.dates = {
+        holder::model::milestone_date_from_legacy("start", 86400, true),
+        holder::model::milestone_date_from_legacy("end", 172800, true),
+        due
+    };
     update.all_day = false;
-    expected = {holder::model::milestone_date_from_legacy("start", 86400, false),
-                holder::model::milestone_date_from_legacy("end", 172800, false), due};
+    expected = {
+        holder::model::milestone_date_from_legacy("start", 86400, false),
+        holder::model::milestone_date_from_legacy("end", 172800, false),
+        due
+    };
   }
   SECTION("start cannot be inferred from a custom date") {
     original.dates = {due};
@@ -250,7 +276,8 @@ TEST_CASE(
     error = "dates cannot be mixed with legacy milestone fields";
   }
   store.add_milestone(original, 10);
-  const auto path = std::filesystem::path(project.root_path) / holder::core::card_rel_path(card.card_id);
+  const auto path = std::filesystem::path(project.root_path) /
+                    holder::core::card_rel_path(card.card_id);
   const auto before = read_file(path);
   holder::git::GitRepo git;
   git.open_existing(project.root_path);
@@ -259,15 +286,18 @@ TEST_CASE(
   if (!error.empty()) {
     REQUIRE_THROWS_WITH(
         store.update_milestone(project.project_id, card.card_id, original.milestone_id, update, 30),
-        Catch::Matchers::ContainsSubstring(error));
+        Catch::Matchers::ContainsSubstring(error)
+    );
     CHECK(read_file(path) == before);
     CHECK(git.head_oid() == head);
-    const auto projected = holder::card::MilestoneRepo(db).list_for_card(project.project_id, card.card_id);
+    const auto projected =
+        holder::card::MilestoneRepo(db).list_for_card(project.project_id, card.card_id);
     REQUIRE(projected.size() == 1);
     CHECK(projected[0].dates == original.dates);
     CHECK(projected[0].updated_at == 10);
   } else {
-    const auto result = store.update_milestone(project.project_id, card.card_id, original.milestone_id, update, 30);
+    const auto result =
+        store.update_milestone(project.project_id, card.card_id, original.milestone_id, update, 30);
     REQUIRE(result.has_value());
     CHECK(result->dates == expected);
     CHECK(result->updated_at == 30);
@@ -280,7 +310,8 @@ TEST_CASE(
     CHECK(parsed.milestones[0].dates == expected);
     const auto stats = holder::store::Rebuilder(db, &fts).rebuild_project(project);
     CHECK(stats.milestones == 1);
-    const auto rebuilt = holder::card::MilestoneRepo(db).list_for_card(project.project_id, card.card_id);
+    const auto rebuilt =
+        holder::card::MilestoneRepo(db).list_for_card(project.project_id, card.card_id);
     REQUIRE(rebuilt.size() == 1);
     CHECK(rebuilt[0].dates == expected);
     CHECK(rebuilt[0].updated_at == 30);

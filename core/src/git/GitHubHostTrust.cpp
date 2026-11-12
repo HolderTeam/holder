@@ -17,11 +17,13 @@ namespace holder::git {
 
 int check_github_host_certificate(git_cert* certificate, int, const char* host, void*) {
   if (certificate == nullptr || certificate->cert_type != GIT_CERT_HOSTKEY_LIBSSH2 ||
-      host == nullptr) return GIT_PASSTHROUGH;
+      host == nullptr)
+    return GIT_PASSTHROUGH;
 
   const std::string_view hostname(host);
   constexpr std::string_view github = "github.com";
-  const bool is_github = hostname.size() == github.size() &&
+  const bool is_github =
+      hostname.size() == github.size() &&
       std::equal(hostname.begin(), hostname.end(), github.begin(), [](unsigned char a, char b) {
         return std::tolower(a) == b;
       });
@@ -37,15 +39,24 @@ int check_github_host_certificate(git_cert* certificate, int, const char* host, 
       "+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU", // Ed25519
   };
   if ((key->type & GIT_CERT_SSH_SHA256) != 0) {
-    std::array<char, sodium_base64_ENCODED_LEN(32, sodium_base64_VARIANT_ORIGINAL_NO_PADDING)> encoded{};
-    sodium_bin2base64(encoded.data(), encoded.size(), key->hash_sha256, sizeof key->hash_sha256,
-                     sodium_base64_VARIANT_ORIGINAL_NO_PADDING);
+    std::array<char, sodium_base64_ENCODED_LEN(32, sodium_base64_VARIANT_ORIGINAL_NO_PADDING)>
+        encoded{};
+    sodium_bin2base64(
+        encoded.data(),
+        encoded.size(),
+        key->hash_sha256,
+        sizeof key->hash_sha256,
+        sodium_base64_VARIANT_ORIGINAL_NO_PADDING
+    );
     if (std::find(fingerprints.begin(), fingerprints.end(), std::string_view(encoded.data())) !=
-        fingerprints.end()) return 0;
+        fingerprints.end())
+      return 0;
   }
-  git_error_set_str(GIT_ERROR_SSH,
+  git_error_set_str(
+      GIT_ERROR_SSH,
       "GitHub SSH host key does not match its published fingerprints. "
-      "Check GitHub's SSH key announcements and update Holder before retrying.");
+      "Check GitHub's SSH key announcements and update Holder before retrying."
+  );
   return GIT_ECERTIFICATE;
 }
 

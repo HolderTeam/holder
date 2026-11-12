@@ -52,14 +52,14 @@ std::vector<unsigned char> dummy_p256_ssh_pubkey_blob() {
   EVP_PKEY_get_octet_string_param(key, OSSL_PKEY_PARAM_PUB_KEY, q.data(), q.size(), &q_len);
   EVP_PKEY_free(key);
 
-  auto append_ssh_string =
-      [](std::vector<unsigned char>& out, const unsigned char* data, size_t len) {
-        out.push_back(static_cast<unsigned char>((len >> 24) & 0xFF));
-        out.push_back(static_cast<unsigned char>((len >> 16) & 0xFF));
-        out.push_back(static_cast<unsigned char>((len >> 8) & 0xFF));
-        out.push_back(static_cast<unsigned char>(len & 0xFF));
-        out.insert(out.end(), data, data + len);
-      };
+  auto append_ssh_string = [](std::vector<unsigned char>& out, const unsigned char* data, size_t len
+                           ) {
+    out.push_back(static_cast<unsigned char>((len >> 24) & 0xFF));
+    out.push_back(static_cast<unsigned char>((len >> 16) & 0xFF));
+    out.push_back(static_cast<unsigned char>((len >> 8) & 0xFF));
+    out.push_back(static_cast<unsigned char>(len & 0xFF));
+    out.insert(out.end(), data, data + len);
+  };
 
   std::vector<unsigned char> blob;
   const std::string type = "ecdsa-sha2-nistp256";
@@ -102,8 +102,7 @@ TEST_CASE("SSH credentials advance from agent to files and reset per operation",
     holder::git::SshAgentAndFileCredentialProvider provider;
     auto acquire = [&]() {
       git_credential* raw = nullptr;
-      REQUIRE(
-          provider.acquire(&raw, "ssh://example.invalid/repo", "alice", GIT_CREDENTIAL_SSH_KEY)
+      REQUIRE(provider.acquire(&raw, "ssh://example.invalid/repo", "alice", GIT_CREDENTIAL_SSH_KEY)
       );
       return std::unique_ptr<git_credential, decltype(&git_credential_free)>(
           raw,
@@ -247,8 +246,7 @@ TEST_CASE(
 
   SECTION("malformed DER yields an empty result") {
     const std::vector<unsigned char> not_der = {0xDE, 0xAD, 0xBE, 0xEF};
-    const auto wire = EcdsaDerSigningCredentialProvider::der_to_ssh_wire_signature_for_tests(
-        not_der
+    const auto wire = EcdsaDerSigningCredentialProvider::der_to_ssh_wire_signature_for_tests(not_der
     );
     REQUIRE(wire.empty());
   }
@@ -381,8 +379,7 @@ TEST_CASE("EcdsaDerSigningCredentialProvider only handles GIT_CREDENTIAL_SSH_CUS
         provider.acquire(&cred, "ssh://example.invalid/repo.git", "git", GIT_CREDENTIAL_SSH_CUSTOM);
     REQUIRE(produced);
     REQUIRE(cred != nullptr);
-    REQUIRE_FALSE(
-        sign_called
+    REQUIRE_FALSE(sign_called
     ); // acquire() only builds the credential; signing happens later, during auth.
     git_credential_free(cred);
   }
@@ -418,8 +415,7 @@ TEST_CASE(
 
   SECTION("URL has no username: falls back to the provider's default") {
     git_credential* cred = nullptr;
-    REQUIRE(
-        provider.acquire(&cred, "ssh://example.invalid/repo.git", "", GIT_CREDENTIAL_SSH_CUSTOM)
+    REQUIRE(provider.acquire(&cred, "ssh://example.invalid/repo.git", "", GIT_CREDENTIAL_SSH_CUSTOM)
     );
     REQUIRE(std::string(git_credential_get_username(cred)) == "git");
     git_credential_free(cred);

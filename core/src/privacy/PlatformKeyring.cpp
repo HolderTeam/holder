@@ -887,8 +887,9 @@ void platform_keyring_set_external_provider(
     PlatformKeyringExternalStoreFn store,
     PlatformKeyringExternalRemoveFn remove
 ) {
-  auto next = std::make_shared<ExternalProvider>(ExternalProvider{
-      std::move(lookup), std::move(store), std::move(remove)});
+  auto next = std::make_shared<ExternalProvider>(
+      ExternalProvider{std::move(lookup), std::move(store), std::move(remove)}
+  );
   std::shared_ptr<ExternalProvider> previous;
   {
     std::lock_guard lock(external_provider_mutex());

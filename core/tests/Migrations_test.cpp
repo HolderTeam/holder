@@ -361,12 +361,16 @@ TEST_CASE("migrate_to_latest gives v7 links qualified target identity", "[migrat
   REQUIRE(links.list_external_backlinks_typed("other", "card-b", "card", {"source"}).size() == 1);
 
   sqlite3_stmt* stmt = nullptr;
-  REQUIRE(sqlite3_prepare_v2(
-      db.handle(),
-      "EXPLAIN QUERY PLAN SELECT * FROM card_links WHERE target_project_id = ? "
-      "AND to_card_id = ? AND to_type = ? AND project_id = ?;",
-      -1, &stmt, nullptr
-  ) == SQLITE_OK);
+  REQUIRE(
+      sqlite3_prepare_v2(
+          db.handle(),
+          "EXPLAIN QUERY PLAN SELECT * FROM card_links WHERE target_project_id = ? "
+          "AND to_card_id = ? AND to_type = ? AND project_id = ?;",
+          -1,
+          &stmt,
+          nullptr
+      ) == SQLITE_OK
+  );
   REQUIRE(sqlite3_step(stmt) == SQLITE_ROW);
   const std::string plan = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
   sqlite3_finalize(stmt);
@@ -406,7 +410,8 @@ TEST_CASE(
   REQUIRE(all.size() == 2);
   CHECK(all[0].milestone_id == "timed");
   CHECK(
-      holder::model::milestone_unique_date_for_role(all[0], "start")->datetime == "1970-01-01T00:01:40Z"
+      holder::model::milestone_unique_date_for_role(all[0], "start")->datetime ==
+      "1970-01-01T00:01:40Z"
   );
   CHECK(holder::model::milestone_epoch_for_role(all[0], "end") == 200);
   CHECK(all[1].milestone_id == "day");

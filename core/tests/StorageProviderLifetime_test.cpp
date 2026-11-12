@@ -99,18 +99,32 @@ struct AssetFixture {
     context.reset(raw_context);
     holder_error_destroy(error);
     REQUIRE(result == HOLDER_OK);
-    const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(holder_arena_new(), holder_arena_free);
+    const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
+        holder_arena_new(),
+        holder_arena_free
+    );
     holder_new_project project_request{};
     project_request.name = "Lifetime";
     project_request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN;
     const holder_project* project = nullptr;
-    REQUIRE(holder_create_project(context.get(), &project_request, arena.get(), &project, &error) == HOLDER_OK);
+    REQUIRE(
+        holder_create_project(context.get(), &project_request, arena.get(), &project, &error) ==
+        HOLDER_OK
+    );
     project_id = project->project_id;
     holder_new_card card_request{};
     card_request.title = "Asset";
     const holder_card* card = nullptr;
-    REQUIRE(holder_create_card(context.get(), project_id.c_str(), &card_request, arena.get(), &card, &error) ==
-            HOLDER_OK);
+    REQUIRE(
+        holder_create_card(
+            context.get(),
+            project_id.c_str(),
+            &card_request,
+            arena.get(),
+            &card,
+            &error
+        ) == HOLDER_OK
+    );
     card_id = card->card_id;
     holder_new_storage_location location_request{};
     location_request.location_id = "lifetime-location";
@@ -118,17 +132,33 @@ struct AssetFixture {
     location_request.name = "Lifetime";
     location_request.provider = HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE;
     const holder_project_storage_location* location = nullptr;
-    REQUIRE(holder_create_storage_location(context.get(), &location_request, arena.get(), &location, &error) ==
-            HOLDER_OK);
+    REQUIRE(
+        holder_create_storage_location(
+            context.get(),
+            &location_request,
+            arena.get(),
+            &location,
+            &error
+        ) == HOLDER_OK
+    );
     holder_error_destroy(error);
   }
 
   std::string placement_id(const std::string& resource_id) const {
-    const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(holder_arena_new(), holder_arena_free);
+    const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
+        holder_arena_new(),
+        holder_arena_free
+    );
     holder_error* error = nullptr;
     const holder_resource* resource = nullptr;
-    const int rc = holder_get_resource(context.get(), project_id.c_str(), resource_id.c_str(),
-                                       arena.get(), &resource, &error);
+    const int rc = holder_get_resource(
+        context.get(),
+        project_id.c_str(),
+        resource_id.c_str(),
+        arena.get(),
+        &resource,
+        &error
+    );
     INFO((error ? holder_error_message(error) : "no C API error"));
     REQUIRE(rc == HOLDER_OK);
     REQUIRE(resource->assets.count == 1);
@@ -144,7 +174,14 @@ struct AssetFixture {
     nlohmann::json result;
     holder_error* error = nullptr;
     const int rc = holder::test::import_asset_file(
-        context.get(), project_id.c_str(), card_id.c_str(), "lifetime-location", source.c_str(), &result, &error);
+        context.get(),
+        project_id.c_str(),
+        card_id.c_str(),
+        "lifetime-location",
+        source.c_str(),
+        &result,
+        &error
+    );
     const std::string message = error != nullptr ? holder_error_message(error) : "";
     holder_error_destroy(error);
     INFO(message);
@@ -205,10 +242,15 @@ TEST_CASE("C API storage provider cleanup can register another provider", "[capi
   auto nested = std::make_shared<ProviderProbe>(root);
   original->on_destroy = [weak = std::weak_ptr<ProviderProbe>(original), nested] {
     if (auto state = weak.lock())
-      state->replacement_result = register_probe(HOLDER_REGISTER_STORAGE_PROVIDER_KIND_GOOGLE_DRIVE, nested);
+      state->replacement_result =
+          register_probe(HOLDER_REGISTER_STORAGE_PROVIDER_KIND_GOOGLE_DRIVE, nested);
   };
-  REQUIRE(register_probe(HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE, original) == HOLDER_OK);
-  REQUIRE(register_probe(HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE, replacement) == HOLDER_OK);
+  REQUIRE(
+      register_probe(HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE, original) == HOLDER_OK
+  );
+  REQUIRE(
+      register_probe(HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE, replacement) == HOLDER_OK
+  );
   REQUIRE(original->destroyed.load() == 1);
   REQUIRE(original->replacement_result == HOLDER_OK);
 }

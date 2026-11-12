@@ -15,9 +15,9 @@
 #include "platform/Tx.h"
 #include "project/ProjectRepo.h"
 
-#include <string>
 #include <cstring>
 #include <set>
+#include <string>
 #include <vector>
 
 namespace {
@@ -244,7 +244,9 @@ TEST_CASE("MilestoneRepo preserves date roles and nullable text", "[milestonerep
   const auto milestones = repo.list_for_card("proj-1", "card-a");
   REQUIRE(milestones.size() == 1);
   REQUIRE(holder::model::milestone_epoch_for_role(milestones[0], "end") == 0);
-  REQUIRE(holder::model::milestone_unique_date_for_role(milestones[0], "start")->date == "1970-01-01");
+  REQUIRE(
+      holder::model::milestone_unique_date_for_role(milestones[0], "start")->date == "1970-01-01"
+  );
   REQUIRE(milestones[0].kind == std::optional<std::string>("Renewal"));
   REQUIRE(milestones[0].description == std::optional<std::string>("Car insurance renewal"));
 
@@ -253,8 +255,8 @@ TEST_CASE("MilestoneRepo preserves date roles and nullable text", "[milestonerep
   const auto bare_milestones = repo.list_for_card("proj-1", "card-a");
   REQUIRE(bare_milestones.size() == 1);
   REQUIRE(holder::model::milestone_unique_date_for_role(bare_milestones[0], "end") == nullptr);
-  REQUIRE(holder::model::milestone_unique_date_for_role(bare_milestones[0], "start")->datetime.has_value()
-  );
+  REQUIRE(holder::model::milestone_unique_date_for_role(bare_milestones[0], "start")
+              ->datetime.has_value());
   REQUIRE_FALSE(bare_milestones[0].kind.has_value());
   REQUIRE_FALSE(bare_milestones[0].description.has_value());
 }
@@ -547,12 +549,14 @@ TEST_CASE(
   REQUIRE_THROWS_WITH(
       [&] {
         holder::platform::Tx transaction(db);
-        if (deleting) repo.delete_for_card("proj-1", "card-a");
-        else repo.replace_for_card(
-            "proj-1",
-            "card-a",
-            {make_milestone("replacement", "proj-1", "card-a", 20)}
-        );
+        if (deleting)
+          repo.delete_for_card("proj-1", "card-a");
+        else
+          repo.replace_for_card(
+              "proj-1",
+              "card-a",
+              {make_milestone("replacement", "proj-1", "card-a", 20)}
+          );
         transaction.commit();
       }(),
       Catch::Matchers::ContainsSubstring(expected)
@@ -601,21 +605,27 @@ TEST_CASE(
       bool fired = false;
       ~Interrupt() { sqlite3_trace_v2(db, 0, nullptr, nullptr); }
     } interrupt{db.handle(), nested};
-    REQUIRE(sqlite3_trace_v2(
-        db.handle(), SQLITE_TRACE_STMT,
-        +[](unsigned, void* raw, void* statement, void*) {
-          auto& state = *static_cast<Interrupt*>(raw);
-          const char* sql = sqlite3_sql(static_cast<sqlite3_stmt*>(statement));
-          const char* needle = state.nested ? "SELECT role, date_value" : "FROM milestones";
-          if (!state.fired && sql && std::strstr(sql, needle)) {
-            state.fired = true;
-            sqlite3_interrupt(state.db);
-          }
-          return 0;
-        }, &interrupt) == SQLITE_OK);
-    const std::string expected = nested ? "list milestone dates failed"
-        : reader == 0 ? "list milestones for card failed"
-        : reader == 3 ? "list milestone days failed" : "list milestones in range failed";
+    REQUIRE(
+        sqlite3_trace_v2(
+            db.handle(),
+            SQLITE_TRACE_STMT,
+            +[](unsigned, void* raw, void* statement, void*) {
+              auto& state = *static_cast<Interrupt*>(raw);
+              const char* sql = sqlite3_sql(static_cast<sqlite3_stmt*>(statement));
+              const char* needle = state.nested ? "SELECT role, date_value" : "FROM milestones";
+              if (!state.fired && sql && std::strstr(sql, needle)) {
+                state.fired = true;
+                sqlite3_interrupt(state.db);
+              }
+              return 0;
+            },
+            &interrupt
+        ) == SQLITE_OK
+    );
+    const std::string expected = nested        ? "list milestone dates failed"
+                                 : reader == 0 ? "list milestones for card failed"
+                                 : reader == 3 ? "list milestone days failed"
+                                               : "list milestones in range failed";
     REQUIRE_THROWS_WITH(read(), Catch::Matchers::ContainsSubstring(expected));
     sqlite3_trace_v2(db.handle(), 0, nullptr, nullptr);
     REQUIRE(interrupt.fired);

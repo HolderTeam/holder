@@ -80,7 +80,9 @@ std::vector<Card> insert_block_into(
     const auto keys = spaced_keys(left, right, high - low);
     if (!keys) {
       if (low == 0 && high == destination.size()) {
-        throw std::runtime_error("no sort keys available for card placement"); // LCOV_EXCL_LINE - full-window double-key exhaustion requires an impractically large in-memory collection; resource guard retained.
+        throw std::runtime_error("no sort keys available for card placement"
+        ); // LCOV_EXCL_LINE - full-window double-key exhaustion requires an impractically large
+           // in-memory collection; resource guard retained.
       }
       continue;
     }
@@ -119,7 +121,8 @@ std::optional<std::string> reachable_card_parent(CardRepo& repo, const Card& car
   auto next = card.parent_card_id;
   std::optional<std::string> candidate;
   while (next) {
-    if (!visited.insert(*next).second) throw CardPlacementError(CardPlacementErrorCode::MoveWouldCreateCycle);
+    if (!visited.insert(*next).second)
+      throw CardPlacementError(CardPlacementErrorCode::MoveWouldCreateCycle);
     const auto ancestor = repo.get(*next);
     if (!ancestor || ancestor->project_id != card.project_id) return std::nullopt;
     if (ancestor->deleted_at) {

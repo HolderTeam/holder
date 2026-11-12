@@ -7,12 +7,12 @@
 #include <catch2/catch.hpp>
 #endif
 
+#include "ai/AiMessageRepo.h"
+#include "ai/AiThreadRepo.h"
 #include "api/Contract.h"
 #include "capi/Context.h"
-#include "card/CardRepo.h"
-#include "ai/AiThreadRepo.h"
-#include "ai/AiMessageRepo.h"
 #include "card/CardPaths.h"
+#include "card/CardRepo.h"
 #include "core_test_helpers.h"
 #include "git/GitOps.h"
 #include "resource/LocationStore.h"
@@ -23,14 +23,14 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
-#include <iterator>
-#include <stdexcept>
 #include <filesystem>
+#include <iterator>
+#include <limits>
 #include <map>
 #include <memory>
-#include <limits>
 #include <optional>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -49,17 +49,27 @@ class Git final : public holder::git::GitOps {
     real_.write_file(path, content);
   }
   void stage_path(const std::filesystem::path& path) override { real_.stage_path(path); }
-  void stage_paths(const std::vector<std::filesystem::path>& paths) override { real_.stage_paths(paths); }
+  void stage_paths(const std::vector<std::filesystem::path>& paths) override {
+    real_.stage_paths(paths);
+  }
   void remove_path(const std::filesystem::path& path) override { real_.remove_path(path); }
   void commit(const std::string& message) override {
     if (message == fail_commit) throw std::runtime_error("commit failed");
     real_.commit(message);
   }
-  void set_remote(const std::string& name, const std::string& url) override { real_.set_remote(name, url); }
+  void set_remote(const std::string& name, const std::string& url) override {
+    real_.set_remote(name, url);
+  }
   void remove_remote(const std::string& name) override { real_.remove_remote(name); }
   void pull_remote_ff_only(const std::string& name) override { real_.pull_remote_ff_only(name); }
-  holder::git::RemoteProbeResult probe_remote(const std::string& name) override { return real_.probe_remote(name); }
-  holder::git::PushResult push_branch(const std::string& name, const std::string& branch, bool upstream) override {
+  holder::git::RemoteProbeResult probe_remote(const std::string& name) override {
+    return real_.probe_remote(name);
+  }
+  holder::git::PushResult push_branch(
+      const std::string& name,
+      const std::string& branch,
+      bool upstream
+  ) override {
     return real_.push_branch(name, branch, upstream);
   }
   std::filesystem::path repo_dir() const override { return real_.repo_dir(); }
@@ -89,8 +99,12 @@ struct Host {
     return contract::create_project(context, request);
   }
 
-  std::string card(const std::string& title, std::optional<std::string> parent = std::nullopt,
-                   std::optional<double> sort_key = std::nullopt, const std::string& content = "body") {
+  std::string card(
+      const std::string& title,
+      std::optional<std::string> parent = std::nullopt,
+      std::optional<double> sort_key = std::nullopt,
+      const std::string& content = "body"
+  ) {
     contract::NewCard request;
     request.title = title;
     request.content = content;
@@ -99,8 +113,13 @@ struct Host {
     return contract::create_card(context, project_id, request).card_id;
   }
 
-  void link(const std::string& from, contract::NewLinkTargetType type, const std::string& to,
-            const std::string& kind, std::optional<std::string> target_project = std::nullopt) {
+  void link(
+      const std::string& from,
+      contract::NewLinkTargetType type,
+      const std::string& to,
+      const std::string& kind,
+      std::optional<std::string> target_project = std::nullopt
+  ) {
     contract::NewLink request;
     request.target_type = type;
     request.target_id = to;
@@ -110,8 +129,11 @@ struct Host {
     contract::add_card_link(context, project_id, from, request);
   }
 
-  contract::RecoverySnapshotPage read(const std::string& project, std::optional<std::string> cursor = std::nullopt,
-                                      std::int32_t limit = 500) {
+  contract::RecoverySnapshotPage read(
+      const std::string& project,
+      std::optional<std::string> cursor = std::nullopt,
+      std::int32_t limit = 500
+  ) {
     return contract::read_recovery_snapshot(context, project, std::move(cursor), limit);
   }
 
@@ -127,11 +149,15 @@ struct Host {
     return out;
   }
 
-  contract::Project restore(const std::vector<std::string>& lines, const std::string& name = "Restored") {
+  contract::Project restore(
+      const std::vector<std::string>& lines,
+      const std::string& name = "Restored"
+  ) {
     contract::RecoverySnapshotRestore request;
     request.project_name = name;
     request.privacy_mode = contract::RecoverySnapshotRestorePrivacyMode::Plain;
-    for (const auto& line : lines) request.snapshot += line + "\n";
+    for (const auto& line : lines)
+      request.snapshot += line + "\n";
     request.commit_message = "Restored from a recovery snapshot";
     return contract::restore_recovery_snapshot(context, request);
   }
@@ -139,12 +165,22 @@ struct Host {
   // The project's cards by title.
   std::map<std::string, contract::RecoverySnapshotCard> by_title(const std::string& project) {
     std::map<std::string, contract::RecoverySnapshotCard> out;
-    for (auto& card : read(project).cards) out.emplace(card.title, std::move(card));
+    for (auto& card : read(project).cards)
+      out.emplace(card.title, std::move(card));
     return out;
   }
 
   std::size_t project_count() {
-    return contract::list_projects(context, std::nullopt, std::nullopt, std::nullopt, std::nullopt, 1000, 0, false)
+    return contract::list_projects(
+               context,
+               std::nullopt,
+               std::nullopt,
+               std::nullopt,
+               std::nullopt,
+               1000,
+               0,
+               false
+    )
         .size();
   }
 };
@@ -158,7 +194,8 @@ int count_commits(const std::filesystem::path& repo_dir) {
   int count = 0;
   if (git_revwalk_push_head(walk) == 0) {
     git_oid oid{};
-    while (git_revwalk_next(&oid, walk) == 0) ++count;
+    while (git_revwalk_next(&oid, walk) == 0)
+      ++count;
   }
   git_revwalk_free(walk);
   git_repository_free(repo);
@@ -173,17 +210,36 @@ std::string line_of(const json& card) {
   return json{{"format", "holder-recovery-snapshot"}, {"version", 1}, {"card", card}}.dump();
 }
 
-json bare_card(const std::string& card_id, const std::string& title, json parent = nullptr, double sort_key = 1) {
-  return {{"card_id", card_id}, {"project_id", "source"},  {"project_name", "Source"},
-          {"privacy_mode", "plain"}, {"title", title},     {"content", title + " body"},
-          {"parent_card_id", parent}, {"sort_key", sort_key}, {"created_at", 1},
-          {"updated_at", 1},         {"links", json::array()}, {"milestones", json::array()},
-          {"resources", json::array()}, {"locations", json::array()}};
+json bare_card(
+    const std::string& card_id,
+    const std::string& title,
+    json parent = nullptr,
+    double sort_key = 1
+) {
+  return {
+      {"card_id", card_id},
+      {"project_id", "source"},
+      {"project_name", "Source"},
+      {"privacy_mode", "plain"},
+      {"title", title},
+      {"content", title + " body"},
+      {"parent_card_id", parent},
+      {"sort_key", sort_key},
+      {"created_at", 1},
+      {"updated_at", 1},
+      {"links", json::array()},
+      {"milestones", json::array()},
+      {"resources", json::array()},
+      {"locations", json::array()}
+  };
 }
 
 } // namespace
 
-TEST_CASE("A recovery snapshot pages a project's live cards, most recently updated first", "[recovery]") {
+TEST_CASE(
+    "A recovery snapshot pages a project's live cards, most recently updated first",
+    "[recovery]"
+) {
   Host host;
   const auto oldest = host.card("Oldest");
   const auto middle = host.card("Middle");
@@ -193,7 +249,12 @@ TEST_CASE("A recovery snapshot pages a project's live cards, most recently updat
   cards.touch_updated(oldest, 100);
   cards.touch_updated(middle, 200);
   cards.touch_updated(newest, 300);
-  contract::trash_card(host.context, host.project_id, trashed, contract::TrashCardChildren::Promote);
+  contract::trash_card(
+      host.context,
+      host.project_id,
+      trashed,
+      contract::TrashCardChildren::Promote
+  );
 
   const auto first = host.read(host.project_id, std::nullopt, 2);
   REQUIRE(first.cards.size() == 2);
@@ -219,23 +280,49 @@ TEST_CASE("A recovery snapshot pages a project's live cards, most recently updat
   REQUIRE_THROWS_AS(host.read("missing-project"), contract::NotFound);
 }
 
-TEST_CASE("Restoring a recovery snapshot keeps the card tree, links, milestones and resources", "[recovery]") {
+TEST_CASE(
+    "Restoring a recovery snapshot keeps the card tree, links, milestones and resources",
+    "[recovery]"
+) {
   Host host;
   const auto root = host.card("Root", std::nullopt, 1.0);
   const auto second_root = host.card("Second root", std::nullopt, 2.0);
   const auto child_b = host.card("Child B", root, 20.0);
   const auto child_a = host.card("Child A", root, 10.0);
-  const auto grandchild = host.card("Grandchild", child_a, 5.0, "![notes](holder://resource/resource-original)");
+  const auto grandchild =
+      host.card("Grandchild", child_a, 5.0, "![notes](holder://resource/resource-original)");
 
-  holder::model::Location location{"location-original", host.project_id, "Files", "local_directory", {{"path", "/files"}},
-                                   10, 10};
+  holder::model::Location location{
+      "location-original",
+      host.project_id,
+      "Files",
+      "local_directory",
+      {{"path", "/files"}},
+      10,
+      10
+  };
   holder::resource::LocationStore(host.db, nullptr, &host.git).put(location);
   holder::model::ResourceBundle bundle;
-  bundle.resource = {"resource-original", host.project_id, "document", "Notes.pdf", {{"pages", {"4"}}}, 10, 10};
-  bundle.assets.push_back({"asset-original", "resource-original", "Notes.pdf", "application/pdf", 4,
-                           std::string(64, 'a'), 10, 10,
-                           {{"placement-original", "asset-original", "location-original", "remote/notes",
-                             "holder_asset_v1", 40, std::string(64, 'b'), 10}}});
+  bundle.resource =
+      {"resource-original", host.project_id, "document", "Notes.pdf", {{"pages", {"4"}}}, 10, 10};
+  bundle.assets.push_back(
+      {"asset-original",
+       "resource-original",
+       "Notes.pdf",
+       "application/pdf",
+       4,
+       std::string(64, 'a'),
+       10,
+       10,
+       {{"placement-original",
+         "asset-original",
+         "location-original",
+         "remote/notes",
+         "holder_asset_v1",
+         40,
+         std::string(64, 'b'),
+         10}}}
+  );
   holder::resource::ResourceStore(host.db, nullptr, &host.git).put(bundle);
 
   host.link(grandchild, contract::NewLinkTargetType::Resource, "resource-original", "attachment");
@@ -255,8 +342,10 @@ TEST_CASE("Restoring a recovery snapshot keeps the card tree, links, milestones 
   REQUIRE(read_grandchild.links.size() == 4);
   REQUIRE(read_grandchild.resources.size() == 1);
   REQUIRE(read_grandchild.resources[0].assets[0].placements[0].object_key == "remote/notes");
-  REQUIRE(read_grandchild.resources[0].assets[0].placements[0].encoding ==
-          contract::RecoverySnapshotPlacementEncoding::HolderAssetV1);
+  REQUIRE(
+      read_grandchild.resources[0].assets[0].placements[0].encoding ==
+      contract::RecoverySnapshotPlacementEncoding::HolderAssetV1
+  );
   REQUIRE(read_grandchild.locations.size() == 1);
   REQUIRE(read_grandchild.locations[0].configuration.at("path") == "/files");
   REQUIRE(read_grandchild.milestones.size() == 1);
@@ -288,15 +377,24 @@ TEST_CASE("Restoring a recovery snapshot keeps the card tree, links, milestones 
   REQUIRE(copy.parent_card_id == cards.at("Child A").card_id);
 
   // The card tree as list_cards sees it, siblings in order.
-  const auto children = contract::list_cards(host.context, restored.project_id,
-                                             contract::ListCardsParent{cards.at("Root").card_id}, std::nullopt,
-                                             contract::ListCardsOrder::SortKeyAsc, 10, std::nullopt, false, false);
+  const auto children = contract::list_cards(
+      host.context,
+      restored.project_id,
+      contract::ListCardsParent{cards.at("Root").card_id},
+      std::nullopt,
+      contract::ListCardsOrder::SortKeyAsc,
+      10,
+      std::nullopt,
+      false,
+      false
+  );
   REQUIRE(children.items.size() == 2);
   REQUIRE(children.items[0].title == "Child A");
   REQUIRE(children.items[1].title == "Child B");
 
   std::map<std::string, contract::RecoverySnapshotLink> links;
-  for (const auto& link : copy.links) links.emplace(link.kind, link);
+  for (const auto& link : copy.links)
+    links.emplace(link.kind, link);
   REQUIRE(links.size() == 4);
   REQUIRE(links.at("related").target_id == cards.at("Second root").card_id);
   REQUIRE(links.at("related").label == "related label");
@@ -330,8 +428,10 @@ TEST_CASE("Restoring a recovery snapshot keeps the card tree, links, milestones 
   REQUIRE(copy.milestones[0].dates[0].date == "2026-11-02");
 }
 
-TEST_CASE("Restore makes a card whose parent is not in the snapshot a root, and breaks a parent loop",
-          "[recovery]") {
+TEST_CASE(
+    "Restore makes a card whose parent is not in the snapshot a root, and breaks a parent loop",
+    "[recovery]"
+) {
   Host host;
   const auto restored = host.restore({
       line_of(bare_card("orphan", "Orphan", "not-restored")),
@@ -346,7 +446,8 @@ TEST_CASE("Restore makes a card whose parent is not in the snapshot a root, and 
   REQUIRE_FALSE(cards.at("Self").parent_card_id);
   // Exactly one card of the loop becomes a root; the other two keep their parents.
   int roots = 0;
-  for (const char* title : {"Loop A", "Loop B", "Loop C"}) roots += cards.at(title).parent_card_id ? 0 : 1;
+  for (const char* title : {"Loop A", "Loop B", "Loop C"})
+    roots += cards.at(title).parent_card_id ? 0 : 1;
   REQUIRE(roots == 1);
 }
 
@@ -362,9 +463,11 @@ TEST_CASE("Restore refuses a snapshot it cannot read and leaves no project behin
   auto missing_field = bare_card("card-1", "Card");
   missing_field.erase("sort_key");
   auto bad_date = bare_card("card-1", "Card");
-  bad_date["milestones"] = json::array({{{"dates", json::array({{{"role", "due"}, {"date", "2026-13-40"}}})},
-                                         {"kind", nullptr},
-                                         {"description", nullptr}}});
+  bad_date["milestones"] = json::array(
+      {{{"dates", json::array({{{"role", "due"}, {"date", "2026-13-40"}}})},
+        {"kind", nullptr},
+        {"description", nullptr}}}
+  );
   auto stray_placement = bare_card("card-1", "Card");
   stray_placement["resources"] = json::array(
       {{{"resource_id", "resource-1"},
@@ -373,20 +476,27 @@ TEST_CASE("Restore refuses a snapshot it cannot read and leaves no project behin
         {"metadata", json::object()},
         {"created_at", 1},
         {"updated_at", 1},
-        {"assets", json::array({{{"asset_id", "asset-1"},
-                                 {"original_filename", "doc"},
-                                 {"media_type", "text/plain"},
-                                 {"byte_size", 1},
-                                 {"plaintext_sha256", "aa"},
-                                 {"created_at", 1},
-                                 {"updated_at", 1},
-                                 {"placements", json::array({{{"placement_id", "placement-1"},
-                                                              {"location_id", "not-in-snapshot"},
-                                                              {"object_key", "key"},
-                                                              {"encoding", "plain"},
-                                                              {"stored_byte_size", 1},
-                                                              {"stored_sha256", "aa"},
-                                                              {"created_at", 1}}})}}})}}});
+        {"assets",
+         json::array(
+             {{{"asset_id", "asset-1"},
+               {"original_filename", "doc"},
+               {"media_type", "text/plain"},
+               {"byte_size", 1},
+               {"plaintext_sha256", "aa"},
+               {"created_at", 1},
+               {"updated_at", 1},
+               {"placements",
+                json::array(
+                    {{{"placement_id", "placement-1"},
+                      {"location_id", "not-in-snapshot"},
+                      {"object_key", "key"},
+                      {"encoding", "plain"},
+                      {"stored_byte_size", 1},
+                      {"stored_sha256", "aa"},
+                      {"created_at", 1}}}
+                )}}}
+         )}}}
+  );
 
   for (const auto& lines : std::vector<std::vector<std::string>>{
            {"not json"},
@@ -409,30 +519,51 @@ TEST_CASE("Restore removes the new project when writing the cards fails", "[reco
   REQUIRE_THROWS(host.restore({line_of(bare_card("card-1", "Card"))}));
   REQUIRE(host.project_count() == before);
   // Nothing is left under the projects directory but the source project.
-  REQUIRE(std::distance(std::filesystem::directory_iterator(host.context.projects_root),
-                        std::filesystem::directory_iterator()) == 1);
+  REQUIRE(
+      std::distance(
+          std::filesystem::directory_iterator(host.context.projects_root),
+          std::filesystem::directory_iterator()
+      ) == 1
+  );
 }
 
-TEST_CASE("Failed restore retains its original error when database cleanup also fails",
-          "[recovery][cleanup-fallback]") {
+TEST_CASE(
+    "Failed restore retains its original error when database cleanup also fails",
+    "[recovery][cleanup-fallback]"
+) {
   Host host;
-  const auto original = host.card("Untouched source", std::nullopt, std::nullopt, "Keep source body");
+  const auto original =
+      host.card("Untouched source", std::nullopt, std::nullopt, "Keep source body");
   const auto before = host.project_count();
   const auto source_lines = host.lines(host.project_id);
   host.git.fail_commit = "Restored from a recovery snapshot";
   host.db.exec("CREATE TRIGGER reject_project_delete BEFORE DELETE ON projects "
                "BEGIN SELECT RAISE(ABORT, 'database cleanup denied'); END;");
-  REQUIRE_THROWS_WITH(host.restore({line_of(bare_card("card-1", "Card"))}),
-                      Catch::Matchers::ContainsSubstring("commit failed"));
+  REQUIRE_THROWS_WITH(
+      host.restore({line_of(bare_card("card-1", "Card"))}),
+      Catch::Matchers::ContainsSubstring("commit failed")
+  );
   CHECK(host.project_count() == before + 1);
   CHECK(host.lines(host.project_id) == source_lines);
   CHECK(contract::get_card(host.context, host.project_id, original).content == "Keep source body");
   // Filesystem compensation still runs if SQLite refuses the metadata removal.
-  CHECK(std::distance(std::filesystem::directory_iterator(host.context.projects_root),
-                      std::filesystem::directory_iterator()) == 1);
+  CHECK(
+      std::distance(
+          std::filesystem::directory_iterator(host.context.projects_root),
+          std::filesystem::directory_iterator()
+      ) == 1
+  );
   host.db.exec("DROP TRIGGER reject_project_delete;");
-  const auto remaining = contract::list_projects(host.context, std::nullopt, std::nullopt,
-      std::nullopt, std::nullopt, 1000, 0, false);
+  const auto remaining = contract::list_projects(
+      host.context,
+      std::nullopt,
+      std::nullopt,
+      std::nullopt,
+      std::nullopt,
+      1000,
+      0,
+      false
+  );
   bool removed = false;
   for (const auto& item : remaining) {
     if (item.project_id == host.project_id) continue;
@@ -450,7 +581,9 @@ TEST_CASE("Restore writes a large snapshot as one commit", "[recovery]") {
   for (int i = 0; i < 2000; ++i) {
     // Every tenth card is a root; the rest are its children.
     const auto parent = i % 10 == 0 ? json(nullptr) : json("card-" + std::to_string(i - i % 10));
-    lines.push_back(line_of(bare_card("card-" + std::to_string(i), "Card " + std::to_string(i), parent, i)));
+    lines.push_back(
+        line_of(bare_card("card-" + std::to_string(i), "Card " + std::to_string(i), parent, i))
+    );
   }
   const auto restored = host.restore(lines);
   REQUIRE(host.lines(restored.project_id).size() == 2000);
@@ -765,10 +898,11 @@ TEST_CASE(
   for (size_t i = 0; i < saved.links.count; ++i)
     kinds.insert(saved.links.items[i].target_type);
   REQUIRE(
-      kinds == std::set<holder_recovery_snapshot_link_target_type>{
-                   HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_THREAD,
-                   HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_MESSAGE
-               }
+      kinds ==
+      std::set<holder_recovery_snapshot_link_target_type>{
+          HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_THREAD,
+          HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_MESSAGE
+      }
   );
   REQUIRE(page->lines.count == 1);
   REQUIRE(json::parse(page->lines.items[0])["card"]["privacy_mode"] == "encrypted_git");
@@ -910,8 +1044,7 @@ TEST_CASE(
   Host host;
   const auto card = host.card("Attachment");
   holder::resource::LocationStore(host.db, nullptr, &host.git)
-      .put(
-          {"location-1", host.project_id, "Files", "local_directory", {{"path", "/files"}}, 10, 10}
+      .put({"location-1", host.project_id, "Files", "local_directory", {{"path", "/files"}}, 10, 10}
       );
   holder::model::ResourceBundle bundle;
   bundle.resource = {"resource-1", host.project_id, "document", "Notes", {}, 10, 10};

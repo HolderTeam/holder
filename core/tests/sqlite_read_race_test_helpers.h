@@ -1,7 +1,7 @@
 #pragma once
 
-#include <sqlite3.h>
 #include <cstring>
+#include <sqlite3.h>
 #include <string>
 #include <utility>
 
@@ -12,8 +12,11 @@ namespace holder::test {
 class SqliteReadRace {
  public:
   SqliteReadRace(sqlite3* db, std::string query, std::string id, int read, std::string mutation)
-      : db_(db), query_(std::move(query)), id_("'" + id + "'"),
-        read_(read), mutation_(std::move(mutation)) {
+      : db_(db),
+        query_(std::move(query)),
+        id_("'" + id + "'"),
+        read_(read),
+        mutation_(std::move(mutation)) {
     sqlite3_trace_v2(db_, SQLITE_TRACE_STMT, trace, this);
   }
   ~SqliteReadRace() { sqlite3_trace_v2(db_, 0, nullptr, nullptr); }

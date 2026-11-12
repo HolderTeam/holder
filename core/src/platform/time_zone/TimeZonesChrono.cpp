@@ -25,6 +25,8 @@ class ChronoTimeZones final : public TimeZoneProvider {
 
 } // namespace
 
-std::shared_ptr<TimeZoneProvider> built_in_time_zone_provider() { return std::make_shared<ChronoTimeZones>(); }
+std::shared_ptr<TimeZoneProvider> built_in_time_zone_provider() {
+  return std::make_shared<ChronoTimeZones>();
+}
 
 } // namespace holder::platform

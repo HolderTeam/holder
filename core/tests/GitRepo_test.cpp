@@ -362,8 +362,10 @@ TEST_CASE("GitRepo push_branch returns up_to_date for unborn branch with remote"
   REQUIRE(result.error_message.empty());
 }
 
-TEST_CASE("A blocked fast-forward checkout preserves local work and can be retried",
-          "[git][checkout-failure]") {
+TEST_CASE(
+    "A blocked fast-forward checkout preserves local work and can be retried",
+    "[git][checkout-failure]"
+) {
   const auto dir = make_temp_dir();
   const auto remote_dir = dir / "remote";
   const auto local_dir = dir / "local";

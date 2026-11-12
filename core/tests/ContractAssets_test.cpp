@@ -24,11 +24,17 @@ namespace contract = holder::contract;
 
 class RejectingProvider final : public contract::StorageProvider {
  public:
-  explicit RejectingProvider(const std::filesystem::path& root) : files(root) {}
+  explicit RejectingProvider(const std::filesystem::path& root)
+      : files(root) {}
   holder::resource::LocalDirectoryProvider files;
   bool reject_put = false;
   bool reject_get = false;
-  void put(const std::string& key, const std::string& source, long long size, const std::string& hash) override {
+  void put(
+      const std::string& key,
+      const std::string& source,
+      long long size,
+      const std::string& hash
+  ) override {
     if (reject_put) throw std::invalid_argument("provider rejected upload configuration");
     files.put(key, source, size, hash);
   }
@@ -76,11 +82,16 @@ struct Host {
 
   contract::AssetImport import(const std::string& source, std::string card = "") {
     return contract::import_asset_file(
-        context, {project_id, card.empty() ? card_id : card, location_id, source});
+        context,
+        {project_id, card.empty() ? card_id : card, location_id, source}
+    );
   }
 
   std::string placement(const contract::AssetImport& imported) {
-    return contract::get_resource(context, project_id, imported.resource_id).assets.at(0).placements.at(0).placement_id;
+    return contract::get_resource(context, project_id, imported.resource_id)
+        .assets.at(0)
+        .placements.at(0)
+        .placement_id;
   }
 };
 
@@ -91,8 +102,10 @@ std::string read(const std::string& path) {
 
 } // namespace
 
-TEST_CASE("Host provider argument failures preserve asset metadata and allow retry",
-          "[assets][provider-argument-failures]") {
+TEST_CASE(
+    "Host provider argument failures preserve asset metadata and allow retry",
+    "[assets][provider-argument-failures]"
+) {
   Host host;
   const auto backend = std::make_shared<RejectingProvider>(host.dir / "provider");
   contract::register_storage_provider(contract::RegisterStorageProviderKind::S3Compatible, backend);
@@ -125,15 +138,28 @@ TEST_CASE("Host provider argument failures preserve asset metadata and allow ret
     const auto head = git.head_oid();
     std::ofstream(destination, std::ios::binary) << "keep existing destination";
     backend->reject_get = true;
-    REQUIRE_THROWS_AS(contract::retrieve_asset_file(host.context, imported.resource_id,
-        imported.asset_id, placement, destination), contract::InvalidArgument);
+    REQUIRE_THROWS_AS(
+        contract::retrieve_asset_file(
+            host.context,
+            imported.resource_id,
+            imported.asset_id,
+            placement,
+            destination
+        ),
+        contract::InvalidArgument
+    );
     CHECK(read(destination) == "keep existing destination");
     CHECK(holder::resource::ResourceRepo(host.db).list(host.project_id).size() == 1);
     CHECK(git.head_oid() == head);
     backend->reject_get = false;
   }
-  const auto retrieved = contract::retrieve_asset_file(host.context, imported.resource_id,
-      imported.asset_id, placement, destination);
+  const auto retrieved = contract::retrieve_asset_file(
+      host.context,
+      imported.resource_id,
+      imported.asset_id,
+      placement,
+      destination
+  );
   CHECK(retrieved.path == destination);
   CHECK(read(destination) == "source bytes remain intact");
   CHECK(read(source) == "source bytes remain intact");
@@ -156,8 +182,13 @@ TEST_CASE("An imported file is attached to its card and written back out unchang
 
   const auto destination = (host.dir / "out" / "photo.jpg").string();
   std::filesystem::create_directories(host.dir / "out");
-  const auto file = contract::retrieve_asset_file(host.context, imported.resource_id, imported.asset_id,
-                                                  host.placement(imported), destination);
+  const auto file = contract::retrieve_asset_file(
+      host.context,
+      imported.resource_id,
+      imported.asset_id,
+      host.placement(imported),
+      destination
+  );
   REQUIRE(file.path == destination);
   REQUIRE(file.original_filename == "photo.jpg");
   REQUIRE(file.byte_size == 10);
@@ -167,36 +198,73 @@ TEST_CASE("An imported file is attached to its card and written back out unchang
 TEST_CASE("Asset file operations report what is missing or wrong", "[assets]") {
   Host host;
   const auto source = host.file("photo.jpg", "jpeg bytes");
-  REQUIRE_THROWS_AS(contract::import_asset_file(host.context, {"missing", host.card_id, host.location_id, source}),
-                    contract::NotFound);
+  REQUIRE_THROWS_AS(
+      contract::import_asset_file(
+          host.context,
+          {"missing", host.card_id, host.location_id, source}
+      ),
+      contract::NotFound
+  );
   REQUIRE_THROWS_AS(host.import(source, "missing-card"), contract::NotFound);
-  REQUIRE_THROWS_AS(contract::import_asset_file(host.context, {host.project_id, host.card_id, "missing", source}),
-                    contract::NotFound);
+  REQUIRE_THROWS_AS(
+      contract::import_asset_file(host.context, {host.project_id, host.card_id, "missing", source}),
+      contract::NotFound
+  );
   REQUIRE_THROWS_AS(host.import((host.dir / "absent").string()), contract::InvalidArgument);
   REQUIRE_THROWS_AS(host.import((host.dir / "source").string()), contract::InvalidArgument);
-  REQUIRE_THROWS_AS(contract::import_asset_file(host.context, {host.project_id, "", host.location_id, source}),
-                    contract::InvalidArgument);
+  REQUIRE_THROWS_AS(
+      contract::import_asset_file(host.context, {host.project_id, "", host.location_id, source}),
+      contract::InvalidArgument
+  );
 
   const auto imported = host.import(source);
   const auto placement = host.placement(imported);
   const auto destination = (host.dir / "out.jpg").string();
-  REQUIRE_THROWS_AS(contract::retrieve_asset_file(host.context, "missing", imported.asset_id, placement, destination),
-                    contract::NotFound);
   REQUIRE_THROWS_AS(
-      contract::retrieve_asset_file(host.context, imported.resource_id, "missing", placement, destination),
-      contract::NotFound);
+      contract::retrieve_asset_file(
+          host.context,
+          "missing",
+          imported.asset_id,
+          placement,
+          destination
+      ),
+      contract::NotFound
+  );
   REQUIRE_THROWS_AS(
-      contract::retrieve_asset_file(host.context, imported.resource_id, imported.asset_id, "missing", destination),
-      contract::NotFound);
+      contract::retrieve_asset_file(
+          host.context,
+          imported.resource_id,
+          "missing",
+          placement,
+          destination
+      ),
+      contract::NotFound
+  );
+  REQUIRE_THROWS_AS(
+      contract::retrieve_asset_file(
+          host.context,
+          imported.resource_id,
+          imported.asset_id,
+          "missing",
+          destination
+      ),
+      contract::NotFound
+  );
 }
 
-TEST_CASE("Failed integrity checks preserve existing destinations and leave no partial new file", "[assets]") {
+TEST_CASE(
+    "Failed integrity checks preserve existing destinations and leave no partial new file",
+    "[assets]"
+) {
   Host host;
   const auto imported = host.import(host.file("photo.jpg", "jpeg bytes"));
-  const auto plaintext_hash = contract::get_resource(host.context, host.project_id, imported.resource_id)
-                                  .assets.at(0).plaintext_sha256;
+  const auto plaintext_hash =
+      contract::get_resource(host.context, host.project_id, imported.resource_id)
+          .assets.at(0)
+          .plaintext_sha256;
   SECTION("stored bytes fail their integrity check before decoding") {
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(host.context.data_dir / "resource-store"))
+    for (const auto& entry :
+         std::filesystem::recursive_directory_iterator(host.context.data_dir / "resource-store"))
       if (entry.is_regular_file()) std::ofstream(entry.path(), std::ios::binary) << "tampered!!";
   }
   SECTION("decoded bytes fail their plaintext check after writing") {
@@ -205,41 +273,71 @@ TEST_CASE("Failed integrity checks preserve existing destinations and leave no p
   for (bool existing : {false, true}) {
     const auto destination = (host.dir / (existing ? "existing.jpg" : "new.jpg")).string();
     if (existing) std::ofstream(destination, std::ios::binary) << "existing user bytes";
-    REQUIRE_THROWS_AS(contract::retrieve_asset_file(host.context, imported.resource_id, imported.asset_id,
-                                                  host.placement(imported), destination),
-                    contract::DataCorrupted);
-    if (existing) CHECK(read(destination) == "existing user bytes");
-    else CHECK_FALSE(std::filesystem::exists(destination));
+    REQUIRE_THROWS_AS(
+        contract::retrieve_asset_file(
+            host.context,
+            imported.resource_id,
+            imported.asset_id,
+            host.placement(imported),
+            destination
+        ),
+        contract::DataCorrupted
+    );
+    if (existing)
+      CHECK(read(destination) == "existing user bytes");
+    else
+      CHECK_FALSE(std::filesystem::exists(destination));
     for (const auto& entry : std::filesystem::directory_iterator(host.dir))
       CHECK(entry.path().filename().string().find(".holder-retrieve-") == std::string::npos);
   }
   // Repair either form of corruption and retry both paths, including replacement
   // of the existing user file now that validated bytes are available.
-  for (const auto& entry : std::filesystem::recursive_directory_iterator(host.context.data_dir / "resource-store"))
+  for (const auto& entry :
+       std::filesystem::recursive_directory_iterator(host.context.data_dir / "resource-store"))
     if (entry.is_regular_file()) std::ofstream(entry.path(), std::ios::binary) << "jpeg bytes";
   host.db.exec("UPDATE assets SET plaintext_sha256='" + plaintext_hash + "';");
   for (const auto* name : {"existing.jpg", "new.jpg"}) {
     const auto destination = (host.dir / name).string();
-    contract::retrieve_asset_file(host.context, imported.resource_id, imported.asset_id,
-        host.placement(imported), destination);
+    contract::retrieve_asset_file(
+        host.context,
+        imported.resource_id,
+        imported.asset_id,
+        host.placement(imported),
+        destination
+    );
     CHECK(read(destination) == "jpeg bytes");
   }
 }
 
-TEST_CASE("A failed asset publish preserves a destination directory and cleans temporary files",
-          "[assets][retrieve-publish-failure]") {
+TEST_CASE(
+    "A failed asset publish preserves a destination directory and cleans temporary files",
+    "[assets][retrieve-publish-failure]"
+) {
   Host host;
   const auto imported = host.import(host.file("notes.txt", "notes"));
   const auto destination = host.dir / "existing-directory";
   std::filesystem::create_directories(destination);
   std::ofstream(destination / "keep.txt") << "keep directory contents";
-  REQUIRE_THROWS_AS(contract::retrieve_asset_file(host.context, imported.resource_id,
-      imported.asset_id, host.placement(imported), destination.string()), std::filesystem::filesystem_error);
+  REQUIRE_THROWS_AS(
+      contract::retrieve_asset_file(
+          host.context,
+          imported.resource_id,
+          imported.asset_id,
+          host.placement(imported),
+          destination.string()
+      ),
+      std::filesystem::filesystem_error
+  );
   CHECK(read((destination / "keep.txt").string()) == "keep directory contents");
   for (const auto& entry : std::filesystem::directory_iterator(host.dir))
     CHECK(entry.path().filename().string().find(".holder-retrieve-") == std::string::npos);
   const auto output = (host.dir / "valid.txt").string();
-  contract::retrieve_asset_file(host.context, imported.resource_id, imported.asset_id,
-      host.placement(imported), output);
+  contract::retrieve_asset_file(
+      host.context,
+      imported.resource_id,
+      imported.asset_id,
+      host.placement(imported),
+      output
+  );
   CHECK(read(output) == "notes");
 }

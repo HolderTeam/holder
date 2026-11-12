@@ -30,11 +30,8 @@ TEST_CASE(
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
 
-  const auto created = holder::project::ensure_default_project(
-      db,
-      counting_uuid_v4("id"),
-      dir / "projects"
-  );
+  const auto created =
+      holder::project::ensure_default_project(db, counting_uuid_v4("id"), dir / "projects");
 
   REQUIRE(created.has_value());
   REQUIRE(created->name == "Home");
@@ -68,11 +65,8 @@ TEST_CASE(
   existing.updated_at = 1;
   repo.create(existing);
 
-  const auto created = holder::project::ensure_default_project(
-      db,
-      counting_uuid_v4("id"),
-      dir / "projects"
-  );
+  const auto created =
+      holder::project::ensure_default_project(db, counting_uuid_v4("id"), dir / "projects");
 
   REQUIRE_FALSE(created.has_value());
   REQUIRE(repo.list().size() == 1);

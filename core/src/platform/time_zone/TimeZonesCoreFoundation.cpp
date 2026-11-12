@@ -10,16 +10,13 @@
 namespace holder::platform {
 namespace {
 
-template <class T>
-using Owned = std::unique_ptr<std::remove_pointer_t<T>, decltype(&CFRelease)>;
+template <class T> using Owned = std::unique_ptr<std::remove_pointer_t<T>, decltype(&CFRelease)>;
 
-template <class T>
-Owned<T> own(T value) {
-  return Owned<T>(value, &CFRelease);
-}
+template <class T> Owned<T> own(T value) { return Owned<T>(value, &CFRelease); }
 
 std::string text(CFStringRef value) {
-  const auto length = CFStringGetMaximumSizeForEncoding(CFStringGetLength(value), kCFStringEncodingUTF8) + 1;
+  const auto length =
+      CFStringGetMaximumSizeForEncoding(CFStringGetLength(value), kCFStringEncodingUTF8) + 1;
   std::string out(static_cast<std::size_t>(length), '\0');
   if (!CFStringGetCString(value, out.data(), length, kCFStringEncodingUTF8)) return {};
   out.resize(std::char_traits<char>::length(out.c_str()));
@@ -29,7 +26,9 @@ std::string text(CFStringRef value) {
 class CoreFoundationTimeZones final : public TimeZoneProvider {
  public:
   std::optional<long long> utc_offset(const std::string& zone, long long utc_seconds) override {
-    const auto name = own(CFStringCreateWithCString(kCFAllocatorDefault, zone.c_str(), kCFStringEncodingUTF8));
+    const auto name = own(
+        CFStringCreateWithCString(kCFAllocatorDefault, zone.c_str(), kCFStringEncodingUTF8)
+    );
     if (!name) return std::nullopt;
     const auto found = own(CFTimeZoneCreateWithName(kCFAllocatorDefault, name.get(), true));
     if (!found) return std::nullopt;

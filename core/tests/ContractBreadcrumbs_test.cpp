@@ -11,7 +11,10 @@
 
 #include "card/CardRepo.h"
 
-TEST_CASE("Contract card breadcrumbs follow live ancestors and reject broken chains", "[contract][breadcrumbs]") {
+TEST_CASE(
+    "Contract card breadcrumbs follow live ancestors and reject broken chains",
+    "[contract][breadcrumbs]"
+) {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::index::FtsIndexer fts{db};
@@ -31,7 +34,8 @@ TEST_CASE("Contract card breadcrumbs follow live ancestors and reject broken cha
   child_request.parent_card_id = parent.card_id;
   const auto child = holder::contract::create_card(context, project.project_id, child_request);
 
-  const auto path = holder::contract::get_card_breadcrumbs(context, project.project_id, child.card_id);
+  const auto path =
+      holder::contract::get_card_breadcrumbs(context, project.project_id, child.card_id);
   REQUIRE(path.size() == 3);
   CHECK(path[0].kind == holder::contract::CardBreadcrumbKind::Project);
   CHECK(path[0].id == project.project_id);
@@ -39,17 +43,25 @@ TEST_CASE("Contract card breadcrumbs follow live ancestors and reject broken cha
   CHECK(path[1].title == "Parent");
   CHECK(path[2].kind == holder::contract::CardBreadcrumbKind::Card);
   CHECK(path[2].id == child.card_id);
-  REQUIRE_THROWS_AS(holder::contract::get_card_breadcrumbs(context, project.project_id, "missing"),
-                    holder::contract::NotFound);
-  REQUIRE_THROWS_AS(holder::contract::get_card_breadcrumbs(context, "other-project", child.card_id),
-                    holder::contract::NotFound);
+  REQUIRE_THROWS_AS(
+      holder::contract::get_card_breadcrumbs(context, project.project_id, "missing"),
+      holder::contract::NotFound
+  );
+  REQUIRE_THROWS_AS(
+      holder::contract::get_card_breadcrumbs(context, "other-project", child.card_id),
+      holder::contract::NotFound
+  );
 
   holder::card::CardRepo cards(db);
   cards.move(parent.card_id, child.card_id, 0.0, 3);
-  REQUIRE_THROWS_AS(holder::contract::get_card_breadcrumbs(context, project.project_id, child.card_id),
-                    holder::contract::HierarchyInvalid);
+  REQUIRE_THROWS_AS(
+      holder::contract::get_card_breadcrumbs(context, project.project_id, child.card_id),
+      holder::contract::HierarchyInvalid
+  );
   cards.move(parent.card_id, std::nullopt, 0.0, 4);
   cards.soft_delete(parent.card_id, 5, 5);
-  REQUIRE_THROWS_AS(holder::contract::get_card_breadcrumbs(context, project.project_id, child.card_id),
-                    holder::contract::HierarchyInvalid);
+  REQUIRE_THROWS_AS(
+      holder::contract::get_card_breadcrumbs(context, project.project_id, child.card_id),
+      holder::contract::HierarchyInvalid
+  );
 }

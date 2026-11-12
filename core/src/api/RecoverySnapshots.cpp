@@ -48,12 +48,17 @@ constexpr int VERSION = 1;
 
 const char* name(RecoverySnapshotLinkTargetType value) {
   switch (value) {
-  case RecoverySnapshotLinkTargetType::Card: return "card";
-  case RecoverySnapshotLinkTargetType::AiMessage: return "ai_message";
-  case RecoverySnapshotLinkTargetType::AiThread: return "ai_thread";
-  case RecoverySnapshotLinkTargetType::Resource: return "resource";
+  case RecoverySnapshotLinkTargetType::Card:
+    return "card";
+  case RecoverySnapshotLinkTargetType::AiMessage:
+    return "ai_message";
+  case RecoverySnapshotLinkTargetType::AiThread:
+    return "ai_thread";
+  case RecoverySnapshotLinkTargetType::Resource:
+    return "resource";
   }
-  throw Error("unknown link target type"); // LCOV_EXCL_LINE - private serializer handles every validated enum value.
+  throw Error("unknown link target type"
+  ); // LCOV_EXCL_LINE - private serializer handles every validated enum value.
 }
 
 RecoverySnapshotLinkTargetType link_target_type(const std::string& value) {
@@ -66,10 +71,13 @@ RecoverySnapshotLinkTargetType link_target_type(const std::string& value) {
 
 const char* name(RecoverySnapshotPlacementEncoding value) {
   switch (value) {
-  case RecoverySnapshotPlacementEncoding::Plain: return "plain";
-  case RecoverySnapshotPlacementEncoding::HolderAssetV1: return "holder_asset_v1";
+  case RecoverySnapshotPlacementEncoding::Plain:
+    return "plain";
+  case RecoverySnapshotPlacementEncoding::HolderAssetV1:
+    return "holder_asset_v1";
   }
-  throw Error("unknown placement encoding"); // LCOV_EXCL_LINE - private serializer handles every validated enum value.
+  throw Error("unknown placement encoding"
+  ); // LCOV_EXCL_LINE - private serializer handles every validated enum value.
 }
 
 RecoverySnapshotPlacementEncoding placement_encoding(const std::string& value) {
@@ -80,11 +88,15 @@ RecoverySnapshotPlacementEncoding placement_encoding(const std::string& value) {
 
 const char* name(RecoverySnapshotLocationProvider value) {
   switch (value) {
-  case RecoverySnapshotLocationProvider::LocalDirectory: return "local_directory";
-  case RecoverySnapshotLocationProvider::S3Compatible: return "s3_compatible";
-  case RecoverySnapshotLocationProvider::GoogleDrive: return "google-drive";
+  case RecoverySnapshotLocationProvider::LocalDirectory:
+    return "local_directory";
+  case RecoverySnapshotLocationProvider::S3Compatible:
+    return "s3_compatible";
+  case RecoverySnapshotLocationProvider::GoogleDrive:
+    return "google-drive";
   }
-  throw Error("unknown storage provider"); // LCOV_EXCL_LINE - private serializer handles every validated enum value.
+  throw Error("unknown storage provider"
+  ); // LCOV_EXCL_LINE - private serializer handles every validated enum value.
 }
 
 RecoverySnapshotLocationProvider location_provider(const std::string& value) {
@@ -96,10 +108,13 @@ RecoverySnapshotLocationProvider location_provider(const std::string& value) {
 
 const char* name(RecoverySnapshotCardPrivacyMode value) {
   switch (value) {
-  case RecoverySnapshotCardPrivacyMode::EncryptedGit: return "encrypted_git";
-  case RecoverySnapshotCardPrivacyMode::Plain: return "plain";
+  case RecoverySnapshotCardPrivacyMode::EncryptedGit:
+    return "encrypted_git";
+  case RecoverySnapshotCardPrivacyMode::Plain:
+    return "plain";
   }
-  throw Error("unknown privacy mode"); // LCOV_EXCL_LINE - private serializer handles every validated enum value.
+  throw Error("unknown privacy mode"
+  ); // LCOV_EXCL_LINE - private serializer handles every validated enum value.
 }
 
 RecoverySnapshotCardPrivacyMode card_privacy_mode(const std::string& value) {
@@ -163,8 +178,12 @@ RecoverySnapshotResource to_snapshot(const holder::model::ResourceBundle& bundle
   return out;
 }
 
-RecoverySnapshotCard to_snapshot(holder_context& context, const holder::model::Project& project,
-                                 const holder::model::Card& card, std::string content) {
+RecoverySnapshotCard to_snapshot(
+    holder_context& context,
+    const holder::model::Project& project,
+    const holder::model::Card& card,
+    std::string content
+) {
   RecoverySnapshotCard out;
   out.card_id = card.card_id;
   out.project_id = project.project_id;
@@ -185,7 +204,8 @@ RecoverySnapshotCard to_snapshot(holder_context& context, const holder::model::P
   holder::resource::LocationRepo locations(context.db);
   std::set<std::string> included_resources;
   std::set<std::string> included_locations;
-  for (const auto& link : holder::card::LinkRepo(context.db).list_outgoing(project.project_id, card.card_id)) {
+  for (const auto& link :
+       holder::card::LinkRepo(context.db).list_outgoing(project.project_id, card.card_id)) {
     RecoverySnapshotLink item;
     try {
       item.target_type = link_target_type(link.to_type);
@@ -212,7 +232,8 @@ RecoverySnapshotCard to_snapshot(holder_context& context, const holder::model::P
   for (const auto& milestone :
        holder::card::MilestoneRepo(context.db).list_for_card(project.project_id, card.card_id)) {
     RecoverySnapshotMilestone item;
-    for (const auto& date : milestone.dates) item.dates.push_back({date.role, date.date, date.datetime});
+    for (const auto& date : milestone.dates)
+      item.dates.push_back({date.role, date.date, date.datetime});
     item.kind = milestone.kind;
     item.description = milestone.description;
     out.milestones.push_back(std::move(item));
@@ -229,10 +250,13 @@ json optional(const std::optional<std::string>& value) {
 json to_json(const RecoverySnapshotCard& card) {
   json links = json::array();
   for (const auto& link : card.links) {
-    json item = {{"target_type", name(link.target_type)}, // LCOV_EXCL_LINE - GCC cleanup-only counter; normal expression is measured on adjacent lines.
-                 {"target_id", link.target_id},
-                 {"kind", link.kind},
-                 {"label", optional(link.label)}};
+    json item = {
+        {"target_type", name(link.target_type)}, // LCOV_EXCL_LINE - GCC cleanup-only counter;
+                                                 // normal expression is measured on adjacent lines.
+        {"target_id", link.target_id},
+        {"kind", link.kind},
+        {"label", optional(link.label)}
+    };
     if (link.target_project_id) item["target_project_id"] = *link.target_project_id;
     links.push_back(std::move(item));
   }
@@ -246,7 +270,10 @@ json to_json(const RecoverySnapshotCard& card) {
       dates.push_back(std::move(item));
     }
     milestones.push_back(
-        {{"dates", std::move(dates)}, {"kind", optional(milestone.kind)}, {"description", optional(milestone.description)}});
+        {{"dates", std::move(dates)},
+         {"kind", optional(milestone.kind)},
+         {"description", optional(milestone.description)}}
+    );
   } // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
   json resources = json::array();
   for (const auto& resource : card.resources) {
@@ -254,54 +281,68 @@ json to_json(const RecoverySnapshotCard& card) {
     for (const auto& asset : resource.assets) {
       json placements = json::array();
       for (const auto& placement : asset.placements) {
-        placements.push_back({{"placement_id", placement.placement_id},
-                              {"location_id", placement.location_id},
-                              {"object_key", placement.object_key},
-                              {"encoding", name(placement.encoding)}, // LCOV_EXCL_LINE - GCC cleanup-only counter; normal expression is measured on adjacent lines.
-                              {"stored_byte_size", placement.stored_byte_size},
-                              {"stored_sha256", placement.stored_sha256},
-                              {"created_at", placement.created_at}});
+        placements.push_back(
+            {{"placement_id", placement.placement_id},
+             {"location_id", placement.location_id},
+             {"object_key", placement.object_key},
+             {"encoding", name(placement.encoding)
+             }, // LCOV_EXCL_LINE - GCC cleanup-only counter; normal expression is measured on
+                // adjacent lines.
+             {"stored_byte_size", placement.stored_byte_size},
+             {"stored_sha256", placement.stored_sha256},
+             {"created_at", placement.created_at}}
+        );
       }
-      assets.push_back({{"asset_id", asset.asset_id},
-                        {"original_filename", asset.original_filename},
-                        {"media_type", asset.media_type},
-                        {"byte_size", asset.byte_size},
-                        {"plaintext_sha256", asset.plaintext_sha256},
-                        {"placements", std::move(placements)},
-                        {"created_at", asset.created_at},
-                        {"updated_at", asset.updated_at}});
+      assets.push_back(
+          {{"asset_id", asset.asset_id},
+           {"original_filename", asset.original_filename},
+           {"media_type", asset.media_type},
+           {"byte_size", asset.byte_size},
+           {"plaintext_sha256", asset.plaintext_sha256},
+           {"placements", std::move(placements)},
+           {"created_at", asset.created_at},
+           {"updated_at", asset.updated_at}}
+      );
     } // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
-    resources.push_back({{"resource_id", resource.resource_id},
-                         {"type", resource.type},
-                         {"label", resource.label},
-                         {"metadata", resource.metadata},
-                         {"assets", std::move(assets)},
-                         {"created_at", resource.created_at},
-                         {"updated_at", resource.updated_at}});
+    resources.push_back(
+        {{"resource_id", resource.resource_id},
+         {"type", resource.type},
+         {"label", resource.label},
+         {"metadata", resource.metadata},
+         {"assets", std::move(assets)},
+         {"created_at", resource.created_at},
+         {"updated_at", resource.updated_at}}
+    );
   } // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
   json locations = json::array();
   for (const auto& location : card.locations) {
-    locations.push_back({{"location_id", location.location_id},
-                         {"name", location.name},
-                         {"provider", name(location.provider)}, // LCOV_EXCL_LINE - GCC cleanup-only counter; normal expression is measured on adjacent lines.
-                         {"configuration", location.configuration},
-                         {"created_at", location.created_at},
-                         {"updated_at", location.updated_at}});
+    locations.push_back(
+        {{"location_id", location.location_id},
+         {"name", location.name},
+         {"provider", name(location.provider)}, // LCOV_EXCL_LINE - GCC cleanup-only counter; normal
+                                                // expression is measured on adjacent lines.
+         {"configuration", location.configuration},
+         {"created_at", location.created_at},
+         {"updated_at", location.updated_at}}
+    );
   }
-  return {{"card_id", card.card_id},
-          {"project_id", card.project_id},
-          {"project_name", card.project_name},
-          {"privacy_mode", name(card.privacy_mode)}, // LCOV_EXCL_LINE - GCC cleanup-only counter; normal expression is measured on adjacent lines.
-          {"title", card.title},
-          {"content", card.content},
-          {"parent_card_id", optional(card.parent_card_id)},
-          {"sort_key", card.sort_key},
-          {"created_at", card.created_at},
-          {"updated_at", card.updated_at},
-          {"links", std::move(links)},
-          {"milestones", std::move(milestones)},
-          {"resources", std::move(resources)},
-          {"locations", std::move(locations)}};
+  return {
+      {"card_id", card.card_id},
+      {"project_id", card.project_id},
+      {"project_name", card.project_name},
+      {"privacy_mode", name(card.privacy_mode)}, // LCOV_EXCL_LINE - GCC cleanup-only counter;
+                                                 // normal expression is measured on adjacent lines.
+      {"title", card.title},
+      {"content", card.content},
+      {"parent_card_id", optional(card.parent_card_id)},
+      {"sort_key", card.sort_key},
+      {"created_at", card.created_at},
+      {"updated_at", card.updated_at},
+      {"links", std::move(links)},
+      {"milestones", std::move(milestones)},
+      {"resources", std::move(resources)},
+      {"locations", std::move(locations)}
+  };
 }
 
 std::string encode_line(const RecoverySnapshotCard& card) {
@@ -332,7 +373,8 @@ std::optional<std::string> nullable_text(const json& object, const char* key) {
 
 long long integer(const json& object, const char* key) {
   const auto& value = field(object, key);
-  if (!value.is_number_integer() || (value.is_number_unsigned() && value.get<unsigned long long>() > LLONG_MAX))
+  if (!value.is_number_integer() ||
+      (value.is_number_unsigned() && value.get<unsigned long long>() > LLONG_MAX))
     throw InvalidArgument(std::string("expected an integer: ") + key);
   return value.get<long long>();
 }
@@ -360,15 +402,20 @@ std::map<std::string, std::string> string_map(const json& object, const char* ke
   return out;
 }
 
-std::map<std::string, std::vector<std::string>> string_list_map(const json& object, const char* key) {
+std::map<std::string, std::vector<std::string>> string_list_map(
+    const json& object,
+    const char* key
+) {
   const auto& value = field(object, key);
   if (!value.is_object()) throw InvalidArgument(std::string("expected an object: ") + key);
   std::map<std::string, std::vector<std::string>> out;
   for (const auto& [entry, items] : value.items()) {
-    if (!items.is_array()) throw InvalidArgument(std::string("expected lists of strings in ") + key);
+    if (!items.is_array())
+      throw InvalidArgument(std::string("expected lists of strings in ") + key);
     auto& list = out[entry];
     for (const auto& item : items) {
-      if (!item.is_string()) throw InvalidArgument(std::string("expected lists of strings in ") + key);
+      if (!item.is_string())
+        throw InvalidArgument(std::string("expected lists of strings in ") + key);
       list.push_back(item.get<std::string>());
     }
   }
@@ -384,7 +431,8 @@ RecoverySnapshotCard card_from_json(const json& body) {
   card.title = text(body, "title");
   card.content = text(body, "content");
   card.parent_card_id = nullable_text(body, "parent_card_id");
-  if (card.parent_card_id && card.parent_card_id->empty()) throw InvalidArgument("parent_card_id must not be empty");
+  if (card.parent_card_id && card.parent_card_id->empty())
+    throw InvalidArgument("parent_card_id must not be empty");
   card.sort_key = number(body, "sort_key");
   card.created_at = integer(body, "created_at");
   card.updated_at = integer(body, "updated_at");
@@ -392,7 +440,8 @@ RecoverySnapshotCard card_from_json(const json& body) {
     RecoverySnapshotLink link;
     link.target_type = link_target_type(text(item, "target_type"));
     link.target_id = text(item, "target_id", true);
-    if (item.contains("target_project_id")) link.target_project_id = text(item, "target_project_id", true);
+    if (item.contains("target_project_id"))
+      link.target_project_id = text(item, "target_project_id", true);
     link.kind = text(item, "kind", true);
     link.label = nullable_text(item, "label");
     card.links.push_back(std::move(link));
@@ -475,23 +524,60 @@ RecoverySnapshotCard decode_line(const std::string& line) {
 
 // -- The snapshot's records as core's, for restore --
 
-holder::model::Location to_model(const RecoverySnapshotLocation& location, const std::string& project_id) {
-  return {location.location_id, project_id, location.name, name(location.provider), location.configuration, // LCOV_EXCL_LINE - GCC cleanup-only counter; normal expression is measured on adjacent lines.
-          location.created_at, location.updated_at};
+holder::model::Location to_model(
+    const RecoverySnapshotLocation& location,
+    const std::string& project_id
+) {
+  return {
+      location.location_id,
+      project_id,
+      location.name,
+      name(location.provider),
+      location.configuration, // LCOV_EXCL_LINE - GCC cleanup-only counter; normal expression is
+                              // measured on adjacent lines.
+      location.created_at,
+      location.updated_at
+  };
 }
 
-holder::model::ResourceBundle to_model(const RecoverySnapshotResource& resource, const std::string& project_id) {
+holder::model::ResourceBundle to_model(
+    const RecoverySnapshotResource& resource,
+    const std::string& project_id
+) {
   holder::model::ResourceBundle bundle;
-  bundle.resource = {resource.resource_id, project_id,          resource.type,      resource.label,
-                     resource.metadata,    resource.created_at, resource.updated_at};
+  bundle.resource = {
+      resource.resource_id,
+      project_id,
+      resource.type,
+      resource.label,
+      resource.metadata,
+      resource.created_at,
+      resource.updated_at
+  };
   for (const auto& asset : resource.assets) {
-    holder::model::Asset item{asset.asset_id,   resource.resource_id,     asset.original_filename,
-                              asset.media_type, asset.byte_size,          asset.plaintext_sha256,
-                              asset.created_at, asset.updated_at,         {}};
+    holder::model::Asset item{
+        asset.asset_id,
+        resource.resource_id,
+        asset.original_filename,
+        asset.media_type,
+        asset.byte_size,
+        asset.plaintext_sha256,
+        asset.created_at,
+        asset.updated_at,
+        {}
+    };
     for (const auto& placement : asset.placements) {
-      item.placements.push_back({placement.placement_id, asset.asset_id, placement.location_id,
-                                 placement.object_key, name(placement.encoding), placement.stored_byte_size, // LCOV_EXCL_LINE - GCC cleanup-only counter; normal expression is measured on adjacent lines.
-                                 placement.stored_sha256, placement.created_at});
+      item.placements.push_back(
+          {placement.placement_id,
+           asset.asset_id,
+           placement.location_id,
+           placement.object_key,
+           name(placement.encoding),
+           placement.stored_byte_size, // LCOV_EXCL_LINE - GCC cleanup-only counter; normal
+                                       // expression is measured on adjacent lines.
+           placement.stored_sha256,
+           placement.created_at}
+      );
     }
     bundle.assets.push_back(std::move(item));
   }
@@ -518,7 +604,8 @@ holder::card::BatchCardInput to_model(const RecoverySnapshotCard& card) {
   }
   for (const auto& milestone : card.milestones) {
     holder::model::Milestone out;
-    for (const auto& date : milestone.dates) out.dates.push_back({date.role, date.date, date.datetime});
+    for (const auto& date : milestone.dates)
+      out.dates.push_back({date.role, date.date, date.datetime});
     out.kind = milestone.kind;
     out.description = milestone.description;
     item.milestones.push_back(std::move(out));
@@ -550,8 +637,12 @@ void replace_all(std::string& text, const std::string& from, const std::string& 
     text.replace(at, from.size(), to);
 }
 
-RecoverySnapshotPage read(holder_context& context, const std::string& project_id,
-                          const std::optional<std::string>& cursor, std::int32_t limit) {
+RecoverySnapshotPage read(
+    holder_context& context,
+    const std::string& project_id,
+    const std::optional<std::string>& cursor,
+    std::int32_t limit
+) {
   const auto project = holder::project::ProjectRepo(context.db).get(project_id);
   if (!project) throw NotFound("project not found: " + project_id);
   const json scope = {{"project_id", project_id}, {"order", "recovery_snapshot"}};
@@ -565,10 +656,12 @@ RecoverySnapshotPage read(holder_context& context, const std::string& project_id
     out.lines.push_back(encode_line(out.cards.back()));
   }
   if (page.next_cursor) {
-    out.next_cursor = encode_cursor({{"version", 1},
-                                     {"query", scope},
-                                     {"card_id", page.next_cursor->card_id},
-                                     {"updated_at", *page.next_cursor->updated_at}});
+    out.next_cursor = encode_cursor(
+        {{"version", 1},
+         {"query", scope},
+         {"card_id", page.next_cursor->card_id},
+         {"updated_at", *page.next_cursor->updated_at}}
+    );
   }
   return out;
 }
@@ -579,15 +672,19 @@ Project restore(holder_context& context, const RecoverySnapshotRestore& request)
   std::map<std::string, RecoverySnapshotLocation> locations;
   std::map<std::string, RecoverySnapshotResource> resources;
   for (const auto& card : cards) {
-    for (const auto& location : card.locations) locations.emplace(location.location_id, location);
-    for (const auto& resource : card.resources) resources.emplace(resource.resource_id, resource);
+    for (const auto& location : card.locations)
+      locations.emplace(location.location_id, location);
+    for (const auto& resource : card.resources)
+      resources.emplace(resource.resource_id, resource);
   }
   for (const auto& [id, resource] : resources)
     for (const auto& asset : resource.assets)
       for (const auto& placement : asset.placements)
         if (!locations.contains(placement.location_id))
-          throw InvalidArgument("a resource's placement names a storage location the snapshot does not hold: " +
-                                placement.location_id);
+          throw InvalidArgument(
+              "a resource's placement names a storage location the snapshot does not hold: " +
+              placement.location_id
+          );
 
   NewProject project;
   project.name = request.project_name;
@@ -624,8 +721,13 @@ Project restore(holder_context& context, const RecoverySnapshotRestore& request)
         replace_all(item.content, "holder://resource/" + old_id, "holder://resource/" + new_id);
       items.push_back(std::move(item));
     }
-    card_store(context).create_batch(created.project_id, items, holder::identity::uuid_v4,
-                                     request.commit_message, resource_ids);
+    card_store(context).create_batch(
+        created.project_id,
+        items,
+        holder::identity::uuid_v4,
+        request.commit_message,
+        resource_ids
+    );
   } catch (...) {
     // The project was made only for this restore: leave nothing of it behind.
     try {
@@ -641,13 +743,21 @@ Project restore(holder_context& context, const RecoverySnapshotRestore& request)
 
 } // namespace
 
-RecoverySnapshotPage read_recovery_snapshot(holder_context& context, std::string project_id,
-                                            std::optional<std::string> cursor, std::int32_t limit) {
-  return with_contract_errors([&] { return read(context, project_id, cursor, limit); });
+RecoverySnapshotPage read_recovery_snapshot(
+    holder_context& context,
+    std::string project_id,
+    std::optional<std::string> cursor,
+    std::int32_t limit
+) {
+  return with_contract_errors([&] {
+    return read(context, project_id, cursor, limit);
+  });
 }
 
 Project restore_recovery_snapshot(holder_context& context, const RecoverySnapshotRestore& request) {
-  return with_contract_errors([&] { return restore(context, request); });
+  return with_contract_errors([&] {
+    return restore(context, request);
+  });
 }
 
 } // namespace holder::contract

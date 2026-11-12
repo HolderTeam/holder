@@ -10,8 +10,8 @@
 
 #include <holder/holder_api.h>
 
-#include <cstring>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -22,8 +22,8 @@ namespace {
 using holder::platform::local_to_utc;
 
 // A London-like zone: UTC+0, and UTC+1 from 01:00Z on 29 March 2026 to 01:00Z on 25 October 2026.
-constexpr long long spring_forward = 1774746000;  // 2026-03-29T01:00:00Z
-constexpr long long fall_back = 1792890000;       // 2026-10-25T01:00:00Z
+constexpr long long spring_forward = 1774746000; // 2026-03-29T01:00:00Z
+constexpr long long fall_back = 1792890000; // 2026-10-25T01:00:00Z
 
 class FakeZones final : public holder::platform::TimeZoneProvider {
  public:
@@ -43,21 +43,27 @@ constexpr long long hour = 3600;
 
 TEST_CASE("local_to_utc reads ordinary local times with the offset in force", "[time_zone]") {
   FakeZones zones;
-  REQUIRE(local_to_utc(zones, "Test/London", march_29) == march_29);            // Midnight, before the change.
-  REQUIRE(local_to_utc(zones, "Test/London", march_29 + 3 * hour) == march_29 + 2 * hour);  // 03:00 BST.
+  REQUIRE(local_to_utc(zones, "Test/London", march_29) == march_29); // Midnight, before the change.
+  REQUIRE(
+      local_to_utc(zones, "Test/London", march_29 + 3 * hour) == march_29 + 2 * hour
+  ); // 03:00 BST.
   REQUIRE(local_to_utc(zones, "Test/London", october_25 + 3 * hour) == october_25 + 3 * hour);
 }
 
 TEST_CASE("local_to_utc moves a skipped local time forward by the gap", "[time_zone]") {
   FakeZones zones;
   // 01:30 never happens on 29 March: clocks go from 01:00 GMT to 02:00 BST. It reads as 02:30 BST.
-  REQUIRE(local_to_utc(zones, "Test/London", march_29 + hour + hour / 2) == spring_forward + hour / 2);
+  REQUIRE(
+      local_to_utc(zones, "Test/London", march_29 + hour + hour / 2) == spring_forward + hour / 2
+  );
 }
 
 TEST_CASE("local_to_utc takes the earlier of a repeated local time", "[time_zone]") {
   FakeZones zones;
   // 01:30 happens twice on 25 October: first in BST (00:30Z), then in GMT (01:30Z).
-  REQUIRE(local_to_utc(zones, "Test/London", october_25 + hour + hour / 2) == october_25 + hour / 2);
+  REQUIRE(
+      local_to_utc(zones, "Test/London", october_25 + hour + hour / 2) == october_25 + hour / 2
+  );
 }
 
 TEST_CASE("local_to_utc refuses an unknown zone", "[time_zone]") {
@@ -76,8 +82,12 @@ TEST_CASE("the built-in provider uses the system's zone data", "[time_zone]") {
   REQUIRE_FALSE(zones->utc_offset("Mars/Olympus_Mons", 0));
   REQUIRE_FALSE(zones->current_zone().empty());
   // The same rule as the fake, on real data.
-  REQUIRE(local_to_utc(*zones, "Europe/London", march_29 + hour + hour / 2) == spring_forward + hour / 2);
-  REQUIRE(local_to_utc(*zones, "Europe/London", october_25 + hour + hour / 2) == october_25 + hour / 2);
+  REQUIRE(
+      local_to_utc(*zones, "Europe/London", march_29 + hour + hour / 2) == spring_forward + hour / 2
+  );
+  REQUIRE(
+      local_to_utc(*zones, "Europe/London", october_25 + hour + hour / 2) == october_25 + hour / 2
+  );
 }
 #endif
 
@@ -88,11 +98,13 @@ struct HostZones {
   int offset_calls = 0;
 };
 
-int host_offset(void* user_data, const char* zone, int64_t utc_seconds, int64_t* out_offset,
-                int* out_present, char**) {
+int host_offset(void* user_data, const char* zone, int64_t utc_seconds, int64_t* out_offset, int* out_present, char**) {
   auto* host = static_cast<HostZones*>(user_data);
   ++host->offset_calls;
-  if (std::strcmp(zone, "Test/Plus2") != 0) { *out_present = 0; return 0; }
+  if (std::strcmp(zone, "Test/Plus2") != 0) {
+    *out_present = 0;
+    return 0;
+  }
   (void)utc_seconds;
   *out_offset = 2 * 3600;
   *out_present = 1;
@@ -136,8 +148,10 @@ TEST_CASE("a host's provider replaces the built-in one and is released once", "[
   // A provider missing a function is refused, and its user data still released.
   HostZones refused;
   holder_time_zone_provider_callbacks incomplete{host_offset, nullptr};
-  REQUIRE(holder_register_time_zone_provider(&incomplete, &refused, host_destroy, &error) ==
-          HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(
+      holder_register_time_zone_provider(&incomplete, &refused, host_destroy, &error) ==
+      HOLDER_ERROR_INVALID_ARGUMENT
+  );
   REQUIRE(refused.destroyed == 1);
   holder_error_destroy(error);
 }

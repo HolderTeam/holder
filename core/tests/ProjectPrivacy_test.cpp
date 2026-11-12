@@ -900,8 +900,10 @@ TEST_CASE("index safety check treats unreadable staged blob as unsafe", "[privac
 }
 #endif
 
-TEST_CASE("Privacy scans accept decryptable LF and CRLF envelopes but reject altered magic",
-          "[privacy][envelope-line-endings]") {
+TEST_CASE(
+    "Privacy scans accept decryptable LF and CRLF envelopes but reject altered magic",
+    "[privacy][envelope-line-endings]"
+) {
   const bool crlf = GENERATE(false, true);
   INFO("CRLF envelope: " << crlf);
   const auto root = make_temp_dir_local();
@@ -919,7 +921,10 @@ TEST_CASE("Privacy scans accept decryptable LF and CRLF envelopes but reject alt
   }
   REQUIRE(holder::privacy::decrypt_envelope_v1(envelope, key, "test-key") == "private content");
   const std::vector<std::string> paths{
-      "cards/aa/card.md", "resources/bb/resource.json", "locations/cc/location.json"};
+      "cards/aa/card.md",
+      "resources/bb/resource.json",
+      "locations/cc/location.json"
+  };
   for (const auto& path : paths) {
     git.write_file(path, envelope);
     git.stage_path(path);
@@ -936,8 +941,10 @@ TEST_CASE("Privacy scans accept decryptable LF and CRLF envelopes but reject alt
   CHECK_FALSE(unsafe.ok);
   REQUIRE(unsafe.unsafe_paths.size() == 1);
   CHECK(unsafe.unsafe_paths[0] == paths[0]);
-  REQUIRE_THROWS_AS(holder::privacy::assert_encryption_index_paths_safe(root.string(), paths),
-                    holder::privacy::PrivacyError);
+  REQUIRE_THROWS_AS(
+      holder::privacy::assert_encryption_index_paths_safe(root.string(), paths),
+      holder::privacy::PrivacyError
+  );
   git.write_file(paths[0], envelope);
   git.stage_path(paths[0]);
   CHECK(holder::privacy::run_encryption_safety_check(root.string()).ok);

@@ -105,7 +105,8 @@ inline std::optional<long long> milestone_date_epoch(const MilestoneDate& value)
 inline long long milestone_day_utc_epoch(const std::string& date) {
   return std::chrono::duration_cast<std::chrono::seconds>(
              milestone_calendar_day(date).time_since_epoch()
-  ).count();
+  )
+      .count();
 }
 
 inline std::string milestone_utc_date(long long at) {

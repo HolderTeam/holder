@@ -18,7 +18,10 @@ inline std::pair<std::string, std::string> write_ambiguous_commit_prefix(
 ) {
   git_repository* raw_repo = nullptr;
   REQUIRE(git_repository_open(&raw_repo, root.string().c_str()) == 0);
-  const std::unique_ptr<git_repository, decltype(&git_repository_free)> repo(raw_repo, git_repository_free);
+  const std::unique_ptr<git_repository, decltype(&git_repository_free)> repo(
+      raw_repo,
+      git_repository_free
+  );
   git_odb* raw_odb = nullptr;
   REQUIRE(git_repository_odb(&raw_odb, repo.get()) == 0);
   const std::unique_ptr<git_odb, decltype(&git_odb_free)> odb(raw_odb, git_odb_free);
@@ -30,7 +33,8 @@ inline std::pair<std::string, std::string> write_ambiguous_commit_prefix(
   std::string* outputs[] = {&result.first, &result.second};
   const int nonces[] = {660, 52535};
   for (int index = 0; index < 2; ++index) {
-    const auto content = "tree " + tree_oid +
+    const auto content =
+        "tree " + tree_oid +
         "\nauthor Holder <holder@example.invalid> 1 +0000\n"
         "committer Holder <holder@example.invalid> 1 +0000\n\nrevision collision " +
         std::to_string(nonces[index]) + "\n";

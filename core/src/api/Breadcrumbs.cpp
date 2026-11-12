@@ -12,8 +12,11 @@
 
 namespace holder::contract {
 
-std::vector<CardBreadcrumb> get_card_breadcrumbs(holder_context& context, std::string project_id,
-                                                 std::string card_id) {
+std::vector<CardBreadcrumb> get_card_breadcrumbs(
+    holder_context& context,
+    std::string project_id,
+    std::string card_id
+) {
   const auto project = holder::project::ProjectRepo(context.db).get(project_id);
   if (!project) throw NotFound("Project not found.");
 

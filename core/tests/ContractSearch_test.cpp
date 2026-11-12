@@ -52,11 +52,16 @@ TEST_CASE("Contract Search finds card and AI message matches", "[contract][searc
   message.created_at = 11;
   holder::ai::AiMessageRepo(db, &fts).append(message);
 
-  const auto messages = holder::contract::search_ai_messages(context, project.project_id, "sapphire", 20, 0);
+  const auto messages =
+      holder::contract::search_ai_messages(context, project.project_id, "sapphire", 20, 0);
   REQUIRE(messages.size() == 1);
   REQUIRE(messages[0].message_id == message.message_id);
-  REQUIRE_THROWS_AS(holder::contract::search_cards(context, project.project_id, "\"unbalanced", 20, 0),
-                    holder::contract::InvalidArgument);
-  REQUIRE_THROWS_AS(holder::contract::search_ai_messages(context, project.project_id, "\"unbalanced", 20, 0),
-                    holder::contract::InvalidArgument);
+  REQUIRE_THROWS_AS(
+      holder::contract::search_cards(context, project.project_id, "\"unbalanced", 20, 0),
+      holder::contract::InvalidArgument
+  );
+  REQUIRE_THROWS_AS(
+      holder::contract::search_ai_messages(context, project.project_id, "\"unbalanced", 20, 0),
+      holder::contract::InvalidArgument
+  );
 }

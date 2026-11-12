@@ -16,8 +16,12 @@
 namespace holder::contract {
 namespace {
 
-TrashDeleteResult remove_item(holder_context& context, const std::optional<std::string>& project_id,
-                              bool is_card, const std::string& id) {
+TrashDeleteResult remove_item(
+    holder_context& context,
+    const std::optional<std::string>& project_id,
+    bool is_card,
+    const std::string& id
+) {
   if (is_card) {
     const auto card = holder::card::CardRepo(context.db).get(id);
     if (!card || (project_id && card->project_id != *project_id)) throw NotFound("Card not found.");
@@ -28,7 +32,8 @@ TrashDeleteResult remove_item(holder_context& context, const std::optional<std::
   }
   holder::ai::AiMessageRepo messages(context.db, &context.fts);
   const auto message = messages.get(id);
-  const auto thread = message ? holder::ai::AiThreadRepo(context.db).get(message->thread_id) : std::nullopt;
+  const auto thread = message ? holder::ai::AiThreadRepo(context.db).get(message->thread_id)
+                              : std::nullopt;
   if (!thread || (project_id && thread->project_id != *project_id))
     throw NotFound("AI message not found.");
   if (!message->deleted_at) throw NotTrashed("AI message is not in Trash.");
@@ -38,8 +43,11 @@ TrashDeleteResult remove_item(holder_context& context, const std::optional<std::
 
 } // namespace
 
-std::vector<TrashItem> list_trash(holder_context& context, std::string project_id,
-                                  std::optional<std::string> type) {
+std::vector<TrashItem> list_trash(
+    holder_context& context,
+    std::string project_id,
+    std::optional<std::string> type
+) {
   const auto wants = [&](const char* kind) {
     return !type || type->empty() || *type == kind || *type == "all";
   };
@@ -47,18 +55,36 @@ std::vector<TrashItem> list_trash(holder_context& context, std::string project_i
   if (wants("card")) {
     for (const auto& card : holder::card::CardRepo(context.db).list_all(project_id)) {
       if (!card.deleted_at) continue;
-      items.push_back({TrashItemType::Card, card.project_id, card.card_id, std::nullopt,
-                       std::nullopt, card.title, std::nullopt, *card.deleted_at, std::nullopt,
-                       card.rel_path});
+      items.push_back(
+          {TrashItemType::Card,
+           card.project_id,
+           card.card_id,
+           std::nullopt,
+           std::nullopt,
+           card.title,
+           std::nullopt,
+           *card.deleted_at,
+           std::nullopt,
+           card.rel_path}
+      );
     }
   }
   if (wants("ai_message")) {
     holder::ai::AiMessageRepo messages(context.db, &context.fts);
     for (const auto& message : messages.list_deleted_by_project(project_id)) {
       if (!message.deleted_at) continue;
-      items.push_back({TrashItemType::AiMessage, project_id, std::nullopt, message.message_id,
-                       message.thread_id, std::nullopt, message.role, *message.deleted_at,
-                       message.created_at, std::nullopt});
+      items.push_back(
+          {TrashItemType::AiMessage,
+           project_id,
+           std::nullopt,
+           message.message_id,
+           message.thread_id,
+           std::nullopt,
+           message.role,
+           *message.deleted_at,
+           message.created_at,
+           std::nullopt}
+      );
     }
   }
   return items;
@@ -81,14 +107,22 @@ TrashEmptyResult empty_trash(holder_context& context, std::string project_id, Em
   });
 }
 
-TrashDeleteResult delete_trash_item(holder_context& context, DeleteTrashItemType type, std::string id) {
+TrashDeleteResult delete_trash_item(
+    holder_context& context,
+    DeleteTrashItemType type,
+    std::string id
+) {
   return with_contract_errors([&] {
     return remove_item(context, std::nullopt, type == DeleteTrashItemType::Card, id);
   });
 }
 
-TrashDeleteResult delete_project_trash_item(holder_context& context, std::string project_id,
-                                             DeleteProjectTrashItemType type, std::string id) {
+TrashDeleteResult delete_project_trash_item(
+    holder_context& context,
+    std::string project_id,
+    DeleteProjectTrashItemType type,
+    std::string id
+) {
   return with_contract_errors([&] {
     return remove_item(context, project_id, type == DeleteProjectTrashItemType::Card, id);
   });

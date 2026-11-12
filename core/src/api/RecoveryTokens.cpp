@@ -99,7 +99,14 @@ RecoveryTokenGlobalImportResult import_global(
         try {
           git.pull_remote_ff_only("origin");
         } catch (const holder::git::NonFastForwardPullError& diverged) {
-          holder::sync::resolve_pull_conflicts(context.db, &context.fts, refreshed, git, diverged, now);
+          holder::sync::resolve_pull_conflicts(
+              context.db,
+              &context.fts,
+              refreshed,
+              git,
+              diverged,
+              now
+          );
         }
         holder::sync::reconcile_index_after_pull(context.db, &context.fts, refreshed);
         pull_status = RecoveryTokenGlobalImportResultPullStatus::Succeeded;
