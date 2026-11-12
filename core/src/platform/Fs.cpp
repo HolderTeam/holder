@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <fstream>
+#include <sstream>
 #include <stdexcept>
 #include <system_error>
 
@@ -54,7 +55,10 @@ std::string RealFs::read_file(const std::filesystem::path& path) const {
   if (!in.is_open()) {
     throw std::runtime_error("Failed to open for read: " + path.string());
   }
-  return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  // Copied a buffer at a time; building the string from istreambuf_iterator goes a byte at a time.
+  std::ostringstream content;
+  content << in.rdbuf();
+  return std::move(content).str();
 }
 
 void RealFs::write_file(const std::filesystem::path& path, const std::string& content) const {

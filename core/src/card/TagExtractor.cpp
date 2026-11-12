@@ -6,15 +6,43 @@
 #include <cctype>
 #include <cstdint>
 #include <optional>
-#include <regex>
 #include <set>
 
 namespace holder::core {
 namespace {
 
-const std::regex& tag_pattern() {
-  static const std::regex pattern(R"((^|[\s([{>,.;:!?])#([A-Za-z][A-Za-z0-9_/\-]*))");
-  return pattern;
+// A tag is '#' and an ASCII letter, then letters, digits, '_', '/' or '-', at the start of the text
+// or after whitespace or one of ([{>,.;:!? . This is a scanner rather than std::regex, which is
+// slow over large cards; it finds exactly the tags the equivalent pattern
+// (^|[\s([{>,.;:!?])#([A-Za-z][A-Za-z0-9_/\-]*) does.
+bool is_tag_boundary(char c) {
+  switch (c) {
+  case ' ':
+  case '\t':
+  case '\n':
+  case '\v':
+  case '\f':
+  case '\r':
+  case '(':
+  case '[':
+  case '{':
+  case '>':
+  case ',':
+  case '.':
+  case ';':
+  case ':':
+  case '!':
+  case '?':
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool is_ascii_letter(char c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'); }
+
+bool is_tag_char(char c) {
+  return is_ascii_letter(c) || (c >= '0' && c <= '9') || c == '_' || c == '/' || c == '-';
 }
 
 bool is_hex_digit(char c) {
@@ -53,20 +81,25 @@ void collect_tags(
     ExtractorState& state,
     std::optional<std::size_t> source_offset
 ) {
-  for (auto it = std::sregex_iterator(text.begin(), text.end(), tag_pattern());
-       it != std::sregex_iterator();
-       ++it) {
-    std::string candidate = (*it)[2].str();
+  for (std::size_t hash = 0; hash < text.size(); ++hash) {
+    if (text[hash] != '#' || (hash > 0 && !is_tag_boundary(text[hash - 1]))) continue;
+    const std::size_t start = hash + 1;
+    if (start >= text.size() || !is_ascii_letter(text[start])) continue;
+    std::size_t end = start + 1;
+    while (end < text.size() && is_tag_char(text[end]))
+      ++end;
+    // The next tag can start no earlier than the character after this one.
+    hash = end - 1;
+    std::string candidate = text.substr(start, end - start);
     if (looks_like_hex_color(candidate)) {
       continue;
     }
     std::string tag = to_lower(std::move(candidate));
     if (source_offset.has_value()) {
-      const auto candidate_pos = static_cast<std::size_t>((*it).position(2));
       state.occurrences.push_back({
           tag,
-          source_offset.value() + candidate_pos - 1,
-          source_offset.value() + candidate_pos + static_cast<std::size_t>((*it).length(2)),
+          source_offset.value() + start - 1,
+          source_offset.value() + end,
       });
     }
     if (state.seen.insert(tag).second) {
