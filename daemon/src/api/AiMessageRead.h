@@ -50,27 +50,27 @@ struct AiMessageNotFound : std::runtime_error {
 AiMessageListResponse get_ai_messages(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    std::string thread_id,
+    const std::string& thread_id,
     std::optional<int> include_deleted
 );
 
 AiMessageGetResponse get_ai_message(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    std::string message_id
+    const std::string& message_id
 );
 
 holder::api::routes::CardLinkListResponse get_ai_message_links(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    std::string message_id,
+    const std::string& message_id,
     std::optional<int> include_deleted
 );
 
 holder::api::routes::CardLinkListResponse get_ai_message_backlinks(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    std::string message_id,
+    const std::string& message_id,
     std::optional<int> include_deleted
 );
 

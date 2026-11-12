@@ -111,7 +111,7 @@ void exchange(Request& req, ResponseParser& parser) {
   http::read(stream, buffer, parser);
 
   boost::system::error_code ec;
-  stream.shutdown(ec);
+  (void)stream.shutdown(ec);
 }
 
 DriveResponse json_request(

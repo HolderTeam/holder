@@ -104,7 +104,7 @@ TEST_CASE(
       noon.epoch_seconds
   );
   CHECK(explicit_range.from == midnight.epoch_seconds);
-  CHECK(explicit_range.to - explicit_range.from + 1 == 24 * 60 * 60);
+  CHECK(explicit_range.to - explicit_range.from + 1 == 24LL * 60 * 60);
 
   const auto default_range =
       holder::cli::resolve_calendar_range(std::nullopt, std::nullopt, noon.epoch_seconds);
@@ -160,14 +160,14 @@ TEST_CASE(
       std::string("2026-03-29"),
       now
   );
-  CHECK(spring.to - spring.from + 1 == 23 * 60 * 60);
+  CHECK(spring.to - spring.from + 1 == 23LL * 60 * 60);
 
   const auto autumn = holder::cli::resolve_calendar_range(
       std::string("2026-10-25"),
       std::string("2026-10-25"),
       now
   );
-  CHECK(autumn.to - autumn.from + 1 == 25 * 60 * 60);
+  CHECK(autumn.to - autumn.from + 1 == 25LL * 60 * 60);
 }
 #endif
 

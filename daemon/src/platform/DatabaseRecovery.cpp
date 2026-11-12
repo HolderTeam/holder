@@ -48,13 +48,15 @@ long long scalar_count(holder::platform::Db& db, const std::string& sql) {
 void require_no_daemon_sqlite_only_state(holder::platform::Db& db, const Paths& paths) {
   std::vector<std::pair<std::string, std::string>> checks;
   if (!holder::ai::all_thread_compaction_states_are_durable(db)) {
-    checks.push_back(
-        {"AI thread compaction state", "SELECT COUNT(*) FROM ai_thread_compaction_state;"}
+    checks.emplace_back(
+        "AI thread compaction state",
+        "SELECT COUNT(*) FROM ai_thread_compaction_state;"
     );
   }
   if (!holder::ai::all_nudge_dismissals_are_durable(db)) {
-    checks.push_back(
-        {"dismissed AI nudges", "SELECT COUNT(*) FROM ai_nudges WHERE dismissed_at IS NOT NULL;"}
+    checks.emplace_back(
+        "dismissed AI nudges",
+        "SELECT COUNT(*) FROM ai_nudges WHERE dismissed_at IS NOT NULL;"
     );
   }
   if (!std::filesystem::exists(paths.cloud_usage_ledger_path())) {

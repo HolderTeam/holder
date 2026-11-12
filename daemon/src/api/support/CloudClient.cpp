@@ -128,7 +128,7 @@ bool https_post_json(
     http::read(stream, buffer, res);
 
     boost::system::error_code ec;
-    stream.shutdown(ec);
+    (void)stream.shutdown(ec);
     if (ec == boost::asio::error::eof || ec == boost::asio::ssl::error::stream_truncated) {
       ec = {};
     }

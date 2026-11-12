@@ -55,7 +55,7 @@ AiRunnerResponse post_ai_runners(
 AiRunnerResponse patch_ai_runners_runner_id(
     holder::platform::Db& db,
     holder::llm::RunnerRegistry* registry,
-    std::string runner_id,
+    const std::string& runner_id,
     AiRunnerUpdateRequest request
 );
 
@@ -67,7 +67,7 @@ AiRunnerDeleteResponse delete_ai_runners_runner_id(
 
 AiRunnerResponse post_ai_runners_runner_id_retry(
     holder::llm::RunnerRegistry* registry,
-    std::string runner_id
+    const std::string& runner_id
 );
 
 } // namespace holder::api

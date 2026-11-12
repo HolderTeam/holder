@@ -54,6 +54,7 @@ void probe(
     try {
       provider.remove(object_key);
     } catch (...) {
+      // Ignored: the probe's own failure, rethrown below, is the one to report.
     }
     std::error_code ignored;
     std::filesystem::remove(probe_file, ignored);
@@ -98,7 +99,7 @@ LocationTestResponse post_locations_location_id_test(
     holder::platform::Db& db,
     holder::privacy::SecretStore* secret_store,
     const std::function<std::string()>& uuid_v4,
-    std::string location_id
+    const std::string& location_id
 ) {
   auto bindings = require_bindings(secret_store);
   const auto location = find_location(db, location_id);

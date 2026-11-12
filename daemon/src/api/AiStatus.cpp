@@ -46,7 +46,7 @@ RunnerCapabilitiesResponse get_ai_capabilities(
   try {
     data.local_model_config = get_local_model_config(db).data;
   } catch (const std::exception&) {
-    // The capabilities view stays available without the saved model preferences.
+    // Ignored: the capabilities view stays available without the saved model preferences.
   }
   const auto caste = support::detect_machine_caste();
   data.caste.emplace(); // Always sent, as null when the caste cannot be detected.

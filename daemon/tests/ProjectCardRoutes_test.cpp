@@ -84,8 +84,8 @@ TEST_CASE(
   holder::test::create_card_fixture(store, deleted, "p", "deleted", "deleted\n#work", 40);
   holder::test::create_card_fixture(store, foreign, "other", "foreign", "foreign\n#work", 50);
   store.trash(deleted, 60);
-  auto call = [&](Params params,
-                  std::string path = "/projects/p/cards",
+  auto call = [&](const Params& params,
+                  const std::string& path = "/projects/p/cards",
                   http::verb method = http::verb::get) {
     return route_project_cards(db, nullptr, path, params, method);
   };
@@ -165,7 +165,7 @@ TEST_CASE("Project card pages follow sibling sort keys across cursors", "[card-p
   holder::test::create_card_fixture(store, first, "p", "first", "first", 2, parent, 10.0);
   holder::test::create_card_fixture(store, second, "p", "second", "second", 3, parent, 20.0);
   holder::test::create_card_fixture(store, third, "p", "third", "third", 4, parent, 20.0);
-  auto call = [&](Params params) {
+  auto call = [&](const Params& params) {
     return route_project_cards(db, &store, "/projects/p/cards", params);
   };
   Params params{{"parent", parent}, {"order", "sort_key_asc"}, {"limit", "1"}};
@@ -199,10 +199,10 @@ TEST_CASE(
   const std::string child = "00000000-0000-4000-8000-000000000011";
   holder::test::create_card_fixture(store, parent, "p", "Parent", "parent body", 1);
   holder::test::create_card_fixture(store, child, "p", "Child", "child body", 2, parent);
-  auto call = [&](const std::string& path, Params params = {}, http::verb method = http::verb::get
-              ) {
-    return route_project_cards(db, &store, path, params, method);
-  };
+  auto call =
+      [&](const std::string& path, const Params& params = {}, http::verb method = http::verb::get) {
+        return route_project_cards(db, &store, path, params, method);
+      };
   const auto list_path = std::string("/projects/p/cards");
   const auto plain = call(list_path, {{"parent", "roots"}}).second["data"]["items"];
   REQUIRE(plain.size() == 1);
@@ -254,7 +254,7 @@ TEST_CASE("Project card collection pages can include card content", "[card-pages
   const std::string second = "00000000-0000-4000-8000-000000000002";
   holder::test::create_card_fixture(store, first, "p", "one", "one body\n#work", 10);
   holder::test::create_card_fixture(store, second, "p", "two", "two body", 20);
-  auto call = [&](Params params, holder::card::CardStore* card_store) {
+  auto call = [&](const Params& params, holder::card::CardStore* card_store) {
     return route_project_cards(db, card_store, "/projects/p/cards", params);
   };
 

@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <format>
 #include <git2.h>
 #include <memory>
 #include <sstream>
@@ -555,7 +556,7 @@ TEST_CASE("holderctl sync test preserves structured Git failures", "[holderctl][
   expected["data"]["remote_url"] = "[redacted]";
   expected["data"]["error_message"] = "[redacted]";
   for (const auto* mode : {"", " --json"}) {
-    const auto result = fixture.run("test '" + url + "' --project " + work_id + mode);
+    const auto result = fixture.run(std::format("test '{}' --project {}{}", url, work_id, mode));
     REQUIRE(result.code == 1);
     CHECK(result.output.empty());
     CHECK(result.error.find("private-secret") == std::string::npos);

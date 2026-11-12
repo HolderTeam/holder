@@ -66,14 +66,14 @@ class ProjectRoutesTestGitOps final : public holder::git::GitOps {
   void remove_path(const std::filesystem::path&) override {}
   void commit(const std::string&) override {}
   void set_remote(const std::string&, const std::string&) override {
-    calls.push_back("remote");
+    calls.emplace_back("remote");
     if (throw_on_set_remote) {
       throw std::runtime_error("set_remote failed");
     }
   }
   void remove_remote(const std::string&) override {}
   void pull_remote_ff_only(const std::string&) override {
-    calls.push_back("pull");
+    calls.emplace_back("pull");
     if (throw_on_pull) {
       throw std::runtime_error("pull failed");
     }
@@ -83,7 +83,7 @@ class ProjectRoutesTestGitOps final : public holder::git::GitOps {
     return probe_result;
   }
   holder::git::PushResult push_branch(const std::string&, const std::string&, bool) override {
-    calls.push_back("push");
+    calls.emplace_back("push");
     return push_result;
   }
   std::filesystem::path repo_dir() const override { return {}; }

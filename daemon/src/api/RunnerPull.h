@@ -73,7 +73,7 @@ struct PullJobNotFound : std::runtime_error {
 RunnerPullStatusResponse get_pull_status(
     holder::llm::RunnerRegistry* registry,
     std::optional<std::string> runner_id,
-    std::string job_id
+    const std::string& job_id
 );
 
 // The runner is configured but not answering.

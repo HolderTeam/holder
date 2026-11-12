@@ -29,7 +29,7 @@ RunnerPullJob pull_job_status(const holder::llm::RunnerPullJob& job, const std::
 RunnerPullStatusResponse get_pull_status(
     holder::llm::RunnerRegistry* registry,
     std::optional<std::string> requested_runner_id,
-    std::string job_id
+    const std::string& job_id
 ) {
   const std::string runner_id = requested_runner_id.has_value() && !requested_runner_id->empty()
                                     ? *requested_runner_id

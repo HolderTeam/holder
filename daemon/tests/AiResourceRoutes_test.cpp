@@ -59,7 +59,7 @@ struct LocationRouteFixture {
   http::response<http::string_body> call(
       http::verb method,
       const std::string& path,
-      nlohmann::json body = nlohmann::json::object(),
+      const nlohmann::json& body = nlohmann::json::object(),
       std::string project = "project",
       bool with_secrets = true,
       const std::map<std::string, std::string>& params = {},
@@ -73,7 +73,7 @@ struct LocationRouteFixture {
       if (path == "/locations" && !project.empty()) query.emplace("project_id", project);
       char separator = '?';
       for (const auto& [key, value] : query) {
-        target += separator + key + "=" + value;
+        target.append(1, separator).append(key).append("=").append(value);
         separator = '&';
       }
     }

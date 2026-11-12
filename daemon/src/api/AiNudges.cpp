@@ -30,7 +30,7 @@ AiNudge to_api(const holder::ai::Nudge& nudge) {
 AiNudgeListResponse get_ai_nudges(
     holder::platform::Db& db,
     holder::llm::RunnerRegistry* registry,
-    std::string project_id,
+    const std::string& project_id,
     std::optional<std::string> card_id
 ) {
   if (card_id.has_value() && card_id->empty()) card_id.reset();

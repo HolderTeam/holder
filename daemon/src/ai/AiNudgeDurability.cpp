@@ -107,7 +107,7 @@ DismissedNudge from_json(const nlohmann::json& body) {
 }
 
 std::string encode(const holder::model::Project& project, const DismissedNudge& nudge) {
-  const auto plain = as_json(nudge).dump(2) + '\n';
+  auto plain = as_json(nudge).dump(2) + '\n';
   if (project.privacy_mode != "encrypted_git") return plain;
   if (!project.project_key_id.has_value() || project.project_key_id->empty()) {
     throw std::runtime_error("encrypted project has no key for AI nudge dismissal");

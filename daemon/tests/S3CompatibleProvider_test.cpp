@@ -69,6 +69,8 @@ class BodylessHeadServer {
       boost::beast::flat_buffer buffer;
       http::request<http::empty_body> request;
       http::read(socket, buffer, request);
+      // http::read fills request in place; the analyzer takes its forwarding parameter for a move.
+      // NOLINTNEXTLINE(clang-analyzer-cplusplus.Move)
       request_method_ = std::string(request.method_string());
 
       // S3 servers legitimately return the corresponding object's length in
@@ -163,6 +165,7 @@ TEST_CASE("S3-compatible provider round-trips an object", "[s3][integration]") {
     try {
       provider.remove(object_key);
     } catch (...) {
+      // Ignored: the test's own failure, rethrown below, is the one to report.
     }
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);

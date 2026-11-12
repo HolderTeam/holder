@@ -28,7 +28,7 @@ std::optional<std::string> model(const std::optional<std::optional<std::string>>
 
 AiLocalModelConfigResponse put_local_model_config(
     holder::platform::Db& db,
-    AiLocalModelConfigUpdateRequest request
+    const AiLocalModelConfigUpdateRequest& request
 ) {
   holder::ai::AiLocalModelConfigRepo(db).set(
       model(request.fast_model),

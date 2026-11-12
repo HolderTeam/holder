@@ -126,7 +126,7 @@ TEST_CASE(
     REQUIRE(metadata.content_type == "application/octet-stream");
     REQUIRE(metadata.filename == "payload.bin");
     REQUIRE(metadata.content_disposition == "attachment; filename=\"payload.bin\"");
-    REQUIRE(largest_chunk <= 64 * 1024);
+    REQUIRE(largest_chunk <= std::size_t{64} * 1024);
     REQUIRE(server.request.target() == "/asset/content");
     REQUIRE(server.request[http::field::authorization] == "Bearer download-token");
   }

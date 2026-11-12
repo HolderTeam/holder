@@ -33,7 +33,7 @@ class EventService {
   struct State {
     std::mutex mutex;
     std::condition_variable wake;
-    EventJournal changes{4096, 1024 * 1024};
+    EventJournal changes{4096, std::size_t{1024} * 1024};
     nlohmann::json revisions = nlohmann::json::object();
     bool stopped = false;
     bool available = true;

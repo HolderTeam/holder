@@ -108,6 +108,6 @@ nlohmann::json download_git_providers_json() {
 
 api_runtime::host_value get_docs() { return serve_docs_file("index.html"); }
 
-api_runtime::host_value get_docs_file(std::string file) { return serve_docs_file(file); }
+api_runtime::host_value get_docs_file(const std::string& file) { return serve_docs_file(file); }
 
 } // namespace holder::api

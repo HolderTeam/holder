@@ -70,6 +70,6 @@ AiRunListResponse get_ai_runs(
     std::optional<std::string> thread_id
 );
 
-AiRunGetResponse get_ai_run(holder::platform::Db& db, std::string run_id);
+AiRunGetResponse get_ai_run(holder::platform::Db& db, const std::string& run_id);
 
 } // namespace holder::api

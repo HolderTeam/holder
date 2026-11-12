@@ -12,6 +12,7 @@
 
 #include <boost/beast/http.hpp>
 #include <nlohmann/json.hpp>
+#include <utility>
 
 namespace {
 
@@ -62,7 +63,7 @@ bool route_message(
       fts,
       nullptr,
       nullptr,
-      uuid_v4,
+      std::move(uuid_v4),
       {}
   );
 }

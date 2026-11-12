@@ -5,6 +5,8 @@
 #include "card/CardRepo.h"
 #include "model/AiThread.h"
 
+#include <format>
+
 using holder::test::create_project;
 using holder::test::http_json_request;
 using holder::test::make_temp_dir;
@@ -453,7 +455,7 @@ TEST_CASE("HTTP trash routes validate parameters and hard-delete variants", "[ht
         bound.port,
         token,
         boost::beast::http::verb::delete_,
-        "/projects/proj-1/trash/" + type + "/" + id,
+        std::format("/projects/proj-1/trash/{}/{}", type, id),
         nlohmann::json::object(),
         boost::beast::http::status::not_found
     );
@@ -469,7 +471,7 @@ TEST_CASE("HTTP trash routes validate parameters and hard-delete variants", "[ht
         bound.port,
         token,
         boost::beast::http::verb::delete_,
-        "/projects/proj-1/trash/" + type + "/" + id,
+        std::format("/projects/proj-1/trash/{}/{}", type, id),
         nlohmann::json::object(),
         boost::beast::http::status::conflict
     );
@@ -496,7 +498,7 @@ TEST_CASE("HTTP trash routes validate parameters and hard-delete variants", "[ht
         bound.port,
         token,
         boost::beast::http::verb::delete_,
-        "/projects/proj-2/trash/" + type + "/" + id,
+        std::format("/projects/proj-2/trash/{}/{}", type, id),
         nlohmann::json::object(),
         boost::beast::http::status::ok
     );

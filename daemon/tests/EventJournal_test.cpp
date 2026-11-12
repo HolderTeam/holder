@@ -68,7 +68,9 @@ TEST_CASE("SSE admission restores rejected sockets and bounds producer output", 
   REQUIRE(stream);
   REQUIRE_FALSE(SseStream::reserve(two, registry));
   REQUIRE(stream->send({"queued", {"chunk", {{"delta", "queued before cancellation"}}}}));
-  REQUIRE_FALSE(stream->send({"id", {"chunk", {{"delta", std::string(2 * 1024 * 1024, 'x')}}}}));
+  REQUIRE_FALSE(
+      stream->send({"id", {"chunk", {{"delta", std::string(std::size_t{2} * 1024 * 1024, 'x')}}}})
+  );
   REQUIRE_FALSE(stream->open());
   stream->activate();
   ioc.run();
@@ -110,6 +112,7 @@ TEST_CASE(
     try {
       released.set_value();
     } catch (const std::future_error&) {
+      // Ignored: the test already released it.
     }
     io_worker.join();
     registry->poll_workers().join();
@@ -210,7 +213,8 @@ TEST_CASE(
   auto registry = std::make_shared<SseRegistry>();
   auto stream = SseStream::start(socket, registry);
   REQUIRE(stream);
-  REQUIRE(stream->send({"large", {"chunk", {{"delta", std::string(1024 * 1024, 'x')}}}}));
+  REQUIRE(stream->send({"large", {"chunk", {{"delta", std::string(std::size_t{1024} * 1024, 'x')}}}}
+  ));
   io.run_for(std::chrono::milliseconds(50));
   REQUIRE(stream->open());
   peer.set_option(boost::asio::socket_base::linger(true, 0));

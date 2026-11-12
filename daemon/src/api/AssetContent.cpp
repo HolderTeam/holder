@@ -62,7 +62,7 @@ void stream_file_response(
 
   std::ifstream input(path, std::ios::binary);
   if (!input) throw std::runtime_error("failed to open recovered asset");
-  std::array<char, 64 * 1024> buffer{};
+  std::array<char, std::size_t{64} * 1024> buffer{};
   while (input) {
     input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
     const auto count = input.gcount();
@@ -83,9 +83,9 @@ std::pair<int, support::StreamServer> get_resources_resource_id_assets_asset_id_
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,
     const std::function<std::string()>& uuid_v4,
-    std::string resource_id,
+    const std::string& resource_id,
     std::string asset_id,
-    std::optional<std::string> placement_id
+    const std::optional<std::string>& placement_id
 ) {
   if (secret_store == nullptr || git_ops == nullptr) {
     throw std::runtime_error("asset retrieval services unavailable");
@@ -141,7 +141,7 @@ std::pair<int, support::StreamServer> get_resources_resource_id_assets_asset_id_
               stream_file_response(socket, recovered, asset);
             } catch (const std::exception&) {
               boost::system::error_code ignored;
-              socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored);
+              (void)socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored);
             }
             std::filesystem::remove(recovered);
             return true;

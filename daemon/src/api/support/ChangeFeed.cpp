@@ -125,7 +125,7 @@ nlohmann::json ChangeFeed::read_revisions() {
       const auto revision = repo.head_oid();
       if (revision) result[project] = *revision;
     } catch (const std::exception&) {
-      // Missing/unborn/unavailable Git is reported as a null revision, never
+      // Ignored: missing/unborn/unavailable Git is reported as a null revision, never
       // initialized or repaired by this read-only observer.
     }
   }

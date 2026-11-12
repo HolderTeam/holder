@@ -73,7 +73,7 @@ AiRunListResponse get_ai_runs(
   return response;
 }
 
-AiRunGetResponse get_ai_run(holder::platform::Db& db, std::string run_id) {
+AiRunGetResponse get_ai_run(holder::platform::Db& db, const std::string& run_id) {
   const auto run = holder::ai::AiRunRepo(db).get(run_id);
   if (!run) throw AiRunNotFound{};
   return {true, run_item(*run)};

@@ -57,7 +57,7 @@ nlohmann::json checkpoint_json(const EventCheckpoint& value) {
 }
 
 api_runtime::event<nlohmann::json> resync_required(
-    EventCheckpoint at,
+    const EventCheckpoint& at,
     std::string reason,
     const std::string& revision
 ) {

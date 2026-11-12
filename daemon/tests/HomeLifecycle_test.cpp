@@ -116,7 +116,7 @@ TEST_CASE("Encrypted Home survives restart and schema upgrade", "[home-lifecycle
   const auto privacy_before = read_lifecycle_file(metadata / "privacy.json");
   const auto cards_before = holder::card::CardRepo(fixture.db).list_all(original.project_id);
   REQUIRE(cards_before.size() == 1);
-  const auto card_before = cards_before.front();
+  const auto& card_before = cards_before.front();
   const auto content_before = holder::card::CardStore(fixture.db, nullptr).get_content(card_before);
   REQUIRE(content_before.has_value());
   const auto encrypted_before = holder::privacy::encrypt_project_blob(
@@ -271,7 +271,7 @@ TEST_CASE(
   REQUIRE(projects.front().name == "Home");
   REQUIRE(projects.front().project_id != original.project_id);
   REQUIRE(projects.front().project_key_id != original.project_key_id);
-  const auto replacement = projects.front();
+  const auto& replacement = projects.front();
   fixture.restart();
   REQUIRE(holder::project::ProjectRepo(fixture.db).list().size() == 1);
   REQUIRE(holder::project::ProjectRepo(fixture.db).get(replacement.project_id).has_value());

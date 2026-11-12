@@ -83,7 +83,7 @@ struct AiNudgeEvaluateResponse {
 AiNudgeListResponse get_ai_nudges(
     holder::platform::Db& db,
     holder::llm::RunnerRegistry* registry,
-    std::string project_id,
+    const std::string& project_id,
     std::optional<std::string> card_id
 );
 

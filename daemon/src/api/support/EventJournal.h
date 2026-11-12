@@ -35,7 +35,10 @@ struct EventBatch {
 // sequence, so trimming storage never changes the meaning of a reader's cursor.
 class EventJournal {
  public:
-  explicit EventJournal(std::size_t capacity = 512, std::size_t byte_limit = 1024 * 1024);
+  explicit EventJournal(
+      std::size_t capacity = 512,
+      std::size_t byte_limit = std::size_t{1024} * 1024
+  );
   StreamEvent append(api_runtime::event<nlohmann::json> event, bool finished = false);
   EventBatch read(const std::string& after = "") const;
   std::string cursor() const;

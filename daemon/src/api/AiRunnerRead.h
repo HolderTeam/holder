@@ -33,6 +33,6 @@ struct AiRunnerNotFound : std::runtime_error {
       : std::runtime_error("Runner not found.") {}
 };
 
-AiRunnerResponse get_ai_runner(holder::llm::RunnerRegistry* registry, std::string runner_id);
+AiRunnerResponse get_ai_runner(holder::llm::RunnerRegistry* registry, const std::string& runner_id);
 
 } // namespace holder::api

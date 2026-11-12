@@ -68,7 +68,7 @@ LocationTestResponse post_locations_location_id_test(
     holder::platform::Db& db,
     holder::privacy::SecretStore* secret_store,
     const std::function<std::string()>& uuid_v4,
-    std::string location_id
+    const std::string& location_id
 );
 
 LocationActionResponse put_locations_preferred(

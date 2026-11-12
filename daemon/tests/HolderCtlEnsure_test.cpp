@@ -182,6 +182,7 @@ holder::cli::EnsureOptions parse(std::vector<std::string> args) {
   std::vector<std::string> storage = {"holderctl", "ensure"};
   storage.insert(storage.end(), args.begin(), args.end());
   std::vector<char*> argv;
+  argv.reserve(storage.size());
   for (auto& item : storage)
     argv.push_back(item.data());
   return holder::cli::parse_ensure_options(static_cast<int>(argv.size()), argv.data());
@@ -579,6 +580,7 @@ TEST_CASE("Ensure and start help explain their options without starting a daemon
     CAPTURE(command);
     std::vector<std::string> args{"holderctl", command, "--help"};
     std::vector<char*> argv;
+    argv.reserve(args.size());
     for (auto& arg : args)
       argv.push_back(arg.data());
     std::ostringstream output;

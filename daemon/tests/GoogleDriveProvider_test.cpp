@@ -89,6 +89,7 @@ TEST_CASE("Google Drive provider round-trips an object", "[google_drive][integra
     try {
       provider.remove(object_key);
     } catch (...) {
+      // Ignored: the test's own failure, rethrown below, is the one to report.
     }
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);

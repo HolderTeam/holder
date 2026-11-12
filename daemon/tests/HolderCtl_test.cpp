@@ -10,6 +10,7 @@
 #include "resource/ResourceRepo.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <format>
 #include <git2.h>
 
 #include <algorithm>
@@ -540,7 +541,7 @@ TEST_CASE("holderctl sync help and validation work without a daemon", "[holderct
         "sync now --help",
         "sync push --help",
         "sync --project 'Work Project' status --help"}) {
-    REQUIRE(run_command(bin + " " + args + redirects) == 0);
+    REQUIRE(run_command(std::format("{} {}{}", bin, args, redirects)) == 0);
     CHECK(read_text(err_path).empty());
     CHECK(read_text(out_path).find("holderctl sync status --json") != std::string::npos);
     CHECK(read_text(out_path).find("--project <id-or-name>") != std::string::npos);
@@ -572,7 +573,7 @@ TEST_CASE("holderctl sync help and validation work without a daemon", "[holderct
         "sync push extra",
         "sync push --unknown",
         "sync disconnect --project"}) {
-    REQUIRE(run_command(bin + " " + args + " --json" + redirects) == 2);
+    REQUIRE(run_command(std::format("{} {} --json{}", bin, args, redirects)) == 2);
     CHECK(read_text(out_path).empty());
     const auto error = nlohmann::json::parse(read_text(err_path));
     CHECK(error["error"]["code"] == "bad_request");
@@ -664,10 +665,8 @@ TEST_CASE("holderctl token refuses loose token file permissions", "[holderctl]")
   const auto server_dir = xdg_root / "data" / "holder" / "server";
   const auto info_path = server_dir / "holder.json";
   write_server_info(info_path);
-#ifndef _WIN32
   ::chmod(server_dir.c_str(), S_IRWXU);
   ::chmod(info_path.c_str(), S_IRUSR | S_IWUSR | S_IRGRP);
-#endif
 
   const std::string cmd = std::string("\"") + HOLDER_CTL_PATH + "\" token";
   REQUIRE(run_command(cmd) == 1);
@@ -4402,12 +4401,12 @@ TEST_CASE("holderctl rejects invalid milestone calendar and storage arguments", 
         "database rebuild --unknown"}) {
     CAPTURE(args);
     const auto output = xdg / "invalid.out";
-    CHECK(run_command(bin + " " + args + " > \"" + output.string() + "\" 2>&1") != 0);
+    CHECK(run_command(std::format("{} {} > \"{}\" 2>&1", bin, args, output.string())) != 0);
     CHECK_FALSE(read_text(output).empty());
   }
   for (const std::string command : {"milestones", "milestone", "calendar"}) {
     const auto output = xdg / "help.out";
-    CHECK(run_command(bin + " " + command + " --help > \"" + output.string() + "\"") == 0);
+    CHECK(run_command(std::format("{} {} --help > \"{}\"", bin, command, output.string())) == 0);
     CHECK(read_text(output).find("Usage:") != std::string::npos);
   }
   server.stop();
@@ -4538,7 +4537,8 @@ TEST_CASE("holderctl configures S3 locations and manages their lifecycle", "[hol
     CAPTURE(args);
     const auto output = xdg / "location.out";
     REQUIRE(
-        run_command(bin + " resource location " + args + " > \"" + output.string() + "\" 2>&1") == 0
+        run_command(std::format("{} resource location {} > \"{}\" 2>&1", bin, args, output.string())
+        ) == 0
     );
     CHECK(read_text(output).find("private-secret") == std::string::npos);
     CHECK_FALSE(read_text(output).empty());
@@ -4607,7 +4607,7 @@ TEST_CASE("holderctl reports daemon errors from each card and history command", 
         "calendar"}) {
     CAPTURE(args);
     const auto output = xdg / "failure.out";
-    CHECK(run_command(bin + " " + args + " > \"" + output.string() + "\" 2>&1") != 0);
+    CHECK(run_command(std::format("{} {} > \"{}\" 2>&1", bin, args, output.string())) != 0);
     CHECK(read_text(output).find("deliberate daemon failure") != std::string::npos);
   }
   server.stop();
@@ -4731,7 +4731,7 @@ TEST_CASE("holderctl moves, trashes subtrees and repairs hidden cards", "[holder
     card.card_id = card_id;
     card.project_id = "hierarchy-project";
     card.title = title;
-    card.parent_card_id = parent;
+    card.parent_card_id = std::move(parent);
     card.created_at = card.updated_at = 10;
     card_store.create(card, title + " body\n");
   };

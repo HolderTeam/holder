@@ -760,7 +760,7 @@ TEST_CASE("HistoryRoutes rejects an oversized history comparison", "[http][histo
   history_commit(git, card_id, "Small version\n", "Add card History card");
   const auto old_oid = git.head_oid();
   REQUIRE(old_oid.has_value());
-  const std::string oversized(2 * 1024 * 1024, 'x');
+  const std::string oversized(std::size_t{2} * 1024 * 1024, 'x');
   history_commit(git, card_id, oversized, "Update card History card");
   const auto head_oid = git.head_oid();
   REQUIRE(head_oid.has_value());
@@ -786,7 +786,7 @@ TEST_CASE("HistoryRoutes rejects an oversized history comparison", "[http][histo
   CHECK(res.result() == http::status::payload_too_large);
   history_commit(git, card_id, "Another version\n", oversized);
   query.clear();
-  for (const std::string path : {base, std::string("/projects/history-project/history")}) {
+  for (const std::string& path : {base, std::string("/projects/history-project/history")}) {
     REQUIRE(dispatch_history_get(path, res, db, param));
     CHECK(res.result() == http::status::payload_too_large);
   }
@@ -941,7 +941,7 @@ TEST_CASE("HistoryRoutes restores a selected card version", "[http][history]") {
   CHECK(res.result() == http::status::ok);
   const auto response = nlohmann::json::parse(res.body());
   REQUIRE(response["ok"] == true);
-  const auto data = response["data"];
+  const auto& data = response["data"];
   CHECK(data["card_id"] == card.card_id);
   CHECK(data["restored_from_oid"] == *oid);
   CHECK(data["result_oid"].is_string());

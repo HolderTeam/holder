@@ -1,14 +1,17 @@
-# Two checks are off:
+# Three checks are off:
 # - readability-redundant-member-init: response and event structs are aggregates built from some of
 #   their members, and their `= {}` initializers are what keep -Wextra's missing-field-initializers
 #   quiet about the rest.
 # - clang-analyzer-optin.core.EnumCastOutOfRange: invalid-value tests deliberately cast numbers
 #   outside an enum's values, as core's tests do.
+# - clang-analyzer-optin.cplusplus.VirtualCall: its one report is inside Boost.Asio's resolver
+#   destructor, which calls its own shutdown non-virtually on purpose.
 Checks: >
   -*,
   bugprone-*,
   clang-analyzer-*,
   -clang-analyzer-optin.core.EnumCastOutOfRange,
+  -clang-analyzer-optin.cplusplus.VirtualCall,
   performance-*,
   portability-*,
   modernize-use-emplace,
@@ -22,3 +25,10 @@ SystemHeaders: false
 CheckOptions:
   - key: bugprone-easily-swappable-parameters.MinimumLength
     value: '3'
+  # An exception deliberately swallowed says why, in a comment starting "Ignored:".
+  # A result deliberately discarded, such as the error_code Boost also writes to its out
+  # parameter, says so with a cast to void.
+  - key: bugprone-unused-return-value.AllowCastToVoid
+    value: 'true'
+  - key: bugprone-empty-catch.IgnoreCatchWithKeywords
+    value: '@TODO;@FIXME;Ignored:'

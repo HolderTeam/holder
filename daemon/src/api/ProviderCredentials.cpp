@@ -48,7 +48,7 @@ AiProviderCredentialUpsertResponse upsert_provider_credential(
   if (api_key.empty()) throw std::invalid_argument("api_key cannot be empty.");
   const long long ts = request.updated_at && *request.updated_at ? **request.updated_at
                                                                  : support::now_epoch_seconds();
-  const auto api_key_preview = support::mask_api_key(api_key);
+  auto api_key_preview = support::mask_api_key(api_key);
   holder::ai::AiProviderCredentialRepo repo(db);
   const auto existing = repo.get(provider);
   const long long created_at = existing ? existing->created_at : ts;

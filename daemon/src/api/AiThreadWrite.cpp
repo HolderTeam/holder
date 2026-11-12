@@ -17,6 +17,15 @@ void require_card(holder::platform::Db& db, const std::optional<std::string>& ca
     throw std::invalid_argument("Card not found.");
 }
 
+holder::model::AiThread require_thread(
+    holder::ai::AiThreadRepo& repo,
+    const std::string& thread_id
+) {
+  auto thread = repo.get(thread_id);
+  if (!thread) throw AiThreadNotFound{};
+  return std::move(*thread);
+}
+
 } // namespace
 
 AiThreadCreateResponse post_ai_threads(
@@ -51,22 +60,21 @@ AiThreadPatchResponse patch_ai_threads_thread_id(
     AiThreadUpdateRequest request
 ) {
   holder::ai::AiThreadRepo repo(db);
-  if (!repo.get(thread_id)) throw AiThreadNotFound{};
+  require_thread(repo, thread_id);
   if (request.card_id) require_card(db, *request.card_id);
   if (request.title && *request.title)
     repo.update_title(thread_id, **request.title, request.updated_at);
   else
     repo.touch_updated(thread_id, request.updated_at);
   if (request.card_id) repo.update_card_id(thread_id, *request.card_id);
-  holder::ai::persist_ai_thread(db, repo.get(thread_id).value());
+  holder::ai::persist_ai_thread(db, require_thread(repo, thread_id));
   return {true, {std::move(thread_id)}};
 }
 
 AiThreadPatchResponse delete_ai_threads_thread_id(holder::platform::Db& db, std::string thread_id) {
   holder::ai::AiThreadRepo repo(db);
-  const auto thread = repo.get(thread_id);
-  if (!thread) throw AiThreadNotFound{};
-  holder::ai::remove_ai_thread_manifest(db, *thread);
+  const auto thread = require_thread(repo, thread_id);
+  holder::ai::remove_ai_thread_manifest(db, thread);
   repo.remove(thread_id);
   return {true, {std::move(thread_id)}};
 }

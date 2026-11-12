@@ -113,9 +113,7 @@ void suppress_windows_error_dialogs() {
 }
 #endif
 
-} // namespace
-
-int main(int argc, char* argv[]) {
+int run_tests(int argc, char* argv[]) {
 #ifdef _WIN32
   suppress_windows_error_dialogs();
 #endif
@@ -127,4 +125,17 @@ int main(int argc, char* argv[]) {
   const int result = Catch::Session().run(argc, argv);
   remove_isolated_temp_dir(temp_root);
   return result;
+}
+
+} // namespace
+
+int main(int argc, char* argv[]) {
+  try {
+    return run_tests(argc, argv);
+  } catch (const std::exception& error) {
+    std::cerr << "test run failed: " << error.what() << '\n';
+  } catch (...) {
+    std::cerr << "test run failed with an unknown exception\n";
+  }
+  return 1;
 }

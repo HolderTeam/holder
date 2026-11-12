@@ -583,8 +583,6 @@ bool dispatch_misc_contract_route(
       status = 422;
     else if (dynamic_cast<const support::StorageGatewayFailure*>(&error))
       status = 502;
-    else if (dynamic_cast<const support::StorageBadRequest*>(&error))
-      status = 400;
     else if (dynamic_cast<const support::StorageCapacityExceeded*>(&error))
       // LCOV_EXCL_START - only a local directory reports capacity, on a mid-copy device failure.
       status = 507;
@@ -594,7 +592,8 @@ bool dispatch_misc_contract_route(
              dynamic_cast<const ChangeFeedUnavailable*>(&error) ||
              dynamic_cast<const ProjectUnavailable*>(&error))
       status = 503;
-    else if (authorize || dynamic_cast<const std::invalid_argument*>(&error) ||
+    else if (authorize || dynamic_cast<const support::StorageBadRequest*>(&error) ||
+             dynamic_cast<const std::invalid_argument*>(&error) ||
              dynamic_cast<const std::out_of_range*>(&error))
       status = 400;
     resource_error(res, status, error);

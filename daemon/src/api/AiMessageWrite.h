@@ -131,7 +131,7 @@ AiMessageUpdateResponse post_ai_messages_message_id_restore(
 routes::CardLinkCreateResponse post_ai_messages_message_id_links(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    std::string message_id,
+    const std::string& message_id,
     routes::CardLinkCreateRequest request
 );
 
@@ -139,7 +139,7 @@ AiMessageCreateResponse delete_ai_messages_message_id_links(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
     std::string message_id,
-    std::optional<CardLinkDeleteRequest> request
+    const std::optional<CardLinkDeleteRequest>& request
 );
 
 AiMessageCaptureResponse post_ai_messages_capture(

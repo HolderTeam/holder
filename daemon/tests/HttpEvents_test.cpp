@@ -8,7 +8,7 @@ using tcp = boost::asio::ip::tcp;
 
 class EventClient {
  public:
-  EventClient(unsigned short port, std::string target, std::string cursor = {})
+  EventClient(unsigned short port, const std::string& target, const std::string& cursor = {})
       : socket_(ioc_) {
     socket_.connect({boost::asio::ip::make_address("127.0.0.1"), port});
     http::request<http::empty_body> req{http::verb::get, target, 11};

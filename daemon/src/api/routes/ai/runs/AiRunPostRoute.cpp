@@ -32,6 +32,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 namespace holder::api::routes::ai::runs {
 namespace {
@@ -270,7 +271,11 @@ void maybe_update_thread_title(
       generate_thread_title(runner_registry, runner, runner_id, db, prompt, assistant_text);
   if (!next_title.has_value() || next_title.value() == thread->title) return;
   thread_repo.update_title(thread_id.value(), next_title.value(), updated_at);
-  holder::ai::persist_ai_thread(db, thread_repo.get(thread_id.value()).value());
+  // The thread as update_title left it, written to the project's Git record.
+  auto renamed = *thread;
+  renamed.title = next_title.value();
+  renamed.updated_at = updated_at;
+  holder::ai::persist_ai_thread(db, renamed);
 }
 
 struct AiRunPostInput {
@@ -495,7 +500,7 @@ RouteDispatchResult execute_cloud_post_path(
       run.status = "started";
       run.created_at = support::now_epoch_seconds();
       run.updated_at = run.created_at;
-      auto channel = support::SseStream::reserve(socket, streams);
+      auto channel = support::SseStream::reserve(socket, std::move(streams));
       if (!channel) {
         throw AiRunUnavailable("server_busy", "Too many event streams.");
       }
@@ -970,9 +975,7 @@ RouteDispatchResult execute_cloud_post_path(
 
         send_event(
             ai_events::chunk,
-            {.delta = output.value(),
-             .model = chosen_model_id.value(),
-             .provider = selected_provider->id}
+            {.delta = output, .model = chosen_model_id, .provider = selected_provider->id}
         );
 
         std::optional<std::string> message_id;
@@ -1012,10 +1015,7 @@ RouteDispatchResult execute_cloud_post_path(
             std::optional<std::string>(policy_trace.dump()),
             updated_at
         );
-        send_event(
-            ai_events::done,
-            {.model = chosen_model_id.value(), .provider = selected_provider->id}
-        );
+        send_event(ai_events::done, {.model = chosen_model_id, .provider = selected_provider->id});
       }
     }
   }
@@ -1204,7 +1204,7 @@ RouteDispatchResult execute_local_post_path(
   run.status = "started";
   run.created_at = support::now_epoch_seconds();
   run.updated_at = run.created_at;
-  auto channel = support::SseStream::reserve(socket, streams);
+  auto channel = support::SseStream::reserve(socket, std::move(streams));
   if (!channel) {
     throw AiRunUnavailable("server_busy", "Too many event streams.");
   }
@@ -1317,6 +1317,7 @@ RouteDispatchResult execute_local_post_path(
       }
     }
     std::vector<std::string> ranked_refs;
+    ranked_refs.reserve(ranked.size());
     for (const auto& ranked_model : ranked) {
       ranked_refs.push_back(local_model_ref(runner_id, ranked_model));
     }
@@ -1444,7 +1445,7 @@ RouteDispatchResult execute_ai_run(
     holder::privacy::SecretStore* secret_store,
     holder::llm::RunnerRegistry* runner_registry,
     const std::function<std::string()>& uuid_v4,
-    std::shared_ptr<holder::api::support::SseRegistry> streams
+    const std::shared_ptr<holder::api::support::SseRegistry>& streams
 ) {
   RouteDispatchResult out{};
   out.handled = true;

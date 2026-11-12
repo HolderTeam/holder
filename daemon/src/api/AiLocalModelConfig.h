@@ -20,7 +20,7 @@ AiLocalModelConfigResponse get_local_model_config(holder::platform::Db& db);
 
 AiLocalModelConfigResponse put_local_model_config(
     holder::platform::Db& db,
-    AiLocalModelConfigUpdateRequest request
+    const AiLocalModelConfigUpdateRequest& request
 );
 
 } // namespace holder::api

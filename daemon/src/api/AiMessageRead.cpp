@@ -61,7 +61,7 @@ std::string message_project(
 AiMessageListResponse get_ai_messages(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    std::string thread_id,
+    const std::string& thread_id,
     std::optional<int> include_deleted
 ) {
   AiMessageListResponse response{true, {}};
@@ -75,7 +75,7 @@ AiMessageListResponse get_ai_messages(
 AiMessageGetResponse get_ai_message(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    std::string message_id
+    const std::string& message_id
 ) {
   const auto message = holder::ai::AiMessageRepo(db, fts).get(message_id);
   if (!message || message->deleted_at) throw AiMessageNotFound{};
@@ -85,7 +85,7 @@ AiMessageGetResponse get_ai_message(
 routes::CardLinkListResponse get_ai_message_links(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    std::string message_id,
+    const std::string& message_id,
     std::optional<int> include_deleted
 ) {
   const auto project_id = message_project(db, fts, message_id);
@@ -100,7 +100,7 @@ routes::CardLinkListResponse get_ai_message_links(
 routes::CardLinkListResponse get_ai_message_backlinks(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    std::string message_id,
+    const std::string& message_id,
     std::optional<int> include_deleted
 ) {
   const auto project_id = message_project(db, fts, message_id);

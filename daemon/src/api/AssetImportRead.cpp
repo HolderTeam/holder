@@ -14,7 +14,7 @@ std::optional<std::string> unless_empty(const std::string& value) {
 
 } // namespace
 
-AssetImportJobResponse get_import_job(std::string job_id) {
+AssetImportJobResponse get_import_job(const std::string& job_id) {
   const auto job = support::find_import_job(job_id);
   if (!job) throw AssetImportJobNotFound{};
   return {
