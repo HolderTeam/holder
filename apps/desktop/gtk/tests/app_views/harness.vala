@@ -11,6 +11,26 @@ internal void av_use_source_markdown_language() {
     }
 }
 
+// The Git Sync tool asks the GitHub CLI whether it is logged in, and then asks GitHub who the user
+// is. The tests put a stand-in `gh` first on PATH that always says it is not logged in, so no test
+// reads the user's login or goes online. Windows runs commands its own way and the tests do not
+// install gh there.
+internal void av_shadow_github_cli() {
+    if (Path.DIR_SEPARATOR_S != "/") {
+        return;
+    }
+    var dir = av_temp_dir();
+    var gh = Path.build_filename(dir, "gh");
+    try {
+        FileUtils.set_contents(gh, "#!/bin/sh\necho 'You are not logged into any GitHub hosts.' >&2\nexit 1\n");
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+    FileUtils.chmod(gh, 0755);
+    var path = Environment.get_variable("PATH") ?? "/usr/bin:/bin";
+    Environment.set_variable("PATH", dir + ":" + path, true);
+}
+
 internal void av_settle() {
     var context = MainContext.default();
     for (int i = 0; i < 20; i++) {
@@ -59,6 +79,13 @@ internal void av_write_scheme(string dir, string id, string styles) {
     } catch (FileError e) {
         assert_not_reached();
     }
+}
+
+// Answers an alert dialog by clicking the button for this response, as the user would: the dialog
+// reports the response and then closes. (Emitting the response from code leaves the dialog
+// unanswered, so closing it afterwards would report its close response as well.)
+internal void av_answer(Adw.AlertDialog dialog, string response) {
+    av_button_with_label(dialog, (!) dialog.get_response_label(response)).clicked();
 }
 
 internal Gtk.Button av_button_with_tooltip(Gtk.Widget root, string tooltip) {

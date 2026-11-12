@@ -10,6 +10,7 @@ public static int main(string[] args) {
     }
     Adw.init();
     av_use_source_markdown_language();
+    av_shadow_github_cli();
 
     register_editor_renderer_tests();
     register_internal_link_navigator_tests();

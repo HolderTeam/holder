@@ -1572,6 +1572,10 @@ public class MainWindow : Adw.ApplicationWindow {
         return workspace;
     }
 
+    internal GLib.ListStore search_store_for_tests() {
+        return search_store;
+    }
+
     protected override void dispose() {
         ai_run_controller.stop();
         base.dispose();
