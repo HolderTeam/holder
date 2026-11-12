@@ -131,7 +131,10 @@ run_gui_tests() {
     # display so tests do not depend on the developer's desktop arrangement.
     # Force X11: GTK can otherwise discover the desktop's Wayland socket even
     # when xvfb-run sets DISPLAY. A private D-Bus session lets AT-SPI activate
-    # without depending on the developer's desktop accessibility bus.
+    # without depending on the developer's desktop accessibility bus. Keep libadwaita off the
+    # settings portal and GIO off gvfs: either would start xdg-desktop-portal or gvfsd on the
+    # private bus, and they complain on stderr when that bus closes after the tests.
+    ADW_DISABLE_PORTAL=1 GIO_USE_VFS=local \
     GDK_BACKEND=x11 GTK_A11Y=atspi NO_AT_BRIDGE=0 GSK_RENDERER=cairo GSETTINGS_BACKEND=memory \
       xvfb-run -a dbus-run-session -- python3 integration/run.py --headless-child \
         meson test -C "${dir}" --print-errorlogs
