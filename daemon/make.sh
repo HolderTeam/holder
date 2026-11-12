@@ -538,7 +538,7 @@ tidy_all() {
   local build_dir="build-tidy"
   local source_regex
   local tidy_bin="${HOLDER_CLANG_TIDY:-clang-tidy-18}"
-  local tidy_runner="${HOLDER_RUN_CLANG_TIDY:-run-clang-tidy}"
+  local tidy_runner="${HOLDER_RUN_CLANG_TIDY:-run-clang-tidy-18}"
   local gcc_version gcc_major
   local tidy_extra_args=""
 
@@ -564,6 +564,8 @@ tidy_all() {
   cmake_configure -S . -B "${build_dir}" -G Ninja \
     -DCMAKE_BUILD_TYPE="$(development_build_type)" \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+  # Headers the build generates, such as the embedded OpenAPI documents, which sources include.
+  cmake_build "${build_dir}" --target holder_openapi_documents
 
   "${tidy_runner}" \
     -clang-tidy-binary "${tidy_bin}" \
