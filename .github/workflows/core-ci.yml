@@ -61,6 +61,26 @@ jobs:
             echo "core=false" >> "$GITHUB_OUTPUT"
           fi
 
+  format:
+    # Core's C++, hand-written and generated alike, follows .clang-format as clang-format-18 applies
+    # it; the version is pinned because another lays code out differently.
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install clang-format-18
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-format-18
+
+      - name: Check formatting
+        run: ./make.sh format-check
+
   linux:
     permissions:
       actions: write
@@ -564,7 +584,7 @@ jobs:
     # The required check. It runs even when jobs fail or are skipped, and passes only when every
     # selected job succeeded and no job ran that was not selected.
     if: always()
-    needs: [changes, linux, conformance, coverage, macos, windows, sdk]
+    needs: [changes, format, linux, conformance, coverage, macos, windows, sdk]
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -579,7 +599,7 @@ jobs:
           jq -e --arg selected "$SELECTED" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.linux, .conformance, .coverage, .macos, .windows, .sdk] | all(.result == "success"))
+               ([.format, .linux, .conformance, .coverage, .macos, .windows, .sdk] | all(.result == "success"))
              else
-               ([.linux, .conformance, .coverage, .macos, .windows, .sdk] | all(.result == "skipped"))
+               ([.format, .linux, .conformance, .coverage, .macos, .windows, .sdk] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null
