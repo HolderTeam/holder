@@ -192,7 +192,8 @@ decision. See [staging](../staging/README.md) for platform-specific inspection.
 The macOS staging output is a test candidate. Pass the exact staged bundle through
 the signing/notarization step when preparing a distributable disk image. Record
 the resulting `Holder-macos-<version>.dmg`, checksum and verification outcome;
-the preview disk image is not evidence that this step has completed.
+use the [macOS delivery commands](macos-delivery.md) to retain the handoff input,
+final verification and destination evidence.
 
 ## 5. Run the essential checks
 
@@ -305,8 +306,9 @@ let tag creation select the then-current tip of `main` instead. Never move a
 published tag. Pushing the tag starts `Release / Launchpad`; GitHub draft state
 does not postpone that upload. Record the resulting run immediately.
 
-Linux signing/promotion, Windows development delivery and core SDK publication are coordinated. Other destinations retain their
-independent manual entry points:
+Linux signing/promotion, Windows development delivery, the macOS handoff and
+core SDK publication use the candidate record. The existing workflows also
+provide independent entry points:
 
 | Operation | Public workflow/ref and inputs | Handoff/result |
 | --- | --- | --- |
@@ -314,7 +316,7 @@ independent manual entry points:
 | Linux promotion | `release.py promote-linux --record <candidate.json> --wait`; the [manual workflow](../../.github/workflows/promote-linux-appimage.yml) remains available on `main` | Verifies pinned signed bytes and the existing candidate tag; creates/reuses the matching draft and delivers only missing Linux files; records exact destination IDs/hashes |
 | Core SDK publication | `release.py publish-sdk --record <candidate.json> --wait`; the [manual workflow](../../.github/workflows/promote-core-sdk.yml) remains available on `main` | Publishes the daemon run's pinned three SDKs and compatible `sdk-index.json` in `HolderTeam/holder-sdk`; records destination identities and per-SDK producers |
 | Windows development installer, if chosen | `release.py promote-windows --record <candidate.json> --wait`; the [manual workflow](../../.github/workflows/promote-windows-dev-build.yml) remains available on `main` | Verifies the final installer evidence against the candidate, pins its archive, and delivers only missing development assets to the existing shared draft; records destination IDs/hashes |
-| macOS disk image | Complete the signing/notarization handoff from the selected `Holder-macos-staged` artifact | Add the verified `Holder-macos-<version>.dmg` and matching `.sha256` to the same draft, preserving candidate identity |
+| macOS disk image | `release.py prepare-macos`, then `accept-macos --macos-directory <final-output>` on a Mac, then `promote-macos --macos-directory <final-output>`, each with `--record <candidate.json>` | Pins staging input, verifies the final DMG and embedded candidate evidence, and delivers the accepted DMG/checksum to the shared draft with recorded destination IDs/hashes |
 
 Create/verify the shared draft before coordinated Windows development delivery.
 Windows remains a development build. See [Windows delivery](windows-promotion.md)
@@ -429,10 +431,10 @@ against the reviewed PPA declaration.
 | Stopping point | Resume rule |
 | --- | --- |
 | Build or staging fails | Keep the failed run and diagnostics. An infrastructure retry may use the same source, but record the new run/attempt and artifact IDs. Source fixes require a new candidate and affected checks; do not silently refresh pins. |
-| Artifacts expire | Stop. Rebuild and revalidate a new recorded artifact set, even if the source SHA is unchanged; rebuilt bytes/provenance can differ. Do not substitute latest-green artifacts. |
+| Artifacts expire | Check the recorded handoff and retained final files. Completed handoffs can remain verifiable from their accepted evidence. Missing unrecorded inputs require a new validated artifact set; follow the platform recovery procedure and preserve the original pins. |
 | Approval or signing step is pending | Wait for its recorded outcome. Resume from the retained exact input; do not rebuild or start another signing attempt simply because an external operation takes time. |
 | SDK publication is interrupted | The helper can recreate an unfinished draft on retry. An existing published SDK version is left untouched; its existence alone is not proof that it matches this candidate. Compare the published index/digests before accepting it as complete. |
-| Draft asset upload is interrupted | Inventory current assets and hashes first. Linux/Windows promotion reuses matching bytes and uploads only missing files. Conflicts stop the normal path. Intentional draft replacement requires the explicit manual recovery input; record/recheck it, and never use retries to replace different published bytes. |
+| Draft asset upload is interrupted | Inventory current assets and hashes first. Linux/Windows/macOS promotion reuses matching bytes and uploads only missing files. Conflicts stop the normal path. For conflicting draft assets, follow the platform's documented recovery procedure and record/recheck any intentional replacement. |
 | PPA upload/build is incomplete | Inspect the recorded package/series state and build logs. Repair only the affected target where needed, preserving upstream tarball identity, then resume `observe-ppa` with any explicitly revised target. |
 | PyPI/TestPyPI is partially uploaded | Inspect the index and local manifest before retrying. Existing files cannot be changed in place; do not assume the workflow can safely resume a partial upload. A new package/release version may be necessary. |
 | GitHub release is already public but another destination failed | Record partial completion and address the failed destination explicitly. Do not move tags or erase successful publications to simulate an atomic release. Keep website/channel claims accurate. |
