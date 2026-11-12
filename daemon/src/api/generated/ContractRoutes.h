@@ -128,12 +128,15 @@ inline json decode_body(const std::string& body, bool optional = false) {
   }
 }
 // The response for a request the contract has an operation for; nothing otherwise.
+// The request's method, path and body are all strings, named as such at every call.
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
 inline std::optional<response> dispatch(
     const std::string& method,
     const std::string& path,
     const std::string& body,
     holder_context& context
 ) {
+  // NOLINTEND(bugprone-easily-swappable-parameters)
   const auto query_start = path.find('?');
   const auto route_path = path.substr(0, query_start);
   const auto query_string = query_start == std::string::npos
@@ -152,7 +155,7 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "create_storage_location");
     }
     try {
-      auto result = holder::contract::create_storage_location(context, std::move(request));
+      auto result = holder::contract::create_storage_location(context, request);
       return success(201, contract_json::encode(result), "create_storage_location");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "create_storage_location");
@@ -272,12 +275,12 @@ inline std::optional<response> dispatch(
       auto result = holder::contract::list_projects(
           context,
           std::move(name),
-          std::move(updated_after),
-          std::move(updated_before),
-          std::move(order),
-          std::move(limit),
-          std::move(offset),
-          std::move(include_card_counts)
+          updated_after,
+          updated_before,
+          order,
+          limit,
+          offset,
+          include_card_counts
       );
       return success(200, contract_json::encode(result), "list_projects");
     } catch (const holder::contract::InvalidArgument& error) {
@@ -296,7 +299,7 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "create_project");
     }
     try {
-      auto result = holder::contract::create_project(context, std::move(project));
+      auto result = holder::contract::create_project(context, project);
       return success(201, contract_json::encode(result), "create_project");
     } catch (const holder::contract::Conflict& error) {
       return failure(409, "conflict", error.what(), "create_project");
@@ -322,7 +325,7 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "rebuild_project");
     }
     try {
-      auto result = holder::contract::rebuild_project(context, std::move(request));
+      auto result = holder::contract::rebuild_project(context, request);
       return success(200, contract_json::encode(result), "rebuild_project");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "rebuild_project");
@@ -423,7 +426,7 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "empty_trash");
     }
     try {
-      auto result = holder::contract::empty_trash(context, std::move(project_id), std::move(type));
+      auto result = holder::contract::empty_trash(context, std::move(project_id), type);
       return success(200, contract_json::encode(result), "empty_trash");
     } catch (const holder::contract::KeyringUnavailable& error) {
       return failure(503, "keyring_unavailable", error.what(), "empty_trash");
@@ -449,7 +452,7 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "resolve_card_reference");
     }
     try {
-      auto result = holder::contract::resolve_card_reference(context, std::move(request));
+      auto result = holder::contract::resolve_card_reference(context, request);
       return success(200, contract_json::encode(result), "resolve_card_reference");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "resolve_card_reference");
@@ -470,7 +473,7 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "import_recovery_token_global");
     }
     try {
-      auto result = holder::contract::import_recovery_token_global(context, std::move(request));
+      auto result = holder::contract::import_recovery_token_global(context, request);
       return success(
           result.project_created ? 201 : 200,
           contract_json::encode(result),
@@ -548,8 +551,8 @@ inline std::optional<response> dispatch(
           context,
           std::move(project_id),
           std::move(q),
-          std::move(limit),
-          std::move(offset)
+          limit,
+          offset
       );
       return success(200, contract_json::encode(result), "search_cards");
     } catch (const holder::contract::InvalidArgument& error) {
@@ -618,8 +621,8 @@ inline std::optional<response> dispatch(
           context,
           std::move(project_id),
           std::move(q),
-          std::move(limit),
-          std::move(offset)
+          limit,
+          offset
       );
       return success(200, contract_json::encode(result), "search_ai_messages");
     } catch (const holder::contract::InvalidArgument& error) {
@@ -672,11 +675,8 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "update_storage_location");
     }
     try {
-      auto result = holder::contract::update_storage_location(
-          context,
-          std::move(location_id),
-          std::move(request)
-      );
+      auto result =
+          holder::contract::update_storage_location(context, std::move(location_id), request);
       return success(200, contract_json::encode(result), "update_storage_location");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "update_storage_location");
@@ -755,8 +755,7 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "update_project");
     }
     try {
-      auto result =
-          holder::contract::update_project(context, std::move(project_id), std::move(update));
+      auto result = holder::contract::update_project(context, std::move(project_id), update);
       return success(200, contract_json::encode(result), "update_project");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "update_project");
@@ -889,11 +888,11 @@ inline std::optional<response> dispatch(
           std::move(project_id),
           std::move(parent),
           std::move(tag),
-          std::move(order),
-          std::move(limit),
+          order,
+          limit,
           std::move(cursor),
-          std::move(include_content),
-          std::move(include_child_count)
+          include_content,
+          include_child_count
       );
       return success(200, contract_json::encode(result), "list_cards");
     } catch (const holder::contract::NotFound& error) {
@@ -927,7 +926,7 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "create_card");
     }
     try {
-      auto result = holder::contract::create_card(context, std::move(project_id), std::move(card));
+      auto result = holder::contract::create_card(context, std::move(project_id), card);
       return success(201, contract_json::encode(result), "create_card");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "create_card");
@@ -1071,8 +1070,7 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "create_resource");
     }
     try {
-      auto result =
-          holder::contract::create_resource(context, std::move(project_id), std::move(resource));
+      auto result = holder::contract::create_resource(context, std::move(project_id), resource);
       return success(201, contract_json::encode(result), "create_resource");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "create_resource");
@@ -1134,11 +1132,8 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "repair_project_hierarchy");
     }
     try {
-      auto result = holder::contract::repair_project_hierarchy(
-          context,
-          std::move(project_id),
-          std::move(request)
-      );
+      auto result =
+          holder::contract::repair_project_hierarchy(context, std::move(project_id), request);
       return success(200, contract_json::encode(result), "repair_project_hierarchy");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "repair_project_hierarchy");
@@ -1214,9 +1209,9 @@ inline std::optional<response> dispatch(
       auto result = holder::contract::list_project_history(
           context,
           std::move(project_id),
-          std::move(limit),
+          limit,
           std::move(cursor),
-          std::move(kind)
+          kind
       );
       return success(200, contract_json::encode(result), "list_project_history");
     } catch (const holder::contract::NotFound& error) {
@@ -1328,8 +1323,8 @@ inline std::optional<response> dispatch(
       auto result = holder::contract::list_milestones_by_instant(
           context,
           std::move(project_id),
-          std::move(first_instant),
-          std::move(last_instant),
+          first_instant,
+          last_instant,
           std::move(role)
       );
       return success(200, contract_json::encode(result), "list_milestones_by_instant");
@@ -1359,11 +1354,8 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "export_project_recovery_token");
     }
     try {
-      auto result = holder::contract::export_project_recovery_token(
-          context,
-          std::move(project_id),
-          std::move(request)
-      );
+      auto result =
+          holder::contract::export_project_recovery_token(context, std::move(project_id), request);
       return success(200, contract_json::encode(result), "export_project_recovery_token");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "export_project_recovery_token");
@@ -1397,11 +1389,8 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "import_project_recovery_token");
     }
     try {
-      auto result = holder::contract::import_project_recovery_token(
-          context,
-          std::move(project_id),
-          std::move(request)
-      );
+      auto result =
+          holder::contract::import_project_recovery_token(context, std::move(project_id), request);
       return success(200, contract_json::encode(result), "import_project_recovery_token");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "import_project_recovery_token");
@@ -1490,8 +1479,7 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "push_project");
     }
     try {
-      auto result =
-          holder::contract::push_project(context, std::move(project_id), std::move(options));
+      auto result = holder::contract::push_project(context, std::move(project_id), options);
       return success(200, contract_json::encode(result), "push_project");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "push_project");
@@ -1524,8 +1512,7 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "sync_project");
     }
     try {
-      auto result =
-          holder::contract::sync_project(context, std::move(project_id), std::move(options));
+      auto result = holder::contract::sync_project(context, std::move(project_id), options);
       return success(200, contract_json::encode(result), "sync_project");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "sync_project");
@@ -1586,8 +1573,8 @@ inline std::optional<response> dispatch(
       auto result = holder::contract::sync_project_if_due(
           context,
           std::move(project_id),
-          std::move(push_interval_seconds),
-          std::move(pull_interval_seconds)
+          push_interval_seconds,
+          pull_interval_seconds
       );
       return success(200, contract_json::encode(result), "sync_project_if_due");
     } catch (const holder::contract::NotFound& error) {
@@ -1621,8 +1608,7 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "test_project_remote");
     }
     try {
-      auto result =
-          holder::contract::test_project_remote(context, std::move(project_id), std::move(remote));
+      auto result = holder::contract::test_project_remote(context, std::move(project_id), remote);
       return success(200, contract_json::encode(result), "test_project_remote");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "test_project_remote");
@@ -1679,7 +1665,7 @@ inline std::optional<response> dispatch(
           context,
           std::move(project_id),
           std::move(card_id),
-          std::move(limit),
+          limit,
           std::move(cursor)
       );
       return success(200, contract_json::encode(result), "list_card_history");
@@ -1753,7 +1739,7 @@ inline std::optional<response> dispatch(
           std::move(card_id),
           std::move(to_oid),
           std::move(from_oid),
-          std::move(mode)
+          mode
       );
       return success(200, contract_json::encode(result), "compare_card_history");
     } catch (const holder::contract::NotFound& error) {
@@ -1940,12 +1926,8 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "update_card");
     }
     try {
-      auto result = holder::contract::update_card(
-          context,
-          std::move(project_id),
-          std::move(card_id),
-          std::move(update)
-      );
+      auto result =
+          holder::contract::update_card(context, std::move(project_id), std::move(card_id), update);
       return success(200, contract_json::encode(result), "update_card");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "update_card");
@@ -2003,7 +1985,7 @@ inline std::optional<response> dispatch(
           context,
           std::move(project_id),
           std::move(card_id),
-          std::move(children)
+          children
       );
       return success(200, contract_json::encode(result), "trash_card");
     } catch (const holder::contract::NotFound& error) {
@@ -2081,7 +2063,7 @@ inline std::optional<response> dispatch(
           context,
           std::move(project_id),
           std::move(resource_id),
-          std::move(update)
+          update
       );
       return success(200, contract_json::encode(result), "update_resource");
     } catch (const holder::contract::NotFound& error) {
@@ -2273,12 +2255,8 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "move_card");
     }
     try {
-      auto result = holder::contract::move_card(
-          context,
-          std::move(project_id),
-          std::move(card_id),
-          std::move(move)
-      );
+      auto result =
+          holder::contract::move_card(context, std::move(project_id), std::move(card_id), move);
       return success(200, contract_json::encode(result), "move_card");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "move_card");
@@ -2331,7 +2309,7 @@ inline std::optional<response> dispatch(
           context,
           std::move(project_id),
           std::move(card_id),
-          std::move(include_deleted)
+          include_deleted
       );
       return success(200, contract_json::encode(result), "list_card_links");
     } catch (const holder::contract::NotFound& error) {
@@ -2392,8 +2370,8 @@ inline std::optional<response> dispatch(
           context,
           std::move(project_id),
           std::move(card_id),
-          std::move(scope),
-          std::move(include_deleted)
+          scope,
+          include_deleted
       );
       return success(200, contract_json::encode(result), "list_card_backlinks");
     } catch (const holder::contract::NotFound& error) {
@@ -2428,12 +2406,8 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "add_card_link");
     }
     try {
-      auto result = holder::contract::add_card_link(
-          context,
-          std::move(project_id),
-          std::move(card_id),
-          std::move(link)
-      );
+      auto result =
+          holder::contract::add_card_link(context, std::move(project_id), std::move(card_id), link);
       return success(200, contract_json::encode(result), "add_card_link");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "add_card_link");
@@ -2527,7 +2501,7 @@ inline std::optional<response> dispatch(
           context,
           std::move(project_id),
           std::move(card_id),
-          std::move(target_type),
+          target_type,
           std::move(target_id),
           std::move(kind),
           std::move(target_project_id)
@@ -2611,7 +2585,7 @@ inline std::optional<response> dispatch(
           context,
           std::move(project_id),
           std::move(card_id),
-          std::move(milestone)
+          milestone
       );
       return success(201, contract_json::encode(result), "add_card_milestone");
     } catch (const holder::contract::NotFound& error) {
@@ -2663,7 +2637,7 @@ inline std::optional<response> dispatch(
           context,
           std::move(project_id),
           std::move(resource_id),
-          std::move(include_deleted)
+          include_deleted
       );
       return success(200, contract_json::encode(result), "list_resource_backlinks");
     } catch (const holder::contract::NotFound& error) {
@@ -2845,7 +2819,7 @@ inline std::optional<response> dispatch(
           std::move(project_id),
           std::move(card_id),
           std::move(milestone_id),
-          std::move(update)
+          update
       );
       return success(200, contract_json::encode(result), "update_card_milestone");
     } catch (const holder::contract::NotFound& error) {
@@ -3045,7 +3019,7 @@ inline std::optional<response> dispatch(
       auto result = holder::contract::delete_project_trash_item(
           context,
           std::move(project_id),
-          std::move(type),
+          type,
           std::move(id)
       );
       return success(200, contract_json::encode(result), "delete_project_trash_item");
@@ -3088,7 +3062,7 @@ inline std::optional<response> dispatch(
       return failure(400, "invalid_argument", error.what(), "delete_trash_item");
     }
     try {
-      auto result = holder::contract::delete_trash_item(context, std::move(type), std::move(id));
+      auto result = holder::contract::delete_trash_item(context, type, std::move(id));
       return success(200, contract_json::encode(result), "delete_trash_item");
     } catch (const holder::contract::NotFound& error) {
       return failure(404, "not_found", error.what(), "delete_trash_item");

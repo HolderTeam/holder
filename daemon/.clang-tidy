@@ -1,13 +1,21 @@
+# Two checks are off:
+# - readability-redundant-member-init: response and event structs are aggregates built from some of
+#   their members, and their `= {}` initializers are what keep -Wextra's missing-field-initializers
+#   quiet about the rest.
+# - clang-analyzer-optin.core.EnumCastOutOfRange: invalid-value tests deliberately cast numbers
+#   outside an enum's values, as core's tests do.
 Checks: >
   -*,
   bugprone-*,
   clang-analyzer-*,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
   performance-*,
   portability-*,
   modernize-use-emplace,
   modernize-use-nullptr,
   modernize-use-override,
-  readability-redundant-*
+  readability-redundant-*,
+  -readability-redundant-member-init
 WarningsAsErrors: ''
 HeaderFilterRegex: '^.*/daemon/(src|tests)/.*'
 SystemHeaders: false

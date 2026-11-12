@@ -99,6 +99,8 @@ inline response failure(int status, const std::exception& error, std::string_vie
     return {status, ai_json::encode(holder::api::api_error_body(type, status, *coded)), operation};
   return {status, ai_json::encode(holder::api::api_error_body(type, status, error)), operation};
 }
+// The request's method, path and body are all strings, named as such at every call.
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
 template <typename Context>
 inline std::optional<response> dispatch(
     const std::string& method,
@@ -107,6 +109,7 @@ inline std::optional<response> dispatch(
     Context& context,
     const header_lookup& header = {}
 ) {
+  // NOLINTEND(bugprone-easily-swappable-parameters)
   const auto separator = path.find('?');
   const auto route_path = path.substr(0, separator);
   const auto query_string = separator == std::string::npos
@@ -136,7 +139,7 @@ inline std::optional<response> dispatch(
             contract_http::decode_integer<int>(query_include_deleted->second, "include_deleted");
         if (decoded_include_deleted != 0 && decoded_include_deleted != 1)
           throw std::invalid_argument("invalid include_deleted");
-        arg_include_deleted = std::move(decoded_include_deleted);
+        arg_include_deleted = decoded_include_deleted;
       }
       return response{
           200,
@@ -144,7 +147,7 @@ inline std::optional<response> dispatch(
               context.db,
               context.fts,
               std::move(arg_thread_id),
-              std::move(arg_include_deleted)
+              arg_include_deleted
           )),
           "get_ai_messages"
       };
@@ -919,7 +922,7 @@ inline std::optional<response> dispatch(
             contract_http::decode_integer<int>(query_include_deleted->second, "include_deleted");
         if (decoded_include_deleted != 0 && decoded_include_deleted != 1)
           throw std::invalid_argument("invalid include_deleted");
-        arg_include_deleted = std::move(decoded_include_deleted);
+        arg_include_deleted = decoded_include_deleted;
       }
       auto arg_message_id = ai_json::check_text(
           contract_http::decode_uri_component(match[1].str(), false),
@@ -933,7 +936,7 @@ inline std::optional<response> dispatch(
               context.db,
               context.fts,
               std::move(arg_message_id),
-              std::move(arg_include_deleted)
+              arg_include_deleted
           )),
           "get_ai_message_links"
       };
@@ -953,7 +956,7 @@ inline std::optional<response> dispatch(
             contract_http::decode_integer<int>(query_include_deleted->second, "include_deleted");
         if (decoded_include_deleted != 0 && decoded_include_deleted != 1)
           throw std::invalid_argument("invalid include_deleted");
-        arg_include_deleted = std::move(decoded_include_deleted);
+        arg_include_deleted = decoded_include_deleted;
       }
       auto arg_message_id = ai_json::check_text(
           contract_http::decode_uri_component(match[1].str(), false),
@@ -967,7 +970,7 @@ inline std::optional<response> dispatch(
               context.db,
               context.fts,
               std::move(arg_message_id),
-              std::move(arg_include_deleted)
+              arg_include_deleted
           )),
           "get_ai_message_backlinks"
       };

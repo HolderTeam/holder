@@ -13,6 +13,9 @@ struct holder_context {
   std::function<void(std::string_view)> invoke;
 };
 
+// These stand-ins take their parameters exactly as Contract.h declares them, by value included,
+// or they would not be the functions the routes call.
+// NOLINTBEGIN(performance-unnecessary-value-param)
 namespace holder::contract {
 ProjectStorageLocation get_storage_location(holder_context& context, std::string) {
   context.invoke("get_storage_location");
@@ -395,6 +398,7 @@ std::vector<SearchMessage> search_ai_messages(
   return {};
 }
 } // namespace holder::contract
+// NOLINTEND(performance-unnecessary-value-param)
 
 namespace {
 struct ErrorCase {
