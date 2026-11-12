@@ -14,6 +14,12 @@ The workflows are in `.github/workflows/` (`sign-*` and `promote-*`), as GitHub 
 - `scripts/` - the helpers the workflows call to verify and sign artifacts.
 - `website/` - the website, [www.holder.team](https://www.holder.team/): downloads, guides and the desktop update feed. See its README.
 
+## macOS delivery
+
+Use the [macOS handoff commands](docs/macos-delivery.md) to pin the selected
+staging artifact, verify the final disk image on a Mac and deliver the accepted
+DMG and checksum to the shared release draft.
+
 ## Windows development builds
 
 The `Release / Promote Windows dev build` workflow can publish a self-signed Windows tester installer from a successful Windows staging run of this repository.

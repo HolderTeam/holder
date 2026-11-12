@@ -50,6 +50,9 @@ PPA_SPEC.loader.exec_module(ppa_tool)
 WEBSITE_SPEC = importlib.util.spec_from_file_location('release_website', Path(__file__).with_name('website-observation.py'))
 website_tool = importlib.util.module_from_spec(WEBSITE_SPEC)
 WEBSITE_SPEC.loader.exec_module(website_tool)
+MACOS_SPEC = importlib.util.spec_from_file_location('release_macos', Path(__file__).with_name('macos-delivery.py'))
+macos_tool = importlib.util.module_from_spec(MACOS_SPEC)
+MACOS_SPEC.loader.exec_module(macos_tool)
 require = manifest_tool.require
 WORKFLOWS = {'backend': 'daemon-ci.yml', 'desktop': 'desktop-ci.yml',
              'linux': 'staging-linux-appimage-stage.yml', 'windows': 'staging-windows-stage.yml',
@@ -151,6 +154,13 @@ class GitHub:
     def linux_promotion_status(self, record, release_id=None):
         return promotion_tool.observe(self, record['repository'], 'holder-v' + record['version'],
             linux_release_files(record), record['candidate'], release_id=release_id)
+
+    def macos_bundle(self, record):
+        with tempfile.TemporaryDirectory(prefix='holder-macos-evidence-') as directory:
+            return macos_tool.staging(record, manifest_tool.GitHub(directory))
+
+    def upload(self, repository, tag, path):
+        promotion_tool.GitHub().upload(repository, tag, path)
 
     def windows_bundle(self, record):
         step = record['steps']['windows']
@@ -396,6 +406,8 @@ class Coordinator:
             self.prepare_sdk_publication()
             self.require_sdk_inputs_available()
             self.ensure_sdk_metadata()
+        require(not (name == 'macos' and self.record.get('macos_handoff')),
+                'macOS staging is pinned for delivery; select a new candidate instead of replacing inputs')
         require(not (name == 'windows' and self.record.get('windows_delivery_input')),
                 'Windows staging is pinned for delivery; select a new candidate instead of replacing inputs')
         if name == 'windows_promotion':
@@ -795,6 +807,83 @@ class Coordinator:
         self.record['status'] = 'promoting_windows'
         self.persist()
 
+    def prepare_macos_handoff(self):
+        validate_record(self.record)
+        require(self.record.get('manifest') and digest(self.record['manifest']['document']) == self.record['manifest']['sha256'],
+                'macOS handoff requires the unchanged candidate manifest')
+        self.validate_manifest(self.record['manifest']['document'], self.record['manifest']['evidence'])
+        if 'macos_handoff' not in self.record:
+            if not self.inspect('macos'):
+                self.record['status'] = 'preparing_macos_handoff'
+                self.persist()
+                return False
+            bundle = self.github.macos_bundle(self.record)
+            macos_tool.bind(self.record, bundle)
+            self.record.update(macos_handoff=bundle, macos_handoff_sha256=digest(bundle))
+            self.persist()
+        bundle, step = self.record['macos_handoff'], self.record['steps']['macos']
+        require(digest(bundle) == self.record['macos_handoff_sha256'], 'Saved macOS handoff evidence changed')
+        require(bundle['run_id'] == step['run_id'] and bundle['attempt'] == step['attempt'] and
+                bundle['workflow_commit'] == step['workflow_commit'] and bundle['artifact'] == step['artifacts'][0],
+                'macOS handoff differs from the accepted staging run')
+        macos_tool.bind(self.record, bundle)
+        return True
+
+    def macos_source(self):
+        bundle = self.record['macos_handoff']
+        return {'staging_run_id': bundle['run_id'], 'artifact_id': bundle['artifact']['id'],
+                'archive_sha256': bundle['archive_sha256']}
+
+    def accept_macos(self, directory):
+        require(self.prepare_macos_handoff(), 'Wait for the selected macOS staging run before accepting the disk image')
+        files = macos_tool.files(directory, self.record['version'])
+        completed = self.record.get('macos_verified')
+        if completed:
+            require(digest(completed['receipt']) == completed['sha256'], 'Saved macOS verification receipt changed')
+            require(completed['receipt']['files'] == files and completed['receipt']['source'] == self.macos_source(),
+                    'Final macOS files differ from the accepted handoff')
+        else:
+            result = macos_tool.verify(directory, self.record, self.record['macos_handoff'])
+            require(result['files'] == files, 'macOS files changed before verification')
+            receipt = {**result, 'source': self.macos_source(), 'candidate': self.record['candidate'],
+                       'version': self.record['version'], 'verified_at': now().isoformat(timespec='seconds')}
+            self.record['macos_verified'] = {'receipt': receipt, 'sha256': digest(receipt)}
+        self.record['status'] = 'macos_verified'
+        self.persist()
+
+    def advance_macos_promotion(self, directory=None):
+        require(self.prepare_macos_handoff(), 'Wait for the macOS staging handoff')
+        verified = self.record.get('macos_verified')
+        require(verified and digest(verified['receipt']) == verified['sha256'], 'macOS delivery requires accepted final verification')
+        receipt = verified['receipt']
+        require(receipt['source'] == self.macos_source() and receipt['candidate'] == self.record['candidate'] and
+                receipt['version'] == self.record['version'], 'macOS verification belongs to a different handoff')
+        self.require_release_tag()
+        completed = self.record.get('macos_promoted')
+        if completed:
+            require(digest(completed['receipt']) == completed['sha256'], 'Saved macOS delivery receipt changed')
+        observed = promotion_tool.observe(self.github, self.record['repository'], 'holder-v' + self.record['version'],
+            receipt['files'], self.record['candidate'], release_id=completed['receipt']['release']['id'] if completed else None)
+        if observed is None:
+            require(not completed, 'Accepted macOS release assets are now incomplete')
+            require(directory is not None, 'Supply --macos-directory with the accepted final files to resume missing uploads')
+            macos_tool.promote(self.github, self.record['repository'], self.record['candidate'], self.record['version'],
+                               directory, receipt['files'])
+            observed = promotion_tool.observe(self.github, self.record['repository'], 'holder-v' + self.record['version'],
+                receipt['files'], self.record['candidate'])
+            require(observed is not None, 'macOS delivery is incomplete; resume with the accepted files')
+        result = {**observed, 'source': self.macos_source(), 'verification_sha256': verified['sha256']}
+        if completed:
+            previous = completed['receipt']
+            require(previous['files'] == result['files'] and previous['source'] == result['source'] and
+                    previous['verification_sha256'] == result['verification_sha256'], 'Accepted macOS delivery identities changed')
+        else:
+            completed = {'receipt': result, 'sha256': digest(result)}
+            self.record['macos_promoted'] = completed
+        completed['last_check'] = {**observed['release'], 'verified_at': observed['verified_at']}
+        self.record['status'] = 'macos_promoted'
+        self.persist()
+
     def prepare_ppa_observation(self, revisions=None, architectures=None):
         validate_record(self.record)
         require(self.record['repository'] == 'HolderTeam/holder', 'The Holder PPA is associated with HolderTeam/holder releases')
@@ -1006,6 +1095,19 @@ def summary(record):
         current = delivery['last_check']
         lines += ['', f'Windows development assets: {current["url"]}; draft={current["draft"]}',
                   f'Windows promotion receipt SHA256: `{delivery["sha256"]}`']
+    if record.get('macos_handoff'):
+        handoff = record['macos_handoff']
+        lines += ['', f'macOS handoff staging run: {handoff["run_id"]}; artifact ID: {handoff["artifact"]["id"]}',
+                  f'macOS staging archive SHA256: `{handoff["archive_sha256"]}`']
+    if record.get('macos_verified'):
+        verification = record['macos_verified']
+        lines += ['', f'macOS verification receipt SHA256: `{verification["sha256"]}`']
+        lines += [f'- macOS {name}: {outcome}' for name, outcome in verification['receipt']['checks'].items()]
+        lines += [f'- {file["name"]}: SHA256 `{file["sha256"]}`' for file in verification['receipt']['files']]
+    if record.get('macos_promoted'):
+        delivery = record['macos_promoted']
+        lines += ['', f'macOS release assets: {delivery["last_check"]["url"]}',
+                  f'macOS delivery receipt SHA256: `{delivery["sha256"]}`']
     if record.get('website_pending'):
         lines += ['', record['website_pending']]
     if record.get('website_verified'):
@@ -1101,7 +1203,9 @@ def validate_record(record):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'promote-windows', 'publish-sdk', 'observe-ppa', 'observe-website', 'status'))
+    parser.add_argument('command', choices=(
+        'prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'promote-windows',
+        'publish-sdk', 'observe-ppa', 'observe-website', 'prepare-macos', 'accept-macos', 'promote-macos', 'status'))
     parser.add_argument('--record', type=Path, required=True)
     parser.add_argument('--repository', default=None)
     parser.add_argument('--candidate')
@@ -1112,10 +1216,17 @@ def main():
     parser.add_argument('--windows-sign-test-installer', choices=('true', 'false'))
     parser.add_argument('--ppa-revision', action='append', default=[], help='explicit packaging revision: package:series=N')
     parser.add_argument('--ppa-architecture', action='append', choices=ppa_tool.ARCHITECTURES)
+    parser.add_argument('--macos-directory', type=Path, help='directory containing the final versioned DMG and checksum')
     parser.add_argument('--retry', choices=tuple(WORKFLOWS))
     parser.add_argument('--wait', action='store_true', help='keep observing until completed or stopped')
     parser.add_argument('--poll-seconds', type=int, default=30)
     args = parser.parse_args()
+    if args.command == 'accept-macos' and args.macos_directory is None:
+        parser.error('accept-macos requires --macos-directory')
+    if args.macos_directory is not None and args.command not in ('accept-macos', 'promote-macos'):
+        parser.error('--macos-directory requires accept-macos or promote-macos')
+    if args.command in ('prepare-macos', 'accept-macos', 'promote-macos') and args.retry:
+        parser.error('Resume the macOS handoff with the same record and files')
     if (args.ppa_revision or args.ppa_architecture) and args.command != 'observe-ppa':
         parser.error('PPA selections require observe-ppa')
     if args.command in ('observe-ppa', 'observe-website') and args.retry:
@@ -1173,7 +1284,7 @@ def main():
                 record = initialize(github, args.repository or 'HolderTeam/holder', args.candidate,
                                     args.version, args.number, args.windows_sign_test_installer != 'false')
                 save(args.record, record)
-            if args.command in ('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'promote-windows', 'publish-sdk', 'observe-ppa', 'observe-website'):
+            if args.command in ('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'promote-windows', 'publish-sdk', 'observe-ppa', 'observe-website', 'prepare-macos', 'accept-macos', 'promote-macos'):
                 coordinator = Coordinator(args.record, record, github)
                 try:
                     record.pop('error', None)
@@ -1183,7 +1294,15 @@ def main():
                         coordinator.retry(args.retry)
                     last_report = None
                     while True:
-                        if args.command == 'observe-website':
+                        if args.command == 'prepare-macos':
+                            if coordinator.prepare_macos_handoff():
+                                record['status'] = 'macos_handoff_ready'
+                                coordinator.persist()
+                        elif args.command == 'accept-macos':
+                            coordinator.accept_macos(args.macos_directory)
+                        elif args.command == 'promote-macos':
+                            coordinator.advance_macos_promotion(args.macos_directory)
+                        elif args.command == 'observe-website':
                             coordinator.advance_website_observation()
                         elif args.command == 'observe-ppa':
                             coordinator.advance_ppa_observation(selected_ppa_revisions, args.ppa_architecture)
@@ -1209,7 +1328,8 @@ def main():
                         target = {'packages': 'packages_prepared', 'prepare': 'candidate_staged',
                                   'publish-python': 'python_publication_completed', 'sign-linux': 'linux_signed',
                                   'promote-linux': 'linux_promoted', 'promote-windows': 'windows_promoted', 'publish-sdk': 'core_sdk_published', 'observe-ppa': 'ppa_available',
-                                  'observe-website': 'website_verified'}[args.command]
+                                  'observe-website': 'website_verified', 'prepare-macos': 'macos_handoff_ready',
+                                  'accept-macos': 'macos_verified', 'promote-macos': 'macos_promoted'}[args.command]
                         if not args.wait or record['status'] == target:
                             break
                         time.sleep(args.poll_seconds)
