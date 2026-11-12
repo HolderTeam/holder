@@ -196,9 +196,14 @@ coverage() {
 
   local out_dir="${COVERAGE_BUILD_DIR}/coverage"
   mkdir -p "${out_dir}"
+  # gcc ran in the build directory, one level above each target's .p directory where the .gcda
+  # files live. Name it relative to the .gcda file: gcovr tries the object directory relative to
+  # the .gcda first, and targets that compile the generated config.vala have a
+  # <target>.p/build-coverage directory, so naming the build directory itself sent gcov there.
+  # It found no sources, and with errors ignored those targets' coverage was silently dropped.
   local -a gcovr_common_flags=(
     --root .
-    --object-directory "${COVERAGE_BUILD_DIR}"
+    --object-directory ..
     --filter 'src/'
     --exclude 'tests/'
     --gcov-executable gcov
@@ -206,6 +211,8 @@ coverage() {
     --exclude-unreachable-branches
     --exclude-throw-branches
     --exclude-function-lines
+    # Search only the build directory: gcovr would otherwise also search the object directory.
+    "${COVERAGE_BUILD_DIR}"
   )
 
   gcovr \
