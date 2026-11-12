@@ -194,8 +194,11 @@ memcheck_all() {
   valgrind_bin="$(command -v valgrind)"
   valgrind_options="--leak-check=full --show-leak-kinds=definite,possible --errors-for-leak-kinds=definite,possible --track-origins=yes --error-exitcode=1"
 
+  # -O1, as Valgrind's manual suggests: line numbers stay usable, and unoptimised code's per-byte
+  # overhead, multiplied by Valgrind's, no longer makes large-content tests take many minutes.
   cmake_configure -S . -B "${build_dir}" -G Ninja \
     -DCMAKE_BUILD_TYPE="${build_type}" \
+    -DCMAKE_CXX_FLAGS="-O1 -g" \
     -DBUILD_TESTING=ON \
     -DMEMORYCHECK_COMMAND="${valgrind_bin}" \
     -DMEMORYCHECK_COMMAND_OPTIONS="${valgrind_options}"

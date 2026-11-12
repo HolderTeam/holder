@@ -179,9 +179,11 @@ to Debug. Set `HOLDER_MEMCHECK_BUILD_TYPE` to change the Valgrind build type, or
 pass the build type after the sanitizer list for `san`.
 
 Valgrind reports definite and possible leaks, tracks uninitialized values, and
-returns failure for detected memory errors. `HOLDER_CTEST_TIMEOUT` overrides
-the per-test timeout: 900 seconds for Valgrind (including the 5 MB encryption
-round trip), 300 seconds for the single ThreadSanitizer suite, and 30 seconds
+returns failure for detected memory errors. Its build adds `-O1 -g`, as Valgrind's
+manual suggests: line numbers stay usable without unoptimised code's overhead, so
+the 5 MB encryption round trip takes about a minute under Valgrind rather than
+fifteen. `HOLDER_CTEST_TIMEOUT` overrides the per-test timeout: 900 seconds for
+Valgrind, 300 seconds for the single ThreadSanitizer suite, and 30 seconds
 for individual ASan/UBSan tests. Set
 `HOLDER_SAN_DETECT_LEAKS=1` to enable ASan leak detection. On Linux, the
 ThreadSanitizer suite runs through `setarch -R`, as in holder-daemon.
