@@ -622,3 +622,26 @@ TEST_CASE("Generated AI search requires its project query parameter", "[http][ge
       "the query parameter project_id is required"
   );
 }
+
+TEST_CASE("The event stream rejects a malformed last revision", "[http][generated]") {
+  namespace http = boost::beast::http;
+  holder::platform::Db db;
+  http::request<http::string_body> req{http::verb::get, "/events?last_revision=not-a-commit", 11};
+  http::response<http::string_body> res;
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+  CHECK(res.result() == http::status::bad_request);
+  CHECK(nlohmann::json::parse(res.body()).at("error").at("message") == "invalid last_revision");
+}
+
+TEST_CASE("Daemon-served paths name their methods in a 405", "[http][generated]") {
+  namespace http = boost::beast::http;
+  holder::platform::Db db;
+  for (const std::string path : {"/imports/job-1", "/resources/resource/assets/asset/content"}) {
+    CAPTURE(path);
+    http::request<http::string_body> req{http::verb::delete_, path, 11};
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    CHECK(res.result() == http::status::method_not_allowed);
+    CHECK(res[http::field::allow] == "GET");
+  }
+}

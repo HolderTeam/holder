@@ -3,7 +3,10 @@
 // These definitions mirror Contract.h; changed operation signatures fail to compile/link.
 #include "api/generated/ContractRoutes.h"
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 #include <functional>
+#include <map>
+#include <string>
 #include <string_view>
 
 struct holder_context {
@@ -1736,6 +1739,15 @@ TEST_CASE(
     holder_context context{[&](std::string_view) {
       called = true;
     }};
+    // Core answering is a success, whatever the route declares.
+    const auto answered = contract_http::dispatch(route.method, route.path, route.body, context);
+    REQUIRE(answered);
+    CHECK(called);
+    CHECK(answered->operation == route.operation);
+    CHECK(answered->status >= 200);
+    CHECK(answered->status < 300);
+    CHECK(answered->body["ok"] == true);
+    called = false;
     const auto invalid_path = std::string(route.path) +
                               (std::string_view(route.path).find('?') == std::string_view::npos
                                    ? "?"
@@ -1746,5 +1758,83 @@ TEST_CASE(
     CHECK(invalid->status == 400);
     CHECK(invalid->operation == route.operation);
     CHECK_FALSE(called);
+    // A body is checked against its declared fields too: one the contract does not declare is a
+    // 400.
+    if (std::string_view(route.body).starts_with('{')) {
+      auto body = nlohmann::json::parse(route.body);
+      body["unexpected"] = 1;
+      const auto unknown = contract_http::dispatch(route.method, route.path, body.dump(), context);
+      REQUIRE(unknown);
+      CHECK(unknown->status == 400);
+      CHECK(
+          unknown->body["error"]["message"].get<std::string>().find("has no field unexpected") !=
+          std::string::npos
+      );
+      CHECK_FALSE(called);
+    }
+  }
+}
+
+TEST_CASE(
+    "Generated codecs carry the optional fields routes rarely send",
+    "[generated][dispatch]"
+) {
+  // A location's replacement configuration is decoded entry by entry.
+  const auto update = contract_json::decode<holder::contract::StorageLocationUpdate>(
+      nlohmann::json{{"configuration", {{"bucket", "notes"}, {"region", "eu"}}}}
+  );
+  REQUIRE(update.configuration.has_value());
+  CHECK(
+      *update.configuration ==
+      std::map<std::string, std::string>{{"bucket", "notes"}, {"region", "eu"}}
+  );
+
+  // A link to a card in another project names that project.
+  holder::contract::NewLink link;
+  link.target_type = holder::contract::NewLinkTargetType::Card;
+  link.target_id = "card-2";
+  link.target_project_id = "project-2";
+  CHECK(contract_json::encode(link)["target_project_id"] == "project-2");
+
+  // Decoding a response type rejects a field the contract does not declare, as requests do.
+  CHECK_THROWS_WITH(
+      contract_json::decode<holder::contract::CardMetadata>(nlohmann::json{{"unexpected", 1}}),
+      "CardMetadata has no field unexpected"
+  );
+
+  // A new location's configuration is decoded entry by entry too.
+  const auto location = contract_json::decode<holder::contract::NewStorageLocation>(nlohmann::json{
+      {"project_id", "project-1"},
+      {"name", "Notes"},
+      {"provider", "local_directory"},
+      {"configuration", {{"path", "/srv/notes"}}}
+  });
+  CHECK(location.configuration == std::map<std::string, std::string>{{"path", "/srv/notes"}});
+
+  // An update leaves out a name it does not change; it cannot clear one.
+  CHECK_THROWS_WITH(
+      contract_json::decode<holder::contract::StorageLocationUpdate>(
+          nlohmann::json{{"name", nullptr}}
+      ),
+      "name must not be null"
+  );
+
+  // Every declared order reaches core.
+  for (const auto* order : {"card_id_asc", "updated_desc"}) {
+    CAPTURE(order);
+    bool called = false;
+    holder_context context{[&](std::string_view operation) {
+      CHECK(operation == "list_cards");
+      called = true;
+    }};
+    const auto response = contract_http::dispatch(
+        "GET",
+        std::string("/projects/a/cards?order=") + order,
+        "",
+        context
+    );
+    REQUIRE(response);
+    CHECK(response->status == 200);
+    CHECK(called);
   }
 }

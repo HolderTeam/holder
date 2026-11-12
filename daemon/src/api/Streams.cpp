@@ -41,9 +41,10 @@ api_runtime::host_value post_ai_runs(
            registry_of(events)
       )
            .streamed) {
-    throw std::logic_error("run neither streamed nor failed"
-    ); // LCOV_EXCL_LINE: execute_ai_run starts a stream or throws; retain this guard against
-       // contract regressions.
+    // LCOV_EXCL_START - execute_ai_run starts a stream or throws; this guards against contract
+    // regressions.
+    throw std::logic_error("run neither streamed nor failed");
+    // LCOV_EXCL_STOP
   }
   // The stream has already taken the socket.
   return {

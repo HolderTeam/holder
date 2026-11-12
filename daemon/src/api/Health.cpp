@@ -29,12 +29,12 @@ HealthResponse get_health(
           db_ok,
           uptime_ms,
           CARD_SERVER_API_VERSION,
-          CARD_SERVER_VERSION, // LCOV_EXCL_LINE: GCC attributes only unexecuted exception cleanup
-                               // here; health response construction is tested.
+          // LCOV_EXCL_START - GCC attributes only unexecuted exception cleanup to these lines;
+          // health response construction, privacy metadata included, is tested.
+          CARD_SERVER_VERSION,
           holder::core::current_pid(),
-          {"libsodium_xchacha20poly1305_ietf", true
-          }, // LCOV_EXCL_LINE: GCC attributes only unexecuted exception cleanup here; privacy
-             // metadata is tested.
+          {"libsodium_xchacha20poly1305_ietf", true},
+          // LCOV_EXCL_STOP
       },
   };
 }

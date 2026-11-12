@@ -64,11 +64,8 @@ RunnerCapabilitiesResponse get_ai_capabilities(
                             : std::string(holder::llm::RunnerRegistry::kAutoLocalRunnerId);
   auto* client = registry ? registry->get_client(selected) : nullptr;
   const auto installed = client ? client->status().models : std::vector<holder::llm::LocalModel>{};
-  for (const auto& item : support::build_caste_recommendations(
-           installed,
-           support::load_local_model_meta(),
-           caste->name
-       )) {
+  const auto meta = support::load_local_model_meta();
+  for (const auto& item : support::build_caste_recommendations(installed, meta, caste->name)) {
     auto model = recommended_model(item);
     if (!model.installed) data.recommended_install.push_back(model);
     data.recommended_models.push_back(std::move(model));

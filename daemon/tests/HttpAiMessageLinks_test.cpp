@@ -513,6 +513,18 @@ TEST_CASE("AiMessageLinkRoutes direct route filters links and validates target t
     REQUIRE(payload["data"].size() == 4);
   }
 
+  // include_deleted is 0 or 1; any other number is a bad request on both routes.
+  for (const auto* target : {
+           "/ai/messages/msg-1/links?include_deleted=2",
+           "/ai/messages/msg-1/backlinks?include_deleted=2",
+       }) {
+    CAPTURE(target);
+    auto req = make_route_request(http::verb::get, target);
+    const bool handled = holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts);
+    REQUIRE(handled);
+    CHECK(res.result() == http::status::bad_request);
+  }
+
   auto expect_bad_request_message = [&](const nlohmann::json& body,
                                         const std::string& expected_message) {
     auto req = make_route_request(http::verb::post, "/ai/messages/msg-1/links", body.dump());

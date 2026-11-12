@@ -2,6 +2,7 @@
 #include "api/generated/AiRoutes.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 #include <limits>
 #include <map>
 #include <string>
@@ -638,4 +639,53 @@ TEST_CASE(
         std::invalid_argument
     );
   }
+}
+
+TEST_CASE("AI request codecs check context and carry their optional fields", "[generated]") {
+  // context is an object, or null; anything else is rejected before a run or capture starts.
+  CHECK_THROWS_WITH(
+      ai_json::decode<holder::api::AiRunCreateRequest>(
+          nlohmann::json{{"prompt", "hello"}, {"thread_id", nullptr}, {"context", "card-1"}}
+      ),
+      "context must be an object"
+  );
+  const nlohmann::json capture{
+      {"project_id", "project-1"},
+      {"prompt", "hello"},
+      {"response", "hi"},
+      {"created_at", 1700000000000LL}
+  };
+  auto bad_context = capture;
+  bad_context["context"] = nlohmann::json::array({"card-1"});
+  CHECK_THROWS_WITH(
+      ai_json::decode<holder::api::AiMessageCaptureRequest>(bad_context),
+      "context must be an object"
+  );
+
+  // An imported capture keeps the time it was made.
+  const auto captured = ai_json::decode<holder::api::AiMessageCaptureRequest>(capture);
+  REQUIRE(captured.created_at.has_value());
+  CHECK(*captured.created_at == std::optional<long long>{1700000000000LL});
+
+  // A runner can be registered disabled.
+  const auto runner = ai_json::decode<holder::api::AiRunnerCreateRequest>(nlohmann::json{
+      {"name", "local"},
+      {"kind", "ollama"},
+      {"base_url", "http://127.0.0.1:11434"},
+      {"enabled", false}
+  });
+  CHECK(runner.enabled == std::optional<bool>{false});
+
+  // A backlink from another project names the project it comes from.
+  holder::api::routes::CardLink link{
+      .from_card_id = "card-1",
+      .to_card_id = "msg-1",
+      .target_project_id = {},
+      .source_project_id = "project-2",
+      .to_type = "ai_message",
+      .kind = "ref",
+      .label = {},
+      .created_at = 0
+  };
+  CHECK(ai_json::encode(link)["source_project_id"] == "project-2");
 }

@@ -307,12 +307,10 @@ bool dispatch_resource_contract_route(
     } catch (const std::invalid_argument& error) {
       resource_error(res, 400, error);
     } catch (const std::exception& error) {
-      resource_error(
-          res,
-          500,
-          error
-      ); // LCOV_EXCL_LINE: job lookup only throws the handled not-found error; other failures
-         // require allocation failure.
+      // LCOV_EXCL_START - job lookup only throws the handled not-found error; other failures
+      // require allocation failure.
+      resource_error(res, 500, error);
+      // LCOV_EXCL_STOP
     }
     return true;
   }
@@ -360,11 +358,9 @@ bool dispatch_resource_contract_route(
     } catch (const support::StorageUnavailable& error) {
       resource_error(res, 503, error);
     } catch (const support::StorageCapacityExceeded& error) {
-      resource_error(
-          res,
-          507,
-          error
-      ); // LCOV_EXCL_LINE: retrieval capacity errors require a mid-copy device failure.
+      // LCOV_EXCL_START - retrieval capacity errors require a mid-copy device failure.
+      resource_error(res, 507, error);
+      // LCOV_EXCL_STOP
     } catch (const AssetContentNotFound& error) {
       resource_error(res, 404, error);
     } catch (const support::StorageBadRequest& error) {
@@ -590,7 +586,9 @@ bool dispatch_misc_contract_route(
     else if (dynamic_cast<const support::StorageBadRequest*>(&error))
       status = 400;
     else if (dynamic_cast<const support::StorageCapacityExceeded*>(&error))
+      // LCOV_EXCL_START - only a local directory reports capacity, on a mid-copy device failure.
       status = 507;
+    // LCOV_EXCL_STOP
     else if (dynamic_cast<const support::StorageUnavailable*>(&error) ||
              dynamic_cast<const SecretStoreUnavailable*>(&error) ||
              dynamic_cast<const ChangeFeedUnavailable*>(&error) ||

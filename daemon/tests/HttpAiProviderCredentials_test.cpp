@@ -70,6 +70,8 @@ TEST_CASE("API key preview preserves UTF-8 characters", "[ai-credentials]") {
   REQUIRE(preview == "abc€...ij");
   REQUIRE_NOTHROW(nlohmann::json(preview).dump());
   REQUIRE(holder::api::support::mask_api_key("short") == "****");
+  // A four-byte character is kept whole too.
+  REQUIRE(holder::api::support::mask_api_key("abc\U0001F511defghij") == "abc\U0001F511...ij");
 }
 
 TEST_CASE("HTTP ai provider credentials put/get/delete", "[http]") {
