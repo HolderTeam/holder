@@ -70,6 +70,18 @@ WORKFLOWS['core_sdk_publication'] = 'promote-core-sdk.yml'
 PLATFORMS = ('linux', 'windows', 'macos')
 STAGED = {'linux': ['Holder-linux-appimage-staged'], 'windows': ['Holder-windows-staged'],
           'macos': ['Holder-macos-staged']}
+DESTINATIONS = {
+    'linux': ('Linux AppImage', 'promote-linux'),
+    'windows': ('Windows development installer', 'promote-windows'),
+    'macos': ('macOS disk image', 'promote-macos'),
+    'sdk': ('Core SDKs', 'publish-sdk'),
+    'kit-pypi': ('Kit on PyPI', 'publish-python --package kit --destination pypi'),
+    'python-pypi': ('Holder Python on PyPI', 'publish-python --package python --destination pypi'),
+    'ppa': ('Ubuntu PPA', 'observe-ppa'),
+    'website': ('Website and update feed', 'observe-website'),
+    'kit-testpypi': ('Kit on TestPyPI', 'publish-python --package kit --destination testpypi'),
+    'python-testpypi': ('Holder Python on TestPyPI', 'publish-python --package python --destination testpypi'),
+}
 
 
 def encode(value):
@@ -1048,10 +1060,77 @@ class Coordinator:
         self.persist()
 
 
+def destination_summary(record):
+    selected = record.get('release_scope')
+    if selected:
+        lines = ['Selected release destinations: ' + ', '.join(selected)]
+    else:
+        selected = [name for name in DESTINATIONS if 'testpypi' not in name or
+                    name.replace('-', '_') in record.get('publications', {})]
+        lines = ['Release scope is unrecorded. Showing the normal destinations and any recorded TestPyPI publications.',
+                 'Select the intended destinations with `scope --include <destinations> --record <candidate.json>`.']
+    lines += ['', 'Destination outcomes below use the saved evidence and last recorded checks.', '',
+              '| Destination | Recorded outcome | Command to continue or recheck | Last check |',
+              '| --- | --- | --- | --- |']
+    deliveries = {name: record.get(name + '_promoted') for name in PLATFORMS}
+    deliveries.update(sdk=record.get('core_sdk_published'), website=record.get('website_verified'))
+    deliveries.update({name.replace('_', '-'): item for name, item in record.get('publications', {}).items()})
+    for name in selected:
+        label, command = DESTINATIONS[name]
+        outcome, checked_at = 'Pending', '—'
+        delivery = deliveries.get(name)
+        if delivery:
+            receipt = delivery['receipt']
+            current = delivery.get('last_check', receipt.get('release', {}))
+            checked_at = delivery.get('checked_at') or delivery.get('last_verified_at') or current.get('verified_at') or receipt.get('verified_at', '—')
+            if digest(receipt) != delivery['sha256']:
+                outcome = 'Evidence checksum mismatch'
+            elif name == 'website':
+                outcome = 'Live check pending' if record.get('website_pending') else 'Verified'
+            elif current.get('draft'):
+                outcome = 'Delivered to draft'
+            else:
+                outcome = 'Published prerelease' if current.get('prerelease') else 'Published'
+        elif name == 'linux' and not record.get('linux_signed'):
+            command = 'sign-linux'
+            if record['status'] == 'awaiting_linux_signing_approval':
+                outcome = 'Awaiting signing approval'
+        elif name == 'windows' and not record['windows_sign_test_installer']:
+            outcome = 'Unsigned staging selected'
+        elif name == 'macos' and not record.get('macos_verified'):
+            command = 'accept-macos --macos-directory <final-output>' if record.get('macos_handoff') else 'prepare-macos'
+        elif name.endswith('pypi') and not record.get('python_packages'):
+            command = 'packages'
+        if name == 'ppa' and record.get('ppa'):
+            ppa = record['ppa']
+            if digest(ppa['plan']) != ppa['sha256']:
+                outcome = 'Evidence checksum mismatch'
+            else:
+                available = []
+                for key, revision in ppa['plan']['revisions'].items():
+                    target = ppa['targets'].get(key, {})
+                    completed = target.get('completed')
+                    observation = target.get('observation', {})
+                    series = key.split(':')[1]
+                    if (completed and digest(completed['receipt']) == completed['sha256'] and
+                            observation.get('status') == 'available' and observation.get('receipt') == completed['receipt'] and
+                            completed['receipt']['version'] == ppa_tool.package_version(record['version'], revision, series)):
+                        available.append(target.get('checked_at', '—'))
+                outcome = f'{len(available)}/{len(ppa["plan"]["revisions"])} source/series targets available'
+                checked_at = min(available) if available else '—'
+        if not delivery and name in (*PLATFORMS, 'sdk') and 'manifest' not in record:
+            outcome, command = 'Preparation pending', 'prepare'
+        lines.append(f'| {label} | {outcome} | `{command}` | {checked_at} |')
+    return lines
+
+
 def summary(record):
     lines = [f'# Holder {record["version"]} candidate {record["number"]}', '',
              f'Source: `{record["candidate"]}`', f'Status: **{record["status"]}**',
              'Windows staging: ' + ('tester-signed' if record['windows_sign_test_installer'] else 'unsigned'), '']
+    if record.get('error'):
+        lines += ['Stopped: ' + record['error'], '']
+    lines += destination_summary(record) + ['']
     for name, step in record['steps'].items():
         link = (f'https://github.com/{record["repository"]}/actions/runs/{step["run_id"]}'
                 if step.get('run_id') else 'waiting for the dispatch result')
@@ -1068,8 +1147,6 @@ def summary(record):
         for artifact in step.get('artifacts', []):
             lines.append(f'| {name} | {artifact["name"]} | {artifact["id"]} | '
                          f'{artifact["expires_at"]} | {artifact.get("digest") or "not supplied by GitHub"} |')
-    if record.get('error'):
-        lines += ['', 'Stopped: ' + record['error']]
     if record.get('python_packages'):
         lines += ['', f'Python release set SHA256: `{record["python_packages_sha256"]}`',
                   '| Package | File | SHA256 |', '| --- | --- | --- |']
@@ -1138,15 +1215,8 @@ def summary(record):
                   f'SDK publication receipt SHA256: `{delivery["sha256"]}`',
                   '| SDK archive | Producer commit | SHA256 |', '| --- | --- | --- |']
         lines += [f'| {item["name"]} | {item["commit"]} | {item["sha256"]} |' for item in receipt['index']['assets']]
-    package_work = ('Python distributions prepared; publish-python selects one package and destination explicitly.'
-                    if record.get('python_packages') else 'Python distribution preparation: run packages with this record.')
-    lines += ['', package_work,
-              'Remaining release work: platform/upgrade validation and signing handoffs;',
-              'the maintainer publication decision; per-destination promotion/publication',
-              'and package availability checks; website completion. Follow release/docs/runbook.md.',
-              'prepare/packages dispatch preparation workflows; sign-linux requests the protected signing workflow;',
-              'promote-linux/promote-windows deliver accepted platform assets; publish-sdk publishes the verified SDK set;',
-              'publish-python uploads to the explicit destination; observe-ppa checks public build and package availability.']
+    lines += ['', 'Remaining release work is shown by destination above. Review the platform/upgrade results,',
+              "release notes and maintainer publication decision using release/docs/runbook.md."]
     return '\n'.join(lines) + '\n'
 
 
@@ -1172,6 +1242,10 @@ def validate_record(record):
     require(record['build_ref'] == f'rc/{record["version"]}-candidate-{record["number"]}',
             'Saved build branch differs from candidate identity')
     require(isinstance(record['windows_sign_test_installer'], bool), 'Invalid Windows staging policy')
+    if 'release_scope' in record:
+        scope = record['release_scope']
+        require(isinstance(scope, list) and scope and all(isinstance(name, str) and name in DESTINATIONS for name in scope) and
+                len(scope) == len(set(scope)), 'Invalid saved release destination scope')
     require(set(record['steps']) <= set(WORKFLOWS), 'Unsupported preparation workflow in release record')
     if record.get('python_publication_inputs'):
         snapshot = record['python_publication_inputs']
@@ -1205,7 +1279,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=(
         'prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'promote-windows',
-        'publish-sdk', 'observe-ppa', 'observe-website', 'prepare-macos', 'accept-macos', 'promote-macos', 'status'))
+        'publish-sdk', 'observe-ppa', 'observe-website', 'prepare-macos', 'accept-macos', 'promote-macos', 'scope', 'status'))
     parser.add_argument('--record', type=Path, required=True)
     parser.add_argument('--repository', default=None)
     parser.add_argument('--candidate')
@@ -1217,10 +1291,16 @@ def main():
     parser.add_argument('--ppa-revision', action='append', default=[], help='explicit packaging revision: package:series=N')
     parser.add_argument('--ppa-architecture', action='append', choices=ppa_tool.ARCHITECTURES)
     parser.add_argument('--macos-directory', type=Path, help='directory containing the final versioned DMG and checksum')
+    parser.add_argument('--include', nargs='+', choices=tuple(DESTINATIONS), help='destinations to show in the release completion table')
     parser.add_argument('--retry', choices=tuple(WORKFLOWS))
     parser.add_argument('--wait', action='store_true', help='keep observing until completed or stopped')
     parser.add_argument('--poll-seconds', type=int, default=30)
     args = parser.parse_args()
+    if args.command == 'scope':
+        if not args.include or args.retry or args.wait:
+            parser.error('scope requires --include <destinations> and a saved record')
+    elif args.include:
+        parser.error('--include requires scope')
     if args.command == 'accept-macos' and args.macos_directory is None:
         parser.error('accept-macos requires --macos-directory')
     if args.macos_directory is not None and args.command not in ('accept-macos', 'promote-macos'):
@@ -1284,6 +1364,13 @@ def main():
                 record = initialize(github, args.repository or 'HolderTeam/holder', args.candidate,
                                     args.version, args.number, args.windows_sign_test_installer != 'false')
                 save(args.record, record)
+            if args.command == 'scope':
+                record['release_scope'] = list(dict.fromkeys(args.include))
+                save(args.record, record)
+                report = summary(record)
+                args.record.with_suffix('.summary.md').write_text(report)
+                print(report)
+                return
             if args.command in ('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'promote-windows', 'publish-sdk', 'observe-ppa', 'observe-website', 'prepare-macos', 'accept-macos', 'promote-macos'):
                 coordinator = Coordinator(args.record, record, github)
                 try:
