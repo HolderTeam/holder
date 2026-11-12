@@ -15,4 +15,8 @@ namespace holder::capi {
 std::shared_ptr<holder::resource::StorageProvider> storage_provider(holder_context& context,
                                                                     const std::string& provider_name);
 
+// Forgets every provider hosts registered, releasing each one's user data. Registrations last for
+// the process, so tests that register providers holding test-local data clear them afterwards.
+void clear_storage_providers();
+
 } // namespace holder::capi

@@ -5,6 +5,7 @@
 #include <catch2/catch.hpp>
 #endif
 
+#include "capi/StorageProviders.h"
 #include "capi_asset_helpers.h"
 #include "core_test_helpers.h"
 #include "model/Project.h"
@@ -922,6 +923,15 @@ int fake_storage_exists_but_block_git_write(
 
 void noop_storage_destroy(void*) {}
 
+// Registrations last for the whole process. A test whose provider holds data on its own stack
+// clears them when it ends, so a later test in the same process never calls into that data.
+struct ClearStorageProvidersAtEnd {
+  ClearStorageProvidersAtEnd() = default;
+  ClearStorageProvidersAtEnd(const ClearStorageProvidersAtEnd&) = delete;
+  ClearStorageProvidersAtEnd& operator=(const ClearStorageProvidersAtEnd&) = delete;
+  ~ClearStorageProvidersAtEnd() { holder::capi::clear_storage_providers(); }
+};
+
 int register_storage_provider(
     holder_register_storage_provider_kind kind, decltype(holder_storage_provider_callbacks::put) put,
     decltype(holder_storage_provider_callbacks::get) get,
@@ -1121,6 +1131,7 @@ TEST_CASE(
   );
 
   FakeStorageBackend backend{.root = data_dir / "fake-drive"};
+  const ClearStorageProvidersAtEnd clear_providers;
   REQUIRE(
       register_storage_provider(
           HOLDER_REGISTER_STORAGE_PROVIDER_KIND_GOOGLE_DRIVE,
@@ -1204,6 +1215,7 @@ TEST_CASE(
   );
 
   int failure_code = HOLDER_STORAGE_ERROR_CAPACITY;
+  const ClearStorageProvidersAtEnd clear_providers;
   REQUIRE(
       register_storage_provider(
           HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE,
@@ -1295,6 +1307,7 @@ TEST_CASE(
   );
 
   FakeStorageBackend backend{.root = data_dir / "rollback-provider"};
+  const ClearStorageProvidersAtEnd clear_providers;
   REQUIRE(
       register_storage_provider(
           HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE,
@@ -1354,7 +1367,8 @@ TEST_CASE("C API asset_import_file reports an unregistered provider kind by name
   const auto& project_id = created.project_id;
   const auto& card_id = created.card_id;
 
-  // Nothing registers s3_compatible in this process.
+  // Earlier tests in the same process may have registered s3_compatible; this one needs none.
+  holder::capi::clear_storage_providers();
   create_location(context, project_id, "loc-unregistered-1", "Bucket (not wired up)",
                   HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE);
 

@@ -173,3 +173,12 @@ std::shared_ptr<holder::resource::StorageProvider> holder::capi::storage_provide
     throw std::runtime_error("no storage provider registered for: " + name);
   return it->second;
 }
+
+void holder::capi::clear_storage_providers() {
+  std::map<std::string, std::shared_ptr<holder::resource::StorageProvider>> released;
+  {
+    std::lock_guard lock(holder::contract::storage_mutex());
+    released.swap(holder::contract::storage_registry());
+  }
+  // Cleanup may reenter registration, so release after unlocking.
+}
