@@ -224,12 +224,12 @@ private class WindowFixture : Object {
     // Opens the window and waits until the first project is loaded.
     public void open_loaded() {
         open();
-        assert(wait_for_condition(() => window.controller_for_tests().selected_project_id() == "p1"));
+        assert(wait_for_condition(() => window.controller_for_tests.selected_project_id() == "p1"));
         av_settle();
     }
 
     public HolderLinux.MainController controller() {
-        return window.controller_for_tests();
+        return window.controller_for_tests;
     }
 
     // Selects a card as the sidebar would, and waits until it is loaded into the editor.
@@ -243,7 +243,7 @@ private class WindowFixture : Object {
     }
 
     public string editor_text() {
-        var buffer = window.workspace_for_tests().editor_buffer;
+        var buffer = window.workspace_for_tests.editor_buffer;
         Gtk.TextIter start;
         Gtk.TextIter end;
         buffer.get_bounds(out start, out end);
@@ -274,7 +274,7 @@ private class WindowFixture : Object {
 
     // Which page the asset preview shows: loading, image, document, error or empty.
     public string preview_state() {
-        foreach (var widget in av_descendants(window.workspace_for_tests().asset_preview.widget)) {
+        foreach (var widget in av_descendants(window.workspace_for_tests.asset_preview.widget)) {
             var stack = widget as Gtk.Stack;
             if (stack != null && ((!) stack).get_child_by_name("loading") != null) {
                 return (!) ((!) stack).get_visible_child_name();
@@ -364,7 +364,7 @@ private void test_the_window_menu_opens_its_pages_and_dialogs() {
     var f = new WindowFixture();
     f.open_loaded();
     var w = f.window;
-    var workspace = w.workspace_for_tests();
+    var workspace = w.workspace_for_tests;
 
     w.handle_toggle_toolbox_action();
     assert(workspace.toolbox.widget.get_visible());
@@ -413,7 +413,7 @@ private void test_card_actions_work_on_the_selected_card() {
 
     // Typing in the editor marks the card changed; saving tidies a stray trailing space (two would
     // be a Markdown line break) and sends it.
-    var buffer = w.workspace_for_tests().editor_buffer;
+    var buffer = w.workspace_for_tests.editor_buffer;
     buffer.set_text("# Card 1\n\nBody edited \n", -1);
     w.handle_save_action();
     assert(wait_for_condition(() => f.api.update_card_calls == 1));
@@ -470,7 +470,7 @@ private void test_the_workspace_panels_follow_their_toggles() {
     var f = new WindowFixture();
     f.open_loaded();
     var w = f.window;
-    var workspace = w.workspace_for_tests();
+    var workspace = w.workspace_for_tests;
 
     assert(f.shows_label("Projects"));
     // Hiding the explorer briefly measures the workspace narrower than its header needs, and GTK
@@ -516,7 +516,7 @@ private void test_searching_runs_shows_and_clears_results() {
     f.api.include_card2 = true;
     f.open_loaded();
     var w = f.window;
-    var workspace = w.workspace_for_tests();
+    var workspace = w.workspace_for_tests;
 
     // With nothing found yet, there are no results to move to.
     w.on_workspace_search_focus_results_requested();
@@ -527,7 +527,7 @@ private void test_searching_runs_shows_and_clears_results() {
     assert(wait_for_condition(() => f.api.search_calls == 1));
     w.on_workspace_search_activated();
     assert(wait_for_condition(() => f.api.search_calls == 2));
-    assert(wait_for_condition(() => f.window.search_store_for_tests().get_n_items() == 1));
+    assert(wait_for_condition(() => f.window.search_store_for_tests.get_n_items() == 1));
 
     w.on_workspace_search_focus_results_requested();
     assert(workspace.content_stack.get_visible_child_name() == "search");
@@ -544,7 +544,7 @@ private void test_searching_runs_shows_and_clears_results() {
     workspace.search_entry.set_text("card");
     w.on_workspace_search_cleared();
     assert(workspace.search_entry.get_text() == "");
-    assert(f.window.search_store_for_tests().get_n_items() == 0);
+    assert(f.window.search_store_for_tests.get_n_items() == 0);
     f.destroy();
 }
 
@@ -553,7 +553,7 @@ private void test_find_and_replace_edit_the_card() {
     f.open_loaded();
     f.open_card("c1");
     var w = f.window;
-    var workspace = w.workspace_for_tests();
+    var workspace = w.workspace_for_tests;
     workspace.show_find_replace_bar(true);
     foreach (var widget in av_descendants(workspace.widget)) {
         var entry = widget as Gtk.Entry;
@@ -587,7 +587,7 @@ private void test_the_window_shows_what_the_controller_reports() {
     w.set_editor_save_state_text("Saved");
     assert(f.shows_label("Saved"));
     w.set_search_summary_text("2 results");
-    assert(w.workspace_for_tests().search_summary_label.get_text() == "2 results");
+    assert(w.workspace_for_tests.search_summary_label.get_text() == "2 results");
     w.set_ai_thread_title("Planning");
     assert(f.shows_label("Thread: Planning"));
     w.set_validated_tag_occurrences({});
@@ -653,7 +653,7 @@ private void test_saved_preferences_are_applied_at_startup() {
     f.settings.set_boolean(HolderLinux.AppSettings.KEY_SHOW_LINE_NUMBERS, false);
     f.open_loaded();
 
-    var workspace = f.window.workspace_for_tests();
+    var workspace = f.window.workspace_for_tests;
     assert(!workspace.editor_view.get_show_line_numbers());
     var scheme = workspace.editor_buffer.get_style_scheme();
     assert(scheme != null && ((!) scheme).get_id() == "classic");
@@ -663,7 +663,7 @@ private void test_saved_preferences_are_applied_at_startup() {
     var g = new WindowFixture();
     g.settings.set_string(HolderLinux.AppSettings.KEY_STYLE_SCHEME_ID, "holder-no-such-scheme");
     g.open_loaded();
-    var other = g.window.workspace_for_tests().editor_buffer.get_style_scheme();
+    var other = g.window.workspace_for_tests.editor_buffer.get_style_scheme();
     assert(other == null || ((!) other).get_id() != "holder-no-such-scheme");
     g.destroy();
 }
@@ -685,7 +685,7 @@ private void test_an_unsaveable_card_asks_before_closing() {
     f.open_loaded();
     f.open_card("c1");
     f.api.fail_update_card = true;
-    f.window.workspace_for_tests().editor_buffer.set_text("# Card 1\n\nUnsaved", -1);
+    f.window.workspace_for_tests.editor_buffer.set_text("# Card 1\n\nUnsaved", -1);
 
     // Without a recovery copy, a failed save keeps the window open and asks.
     assert(f.window.on_window_close_requested());
@@ -774,7 +774,7 @@ private void test_holderctl_is_found_or_its_absence_logged() {
 private void test_f9_toggles_the_toolbox_unless_a_terminal_has_focus() {
     var f = new WindowFixture();
     f.open_loaded();
-    var workspace = f.window.workspace_for_tests();
+    var workspace = f.window.workspace_for_tests;
     var root = (!) ((Adw.ToastOverlay) f.window.get_content()).get_child();
 
     assert(av_press(root, Gdk.Key.F9));
@@ -838,7 +838,7 @@ private void test_selection_and_editor_changes_reach_the_controller() {
     }));
 
     // An edit to the open card is the user's: it is scheduled for saving.
-    var buffer = w.workspace_for_tests().editor_buffer;
+    var buffer = w.workspace_for_tests.editor_buffer;
     buffer.set_text("# Card 2\n\nEdited", -1);
     w.on_editor_buffer_changed();
     assert(wait_for_condition(() => f.api.update_card_calls >= 1, 8000));
@@ -867,7 +867,7 @@ private void test_ctrl_enter_on_an_image_without_resources_says_so() {
     var f = new WindowFixture();
     f.open_loaded();
     f.open_card("c1");
-    var buffer = f.window.workspace_for_tests().editor_buffer;
+    var buffer = f.window.workspace_for_tests.editor_buffer;
     buffer.set_text("![Boiler](holder://resource/r-boiler)\n", -1);
     Gtk.TextIter at;
     buffer.get_iter_at_offset(out at, 3);
@@ -900,7 +900,7 @@ private string window_write_png() {
 }
 
 private Gtk.TextMark window_mark_at_end(WindowFixture f) {
-    var buffer = f.window.workspace_for_tests().editor_buffer;
+    var buffer = f.window.workspace_for_tests.editor_buffer;
     Gtk.TextIter end;
     buffer.get_end_iter(out end);
     return buffer.create_mark(null, end, false);
@@ -925,7 +925,7 @@ private void test_a_dropped_file_needs_a_card_storage_and_a_location() {
     g.open_card("c1");
     g.window.on_workspace_file_dropped(file, window_mark_at_end(g));
     assert(wait_for_condition(() => g.has_toast(HolderLinux.AssetImportFlow.NEEDS_LOCATION_MESSAGE)));
-    var toolbox = g.window.workspace_for_tests().toolbox;
+    var toolbox = g.window.workspace_for_tests.toolbox;
     assert(toolbox.widget.get_visible() && toolbox.is_showing_tool("resources"));
     g.destroy();
 }
@@ -941,7 +941,7 @@ private void test_a_dropped_image_is_imported_and_placed_where_it_landed() {
 
     assert(wait_for_condition(() => f.editor_text().contains("holder://resource/r-new")));
     assert(api.imports == 1);
-    assert(f.window.workspace_for_tests().toolbox.is_showing_tool("resources"));
+    assert(f.window.workspace_for_tests.toolbox.is_showing_tool("resources"));
 
     // A failed import is reported and leaves the card as it was.
     api.fail_import = true;
@@ -958,7 +958,7 @@ private void test_a_resource_preview_downloads_shows_and_opens_the_asset() {
     f.api = api;
     f.open_loaded();
     f.open_card("c1");
-    var workspace = f.window.workspace_for_tests();
+    var workspace = f.window.workspace_for_tests;
     var resource = window_image_resource();
 
     workspace.toolbox.asset_preview_requested(resource, resource.assets[0]);
@@ -982,7 +982,7 @@ private void test_a_resource_preview_downloads_shows_and_opens_the_asset() {
     var doc = new HolderLinux.ProjectResource("r-doc", "p1", "file", "holder://resource/r-doc", "Manual",
                                               null, 1, 1, null, doc_assets);
     workspace.asset_preview.select_attachment(0);
-    f.window.workspace_for_tests().inline_resource_images.preview_requested(doc, doc_assets[0]);
+    f.window.workspace_for_tests.inline_resource_images.preview_requested(doc, doc_assets[0]);
     assert(wait_for_condition(() => f.preview_state() == "document"));
     f.destroy();
 }
@@ -994,7 +994,7 @@ private void test_an_asset_that_cannot_be_fetched_shows_why() {
     f.api = api;
     f.open_loaded();
     f.open_card("c1");
-    var workspace = f.window.workspace_for_tests();
+    var workspace = f.window.workspace_for_tests;
     // Asset IDs of its own: the private cache keeps what earlier tests downloaded.
     var resource = window_image_resource("r-offline");
 
@@ -1015,7 +1015,7 @@ private void test_an_asset_that_cannot_be_fetched_shows_why() {
     g.open_loaded();
     g.open_card("c1");
     var other = window_image_resource("r-no-storage");
-    g.window.workspace_for_tests().toolbox.asset_preview_requested(other, other.assets[0]);
+    g.window.workspace_for_tests.toolbox.asset_preview_requested(other, other.assets[0]);
     assert(wait_for_condition(() => g.preview_state() == "error"));
     g.destroy();
 }
@@ -1028,13 +1028,13 @@ private void test_a_cards_attachments_fill_the_preview() {
     api.card_links.add(new HolderLinux.CardLink("c1", "r-attached", "resource", "attachment", null, 1));
     f.open_loaded();
     f.open_card("c1");
-    var workspace = f.window.workspace_for_tests();
+    var workspace = f.window.workspace_for_tests;
 
     // Opening the preview loads the selected attachment; choosing one loads that.
     workspace.set_asset_preview_visible(false);
     f.window.on_app_state_changed();
     av_settle();
-    f.window.workspace_for_tests().asset_preview_toggled(true);
+    f.window.workspace_for_tests.asset_preview_toggled(true);
     assert(wait_for_condition(() => f.preview_state() == "image"));
     assert(api.downloads == 1);
     // Choosing the attachment again shows it from the private cache.
@@ -1057,7 +1057,7 @@ private void test_attachments_that_fail_to_load_say_so_in_the_open_preview() {
     var f = new WindowFixture();
     f.open_loaded();
     f.open_card("c1");
-    f.window.workspace_for_tests().set_asset_preview_visible(true);
+    f.window.workspace_for_tests.set_asset_preview_visible(true);
     f.api.fail_list_card_links = true;
 
     f.window.on_app_state_changed();
@@ -1073,7 +1073,7 @@ private void test_an_asset_can_be_exported_where_the_user_chooses() {
     f.api = api;
     f.open_loaded();
     f.open_card("c1");
-    var workspace = f.window.workspace_for_tests();
+    var workspace = f.window.workspace_for_tests;
     var resource = window_image_resource("r-export");
     workspace.toolbox.asset_preview_requested(resource, resource.assets[0]);
     assert(wait_for_condition(() => f.preview_state() == "image"));
@@ -1127,7 +1127,7 @@ private void test_closing_waits_for_the_save_and_then_closes() {
     var f = new WindowFixture();
     f.open_loaded();
     f.open_card("c1");
-    f.window.workspace_for_tests().editor_buffer.set_text("# Card 1\n\nLast words", -1);
+    f.window.workspace_for_tests.editor_buffer.set_text("# Card 1\n\nLast words", -1);
 
     // The card is saved first; the window closes once it is.
     assert(f.window.on_window_close_requested());
@@ -1145,7 +1145,7 @@ private void test_inline_image_previews_appear_when_turned_on() {
     f.settings.set_boolean(HolderLinux.AppSettings.KEY_SHOW_INLINE_IMAGE_PREVIEWS, true);
     f.open_loaded();
     f.open_card("c1");
-    var workspace = f.window.workspace_for_tests();
+    var workspace = f.window.workspace_for_tests;
     f.window.on_app_state_changed();
 
     workspace.editor_buffer.set_text("# Card 1\n\n![Boiler](holder://resource/r-inline)\n", -1);
@@ -1165,8 +1165,8 @@ private void test_the_intelligence_panel_follows_the_card() {
     w.on_workspace_ai_panel_toggled(true);
 
     // An autosave with the panel open asks for a title suggestion; accepting one renames the card.
-    var panel = w.workspace_for_tests().ai_panel;
-    w.workspace_for_tests().editor_buffer.set_text("# Card 1\n\nAutosaved", -1);
+    var panel = w.workspace_for_tests.ai_panel;
+    w.workspace_for_tests.editor_buffer.set_text("# Card 1\n\nAutosaved", -1);
     w.on_editor_buffer_changed();
     assert(wait_for_condition(() => f.api.last_updated_content.has_suffix("Autosaved"), 8000));
     av_settle();
@@ -1197,7 +1197,7 @@ private void test_window_edge_cases_change_nothing() {
     f.api.include_card2 = true;
     f.open_loaded();
     var w = f.window;
-    var workspace = w.workspace_for_tests();
+    var workspace = w.workspace_for_tests;
 
     // Nothing to append to, and no card id to trash.
     var before = f.editor_text();
@@ -1218,7 +1218,7 @@ private void test_window_edge_cases_change_nothing() {
     // Moving to search results with none selected selects the first.
     workspace.search_entry.set_text("card");
     w.on_workspace_search_activated();
-    assert(wait_for_condition(() => w.search_store_for_tests().get_n_items() == 1));
+    assert(wait_for_condition(() => w.search_store_for_tests.get_n_items() == 1));
     workspace.search_selection.set_autoselect(false);
     workspace.search_selection.set_can_unselect(true);
     workspace.search_selection.set_selected(Gtk.INVALID_LIST_POSITION);
@@ -1240,7 +1240,7 @@ private void test_a_card_with_children_asks_what_to_trash() {
     var f = new WindowFixture();
     f.open_loaded();
     var w = f.window;
-    w.card_store_for_tests().append(
+    w.card_store_for_tests.append(
         new HolderLinux.CardSummary("c1-child", "p1", "Child", "c1-child.md", 2.0, "c1", 30, 30)
     );
 

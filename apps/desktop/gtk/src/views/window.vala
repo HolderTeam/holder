@@ -1575,21 +1575,22 @@ public class MainWindow : Adw.ApplicationWindow {
         internal_link_navigator.refresh_connections_from_editor();
     }
 
-    // For the app view tests, built into the same program.
-    internal MainController controller_for_tests() {
-        return controller;
+    // For the app view tests, built into the same program. Properties rather than methods: the app
+    // itself never reads them, and valac warns about methods nothing in a program calls.
+    internal MainController controller_for_tests {
+        get { return controller; }
     }
 
-    internal WorkspacePane workspace_for_tests() {
-        return workspace;
+    internal WorkspacePane workspace_for_tests {
+        get { return workspace; }
     }
 
-    internal GLib.ListStore search_store_for_tests() {
-        return search_store;
+    internal GLib.ListStore search_store_for_tests {
+        get { return search_store; }
     }
 
-    internal GLib.ListStore card_store_for_tests() {
-        return card_store;
+    internal GLib.ListStore card_store_for_tests {
+        get { return card_store; }
     }
 
     protected override void dispose() {
