@@ -386,6 +386,7 @@ sources = [
   'src/services/api_client/search.vala',
   'src/services/api_client/ai.vala',
   'src/services/api_client/git.vala',
+  'src/views/main_window_services.vala',
   'src/views/window.vala',
 ]
 
@@ -3982,6 +3983,7 @@ app_views_test_sources = [
   'tests/app_views/internal_link_navigator_test.vala',
   'tests/app_views/toolbox_test.vala',
   'tests/app_views/workspace_pane_test.vala',
+  'tests/app_views/window_test.vala',
   'tests/app_views/main.vala',
 ]
 app_views_test_vala_args = []
@@ -4009,6 +4011,10 @@ app_views_test_env.set(
 )
 if host_machine.system() not in ['darwin', 'linux']
   app_views_test_env.set('GTK_A11Y', 'none')
+endif
+# Like the app tests: keep GTK off the desktop portals, which the window would otherwise start.
+if gtk_dep.version().version_compare('>=4.18')
+  app_views_test_env.set('GDK_DEBUG', 'no-portals')
 endif
 test('holder-gtk-app-views-tests', app_views_test_exe, env: app_views_test_env, timeout: 120)
 

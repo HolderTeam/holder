@@ -96,8 +96,12 @@ public class MainWindow : Adw.ApplicationWindow {
     private uint applying_state_depth = 0;
     private uint rendered_sidebar_data_version = uint.MAX;
 
-    public MainWindow(Adw.Application app, int startup_width = 0, int startup_height = 0) {
-        var boot_settings = AppSettings.open_or_null();
+    public MainWindow(Adw.Application app,
+                      int startup_width = 0,
+                      int startup_height = 0,
+                      MainWindowServices? window_services = null) {
+        var services = window_services ?? new MainWindowServices();
+        var boot_settings = services.settings;
         var startup_geometry = resolve_startup_window_state(
             boot_settings,
             startup_width,
@@ -189,8 +193,8 @@ public class MainWindow : Adw.ApplicationWindow {
             search_store,
             new SearchEntryTextProvider(search_entry),
             new SourceBufferTextProvider(editor_buffer),
-            new DefaultApiFactory(),
-            new FileServerDiscovery(),
+            services.api_factory,
+            services.server_discovery,
             null,
             null,
             null,
@@ -206,7 +210,7 @@ public class MainWindow : Adw.ApplicationWindow {
             activity_log_controller,
             controller
         );
-        update_check_service = new UpdateCheckService();
+        update_check_service = services.update_check;
         project_create_controller = new ProjectCreateController();
         explorer_selection_controller = new ExplorerSelectionController(
             project_store,
@@ -471,7 +475,11 @@ public class MainWindow : Adw.ApplicationWindow {
         controller.debug_log_requested.connect((line) => {
             log_debug_line(line);
         });
-        if (PLATFORM == "linux" || PLATFORM == "windows" || PLATFORM == "darwin") {
+        if (services.backend_starter != null) {
+            controller.backend_starter = services.backend_starter;
+        } else if (!services.find_backend_starter) {
+            log_debug_line("BACKEND_ENSURE skipped: not asked to start one");
+        } else if (PLATFORM == "linux" || PLATFORM == "windows" || PLATFORM == "darwin") {
             var holderctl = BackendEnsure.locate_holderctl_for_this_program();
             if (holderctl != null) {
                 log_debug_line("BACKEND_ENSURE using %s".printf((string) holderctl));
@@ -489,15 +497,19 @@ public class MainWindow : Adw.ApplicationWindow {
         } else {
             log_debug_line("BACKEND_ENSURE skipped: not done on %s yet".printf(PLATFORM));
         }
-        var presence_stream = new PresenceStream(
-            new SoupApiHttpTransport(),
-            new FileServerDiscovery(),
-            new MainLoopScheduler()
-        );
-        presence_stream.debug_log_requested.connect((line) => {
-            log_debug_line(line);
-        });
-        controller.presence = presence_stream;
+        if (services.presence != null) {
+            controller.presence = services.presence;
+        } else {
+            var presence_stream = new PresenceStream(
+                new SoupApiHttpTransport(),
+                new FileServerDiscovery(),
+                new MainLoopScheduler()
+            );
+            presence_stream.debug_log_requested.connect((line) => {
+                log_debug_line(line);
+            });
+            controller.presence = presence_stream;
+        }
         controller.bootstrap.begin();
         queue_update_check();
     }
