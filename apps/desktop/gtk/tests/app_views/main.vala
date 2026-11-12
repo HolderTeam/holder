@@ -14,6 +14,7 @@ public static int main(string[] args) {
     register_editor_renderer_tests();
     register_internal_link_navigator_tests();
     register_toolbox_tests();
+    register_workspace_pane_tests();
 #if HOLDER_TERMINAL_VTE
     register_terminal_tool_view_tests();
 #endif

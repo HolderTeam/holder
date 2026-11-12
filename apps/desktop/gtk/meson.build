@@ -3981,6 +3981,7 @@ app_views_test_sources = [
   'tests/app_views/editor_renderer_test.vala',
   'tests/app_views/internal_link_navigator_test.vala',
   'tests/app_views/toolbox_test.vala',
+  'tests/app_views/workspace_pane_test.vala',
   'tests/app_views/main.vala',
 ]
 app_views_test_vala_args = []

@@ -42,6 +42,66 @@ internal Gtk.Label? av_find_label(Gtk.Widget root, string text) {
     return null;
 }
 
+internal string av_temp_dir() {
+    try {
+        return DirUtils.make_tmp("holder-app-views-XXXXXX");
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+}
+
+// A GtkSourceView colour scheme with only the given styles.
+internal void av_write_scheme(string dir, string id, string styles) {
+    var xml = "<?xml version=\"1.0\"?>\n<style-scheme id=\"%s\" name=\"%s\" version=\"1.0\">\n%s\n</style-scheme>\n"
+        .printf(id, id, styles);
+    try {
+        FileUtils.set_contents(Path.build_filename(dir, id + ".xml"), xml);
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+}
+
+internal Gtk.Button av_button_with_tooltip(Gtk.Widget root, string tooltip) {
+    foreach (var widget in av_descendants(root)) {
+        var button = widget as Gtk.Button;
+        if (button != null && ((!) button).get_tooltip_text() == tooltip) {
+            return (!) button;
+        }
+    }
+    assert_not_reached();
+}
+
+internal Gtk.Button av_button_with_label(Gtk.Widget root, string label) {
+    foreach (var widget in av_descendants(root)) {
+        var button = widget as Gtk.Button;
+        if (button != null && ((!) button).get_label() == label) {
+            return (!) button;
+        }
+    }
+    assert_not_reached();
+}
+
+// The most recently added controller of this type on a widget: GTK lists a widget's controllers
+// newest first, so this is the app's own rather than one the widget made for itself.
+internal Gtk.EventController av_newest_controller(Gtk.Widget widget, Type type) {
+    var controllers = widget.observe_controllers();
+    for (uint i = 0; i < controllers.get_n_items(); i++) {
+        var controller = (Gtk.EventController) controllers.get_item(i);
+        if (controller.get_type().is_a(type)) {
+            return controller;
+        }
+    }
+    assert_not_reached();
+}
+
+// Raises key-pressed on the widget's newest key controller, as a key press would.
+internal bool av_press(Gtk.Widget widget, uint keyval, Gdk.ModifierType state = 0) {
+    var keys = av_newest_controller(widget, typeof(Gtk.EventControllerKey));
+    bool handled = false;
+    Signal.emit_by_name(keys, "key-pressed", keyval, 0u, state, out handled);
+    return handled;
+}
+
 // A workspace inside a toast overlay, as the window builds it, with nothing loaded.
 internal class WorkspaceFixture : Object {
     public GLib.ListStore search_store = new GLib.ListStore(typeof(HolderLinux.SearchCardResult));
@@ -59,7 +119,7 @@ internal class WorkspaceFixture : Object {
     public void present() {
         window.set_default_size(1000, 700);
         window.present();
-        assert(wait_for_condition(() => workspace.editor_view.get_width() > 0));
+        assert(wait_for_condition(() => workspace.widget.get_width() > 0 && workspace.content_stack.get_width() > 0));
         av_settle();
     }
 
