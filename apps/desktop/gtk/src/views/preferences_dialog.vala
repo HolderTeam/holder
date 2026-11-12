@@ -37,7 +37,7 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         var page = new Adw.PreferencesPage();
         page.set_name("appearance");
         page.set_title("Appearance");
-        page.set_icon_name("preferences-desktop-theme-symbolic");
+        page.set_icon_name("color-select-symbolic");
 
         var style_group = new Adw.PreferencesGroup();
         style_group.set_title("Style");
