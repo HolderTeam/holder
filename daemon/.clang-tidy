@@ -19,7 +19,7 @@ Checks: >
   modernize-use-override,
   readability-redundant-*,
   -readability-redundant-member-init
-WarningsAsErrors: ''
+WarningsAsErrors: '*'
 HeaderFilterRegex: '^.*/daemon/(src|tests)/.*'
 SystemHeaders: false
 CheckOptions:

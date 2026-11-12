@@ -182,6 +182,9 @@ def generate_ai_routes(contract: ContractView) -> str:
               "inline std::optional<response> dispatch(const std::string& method, const std::string& path,",
               "    const std::string& body, Context& context, const header_lookup& header = {}) {",
               "    // NOLINTEND(bugprone-easily-swappable-parameters)",
+              "    // Each argument is moved at its last use. The handlers are written by hand, and one that",
+              "    // only reads an argument takes it by const reference, where the move does nothing.",
+              "    // NOLINTBEGIN(performance-move-const-arg)",
               "    const auto separator = path.find('?');",
               "    const auto route_path = path.substr(0, separator);",
               "    const auto query_string = separator == std::string::npos ? std::string_view{} :",
@@ -212,5 +215,5 @@ def generate_ai_routes(contract: ContractView) -> str:
         lines += ["        } catch (const std::exception& error) {",
                   f'            return failure(error_status(error), error, "{name}");',
                   "        }", "    }"]
-    lines += ["    return std::nullopt;", "}", "} // namespace ai_http", ""]
+    lines += ["    return std::nullopt;", "    // NOLINTEND(performance-move-const-arg)", "}", "} // namespace ai_http", ""]
     return "\n".join(lines)
