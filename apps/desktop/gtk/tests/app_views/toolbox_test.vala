@@ -120,13 +120,16 @@ private class ToolboxFixture : Object {
         return null;
     }
 
-    public bool spinner_visible() {
+    // The spinners showing now. Tools can show their own (the Windows terminal tool does while it
+    // checks for PowerShell), so tests compare against the ones showing before.
+    public Gee.ArrayList<Gtk.Widget> visible_spinners() {
+        var spinners = new Gee.ArrayList<Gtk.Widget>();
         foreach (var widget in av_descendants(toolbox.widget)) {
             if (widget is Gtk.Spinner && widget.get_visible()) {
-                return true;
+                spinners.add(widget);
             }
         }
-        return false;
+        return spinners;
     }
 
     public void destroy() {
@@ -379,10 +382,13 @@ private void test_showing_tools_and_roots() {
 private void test_loading_and_reveal_and_terminal_focus() {
     var f = new ToolboxFixture();
 
+    var before = f.visible_spinners();
     f.toolbox.set_navigation_loading(true);
-    assert(f.spinner_visible());
+    var loading = f.visible_spinners();
+    assert(loading.size == before.size + 1);
     f.toolbox.set_navigation_loading(false);
-    assert(!f.spinner_visible());
+    var after = f.visible_spinners();
+    assert(after.size == before.size && after.contains_all(before));
 
     f.toolbox.set_reveal_child(true);
     assert(f.toolbox.widget.get_reveal_child());
