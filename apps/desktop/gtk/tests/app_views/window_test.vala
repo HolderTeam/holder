@@ -40,6 +40,67 @@ private class RecordingBackendStarter : Object, HolderLinux.IBackendStarter {
     }
 }
 
+private const string WINDOW_PNG_BASE64 =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
+
+// The fake API with resource storage: a local Storage Location, imports that finish at once (or
+// fail), and assets that download as a one-pixel PNG (or fail).
+private class WindowStorageApi : MainControllerFakeApi, HolderLinux.IResourceStorageApi {
+    public string? preferred_location = "loc1";
+    public bool fail_import = false;
+    public bool fail_download = false;
+    public int imports = 0;
+    public int downloads = 0;
+
+    public async HolderLinux.StorageLocationList list_storage_locations(string project_id) throws Error {
+        return make_location_list({ make_location("loc1", "local", true) }, preferred_location);
+    }
+
+    public async string create_storage_location(string project_id, string name, string provider,
+                                                Gee.HashMap<string, string> configuration) throws Error {
+        return "loc2";
+    }
+
+    public async void bind_storage_location(string location_id, Gee.HashMap<string, string> values,
+                                            string preview) throws Error {
+    }
+
+    public async void prefer_storage_location(string project_id, string location_id) throws Error {
+    }
+
+    public async void test_storage_location(string location_id) throws Error {
+    }
+
+    public async void delete_storage_location(string location_id) throws Error {
+    }
+
+    public async string start_google_drive_oauth(string location_id) throws Error {
+        return "https://auth.example/consent";
+    }
+
+    public async HolderLinux.AssetImportJob start_asset_import(string project_id, string card_id,
+                                                               string location_id,
+                                                               string source_path) throws Error {
+        imports++;
+        return new HolderLinux.AssetImportJob("job1", "queued");
+    }
+
+    public async HolderLinux.AssetImportJob get_asset_import_job(string job_id) throws Error {
+        if (fail_import) {
+            return new HolderLinux.AssetImportJob(job_id, "failed", null, null, false, false, "disk full");
+        }
+        return new HolderLinux.AssetImportJob(job_id, "completed", "r-new", "a-new", false, true);
+    }
+
+    public async void download_asset(string resource_id, string asset_id, string destination_path) throws Error {
+        downloads++;
+        if (fail_download) {
+            throw new IOError.FAILED("offline");
+        }
+        FileUtils.set_data(destination_path, Base64.decode(WINDOW_PNG_BASE64));
+    }
+}
+
 private class WindowUriLauncher : Object, HolderLinux.IUriLauncher {
     public Gee.ArrayList<string> launched = new Gee.ArrayList<string>();
     public string? failure = null;
@@ -153,6 +214,17 @@ private class WindowFixture : Object {
             }
         }
         return text.str;
+    }
+
+    // Which page the asset preview shows: loading, image, document, error or empty.
+    public string preview_state() {
+        foreach (var widget in av_descendants(window.workspace_for_tests().asset_preview.widget)) {
+            var stack = widget as Gtk.Stack;
+            if (stack != null && ((!) stack).get_child_by_name("loading") != null) {
+                return (!) ((!) stack).get_visible_child_name();
+            }
+        }
+        assert_not_reached();
     }
 
     public bool has_toast(string title) {
@@ -728,6 +800,194 @@ private void test_ctrl_enter_on_an_image_without_resources_says_so() {
     f.destroy();
 }
 
+private HolderLinux.ProjectResource window_image_resource(string id = "r-boiler") {
+    // The private cache checks a download's size and SHA-256 against the asset's.
+    var png = Base64.decode(WINDOW_PNG_BASE64);
+    var assets = new Gee.ArrayList<HolderLinux.ResourceAsset>();
+    assets.add(new HolderLinux.ResourceAsset("a-" + id, id, "boiler.png", "image/png", png.length,
+                                             Checksum.compute_for_data(ChecksumType.SHA256, png)));
+    return new HolderLinux.ProjectResource(id, "p1", "file", "holder://resource/" + id, "Boiler",
+                                           null, 1, 1, null, assets);
+}
+
+private string window_write_png() {
+    var path = Path.build_filename(av_temp_dir(), "boiler.png");
+    try {
+        FileUtils.set_data(path, Base64.decode(WINDOW_PNG_BASE64));
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+    return path;
+}
+
+private Gtk.TextMark window_mark_at_end(WindowFixture f) {
+    var buffer = f.window.workspace_for_tests().editor_buffer;
+    Gtk.TextIter end;
+    buffer.get_end_iter(out end);
+    return buffer.create_mark(null, end, false);
+}
+
+private void test_a_dropped_file_needs_a_card_storage_and_a_location() {
+    // The plain fake API has no resource storage, so a drop is not ready.
+    var f = new WindowFixture();
+    f.open_loaded();
+    f.open_card("c1");
+    var file = File.new_for_path(window_write_png());
+    f.window.on_workspace_file_dropped(file, window_mark_at_end(f));
+    assert(wait_for_condition(() => f.has_toast(HolderLinux.AssetImportFlow.NOT_READY_MESSAGE)));
+    f.destroy();
+
+    // With storage but no preferred location, the Resources tool opens to set one up.
+    var g = new WindowFixture();
+    var api = new WindowStorageApi();
+    api.preferred_location = null;
+    g.api = api;
+    g.open_loaded();
+    g.open_card("c1");
+    g.window.on_workspace_file_dropped(file, window_mark_at_end(g));
+    assert(wait_for_condition(() => g.has_toast(HolderLinux.AssetImportFlow.NEEDS_LOCATION_MESSAGE)));
+    var toolbox = g.window.workspace_for_tests().toolbox;
+    assert(toolbox.widget.get_visible() && toolbox.is_showing_tool("resources"));
+    g.destroy();
+}
+
+private void test_a_dropped_image_is_imported_and_placed_where_it_landed() {
+    var f = new WindowFixture();
+    var api = new WindowStorageApi();
+    f.api = api;
+    f.open_loaded();
+    f.open_card("c1");
+
+    f.window.on_workspace_file_dropped(File.new_for_path(window_write_png()), window_mark_at_end(f));
+
+    assert(wait_for_condition(() => f.editor_text().contains("holder://resource/r-new")));
+    assert(api.imports == 1);
+    assert(f.window.workspace_for_tests().toolbox.is_showing_tool("resources"));
+
+    // A failed import is reported and leaves the card as it was.
+    api.fail_import = true;
+    var before = f.editor_text();
+    f.window.on_workspace_file_dropped(File.new_for_path(window_write_png()), window_mark_at_end(f));
+    assert(wait_for_condition(() => f.shows_label(HolderLinux.AssetImportFlow.FAILED_TITLE)));
+    assert(f.editor_text() == before);
+    f.destroy();
+}
+
+private void test_a_resource_preview_downloads_shows_and_opens_the_asset() {
+    var f = new WindowFixture();
+    var api = new WindowStorageApi();
+    f.api = api;
+    f.open_loaded();
+    f.open_card("c1");
+    var workspace = f.window.workspace_for_tests();
+    var resource = window_image_resource();
+
+    workspace.toolbox.asset_preview_requested(resource, resource.assets[0]);
+    assert(workspace.is_asset_preview_visible());
+    assert(wait_for_condition(() => f.preview_state() == "image"));
+    assert(api.downloads == 1);
+
+    // Opening it hands the cached copy to the desktop's default app.
+    workspace.asset_preview.open_external_requested();
+    assert(wait_for_condition(() => f.launcher.launched.size == 1));
+    assert(f.launcher.launched[0].has_prefix("file://"));
+    f.launcher.failure = "no viewer";
+    workspace.asset_preview.open_external_requested();
+    assert(wait_for_condition(() => f.shows_label("Failed to open Asset")));
+
+    // A document is described instead of drawn.
+    var doc_assets = new Gee.ArrayList<HolderLinux.ResourceAsset>();
+    var png = Base64.decode(WINDOW_PNG_BASE64);
+    doc_assets.add(new HolderLinux.ResourceAsset("a-doc", "r-doc", "manual.pdf", "application/pdf", png.length,
+                                                 Checksum.compute_for_data(ChecksumType.SHA256, png)));
+    var doc = new HolderLinux.ProjectResource("r-doc", "p1", "file", "holder://resource/r-doc", "Manual",
+                                              null, 1, 1, null, doc_assets);
+    workspace.asset_preview.select_attachment(0);
+    f.window.workspace_for_tests().inline_resource_images.preview_requested(doc, doc_assets[0]);
+    assert(wait_for_condition(() => f.preview_state() == "document"));
+    f.destroy();
+}
+
+private void test_an_asset_that_cannot_be_fetched_shows_why() {
+    var f = new WindowFixture();
+    var api = new WindowStorageApi();
+    api.fail_download = true;
+    f.api = api;
+    f.open_loaded();
+    f.open_card("c1");
+    var workspace = f.window.workspace_for_tests();
+    // Asset IDs of its own: the private cache keeps what earlier tests downloaded.
+    var resource = window_image_resource("r-offline");
+
+    // Nothing selected yet: open and export do nothing.
+    workspace.asset_preview.open_external_requested();
+    workspace.asset_preview.export_requested();
+    av_settle();
+    assert(f.launcher.launched.size == 0);
+
+    workspace.toolbox.asset_preview_requested(resource, resource.assets[0]);
+    assert(wait_for_condition(() => f.preview_state() == "error"));
+    workspace.asset_preview.export_requested();
+    assert(wait_for_condition(() => f.shows_label("Failed to export Asset")));
+    f.destroy();
+
+    // Without resource storage at all, the preview says the Asset is not available.
+    var g = new WindowFixture();
+    g.open_loaded();
+    g.open_card("c1");
+    var other = window_image_resource("r-no-storage");
+    g.window.workspace_for_tests().toolbox.asset_preview_requested(other, other.assets[0]);
+    assert(wait_for_condition(() => g.preview_state() == "error"));
+    g.destroy();
+}
+
+private void test_a_cards_attachments_fill_the_preview() {
+    var f = new WindowFixture();
+    var api = new WindowStorageApi();
+    f.api = api;
+    api.resources.add(window_image_resource("r-attached"));
+    api.card_links.add(new HolderLinux.CardLink("c1", "r-attached", "resource", "attachment", null, 1));
+    f.open_loaded();
+    f.open_card("c1");
+    var workspace = f.window.workspace_for_tests();
+
+    // Opening the preview loads the selected attachment; choosing one loads that.
+    workspace.set_asset_preview_visible(false);
+    f.window.on_app_state_changed();
+    av_settle();
+    f.window.workspace_for_tests().asset_preview_toggled(true);
+    assert(wait_for_condition(() => f.preview_state() == "image"));
+    assert(api.downloads == 1);
+    // Choosing the attachment again shows it from the private cache.
+    workspace.asset_preview.attachment_selected(0);
+    assert(wait_for_condition(() => f.preview_state() == "image"));
+    assert(api.downloads == 1);
+
+    // Ctrl+Enter on the image in the card previews it too.
+    var buffer = workspace.editor_buffer;
+    buffer.set_text("![Boiler](holder://resource/r-attached)\n", -1);
+    Gtk.TextIter at;
+    buffer.get_iter_at_offset(out at, 3);
+    buffer.place_cursor(at);
+    assert(f.window.on_internal_link_key_pressed(Gdk.Key.Return, 0, Gdk.ModifierType.CONTROL_MASK));
+    assert(wait_for_condition(() => f.preview_state() == "image"));
+    f.destroy();
+}
+
+private void test_attachments_that_fail_to_load_say_so_in_the_open_preview() {
+    var f = new WindowFixture();
+    f.open_loaded();
+    f.open_card("c1");
+    f.window.workspace_for_tests().set_asset_preview_visible(true);
+    f.api.fail_list_card_links = true;
+
+    f.window.on_app_state_changed();
+
+    assert(wait_for_condition(() => f.preview_state() == "error"));
+    assert(f.shows_label("Could not load this Card's attachments: list card links failed"));
+    f.destroy();
+}
+
 internal void register_window_tests() {
     Test.add_func("/app_views/window/starts_and_loads", test_the_window_starts_and_loads_the_first_project);
     Test.add_func("/app_views/window/toolbar_actions", test_the_toolbar_actions_reach_the_controller);
@@ -751,6 +1011,12 @@ internal void register_window_tests() {
     Test.add_func("/app_views/window/selection_and_edits", test_selection_and_editor_changes_reach_the_controller);
     Test.add_func("/app_views/window/edits_without_card", test_editor_changes_without_a_card_are_ignored);
     Test.add_func("/app_views/window/image_without_resources", test_ctrl_enter_on_an_image_without_resources_says_so);
+    Test.add_func("/app_views/window/drop_not_ready", test_a_dropped_file_needs_a_card_storage_and_a_location);
+    Test.add_func("/app_views/window/drop_imports", test_a_dropped_image_is_imported_and_placed_where_it_landed);
+    Test.add_func("/app_views/window/resource_preview", test_a_resource_preview_downloads_shows_and_opens_the_asset);
+    Test.add_func("/app_views/window/asset_unavailable", test_an_asset_that_cannot_be_fetched_shows_why);
+    Test.add_func("/app_views/window/card_attachments", test_a_cards_attachments_fill_the_preview);
+    Test.add_func("/app_views/window/attachments_fail", test_attachments_that_fail_to_load_say_so_in_the_open_preview);
 }
 
 }

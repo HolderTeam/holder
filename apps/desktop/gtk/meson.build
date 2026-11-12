@@ -3978,6 +3978,7 @@ app_views_test_sources = [
   'tests/support/test_utils.vala',
   'tests/support/main_controller_fakes.vala',
   'tests/support/main_controller_harness.vala',
+  'tests/support/storage_api_fakes.vala',
   'tests/app_views/harness.vala',
   'tests/app_views/editor_renderer_test.vala',
   'tests/app_views/internal_link_navigator_test.vala',

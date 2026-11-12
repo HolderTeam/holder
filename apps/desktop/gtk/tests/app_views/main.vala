@@ -4,6 +4,7 @@ namespace HolderLinuxTests {
 
 public static int main(string[] args) {
     Test.init(ref args);
+    av_isolate_cache();
     if (!Gtk.init_check()) {
         stdout.printf("Skipping app view tests: GTK display is unavailable.\n");
         return 0;

@@ -31,6 +31,12 @@ internal void av_shadow_github_cli() {
     Environment.set_variable("PATH", dir + ":" + path, true);
 }
 
+// The window keeps downloaded assets in a private cache under the user cache directory. Each test
+// run gets its own, so a run never finds an earlier run's copy (or the user's).
+internal void av_isolate_cache() {
+    Environment.set_variable("XDG_CACHE_HOME", av_temp_dir(), true);
+}
+
 internal void av_settle() {
     var context = MainContext.default();
     for (int i = 0; i < 20; i++) {
