@@ -31,6 +31,15 @@ private class OfflineUpdateTransport : Object, HolderLinux.IUpdateMetadataTransp
     }
 }
 
+private class RecordingBackendStarter : Object, HolderLinux.IBackendStarter {
+    public int ensures = 0;
+
+    public async HolderLinux.EnsureOutcome ensure() throws Error {
+        ensures++;
+        return new HolderLinux.EnsureOutcome(true, "running", "", "fake ensure");
+    }
+}
+
 private class WindowUriLauncher : Object, HolderLinux.IUriLauncher {
     public Gee.ArrayList<string> launched = new Gee.ArrayList<string>();
     public string? failure = null;
@@ -56,6 +65,9 @@ private class WindowFixture : Object {
     public WindowUriLauncher launcher = new WindowUriLauncher();
     public Settings settings;
     public bool without_settings = false;
+    // Null with find_backend unset uses a daemon that is already running, as most tests do.
+    public HolderLinux.IBackendStarter? backend_starter = null;
+    public bool find_backend = false;
     public HolderLinux.MainWindow window;
 
     public WindowFixture() {
@@ -82,7 +94,8 @@ private class WindowFixture : Object {
         var services = new HolderLinux.MainWindowServices();
         services.api_factory = new MainControllerFakeApiFactory(api, api);
         services.server_discovery = discovery;
-        services.find_backend_starter = false;
+        services.find_backend_starter = find_backend;
+        services.backend_starter = backend_starter;
         services.presence = presence;
         services.update_check = new HolderLinux.UpdateCheckService(updates);
         services.settings = without_settings ? null : settings;
@@ -126,6 +139,20 @@ private class WindowFixture : Object {
             return current != null && current != previous && current is Adw.AlertDialog;
         }));
         return (Adw.AlertDialog) (!) window.get_visible_dialog();
+    }
+
+    public string debug_log() {
+        var text = new StringBuilder();
+        foreach (var widget in av_descendants(window)) {
+            var view = widget as Gtk.TextView;
+            if (view != null) {
+                Gtk.TextIter start;
+                Gtk.TextIter end;
+                ((!) view).buffer.get_bounds(out start, out end);
+                text.append(((!) view).buffer.get_text(start, end, false));
+            }
+        }
+        return text.str;
     }
 
     public bool has_toast(string title) {
@@ -538,6 +565,169 @@ private void test_an_unsaveable_card_asks_before_closing() {
     f.destroy();
 }
 
+private void test_an_injected_backend_starter_is_used() {
+    var f = new WindowFixture();
+    var starter = new RecordingBackendStarter();
+    f.backend_starter = starter;
+    f.open_loaded();
+
+    assert(starter.ensures == 1);
+    f.destroy();
+}
+
+private void test_holderctl_is_found_or_its_absence_logged() {
+    if (Path.DIR_SEPARATOR_S != "/") {
+        return;
+    }
+    var dir = av_temp_dir();
+    var marker = Path.build_filename(dir, "ran");
+    var holderctl = Path.build_filename(dir, "holderctl");
+    try {
+        FileUtils.set_contents(holderctl,
+            "#!/bin/sh\ntouch '%s'\necho '{\"ok\":true,\"state\":\"running\"}'\n".printf(marker));
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+    FileUtils.chmod(holderctl, 0755);
+    var previous_ctl = Environment.get_variable("HOLDER_CTL");
+    var previous_path = Environment.get_variable("PATH") ?? "";
+
+    // HOLDER_CTL names the holderctl to run.
+    Environment.set_variable("HOLDER_CTL", holderctl, true);
+    var f = new WindowFixture();
+    f.find_backend = true;
+    f.open_loaded();
+    assert(FileUtils.test(marker, FileTest.EXISTS));
+    assert(f.debug_log().contains("BACKEND_ENSURE using " + holderctl));
+    f.destroy();
+
+    // Without one beside the program or on PATH, the window says so and uses a running daemon.
+    Environment.set_variable("HOLDER_CTL", Path.build_filename(dir, "missing"), true);
+    Environment.set_variable("PATH", dir + "-empty", true);
+    var g = new WindowFixture();
+    g.find_backend = true;
+    g.open();
+    Environment.set_variable("PATH", previous_path, true);
+    assert(wait_for_condition(() => g.controller().selected_project_id() == "p1"));
+    assert(g.debug_log().contains("BACKEND_ENSURE skipped: holderctl not found"));
+    assert(g.debug_log().contains("is not an executable"));
+    g.destroy();
+
+    if (previous_ctl != null) {
+        Environment.set_variable("HOLDER_CTL", (!) previous_ctl, true);
+    } else {
+        Environment.unset_variable("HOLDER_CTL");
+    }
+}
+
+private void test_f9_toggles_the_toolbox_unless_a_terminal_has_focus() {
+    var f = new WindowFixture();
+    f.open_loaded();
+    var workspace = f.window.workspace_for_tests();
+    var root = (!) ((Adw.ToastOverlay) f.window.get_content()).get_child();
+
+    assert(av_press(root, Gdk.Key.F9));
+    assert(workspace.toolbox.widget.get_visible());
+    assert(!av_press(root, Gdk.Key.F9, Gdk.ModifierType.CONTROL_MASK));
+    assert(!av_press(root, Gdk.Key.F8));
+#if HOLDER_TERMINAL_VTE
+    workspace.toolbox.show_tool("terminals");
+    Gtk.Widget? terminal = null;
+    assert(wait_for_condition(() => {
+        foreach (var widget in av_descendants(workspace.toolbox.widget)) {
+            if (widget is Vte.Terminal && widget.get_mapped()) {
+                terminal = widget;
+                return true;
+            }
+        }
+        return false;
+    }));
+    ((!) terminal).grab_focus();
+    assert(wait_for_condition(() => f.window.get_focus() == terminal));
+    // The terminal keeps F9 for the program running in it.
+    assert(!av_press(root, Gdk.Key.F9));
+    assert(workspace.toolbox.widget.get_visible());
+#endif
+    f.destroy();
+}
+
+private void test_an_app_without_an_id_uses_holders_icon() {
+    var app = new Adw.Application(null, ApplicationFlags.NON_UNIQUE);
+    try {
+        app.register(null);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    var f = new WindowFixture();
+    var services = new HolderLinux.MainWindowServices();
+    services.api_factory = new MainControllerFakeApiFactory(f.api, f.api);
+    services.server_discovery = f.discovery;
+    services.find_backend_starter = false;
+    services.presence = f.presence;
+    services.update_check = new HolderLinux.UpdateCheckService(f.updates);
+    services.settings = f.settings;
+    services.uri_launcher = f.launcher;
+    var window = new HolderLinux.MainWindow(app, 800, 600, services);
+
+    assert(window.get_icon_name() == "team.holder.Holder");
+    window.destroy();
+    av_settle();
+}
+
+private void test_selection_and_editor_changes_reach_the_controller() {
+    var f = new WindowFixture();
+    f.api.include_card2 = true;
+    f.open_loaded();
+    var w = f.window;
+
+    w.on_sidebar_card_context_selection_requested("c2");
+    assert(wait_for_condition(() => {
+        var card = f.controller().get_current_card();
+        return card != null && ((!) card).card_id == "c2";
+    }));
+
+    // An edit to the open card is the user's: it is scheduled for saving.
+    var buffer = w.workspace_for_tests().editor_buffer;
+    buffer.set_text("# Card 2\n\nEdited", -1);
+    w.on_editor_buffer_changed();
+    assert(wait_for_condition(() => f.api.update_card_calls >= 1, 8000));
+    assert(f.api.last_updated_content == "# Card 2\n\nEdited");
+
+    // Selection changes from the sidebar go through the orchestrator; re-selecting the project
+    // goes back to its overview.
+    w.on_card_selection_changed();
+    w.on_ai_thread_selection_changed();
+    w.on_project_selection_changed();
+    assert(wait_for_condition(() => f.controller().get_current_card() == null));
+    f.destroy();
+}
+
+private void test_editor_changes_without_a_card_are_ignored() {
+    var f = new WindowFixture();
+    f.open_loaded();
+
+    f.window.on_editor_buffer_changed();
+
+    assert(!f.controller().has_unsaved_editor_changes());
+    f.destroy();
+}
+
+private void test_ctrl_enter_on_an_image_without_resources_says_so() {
+    var f = new WindowFixture();
+    f.open_loaded();
+    f.open_card("c1");
+    var buffer = f.window.workspace_for_tests().editor_buffer;
+    buffer.set_text("![Boiler](holder://resource/r-boiler)\n", -1);
+    Gtk.TextIter at;
+    buffer.get_iter_at_offset(out at, 3);
+    buffer.place_cursor(at);
+
+    assert(f.window.on_internal_link_key_pressed(Gdk.Key.Return, 0, Gdk.ModifierType.CONTROL_MASK));
+
+    assert(f.has_toast(HolderLinux.AttachmentSelection.NO_IMAGE_MESSAGE));
+    f.destroy();
+}
+
 internal void register_window_tests() {
     Test.add_func("/app_views/window/starts_and_loads", test_the_window_starts_and_loads_the_first_project);
     Test.add_func("/app_views/window/toolbar_actions", test_the_toolbar_actions_reach_the_controller);
@@ -554,6 +744,13 @@ internal void register_window_tests() {
     Test.add_func("/app_views/window/preferences_at_startup", test_saved_preferences_are_applied_at_startup);
     Test.add_func("/app_views/window/without_settings", test_the_window_works_without_saved_settings);
     Test.add_func("/app_views/window/unsafe_close", test_an_unsaveable_card_asks_before_closing);
+    Test.add_func("/app_views/window/injected_backend", test_an_injected_backend_starter_is_used);
+    Test.add_func("/app_views/window/holderctl", test_holderctl_is_found_or_its_absence_logged);
+    Test.add_func("/app_views/window/f9", test_f9_toggles_the_toolbox_unless_a_terminal_has_focus);
+    Test.add_func("/app_views/window/icon_without_id", test_an_app_without_an_id_uses_holders_icon);
+    Test.add_func("/app_views/window/selection_and_edits", test_selection_and_editor_changes_reach_the_controller);
+    Test.add_func("/app_views/window/edits_without_card", test_editor_changes_without_a_card_are_ignored);
+    Test.add_func("/app_views/window/image_without_resources", test_ctrl_enter_on_an_image_without_resources_says_so);
 }
 
 }
