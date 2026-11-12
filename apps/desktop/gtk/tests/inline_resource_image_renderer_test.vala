@@ -560,6 +560,29 @@ private void test_the_renderer_is_freed_with_its_last_reference_while_the_view_l
     ir_settle();
 }
 
+// ---- the window's sink adapter ---------------------------------------------------------------
+
+private void test_the_window_sink_drives_the_renderer() {
+    var h = new RendererHarness();
+    HolderLinux.IInlineImageSink sink = new HolderLinux.RendererInlineImageSink(h.renderer);
+    var png = ir_write_png(ir_temp_dir(), "one.png");
+
+    sink.set_items(h.items());
+    assert(h.renderer.decoration_count() == 2);
+
+    sink.show_image(h.items()[0].key(), png);
+    assert(ir_stack(h.buttons()[0]).get_visible_child_name() == "image");
+
+    sink.show_error(h.items()[1].key(), "Download failed");
+    var second = h.buttons()[1];
+    assert(ir_stack(second).get_visible_child_name() == "error");
+    assert(ir_label_texts(second).contains("Download failed"));
+
+    sink.clear();
+    assert(h.renderer.decoration_count() == 0);
+    assert(h.text() == TEXT);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     if (!Gtk.init_check()) {
@@ -586,6 +609,7 @@ public static int main(string[] args) {
     Test.add_func("/holder/inline-image-renderer/fallback-width", test_decorations_fall_back_to_a_fixed_width_when_the_view_has_none);
     Test.add_func("/holder/inline-image-renderer/follows-width", test_decorations_take_the_views_width_and_follow_it_when_it_changes);
     Test.add_func("/holder/inline-image-renderer/freed-with-last-reference", test_the_renderer_is_freed_with_its_last_reference_while_the_view_lives_on);
+    Test.add_func("/holder/inline-image-renderer/window-sink", test_the_window_sink_drives_the_renderer);
     return Test.run();
 }
 

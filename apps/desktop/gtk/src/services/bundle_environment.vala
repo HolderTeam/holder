@@ -9,7 +9,7 @@ private extern int change_directory(string path);
 // launcher used to set these variables just before starting the desktop; the desktop now does it
 // itself, so it can be the program a bundle starts. Nothing happens outside a bundle, and a
 // variable that is already set (by the launcher, or by a developer) is left as it is.
-public class BundleEnvironment : Object {
+public class BundleEnvironment : Object { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: declaration-only coverage artifact
     // The variables and where each points, relative to the bundle's Contents/Resources.
     private const string[] VARIABLES = {
         "GSETTINGS_SCHEMA_DIR", "share/glib-2.0/schemas",
@@ -80,7 +80,7 @@ public class BundleEnvironment : Object {
         // launcher this replaces always changed into Contents/Resources before starting the app, so
         // the modules (GIF, SVG, BMP, ICO and other formats GTK does not decode itself) kept working.
         if (change_directory((!) root) != 0) {
-            warning("Could not enter %s; image formats that need a gdk-pixbuf module may not load", (!) root);
+            warning("Could not enter %s; image formats that need a gdk-pixbuf module may not load", (!) root); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS chdir failure wrapper; runtime_root has just found a directory inside root
         }
     }
 }

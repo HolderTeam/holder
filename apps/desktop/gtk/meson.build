@@ -166,9 +166,10 @@ if terminal_backend == 'vte'
   endif
 endif
 
+# Everything but the entry point, so the app view tests can build the same program around their
+# own main.
 sources = [
   holder_config,
-  'main.vala',
   'src/app.vala',
   'src/models/server.vala',
     'src/models/project.vala',
@@ -385,6 +386,7 @@ sources = [
   'src/services/api_client/search.vala',
   'src/services/api_client/ai.vala',
   'src/services/api_client/git.vala',
+  'src/views/main_window_services.vala',
   'src/views/window.vala',
 ]
 
@@ -415,7 +417,7 @@ endif
 
 executable(
   'holder-desktop',
-  [sources, help_resources, windows_resources],
+  ['main.vala', sources, help_resources, windows_resources],
   dependencies: deps,
   vala_args: [
     '--target-glib=2.70',
@@ -588,6 +590,9 @@ main_controller_test_exe = executable(
     'src/controllers/editor_save.vala',
     'src/controllers/search.vala',
     'src/controllers/ai_threads.vala',
+    'src/controllers/window_close_guard.vala',
+    'src/views/adapters/window_close_host.vala',
+    'src/views/adapters/window_recovery_context.vala',
     'tests/main_controller_test.vala',
   ],
   dependencies: [
@@ -3505,10 +3510,23 @@ test(
 inline_resource_image_renderer_test_exe = executable(
   'holder-gtk-inline-resource-image-renderer-tests',
   [
+    'src/models/server.vala',
     'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/asset_cache.vala',
     'src/controllers/markdown_resource_images.vala',
     'src/controllers/inline_image_decoration_plan.vala',
+    'src/controllers/inline_image_refresh.vala',
     'src/views/inline_resource_image_renderer.vala',
+    'src/views/adapters/window_inline_image_sink.vala',
     'tests/inline_resource_image_renderer_test.vala',
   ],
   dependencies: [
@@ -3516,6 +3534,7 @@ inline_resource_image_renderer_test_exe = executable(
     dependency('gtksourceview-5'),
     dependency('gio-2.0'),
     dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
   ],
   vala_args: [
     '--target-glib=2.70',
@@ -3952,6 +3971,53 @@ if gtk_dep.version().version_compare('>=4.18')
   app_test_env.set('GDK_DEBUG', 'no-portals')
 endif
 test('holder-gtk-app-tests', app_test_exe, env: app_test_env)
+
+# The app's own views (the window, its workspace, the toolbox and their adapters) build on nearly
+# every other part of the app, so their tests are one program built from the app's sources.
+app_views_test_sources = [
+  'tests/support/test_utils.vala',
+  'tests/support/main_controller_fakes.vala',
+  'tests/support/main_controller_harness.vala',
+  'tests/support/storage_api_fakes.vala',
+  'tests/app_views/harness.vala',
+  'tests/app_views/editor_renderer_test.vala',
+  'tests/app_views/internal_link_navigator_test.vala',
+  'tests/app_views/toolbox_test.vala',
+  'tests/app_views/workspace_pane_test.vala',
+  'tests/app_views/window_test.vala',
+  'tests/app_views/main.vala',
+]
+app_views_test_vala_args = []
+if terminal_backend == 'vte'
+  app_views_test_sources += 'tests/app_views/terminal_tool_view_test.vala'
+  app_views_test_vala_args += ['--define=HOLDER_TERMINAL_VTE']
+endif
+app_views_test_exe = executable(
+  'holder-gtk-app-views-tests',
+  [sources, help_resources, app_views_test_sources],
+  dependencies: deps,
+  vala_args: [
+    '--target-glib=2.70',
+  ] + calendar_compat_vala_args + terminal_compat_vala_args + app_views_test_vala_args,
+  c_args: vala_generated_c_args,
+  link_with: hidden_process_link + [command_capture_lib],
+  install: false,
+)
+
+app_views_test_env = environment()
+# Installed, the app's Markdown language is among the data directories; the tests point at the source.
+app_views_test_env.set(
+  'HOLDER_MARKDOWN_LANGUAGE_DIR',
+  meson.project_source_root() / 'data' / 'gtksourceview-5' / 'language-specs',
+)
+if host_machine.system() not in ['darwin', 'linux']
+  app_views_test_env.set('GTK_A11Y', 'none')
+endif
+# Like the app tests: keep GTK off the desktop portals, which the window would otherwise start.
+if gtk_dep.version().version_compare('>=4.18')
+  app_views_test_env.set('GDK_DEBUG', 'no-portals')
+endif
+test('holder-gtk-app-views-tests', app_views_test_exe, env: app_views_test_env, timeout: 120)
 
 print_service_test_exe = executable(
   'holder-gtk-print-service-tests',

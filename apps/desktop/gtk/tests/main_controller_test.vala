@@ -3279,8 +3279,79 @@ private void test_identical_recovery_draft_is_removed_without_prompt() {
     assert(!draft_service.drafts.has_key("c1"));
 }
 
+private void test_window_close_host_reports_and_saves_through_the_controller() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var draft_service = new FakeEditorRecoveryDraftService();
+    var harness = make_harness(api, scheduler, new FakeClock(), null, null, true, draft_service);
+    var controller = harness.controller;
+    HolderLinux.IWindowCloseHost host = new HolderLinux.MainControllerCloseHost(controller);
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+    assert(!host.has_unsaved_editor_changes());
+
+    harness.editor_text.value = "# Closing\n\nUnsaved text";
+    controller.on_editor_content_changed();
+    assert(host.has_unsaved_editor_changes());
+    try {
+        assert(host.save_emergency_recovery_draft());
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    assert(draft_service.drafts.has_key("c1"));
+
+    bool in_flight_during_save = false;
+    api.update_card_before_complete_hook = (card_id) => {
+        in_flight_during_save = host.is_editor_save_in_flight();
+    };
+    bool? saved = null;
+    host.save_now.begin((obj, result) => {
+        saved = host.save_now.end(result);
+    });
+
+    assert(wait_for_condition(() => saved != null));
+    assert((!) saved);
+    assert(in_flight_during_save);
+    assert(!host.is_editor_save_in_flight());
+    assert(!host.has_unsaved_editor_changes());
+    assert(api.last_updated_content == "# Closing\n\nUnsaved text");
+    // The hook holds the host, which holds the controller, which holds the api: break the cycle.
+    api.update_card_before_complete_hook = null;
+}
+
+private void test_window_recovery_context_hands_over_the_api_and_reloads() {
+    var api = new MainControllerFakeApi();
+    var harness = make_harness(api, new TestScheduler(), new FakeClock());
+    var controller = harness.controller;
+    HolderLinux.IRecoveryContext context = new HolderLinux.WindowRecoveryContext(controller);
+
+    assert(context.get_api_client() == controller.get_api_client());
+    assert(context.get_api_client() == api);
+
+    bool reloaded = false;
+    context.reload_everything.begin((obj, result) => {
+        context.reload_everything.end(result);
+        reloaded = true;
+    });
+
+    assert(wait_for_condition(() => reloaded));
+    assert(controller.get_current_project() != null);
+}
+
 int main(string[] args) {
     Test.init(ref args);
+    Test.add_func(
+        "/main_controller/window_recovery_context_hands_over_the_api_and_reloads",
+        test_window_recovery_context_hands_over_the_api_and_reloads
+    );
+    Test.add_func(
+        "/main_controller/window_close_host_reports_and_saves",
+        test_window_close_host_reports_and_saves_through_the_controller
+    );
 
     Test.add_func(
         "/main_controller/reload_everything_loads_project_and_card",

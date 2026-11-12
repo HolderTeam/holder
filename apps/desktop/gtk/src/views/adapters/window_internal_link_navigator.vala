@@ -64,7 +64,19 @@ internal class WindowInternalLinkNavigator : Object {
         if (event == null) {
             return false;
         }
-        var ctrl_held = (event.get_modifier_state() & Gdk.ModifierType.CONTROL_MASK) != 0;
+        // GTK 4 cannot synthesize a pointer event, so only a real click reaches the lines below;
+        // navigate_at_point, which does the work, is tested directly.
+        var ctrl_held = (event.get_modifier_state() & Gdk.ModifierType.CONTROL_MASK) != 0; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: needs a real pointer event
+        if (!navigate_at_point(n_press, ctrl_held, x, y)) { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: needs a real pointer event
+            return false; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: needs a real pointer event
+        }
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: needs a real pointer event
+        return true; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: needs a real pointer event
+    }
+
+    // A click at (x, y) in the editor view's coordinates: navigates when it is a Ctrl+click on
+    // something that leads somewhere.
+    internal bool navigate_at_point(int n_press, bool ctrl_held, double x, double y) {
         if (!EditorNavigationResolver.is_navigation_click(n_press, ctrl_held)) {
             return false;
         }
@@ -82,11 +94,7 @@ internal class WindowInternalLinkNavigator : Object {
         if (!editor_view.get_iter_at_location(out iter, buffer_x, buffer_y)) {
             return false;
         }
-        if (!navigate_at_iter(iter)) {
-            return false;
-        }
-        gesture.set_state(Gtk.EventSequenceState.CLAIMED);
-        return true;
+        return navigate_at_iter(iter);
     }
 
     public bool handle_key(uint keyval, uint keycode, Gdk.ModifierType state) {

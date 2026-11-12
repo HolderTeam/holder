@@ -227,6 +227,34 @@ private void test_ensure_reports_a_failing_holderctl_with_its_standard_error() {
     assert(((!) outcome).details.contains("stderr: no such unit"));
 }
 
+// The name meson gives this test program, which runs from the build directory.
+private string this_test_program() {
+    return "holder-gtk-backend-ensure-tests" + (Path.DIR_SEPARATOR_S == "\\" ? ".exe" : "");
+}
+
+private void test_knows_the_directory_it_runs_from() {
+    var dir = HolderLinux.BackendEnsure.program_directory();
+
+    assert(dir != null);
+    assert(Path.is_absolute((!) dir));
+    assert(FileUtils.test(Path.build_filename((!) dir, this_test_program()), FileTest.IS_EXECUTABLE));
+}
+
+private void test_locates_holderctl_for_this_program_from_the_override() {
+    var program = Path.build_filename((!) HolderLinux.BackendEnsure.program_directory(), this_test_program());
+    var previous = Environment.get_variable("HOLDER_CTL");
+    Environment.set_variable("HOLDER_CTL", program, true);
+
+    var located = HolderLinux.BackendEnsure.locate_holderctl_for_this_program();
+
+    if (previous != null) {
+        Environment.set_variable("HOLDER_CTL", (!) previous, true);
+    } else {
+        Environment.unset_variable("HOLDER_CTL");
+    }
+    assert(located == program);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -239,6 +267,8 @@ public static int main(string[] args) {
     Test.add_func("/backend_ensure/beside_wins_over_the_bundle", test_prefers_holderctl_beside_the_program_over_the_bundle);
     Test.add_func("/backend_ensure/bundle_only_from_contents_macos", test_the_bundle_is_only_searched_from_contents_macos);
     Test.add_func("/backend_ensure/falls_back_to_path", test_falls_back_to_path_then_to_nothing);
+    Test.add_func("/backend_ensure/knows_its_directory", test_knows_the_directory_it_runs_from);
+    Test.add_func("/backend_ensure/locates_holderctl_for_this_program", test_locates_holderctl_for_this_program_from_the_override);
     Test.add_func("/backend_ensure/parses_started", test_parses_a_started_daemon);
     Test.add_func("/backend_ensure/parses_running", test_parses_an_already_running_daemon);
     Test.add_func("/backend_ensure/reports_the_error_message", test_reports_the_error_message_on_failure);

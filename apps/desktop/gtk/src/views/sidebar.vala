@@ -31,7 +31,7 @@ public class SidebarPane : Object {
         var sidebar_header = new Adw.HeaderBar();
         if (PLATFORM == "darwin") {
             // The native window controls overlap the inset sidebar header.
-            sidebar_header.add_css_class("flat");
+            sidebar_header.add_css_class("flat"); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: macOS-only branch, unreachable on the Linux coverage run
         }
         sidebar_header.set_show_start_title_buttons(false);
         sidebar_header.set_show_end_title_buttons(false);

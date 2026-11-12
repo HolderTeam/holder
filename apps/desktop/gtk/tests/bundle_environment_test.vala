@@ -64,6 +64,15 @@ private void test_a_directory_that_is_not_a_bundle_has_no_runtime_root() {
     assert(HolderLinux.BundleEnvironment.runtime_root(null) == null);
 }
 
+private void test_resources_outside_contents_is_not_a_bundle() {
+    var base_dir = make_temp_dir();
+    var resources = Path.build_filename(base_dir, "Holder", "Resources");
+    DirUtils.create_with_parents(Path.build_filename(resources, "bin"), 0755);
+    DirUtils.create_with_parents(Path.build_filename(resources, "share", "glib-2.0", "schemas"), 0755);
+
+    assert(HolderLinux.BundleEnvironment.runtime_root(Path.build_filename(resources, "bin")) == null);
+}
+
 private void test_a_bundle_without_the_gtk_runtime_is_left_alone() {
     var resources = make_resources(make_temp_dir(), false);
     var root = HolderLinux.BundleEnvironment.runtime_root(Path.build_filename(resources, "bin"));
@@ -145,6 +154,7 @@ public static int main(string[] args) {
     Test.add_func("/bundle_environment/root_from_resources_bin", test_finds_the_runtime_root_from_the_desktop_inside_resources);
     Test.add_func("/bundle_environment/root_from_contents_macos", test_finds_the_runtime_root_from_the_desktop_as_the_main_executable);
     Test.add_func("/bundle_environment/not_a_bundle", test_a_directory_that_is_not_a_bundle_has_no_runtime_root);
+    Test.add_func("/bundle_environment/resources_outside_contents", test_resources_outside_contents_is_not_a_bundle);
     Test.add_func("/bundle_environment/no_gtk_runtime", test_a_bundle_without_the_gtk_runtime_is_left_alone);
     Test.add_func("/bundle_environment/plans_the_launchers_variables", test_plans_the_variables_the_launcher_used_to_set);
     Test.add_func("/bundle_environment/does_not_override", test_does_not_override_what_the_launcher_already_set);

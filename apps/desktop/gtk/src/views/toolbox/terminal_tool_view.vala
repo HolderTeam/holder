@@ -1,11 +1,11 @@
 namespace HolderLinux {
 
 public class TerminalToolView : Object, IToolShellAdapter {
-    private Gtk.Box terminal_actions_bar;
-    private Gtk.Button terminal_new_btn;
-    private Gtk.Notebook terminal_notebook;
+    private Gtk.Box terminal_actions_bar; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Button terminal_new_btn; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Notebook terminal_notebook; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private int next_terminal_index = 1;
-    private TerminalController controller;
+    private TerminalController controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {

@@ -1,0 +1,36 @@
+namespace HolderLinux {
+
+// What the main window reaches outside the app through: the daemon's API and where to find it,
+// starting the daemon, telling it the app is there, the update check, saved settings, and the
+// desktop's default apps. The app uses these defaults; the window tests pass doubles, so a test
+// never starts a daemon, goes online or opens another app.
+public class MainWindowServices : Object {
+    public IApiFactory api_factory;
+    public IServerDiscovery server_discovery;
+    // How to start the daemon. Null with find_backend_starter set (the default) looks for holderctl
+    // beside the app or on PATH; null without it uses a daemon that is already running.
+    public IBackendStarter? backend_starter = null;
+    public bool find_backend_starter = true;
+    // Null holds the daemon's event stream open, as the app does.
+    public IPresence? presence = null;
+    public UpdateCheckService update_check;
+    public Settings? settings;
+    // Opens web and email links and exported assets in the desktop's default apps.
+    public IUriLauncher uri_launcher;
+    // Asks where to save or what to open: recovery keys and exported assets.
+    public IFilePicker file_picker;
+    // Writes, reads and emails recovery key files.
+    public IRecoveryService recovery_service;
+
+    public MainWindowServices() {
+        api_factory = new DefaultApiFactory();
+        server_discovery = new FileServerDiscovery();
+        update_check = new UpdateCheckService();
+        uri_launcher = new AppInfoUriLauncher();
+        file_picker = new GtkFilePicker();
+        recovery_service = new RecoveryService();
+        settings = AppSettings.open_or_null();
+    }
+}
+
+}

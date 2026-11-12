@@ -137,6 +137,10 @@ jobs:
           NO_AT_BRIDGE: "0"
           GDK_BACKEND: x11
           GSK_RENDERER: cairo
+          # Keep libadwaita off the settings portal and GIO off gvfs, so neither starts on
+          # the private bus and complains when it closes after the tests.
+          ADW_DISABLE_PORTAL: "1"
+          GIO_USE_VFS: local
         run: |
           xvfb-run -a dbus-run-session -- python3 integration/run.py --headless-child \
             meson test \
@@ -302,6 +306,10 @@ jobs:
           NO_AT_BRIDGE: "0"
           GDK_BACKEND: x11
           GSK_RENDERER: cairo
+          # Keep libadwaita off the settings portal and GIO off gvfs, so neither starts on
+          # the private bus and complains when it closes after the tests.
+          ADW_DISABLE_PORTAL: "1"
+          GIO_USE_VFS: local
         run: |
           xvfb-run -a dbus-run-session -- python3 integration/run.py --headless-child \
             meson test \

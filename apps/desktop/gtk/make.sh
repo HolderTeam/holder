@@ -131,7 +131,10 @@ run_gui_tests() {
     # display so tests do not depend on the developer's desktop arrangement.
     # Force X11: GTK can otherwise discover the desktop's Wayland socket even
     # when xvfb-run sets DISPLAY. A private D-Bus session lets AT-SPI activate
-    # without depending on the developer's desktop accessibility bus.
+    # without depending on the developer's desktop accessibility bus. Keep libadwaita off the
+    # settings portal and GIO off gvfs: either would start xdg-desktop-portal or gvfsd on the
+    # private bus, and they complain on stderr when that bus closes after the tests.
+    ADW_DISABLE_PORTAL=1 GIO_USE_VFS=local \
     GDK_BACKEND=x11 GTK_A11Y=atspi NO_AT_BRIDGE=0 GSK_RENDERER=cairo GSETTINGS_BACKEND=memory \
       xvfb-run -a dbus-run-session -- python3 integration/run.py --headless-child \
         meson test -C "${dir}" --print-errorlogs
@@ -196,9 +199,14 @@ coverage() {
 
   local out_dir="${COVERAGE_BUILD_DIR}/coverage"
   mkdir -p "${out_dir}"
+  # gcc ran in the build directory, one level above each target's .p directory where the .gcda
+  # files live. Name it relative to the .gcda file: gcovr tries the object directory relative to
+  # the .gcda first, and targets that compile the generated config.vala have a
+  # <target>.p/build-coverage directory, so naming the build directory itself sent gcov there.
+  # It found no sources, and with errors ignored those targets' coverage was silently dropped.
   local -a gcovr_common_flags=(
     --root .
-    --object-directory "${COVERAGE_BUILD_DIR}"
+    --object-directory ..
     --filter 'src/'
     --exclude 'tests/'
     --gcov-executable gcov
@@ -206,6 +214,8 @@ coverage() {
     --exclude-unreachable-branches
     --exclude-throw-branches
     --exclude-function-lines
+    # Search only the build directory: gcovr would otherwise also search the object directory.
+    "${COVERAGE_BUILD_DIR}"
   )
 
   gcovr \
