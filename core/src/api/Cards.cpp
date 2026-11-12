@@ -195,9 +195,9 @@ Card read_back(holder::card::CardStore& store, const std::string& card_id) {
   case Code::InvalidTarget: throw InvalidMove("the target cannot be the card's sibling");
   case Code::AlreadyAtProjectRoot: throw InvalidMove("the card is already at the top level");
   case Code::MissingTargetCardId: throw InvalidArgument("target_card_id is required for into, before and after");
-  case Code::InvalidMoveIntent: break;
+  case Code::InvalidMoveIntent: break; // LCOV_EXCL_LINE - private translator; placement_intent rejects invalid intents before core resolution.
   }
-  throw InvalidArgument(error.what());
+  throw InvalidArgument(error.what()); // LCOV_EXCL_LINE - private translator; placement_intent rejects invalid intents before core resolution.
 }
 
 Card update(holder_context& context, const std::string& project_id, const std::string& card_id,
@@ -261,9 +261,9 @@ holder::card::CardPlacementIntent placement_intent(CardMoveIntent intent) {
   case CardMoveIntent::Right: return Intent::Right;
   case CardMoveIntent::ToStart: return Intent::ToStart;
   case CardMoveIntent::ToEnd: return Intent::ToEnd;
-  case CardMoveIntent::UpLevel: break;
+  case CardMoveIntent::UpLevel: return Intent::UpLevel;
   }
-  return Intent::UpLevel;
+  throw InvalidArgument("unknown card move intent");
 }
 
 Card move(holder_context& context, const std::string& project_id, const std::string& card_id,

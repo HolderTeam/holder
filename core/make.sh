@@ -295,6 +295,8 @@ coverage_all() {
   local coverage_json="${report_dir}/coverage.json"
   local gcov_executable="gcov"
 
+  python3 -m unittest discover -s scripts/tests -p test_coverage_filters.py
+
   if command -v gcov-13 >/dev/null 2>&1; then
     gcov_executable="gcov-13"
   fi
@@ -306,13 +308,16 @@ coverage_all() {
   cmake_build "${build_dir}" --parallel "$(jobs)"
 
   lcov --directory "${build_dir}" --zerocounters
+  # Preserve gcov line counts when GCC attaches an unexecuted cleanup block to
+  # an executed line. Setting geninfo_unexecuted_blocks=1 instead zeroes it.
+  # Keep the inconsistency warning so compiler/reporting issues remain visible.
   lcov --capture --initial --directory "${build_dir}" --output-file "${info_base}" \
-    --ignore-errors gcov,gcov \
-    --rc geninfo_unexecuted_blocks=1
+    --ignore-errors gcov,gcov,inconsistent \
+    --rc geninfo_unexecuted_blocks=0
   ctest --test-dir "${build_dir}" --output-on-failure
   lcov --capture --directory "${build_dir}" --output-file "${info_tests}" \
-    --ignore-errors gcov,gcov \
-    --rc geninfo_unexecuted_blocks=1
+    --ignore-errors gcov,gcov,inconsistent \
+    --rc geninfo_unexecuted_blocks=0
   # GCC can report covered lambda lines with zero function hits. Let lcov
   # reconcile those counters during the merge, retaining warnings for review.
   lcov --add-tracefile "${info_base}" --add-tracefile "${info_tests}" --output-file "${info_total}" \
@@ -323,9 +328,12 @@ coverage_all() {
     '*/CMakeFiles/*/CompilerIdCXX/*' \
     --output-file "${info_total}"
 
+  python3 scripts/coverage_filters.py "${info_total}"
   genhtml "${info_total}" --output-directory "${report_dir}" --title "holder core coverage"
 
   if command -v gcovr >/dev/null 2>&1; then
+    # --object-directory resolves gcov paths; the positional search path keeps
+    # unrelated builds from contributing stale or conflicting counters.
     gcovr \
       --root . \
       --object-directory "${build_dir}" \
@@ -339,7 +347,8 @@ coverage_all() {
       --exclude-function-lines \
       --exclude-noncode-lines \
       --json-pretty \
-      --output "${coverage_json}"
+      --output "${coverage_json}" \
+      "${build_dir}"
     echo "Coverage JSON:   ${coverage_json}"
   else
     echo "Coverage JSON:   skipped (gcovr not found)" >&2

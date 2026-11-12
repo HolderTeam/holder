@@ -18,6 +18,32 @@ target_link_libraries(lock_helper PRIVATE
   Boost::filesystem
 )
 
+add_executable(detached_process_helper detached_process_helper.cpp)
+
+# Exercise the real generated HTTP dispatcher against operation doubles. Keep
+# this binary separate from core so the doubles cannot replace production code.
+add_executable(holder_generated_dispatch_tests GeneratedContractDispatch_test.cpp)
+target_include_directories(holder_generated_dispatch_tests PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src
+  $<TARGET_PROPERTY:${HOLDER_CORE_TARGET},INTERFACE_INCLUDE_DIRECTORIES>
+)
+target_link_libraries(holder_generated_dispatch_tests PRIVATE nlohmann_json::nlohmann_json)
+if(TARGET Catch2::Catch2)
+  target_sources(holder_generated_dispatch_tests PRIVATE catch_main.cpp)
+  target_link_libraries(holder_generated_dispatch_tests PRIVATE Catch2::Catch2)
+else()
+  target_link_libraries(holder_generated_dispatch_tests PRIVATE Catch2::Catch2WithMain)
+endif()
+if(HOLDER_TSAN_USE_SETARCH)
+  find_program(SETARCH_EXECUTABLE setarch)
+endif()
+if(HOLDER_TSAN_USE_SETARCH AND SETARCH_EXECUTABLE)
+  add_test(NAME generated_contract_dispatch
+    COMMAND ${SETARCH_EXECUTABLE} x86_64 -R $<TARGET_FILE:holder_generated_dispatch_tests>)
+else()
+  add_test(NAME generated_contract_dispatch COMMAND holder_generated_dispatch_tests)
+endif()
+
 add_executable(holder_daemon_tests
   EventJournal_test.cpp
   AiContractRuntime_test.cpp
@@ -106,6 +132,7 @@ add_executable(holder_daemon_tests
   HolderCtlEnsure_test.cpp
   ActivityTracker_test.cpp
   DaemonIdleExit_test.cpp
+  DetachedProcess_test.cpp
   MilestoneDateTime_test.cpp
   ProjectSyncWorker_test.cpp
   AiLocalModelConfigRepo_test.cpp
@@ -227,6 +254,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Cla
     "-ffile-prefix-map=${CMAKE_SOURCE_DIR}=${CMAKE_SOURCE_DIR}")
 endif()
 
+set_property(SOURCE DetachedProcess_test.cpp PROPERTY COMPILE_DEFINITIONS
+  DETACHED_PROCESS_HELPER_PATH="$<TARGET_FILE:detached_process_helper>"
+)
+
 target_compile_definitions(holder_daemon_tests PRIVATE
   LOCK_HELPER_PATH="$<TARGET_FILE:lock_helper>"
   CARD_SERVER_API_VERSION="${HOLDER_DAEMON_API_VERSION}"
@@ -239,7 +270,7 @@ target_compile_definitions(holder_daemon_tests PRIVATE
   HOLDER_BIN_PATH="$<TARGET_FILE:holderd>"
   HOLDER_CTL_PATH="$<TARGET_FILE:holderctl>"
 )
-add_dependencies(holder_daemon_tests lock_helper holderd holderctl holder_openapi_documents)
+add_dependencies(holder_daemon_tests holder_generated_dispatch_tests detached_process_helper lock_helper holderd holderctl holder_openapi_documents)
 
 if(HOLDER_ENABLE_ENCRYPTED_GIT)
   target_compile_definitions(holder_daemon_tests PRIVATE

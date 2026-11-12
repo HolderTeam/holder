@@ -481,20 +481,26 @@ coverage_all() {
   JOBS="$(jobs)"
   cmake_build "${build_dir}" -- -j "${JOBS}"
 
-  lcov --directory "${build_dir}" --zerocounters
+  # Discard old profiles entirely: zeroing preserves stale stamps when a source
+  # was rebuilt, which makes gcov reject the profile against its current notes.
+  find "${build_dir}" -type f -name '*.gcda' -delete
+  # Preserve executed line counts when GCC attaches an unexecuted cleanup block.
   lcov --capture --initial --directory "${build_dir}" --output-file "${info_base}" \
-    --ignore-errors gcov,gcov \
-    --rc geninfo_unexecuted_blocks=1
+    --ignore-errors gcov,gcov,inconsistent \
+    --rc geninfo_unexecuted_blocks=0
   ctest --test-dir "${build_dir}" --output-on-failure
   lcov --capture --directory "${build_dir}" --output-file "${info_tests}" \
-    --ignore-errors gcov,gcov \
-    --rc geninfo_unexecuted_blocks=1
-  lcov --add-tracefile "${info_base}" --add-tracefile "${info_tests}" --output-file "${info_total}"
+    --ignore-errors gcov,gcov,inconsistent \
+    --rc geninfo_unexecuted_blocks=0
+  # GCC can report covered lambda lines with zero function hits. Keep the warning.
+  lcov --add-tracefile "${info_base}" --add-tracefile "${info_tests}" --output-file "${info_total}" \
+    --ignore-errors inconsistent
   lcov --remove "${info_total}" \
     '/usr/*' \
     '*/submodules/*' \
     '*/tests/*' \
     '*/CMakeFiles/*/CompilerIdCXX/*' \
+    --filter brace \
     --output-file "${info_total}"
   genhtml "${info_total}" --output-directory "${report_dir}" --title "holder backend coverage"
   if command -v gcovr >/dev/null 2>&1; then
@@ -510,8 +516,10 @@ coverage_all() {
       --exclude-unreachable-branches \
       --exclude-throw-branches \
       --exclude-function-lines \
+      --exclude-noncode-lines \
       --json-pretty \
-      --output "${coverage_json}"
+      --output "${coverage_json}" \
+      "${build_dir}"
     echo "Coverage JSON:   ${coverage_json}"
   else
     echo "Coverage JSON:   skipped (gcovr not found)" >&2

@@ -98,6 +98,44 @@ contract::NewLink to(contract::NewLinkTargetType type, const std::string& id) {
 
 } // namespace
 
+TEST_CASE("Backlinks with identical timestamps and sources sort by kind", "[contract][broad-link-order]") {
+  Host host;
+  const auto source = host.card("proj-1", "Source");
+  const auto target = host.card("proj-1", "Target");
+  for (const auto* kind : {"zeta", "alpha", "middle"}) {
+    holder::model::CardLink link;
+    link.project_id = "proj-1";
+    link.from_card_id = source;
+    link.to_card_id = target;
+    link.to_type = "card";
+    link.kind = kind;
+    link.created_at = 10;
+    holder::card::LinkRepo(host.db).upsert_links("proj-1", source, {link});
+  }
+  const auto backlinks = contract::list_card_backlinks(host.context, "proj-1", target,
+      contract::ListCardBacklinksScope::Local, false);
+  REQUIRE(backlinks.size() == 3);
+  CHECK(backlinks[0].kind == "alpha");
+  CHECK(backlinks[1].kind == "middle");
+  CHECK(backlinks[2].kind == "zeta");
+  CHECK(backlinks[0].source_id == source);
+}
+
+TEST_CASE("Direct reference resolution rejects empty fields before querying and remains usable",
+          "[contract][broad-reference-validation]") {
+  Host host;
+  const auto id = host.card("proj-1", "Resolvable");
+  contract::CardReferenceResolveRequest request{"", id, contract::CardReferenceResolveRequestScope::Live};
+  REQUIRE_THROWS_AS(contract::resolve_card_reference(host.context, request), contract::InvalidArgument);
+  request.project_id = "proj-1";
+  request.reference.clear();
+  REQUIRE_THROWS_AS(contract::resolve_card_reference(host.context, request), contract::InvalidArgument);
+  request.reference = id;
+  const auto resolved = contract::resolve_card_reference(host.context, request);
+  REQUIRE(resolved.card.has_value());
+  CHECK(resolved.card->card_id == id);
+}
+
 TEST_CASE("A card links to threads, messages and resources in its own project", "[contract][links]") {
   Host host;
   using Type = contract::NewLinkTargetType;

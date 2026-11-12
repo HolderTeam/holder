@@ -38,6 +38,18 @@ PROMOTION_SPEC.loader.exec_module(promotion_tool)
 SDK_SPEC = importlib.util.spec_from_file_location('release_sdk', Path(__file__).with_name('publish-core-sdk.py'))
 sdk_release = importlib.util.module_from_spec(SDK_SPEC)
 SDK_SPEC.loader.exec_module(sdk_release)
+WINDOWS_SPEC = importlib.util.spec_from_file_location('release_windows', Path(__file__).with_name('windows-candidate.py'))
+windows_tool = importlib.util.module_from_spec(WINDOWS_SPEC)
+WINDOWS_SPEC.loader.exec_module(windows_tool)
+WINDOWS_PROMOTION_SPEC = importlib.util.spec_from_file_location('release_windows_promotion', Path(__file__).with_name('promote-windows.py'))
+windows_promotion = importlib.util.module_from_spec(WINDOWS_PROMOTION_SPEC)
+WINDOWS_PROMOTION_SPEC.loader.exec_module(windows_promotion)
+PPA_SPEC = importlib.util.spec_from_file_location('release_launchpad', Path(__file__).with_name('launchpad-release.py'))
+ppa_tool = importlib.util.module_from_spec(PPA_SPEC)
+PPA_SPEC.loader.exec_module(ppa_tool)
+WEBSITE_SPEC = importlib.util.spec_from_file_location('release_website', Path(__file__).with_name('website-observation.py'))
+website_tool = importlib.util.module_from_spec(WEBSITE_SPEC)
+WEBSITE_SPEC.loader.exec_module(website_tool)
 require = manifest_tool.require
 WORKFLOWS = {'backend': 'daemon-ci.yml', 'desktop': 'desktop-ci.yml',
              'linux': 'staging-linux-appimage-stage.yml', 'windows': 'staging-windows-stage.yml',
@@ -49,6 +61,7 @@ PUBLICATIONS = {f'{package}_{destination}': (package, destination)
                 for package in PACKAGES for destination in ('pypi', 'testpypi')}
 WORKFLOWS.update({name: WORKFLOWS[package] for name, (package, _) in PUBLICATIONS.items()})
 WORKFLOWS['linux_signing'] = 'sign-linux-appimage.yml'
+WORKFLOWS['windows_promotion'] = 'promote-windows-dev-build.yml'
 WORKFLOWS['linux_promotion'] = 'promote-linux-appimage.yml'
 WORKFLOWS['core_sdk_publication'] = 'promote-core-sdk.yml'
 PLATFORMS = ('linux', 'windows', 'macos')
@@ -139,6 +152,21 @@ class GitHub:
         return promotion_tool.observe(self, record['repository'], 'holder-v' + record['version'],
             linux_release_files(record), record['candidate'], release_id=release_id)
 
+    def windows_bundle(self, record):
+        step = record['steps']['windows']
+        artifact = next(item for item in step['artifacts'] if item['name'] == 'Holder-windows-test-signed-installer')
+        with tempfile.TemporaryDirectory(prefix='holder-windows-evidence-') as directory:
+            bundle = windows_tool.read(record['repository'], step['run_id'], artifact['name'], record['version'],
+                manifest_tool.GitHub(directory), artifact_id=artifact['id'], workflow_commit=step['workflow_commit'])
+        require(bundle['attempt'] == step['attempt'] and bundle['artifact'] == artifact,
+                'Accepted Windows run/artifact changed during verification')
+        windows_tool.bind(record, bundle)
+        return bundle
+
+    def windows_promotion_status(self, record, release_id=None):
+        return windows_promotion.observe(self, record['repository'], 'holder-v' + record['version'],
+            windows_tool.payload_files(record['windows_delivery_input'], record['version']), record['candidate'], release_id=release_id)
+
     def sdk_publication_status(self, record, release_id=None):
         document = record['sdk_publication_inputs']['document']
         expected = sdk_release.make_index(document['core_selection'], record['repository'], document['backend']['run_id'])
@@ -199,6 +227,13 @@ class Coordinator:
             return 'main', {'expected_version': self.record['version'], 'daemon_ci_run_id': self.record['steps']['backend']['run_id'],
                 'release_tag': 'holder-v' + self.record['version'], 'prepared_sdk_path': snapshot['path'],
                 'prepared_sdk_ref': snapshot['commit']}
+        if name == 'windows_promotion':
+            bundle = self.record['windows_delivery_input']
+            return 'main', {'expected_version': self.record['version'], 'staging_repository': self.record['repository'],
+                'staging_run_id': bundle['run_id'], 'staging_artifact_name': bundle['artifact']['name'],
+                'staging_artifact_id': str(bundle['artifact']['id']), 'staging_artifact_sha256': bundle['archive_sha256'],
+                'candidate_commit': self.record['candidate'], 'release_tag': 'holder-v' + self.record['version'],
+                'replace_draft_assets': 'false'}
         if name == 'linux_promotion':
             signed = self.record['linux_signed']
             return 'main', {'expected_version': self.record['version'], 'signing_run_id': signed['run_id'],
@@ -286,7 +321,7 @@ class Coordinator:
             self.persist()
 
     def required_artifacts(self, name):
-        if name in ('linux_promotion', 'core_sdk_publication'):
+        if name in ('linux_promotion', 'windows_promotion', 'core_sdk_publication'):
             return []  # Destination assets are verified independently of run cleanup/receipt retention.
         if name == 'linux_signing':
             return ['Holder-linux-appimage-signed-' + self.record['version']]
@@ -361,6 +396,13 @@ class Coordinator:
             self.prepare_sdk_publication()
             self.require_sdk_inputs_available()
             self.ensure_sdk_metadata()
+        require(not (name == 'windows' and self.record.get('windows_delivery_input')),
+                'Windows staging is pinned for delivery; select a new candidate instead of replacing inputs')
+        if name == 'windows_promotion':
+            require(not self.record.get('windows_promoted'), 'Windows delivery is already accepted; inspect its recorded assets instead of retrying')
+            self.prepare_windows_promotion()
+            require(datetime.fromisoformat(self.record['windows_delivery_input']['artifact']['expires_at'].replace('Z', '+00:00')) > now(),
+                    'Windows tester artifact expired before promotion could be retried')
         if name == 'linux_promotion':
             require(not self.record.get('linux_promoted'), 'Linux delivery is already accepted; inspect its recorded assets instead of retrying')
             self.prepare_linux_promotion()
@@ -688,6 +730,167 @@ class Coordinator:
         self.record['status'] = 'promoting_linux'
         self.persist()
 
+    def prepare_windows_promotion(self):
+        validate_record(self.record)
+        require(self.record['windows_sign_test_installer'], 'Windows delivery requires a candidate staged with tester signing enabled')
+        require(self.record.get('manifest') and digest(self.record['manifest']['document']) == self.record['manifest']['sha256'],
+                'Windows delivery requires the unchanged candidate manifest')
+        self.validate_manifest(self.record['manifest']['document'], self.record['manifest']['evidence'])
+        self.require_release_tag()
+        if 'windows_delivery_input' not in self.record:
+            require(self.inspect('windows'), 'Windows staging has not succeeded')
+            bundle = self.github.windows_bundle(self.record)
+            windows_tool.bind(self.record, bundle)
+            self.record.update(windows_delivery_input=bundle, windows_delivery_input_sha256=digest(bundle))
+            self.persist()
+        bundle, step = self.record['windows_delivery_input'], self.record['steps']['windows']
+        require(digest(bundle) == self.record['windows_delivery_input_sha256'], 'Saved Windows delivery evidence changed')
+        artifact = next(item for item in step['artifacts'] if item['name'] == 'Holder-windows-test-signed-installer')
+        require(bundle['run_id'] == step['run_id'] and bundle['attempt'] == step['attempt'] and bundle['artifact'] == artifact,
+                'Windows input differs from the accepted staging run')
+        windows_tool.bind(self.record, bundle)
+        files = windows_tool.payload_files(bundle, self.record['version'])
+        require({file['name'] for file in files} == windows_promotion.names(self.record['version']), 'Incomplete Windows release payload')
+
+    def advance_windows_promotion(self):
+        self.prepare_windows_promotion()
+        completed = self.record.get('windows_promoted')
+        if completed:
+            require(digest(completed['receipt']) == completed['sha256'], 'Saved Windows promotion receipt changed')
+        observed = self.github.windows_promotion_status(self.record,
+            release_id=completed['receipt']['release']['id'] if completed else None)
+        if observed is not None:
+            if ('windows_promotion' in self.record['steps'] and
+                    self.record['steps']['windows_promotion']['status'] != 'dispatch_rejected'):
+                self.inspect('windows_promotion', allow_failure=True)
+            source = {'staging_run_id': self.record['windows_delivery_input']['run_id'],
+                'artifact_id': self.record['windows_delivery_input']['artifact']['id'],
+                'archive_sha256': self.record['windows_delivery_input']['archive_sha256']}
+            if completed:
+                receipt = completed['receipt']
+                require(receipt['source'] == source and receipt['repository'] == self.record['repository'] and
+                        receipt['candidate'] == self.record['candidate'] and receipt['files'] == observed['files'] and
+                        receipt['release']['tag'] == observed['release']['tag'],
+                        'Accepted Windows release assets or source changed')
+            else:
+                receipt = {**observed, 'source': source,
+                    'workflow_run_id': self.record['steps'].get('windows_promotion', {}).get('run_id')}
+                completed = {'receipt': receipt, 'sha256': digest(receipt)}
+                self.record['windows_promoted'] = completed
+            completed['last_check'] = {**observed['release'], 'verified_at': observed['verified_at']}
+            self.record['status'] = 'windows_promoted'
+            self.persist()
+            return
+        require(not completed, 'Accepted Windows release assets are now incomplete')
+        if 'windows_promotion' not in self.record['steps']:
+            destination = promotion_tool.release_for(self.github, self.record['repository'], 'holder-v' + self.record['version'])
+            require(destination is not None, 'Create and review the shared product draft before Windows delivery')
+            require(destination['draft'] and not destination.get('immutable'),
+                    'Published or immutable product release cannot receive missing Windows assets')
+            require(datetime.fromisoformat(self.record['windows_delivery_input']['artifact']['expires_at'].replace('Z', '+00:00')) > now(),
+                    'Windows tester artifact expired before promotion; recover the exact bytes without rebuilding')
+            self.start('windows_promotion')
+        ready = self.inspect('windows_promotion')
+        require(not ready, 'Promotion workflow succeeded but destination assets are incomplete; inspect and re-observe')
+        self.record['status'] = 'promoting_windows'
+        self.persist()
+
+    def prepare_ppa_observation(self, revisions=None, architectures=None):
+        validate_record(self.record)
+        require(self.record['repository'] == 'HolderTeam/holder', 'The Holder PPA is associated with HolderTeam/holder releases')
+        self.require_release_tag()
+        keys = {package + ':' + series for series in ppa_tool.SERIES for package in ppa_tool.BINARIES}
+        ppa = self.record.get('ppa')
+        if ppa is None:
+            plan = {'schema': 1, 'archive': ppa_tool.ARCHIVE,
+                **{key: self.record[key] for key in ('repository', 'candidate', 'version')},
+                'architectures': sorted(set(architectures or ['amd64'])), 'revisions': dict.fromkeys(sorted(keys), 1)}
+            ppa = {'plan': plan, 'sha256': digest(plan), 'targets': {}, 'history': []}
+            self.record['ppa'] = ppa
+        plan = ppa['plan']
+        require(ppa['sha256'] == digest(plan) and plan['schema'] == 1 and plan['archive'] == ppa_tool.ARCHIVE and
+                all(plan[key] == self.record[key] for key in ('repository', 'candidate', 'version')) and
+                set(ppa['targets']) <= keys and set(plan['revisions']) == keys and all(type(value) is int and value > 0 for value in plan['revisions'].values()),
+                'Saved PPA observation plan changed')
+        require(plan['architectures'] and plan['architectures'] == sorted(set(plan['architectures'])) and
+                set(plan['architectures']) <= set(ppa_tool.ARCHITECTURES), 'Invalid PPA architecture coverage')
+        require(architectures is None or sorted(set(architectures)) == plan['architectures'],
+                'PPA architecture coverage differs from the saved plan')
+        require(set(revisions or {}) <= keys, 'Invalid PPA revision target')
+        for target in ppa['targets'].values():
+            if target.get('completed'):
+                require(digest(target['completed']['receipt']) == target['completed']['sha256'], 'Saved PPA completion receipt changed')
+        changed = {}
+        for key, revision in (revisions or {}).items():
+            require(type(revision) is int and revision >= plan['revisions'][key], 'PPA revisions cannot move backwards')
+            if revision != plan['revisions'][key]:
+                changed[key] = revision
+        if changed:
+            ppa['history'].append({'plan': json.loads(encode(plan)), 'sha256': ppa['sha256'],
+                'changed_at': now().isoformat(timespec='seconds'),
+                'targets': {key: ppa['targets'].pop(key) for key in changed if key in ppa['targets']}})
+            plan['revisions'].update(changed)
+            ppa['sha256'] = digest(plan)
+        self.persist()
+        return ppa
+
+    def advance_ppa_observation(self, revisions=None, architectures=None):
+        ppa = self.prepare_ppa_observation(revisions, architectures)
+        client = ppa_tool.Client()
+        self.record['status'] = 'observing_ppa'
+        self.persist()
+        failed = []
+        for key, revision in ppa['plan']['revisions'].items():
+            package, series = key.split(':')
+            version = ppa_tool.package_version(self.record['version'], revision, series)
+            observation = client.observe(package, series, version, ppa['plan']['architectures'])
+            target = ppa['targets'].setdefault(key, {})
+            target.update(observation=observation, checked_at=now().isoformat(timespec='seconds'))
+            self.persist()
+            completed = target.get('completed')
+            if completed:
+                require(observation['status'] == 'available', 'Accepted PPA packages are no longer available: ' + key)
+                require(completed['receipt'] == observation['receipt'], 'Accepted PPA publication/build IDs or file hashes changed: ' + key)
+            elif observation['status'] == 'available':
+                receipt = observation['receipt']
+                target['completed'] = {'receipt': receipt, 'sha256': digest(receipt)}
+            if observation['status'] == 'build_failed':
+                failed.append(key)
+            self.persist()
+        require(not failed, 'Launchpad build failures require attention: ' + ', '.join(failed) + '; inspect logs and resume observation after repair')
+        self.record['status'] = 'ppa_available' if all(target['observation']['status'] == 'available'
+            for target in ppa['targets'].values()) else 'awaiting_ppa'
+        self.persist()
+
+    def advance_website_observation(self):
+        validate_record(self.record)
+        repository = self.record['repository']
+        require(repository == website_tool.generator.REPOSITORY, 'The public website serves HolderTeam/holder releases')
+        self.require_release_tag()
+        completed = self.record.get('website_verified')
+        if completed:
+            require(digest(completed['receipt']) == completed['sha256'], 'Saved website receipt changed')
+        releases = promotion_tool.pages(self.github, self.prefix + '/releases')
+        result = website_tool.observe(releases, self.record['version'],
+            assets=lambda release: promotion_tool.assets_for(self.github, repository, release),
+            contents=lambda asset: self.github.asset_contents(repository, asset))
+        if 'pending' in result:
+            self.record['website_pending'] = result['pending']
+            self.persist()
+            require(not completed, 'Previously verified website is no longer serving the recorded release')
+            self.record['status'] = 'awaiting_website'
+        else:
+            receipt = {**result['receipt'], 'candidate': self.record['candidate']}
+            if completed:
+                require(receipt == completed['receipt'], 'Accepted website release assets or feed changed')
+            else:
+                completed = {'receipt': receipt, 'sha256': digest(receipt)}
+                self.record['website_verified'] = completed
+            completed['checked_at'] = now().isoformat(timespec='seconds')
+            self.record.pop('website_pending', None)
+            self.record['status'] = 'website_verified'
+        self.persist()
+
     def prepare_sdk_publication(self):
         validate_record(self.record)
         require(self.record.get('manifest') and digest(self.record['manifest']['document']) == self.record['manifest']['sha256'],
@@ -798,6 +1001,33 @@ def summary(record):
         current = delivery['last_check']
         lines += ['', f'Linux release assets: {current["url"]}; draft={current["draft"]}; prerelease={current["prerelease"]}',
                   f'Linux promotion receipt SHA256: `{delivery["sha256"]}`']
+    if record.get('windows_promoted'):
+        delivery = record['windows_promoted']
+        current = delivery['last_check']
+        lines += ['', f'Windows development assets: {current["url"]}; draft={current["draft"]}',
+                  f'Windows promotion receipt SHA256: `{delivery["sha256"]}`']
+    if record.get('website_pending'):
+        lines += ['', record['website_pending']]
+    if record.get('website_verified'):
+        website = record['website_verified']
+        receipt = website['receipt']
+        lines += ['', f'Website last verified at {website["checked_at"]} for {receipt["tag"]}',
+                  f'Feed: {receipt["site"]}version.json',
+                  f'Website receipt SHA256: `{website["sha256"]}`']
+    if record.get('ppa'):
+        ppa = record['ppa']
+        lines += ['', 'PPA architecture coverage: ' + ', '.join(ppa['plan']['architectures']),
+            f'PPA observation plan SHA256: `{ppa["sha256"]}`',
+            '| Source / series | Expected version | State | Remote builds | Missing publication/index entries |',
+            '| --- | --- | --- | --- | --- |']
+        for key, revision in ppa['plan']['revisions'].items():
+            package, series = key.split(':')
+            observation = ppa['targets'].get(key, {}).get('observation', {})
+            builds = '; '.join(f'{item["architecture"]}: {item["status"]}' +
+                (f' ([log]({item["log_url"]}))' if item.get('log_url') else '') for item in observation.get('builds', []))
+            lines.append(f'| {key} | {ppa_tool.package_version(record["version"], revision, series)} | '
+                f'{observation.get("status", "not observed")} | {builds} | {", ".join(observation.get("missing", []))} |')
+        lines += ['', 'PPA availability records public package metadata; source-content provenance, signed APT installation and upgrade checks remain separate.']
     if record.get('core_sdk_published'):
         delivery = record['core_sdk_published']
         receipt = delivery['receipt']
@@ -813,8 +1043,8 @@ def summary(record):
               'the maintainer publication decision; per-destination promotion/publication',
               'and package availability checks; website completion. Follow release/docs/runbook.md.',
               'prepare/packages dispatch preparation workflows; sign-linux requests the protected signing workflow;',
-              'promote-linux delivers signed files to the exact release; publish-sdk publishes the verified SDK set;',
-              'publish-python uploads to the explicit destination.']
+              'promote-linux/promote-windows deliver accepted platform assets; publish-sdk publishes the verified SDK set;',
+              'publish-python uploads to the explicit destination; observe-ppa checks public build and package availability.']
     return '\n'.join(lines) + '\n'
 
 
@@ -871,7 +1101,7 @@ def validate_record(record):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'publish-sdk', 'status'))
+    parser.add_argument('command', choices=('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'promote-windows', 'publish-sdk', 'observe-ppa', 'observe-website', 'status'))
     parser.add_argument('--record', type=Path, required=True)
     parser.add_argument('--repository', default=None)
     parser.add_argument('--candidate')
@@ -880,10 +1110,20 @@ def main():
     parser.add_argument('--package', choices=PACKAGES)
     parser.add_argument('--destination', choices=('pypi', 'testpypi'))
     parser.add_argument('--windows-sign-test-installer', choices=('true', 'false'))
+    parser.add_argument('--ppa-revision', action='append', default=[], help='explicit packaging revision: package:series=N')
+    parser.add_argument('--ppa-architecture', action='append', choices=ppa_tool.ARCHITECTURES)
     parser.add_argument('--retry', choices=tuple(WORKFLOWS))
     parser.add_argument('--wait', action='store_true', help='keep observing until completed or stopped')
     parser.add_argument('--poll-seconds', type=int, default=30)
     args = parser.parse_args()
+    if (args.ppa_revision or args.ppa_architecture) and args.command != 'observe-ppa':
+        parser.error('PPA selections require observe-ppa')
+    if args.command in ('observe-ppa', 'observe-website') and args.retry:
+        parser.error('Observation commands do not retry workflows. Use the existing workflow entry point.')
+    try:
+        selected_ppa_revisions = ppa_tool.revisions(args.ppa_revision)
+    except ValueError as error:
+        parser.error(str(error))
     if args.record.suffix != '.json':
         parser.error('--record must name a .json file')
     if args.command == 'publish-python':
@@ -897,6 +1137,8 @@ def main():
         parser.error('Linux signing retries require sign-linux --retry linux_signing')
     if (args.retry == 'linux_promotion' and args.command != 'promote-linux') or (args.command == 'promote-linux' and args.retry not in (None, 'linux_promotion')):
         parser.error('Linux promotion retries require promote-linux --retry linux_promotion')
+    if (args.retry == 'windows_promotion' and args.command != 'promote-windows') or (args.command == 'promote-windows' and args.retry not in (None, 'windows_promotion')):
+        parser.error('Windows promotion retries require promote-windows --retry windows_promotion')
     if (args.retry == 'core_sdk_publication' and args.command != 'publish-sdk') or (args.command == 'publish-sdk' and args.retry not in (None, 'core_sdk_publication')):
         parser.error('SDK publication retries require publish-sdk --retry core_sdk_publication')
     if args.retry and args.command == 'status':
@@ -931,7 +1173,7 @@ def main():
                 record = initialize(github, args.repository or 'HolderTeam/holder', args.candidate,
                                     args.version, args.number, args.windows_sign_test_installer != 'false')
                 save(args.record, record)
-            if args.command in ('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'publish-sdk'):
+            if args.command in ('prepare', 'packages', 'publish-python', 'sign-linux', 'promote-linux', 'promote-windows', 'publish-sdk', 'observe-ppa', 'observe-website'):
                 coordinator = Coordinator(args.record, record, github)
                 try:
                     record.pop('error', None)
@@ -941,8 +1183,14 @@ def main():
                         coordinator.retry(args.retry)
                     last_report = None
                     while True:
-                        if args.command == 'publish-sdk':
+                        if args.command == 'observe-website':
+                            coordinator.advance_website_observation()
+                        elif args.command == 'observe-ppa':
+                            coordinator.advance_ppa_observation(selected_ppa_revisions, args.ppa_architecture)
+                        elif args.command == 'publish-sdk':
                             coordinator.advance_sdk_publication()
+                        elif args.command == 'promote-windows':
+                            coordinator.advance_windows_promotion()
                         elif args.command == 'promote-linux':
                             coordinator.advance_linux_promotion()
                         elif args.command == 'sign-linux':
@@ -960,7 +1208,8 @@ def main():
                             last_report = report
                         target = {'packages': 'packages_prepared', 'prepare': 'candidate_staged',
                                   'publish-python': 'python_publication_completed', 'sign-linux': 'linux_signed',
-                                  'promote-linux': 'linux_promoted', 'publish-sdk': 'core_sdk_published'}[args.command]
+                                  'promote-linux': 'linux_promoted', 'promote-windows': 'windows_promoted', 'publish-sdk': 'core_sdk_published', 'observe-ppa': 'ppa_available',
+                                  'observe-website': 'website_verified'}[args.command]
                         if not args.wait or record['status'] == target:
                             break
                         time.sleep(args.poll_seconds)

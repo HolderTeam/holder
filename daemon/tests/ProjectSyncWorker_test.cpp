@@ -162,6 +162,13 @@ TEST_CASE("ProjectSyncWorker repairs hidden cards at startup", "[sync][worker][r
   const auto db_path = dir / "holder.db";
   const std::string parent = "55555555-5555-4555-8555-555555555551";
   const std::string child = "55555555-5555-4555-8555-555555555552";
+  const std::string cycle_a = "55555555-5555-4555-8555-555555555553";
+  const std::string cycle_b = "55555555-5555-4555-8555-555555555554";
+  bool preserve_cycle = false;
+  bool reject_repair = false;
+  SECTION("ordinary repair") {}
+  SECTION("a separate parent cycle is preserved") { preserve_cycle = true; }
+  SECTION("a rejected repair leaves the original hierarchy intact") { reject_repair = true; }
   {
     auto db = holder::test::open_db_with_schema(db_path);
     // No remote: the startup repair covers every project, not only synced ones.
@@ -172,12 +179,36 @@ TEST_CASE("ProjectSyncWorker repairs hidden cards at startup", "[sync][worker][r
     holder::test::create_card_fixture(store, child, "local-only", "Child", "child", 11, parent);
     // A parent trashed while the daemon was not running, leaving the child hidden.
     holder::card::CardRepo(db).soft_delete(parent, 20, 20);
+    if (preserve_cycle) {
+      holder::test::create_card_fixture(store, cycle_a, "local-only", "Cycle A", "a", 12);
+      holder::test::create_card_fixture(store, cycle_b, "local-only", "Cycle B", "b", 13, cycle_a);
+      holder::card::CardRepo(db).move(cycle_a, cycle_b, 1, 21);
+    }
+    if (reject_repair) {
+      db.exec("CREATE TRIGGER reject_repair BEFORE UPDATE OF parent_card_id ON cards "
+              "BEGIN SELECT RAISE(ABORT, 'fixture rejects hierarchy repair'); END");
+    }
   }
 
   run_worker_for_seconds(db_path, 1);
 
   auto db = holder::test::open_db_with_schema(db_path);
-  REQUIRE_FALSE(holder::card::CardRepo(db).get(child)->parent_card_id.has_value());
+  holder::card::CardRepo cards(db);
+  const auto repaired_child = cards.get(child);
+  REQUIRE(repaired_child);
+  if (reject_repair) {
+    CHECK(repaired_child->parent_card_id == parent);
+  } else {
+    CHECK_FALSE(repaired_child->parent_card_id);
+  }
+  if (preserve_cycle) {
+    const auto a = cards.get(cycle_a);
+    const auto b = cards.get(cycle_b);
+    REQUIRE(a);
+    REQUIRE(b);
+    CHECK(a->parent_card_id == cycle_b);
+    CHECK(b->parent_card_id == cycle_a);
+  }
 }
 
 TEST_CASE("ProjectSyncWorker periodically refreshes pull timestamp", "[sync][worker]") {
@@ -848,3 +879,23 @@ TEST_CASE("sync work that is due does count as activity", "[sync][worker][activi
   REQUIRE(holder::core::activity().quiet_for() < std::chrono::milliseconds(1400));
 }
 
+
+TEST_CASE("A failed final push leaves commits local for a later run", "[sync][worker][final-push]") {
+  FinalPushFixture fixture;
+  const auto unavailable = fixture.dir / "offline.git";
+  std::filesystem::rename(fixture.remote_dir, unavailable);
+  holder::git::GitRepo local;
+  local.open_or_init(fixture.local_dir);
+  const auto original_head = local.head_oid();
+  REQUIRE(original_head);
+
+  auto worker = worker_with_long_push_interval(fixture.db_path);
+  REQUIRE(worker.run_final_push() == 1);
+  const auto state = load_sync_state(fixture.db_path, "proj-final");
+  REQUIRE(state);
+  REQUIRE(state->last_push_status);
+  CHECK(*state->last_push_status != "pushed");
+  CHECK(local.head_oid() == original_head);
+  CHECK(state->next_retry_at.has_value());
+  CHECK_FALSE(holder::test::remote_has_local_head(fixture.local_dir, unavailable));
+}

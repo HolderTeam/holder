@@ -129,6 +129,26 @@ sudo apt install -y ccache lcov gcovr
 
 `make.sh` automatically uses ccache when installed (`HOLDER_CCACHE=0` disables
 it). `./make.sh coverage` uses GCC/gcov, lcov and genhtml; gcovr adds a JSON report.
+The lcov report omits a narrow list of unused GCC deleting-destructor aliases
+only when their matching destructor bodies have executed. This changes function
+records only; destructor bodies and branch counters remain measured. An exact
+file/symbol rule also restores one covered hierarchy-repair lambda entry line
+from its positive function-entry counter; other source counters stay unchanged.
+Both allowlists and their rationale live in `scripts/coverage_filters.py`.
+Capture preserves positive gcov line counts when GCC also reports an unexecuted
+block on that line, retaining lcov inconsistency warnings for review. The audit
+and remaining guard classifications are in [docs/coverage-audit.md](docs/coverage-audit.md).
+Reviewed closing braces that only carry GCC exception-cleanup counters have
+single-line source annotations; validation, returns and explicit error handling
+remain measured. Their block evidence and test witnesses are in the audit.
+On Linux with GNU/Clang, isolated test executables inject libsodium failure
+returns and mutex errors to exercise crypto translation and provider-registration
+ownership (mutex injection requires libstdc++). The initialization, encryption
+and registration failure handlers remain measured. A separate allocation runner
+checks repository statement cleanup and parser resource-error propagation; it
+requires 64-bit Linux and the GNU C++11 string ABI. The audit also records the
+JSON dependency's allocation-during-destruction limitation.
+Coverage requires Python 3 and runs the filter's unit tests before building.
 
 ### macOS (Homebrew)
 

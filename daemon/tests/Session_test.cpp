@@ -1,6 +1,8 @@
 #include "api/Session.h"
 
 #include "platform/Db.h"
+#include "ai/AiThreadRepo.h"
+#include "http_test_helpers.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -14,6 +16,7 @@
 #include <future>
 #include <mutex>
 #include <string>
+#include <set>
 #include <thread>
 
 namespace {
@@ -53,6 +56,43 @@ struct SocketPair {
 };
 
 } // namespace
+
+TEST_CASE("Session generates distinct UUIDs with seeded and invalid seed settings", "[session][uuid]") {
+  namespace http = boost::beast::http;
+  const auto root = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(root / "holder.db");
+  holder::test::create_project(db, "project", (root / "project").string());
+  std::string seed = "1337";
+  SECTION("a valid seed advances the generator between requests") {}
+  SECTION("an invalid seed falls back to random UUID generation") { seed = "invalid"; }
+  holder::test::EnvGuard seed_env("HOLDER_UUID_SEED", seed);
+  boost::asio::io_context io;
+  const std::string token = "uuid-test";
+  std::set<std::string> ids;
+  for (int i = 0; i < 2; ++i) {
+    holder::api::Session::Request req{http::verb::post, "/ai/threads", 11};
+    req.set(http::field::authorization, "Bearer " + token);
+    req.body() = R"({"project_id":"project","title":"Generated thread"})";
+    req.prepare_payload();
+    const auto now = std::chrono::steady_clock::now();
+    holder::api::Session::PreparedRequest prepared{
+        tcp::socket(io), std::move(req), now, "/ai/threads", ""};
+    holder::api::Session session(std::move(prepared), db, token, now, nullptr, nullptr);
+    auto response = session.execute();
+    REQUIRE(response.has_value());
+    INFO(response->res.body());
+    REQUIRE(response->res.result() == http::status::created);
+    const auto id = nlohmann::json::parse(response->res.body()).at("data").at("thread_id").get<std::string>();
+    REQUIRE(id.size() == 36);
+    CHECK(id[14] == '4');
+    CHECK(std::string("89ab").find(id[19]) != std::string::npos);
+    CHECK(ids.insert(id).second);
+    const auto stored = holder::ai::AiThreadRepo(db).get(id);
+    REQUIRE(stored.has_value());
+    CHECK(stored->project_id == "project");
+    CHECK(stored->title == "Generated thread");
+  }
+}
 
 TEST_CASE("Session handles end_of_stream read and returns", "[session]") {
   SocketPair pair;

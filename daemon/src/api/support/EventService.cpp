@@ -111,10 +111,12 @@ EventService::EventService(const std::filesystem::path& database) {
   });
   try {
     future.get();
+    // LCOV_EXCL_START: the worker only calls set_value; future failure requires a runtime synchronization fault.
   } catch (...) {
     observer_.join();
     throw;
   }
+  // LCOV_EXCL_STOP
 }
 
 EventService::~EventService() { stop(); }

@@ -37,6 +37,9 @@ http::request<http::string_body> make_request(
 
 #include "git/GitOps.h"
 #include "google_storage_test_helpers.h"
+#include "privacy/ProjectPrivacy.h"
+#include "project/ProjectRepo.h"
+#include "resource/AssetEnvelope.h"
 #include "resource/LocationBindingStore.h"
 #include "resource/LocationRepo.h"
 #include "resource/ResourceRepo.h"
@@ -216,6 +219,7 @@ TEST_CASE(
   using Server = holder::test::StorageHttpTestServer;
   unsigned response_status = 200;
   http::status expected = http::status::ok;
+  bool missing_after_put = false;
   SECTION("success") {}
   SECTION("authentication") {
     response_status = 401;
@@ -233,8 +237,17 @@ TEST_CASE(
     response_status = 503;
     expected = http::status::service_unavailable;
   }
+  SECTION("the provider accepts the write but does not have the object") {
+    missing_after_put = true;
+    expected = http::status::unprocessable_entity;
+  }
   LocationRouteFixture f;
-  Server server([&](const Server::Request&) {
+  unsigned head_requests = 0;
+  Server server([&](const Server::Request& request) {
+    // S3 PUT verifies visibility itself; let that succeed, then lose the object
+    // before the location probe performs its own existence check.
+    if (missing_after_put && request.method() == http::verb::head && ++head_requests > 1)
+      return Server::response(404);
     return Server::response(response_status);
   });
   f.put(
@@ -255,6 +268,14 @@ TEST_CASE(
   REQUIRE_FALSE(server.requests().empty());
   CHECK(std::string(server.requests()[0].target()).starts_with("/bucket/archive/.holder-probes/"));
   CHECK(server.requests()[0]["x-amz-security-token"] == "session");
+  if (missing_after_put) {
+    REQUIRE(server.requests().size() == 4);
+    CHECK(server.requests()[1].method() == http::verb::head);
+    CHECK(server.requests()[2].method() == http::verb::head);
+    CHECK(server.requests()[3].method() == http::verb::delete_);
+    CHECK(nlohmann::json::parse(response.body())["error"]["code"] == "storage_integrity_failed");
+    CHECK(nlohmann::json::parse(response.body())["error"]["message"] == "storage probe not found");
+  }
   CHECK(std::filesystem::is_empty(f.root / "cache/holder/asset-probes"));
 }
 
@@ -503,6 +524,12 @@ TEST_CASE("Resource asset retrieval validates placement ownership", "[resources]
     CHECK(in_use.result() == http::status::conflict);
     CHECK(nlohmann::json::parse(in_use.body())["error"]["code"] == "conflict");
   }
+  holder::resource::LocationBindingStore(*f.secrets).unbind("project", "location");
+  const auto unbound = retrieve({}, streamed);
+  REQUIRE(unbound.result() == http::status::conflict);
+  CHECK(nlohmann::json::parse(unbound.body())["error"]["code"] == "storage_binding_required");
+  CHECK_FALSE(streamed);
+
   f.db.exec("PRAGMA foreign_keys=OFF; DELETE FROM storage_locations; PRAGMA foreign_keys=ON;");
   CHECK(retrieve({}, streamed).result() == http::status::not_found);
   CHECK_FALSE(streamed);
@@ -530,4 +557,279 @@ TEST_CASE("Location updates and removals persist their Git manifests", "[resourc
       http::status::ok
   );
   CHECK_FALSE(holder::resource::LocationRepo(f.db).get("location").has_value());
+}
+
+TEST_CASE("Resource routes reject malformed bindings and import requests", "[resources][routes]") {
+  LocationRouteFixture f;
+  struct Case {
+    http::verb method;
+    const char* path;
+    nlohmann::json body;
+    const char* message;
+  };
+  for (const auto& item : std::vector<Case>{
+           {http::verb::put, "/locations/location/binding", {{"values", "invalid"}},
+            "values must be an object"},
+           {http::verb::put, "/locations/location/binding", {{"values", {{"root_path", 42}}}},
+            "binding values must be strings"},
+           {http::verb::put, "/locations/preferred", {{"project_id", "project"}, {"location_id", 42}},
+            "location_id must be a string"},
+           {http::verb::post, "/imports", {{"unexpected", true}}, "there is no field unexpected"},
+           {http::verb::get, "/imports/missing?unexpected=true", nlohmann::json::object(),
+            "unexpected"},
+       }) {
+    CAPTURE(item.path, item.body);
+    const auto res = f.call(item.method, item.path, item.body);
+    REQUIRE(res.result() == http::status::bad_request);
+    const auto error = nlohmann::json::parse(res.body()).at("error");
+    CHECK(error.at("code") == "invalid_argument");
+    CHECK(error.at("message").get<std::string>().find(item.message) != std::string::npos);
+  }
+}
+
+TEST_CASE("Storage failure exceptions preserve the typed response and its error", "[resources][routes]") {
+  using Code = holder::resource::StorageErrorCode;
+  using namespace holder::api::support;
+  const auto check = []<typename Failure>(Code code, const char* name) {
+    CAPTURE(name);
+    try {
+      throw_storage_failure(holder::resource::StorageError(code, "provider detail"));
+    } catch (const Failure& failure) {
+      CHECK(failure.code == name);
+      CHECK(std::string(failure.what()) == "provider detail");
+    }
+  };
+  check.operator()<StorageBadRequest>(Code::InvalidConfiguration, "storage_configuration_invalid");
+  check.operator()<StorageConflict>(Code::Conflict, "storage_conflict");
+  check.operator()<StorageIntegrityFailed>(Code::Integrity, "storage_integrity_failed");
+  check.operator()<StorageGatewayFailure>(Code::Permission, "storage_permission_denied");
+  check.operator()<StorageCapacityExceeded>(Code::Capacity, "storage_capacity_exceeded");
+  check.operator()<StorageUnavailable>(Code::Transient, "storage_transient_failure");
+}
+
+TEST_CASE("Asset import reports an unexpected job identifier failure as an internal error",
+          "[resources][routes]") {
+  LocationRouteFixture f;
+  holder::git::RealGitOps git;
+  f.put("local_directory", {}, {{"root_path", f.root.string()}});
+  const auto source = f.root / "source.txt";
+  std::ofstream(source) << "asset";
+  auto req = make_request(http::verb::post, "/imports", {
+      {"project_id", "project"}, {"card_id", "card"},
+      {"location_id", "location"}, {"source_path", source.string()}});
+  http::response<http::string_body> res;
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, f.db, nullptr, nullptr,
+      f.secrets.get(), &git, []() -> std::string {
+        throw std::runtime_error("job identifier unavailable");
+      }));
+  CHECK(res.result() == http::status::internal_server_error);
+  const auto error = nlohmann::json::parse(res.body()).at("error");
+  CHECK(error.at("code") == "internal_error");
+  CHECK(error.at("message") == "job identifier unavailable");
+}
+
+TEST_CASE("Asset downloads report storage failures and clean up after a write failure",
+          "[resources][routes]") {
+  LocationRouteFixture f;
+  holder::git::RealGitOps git;
+  const auto objects = f.root / "objects";
+  std::filesystem::create_directories(objects);
+  const auto object = objects / "object";
+  std::ofstream(object, std::ios::binary) << "asset";
+  const auto digest = holder::resource::digest_file(object);
+  f.put("local_directory", {}, {{"root_path", objects.string()}});
+
+  holder::model::ResourceBundle bundle{
+      .resource = {"resource", "project", "file", "Asset", {}, 1, 1},
+      .assets = {{"asset", "resource", "asset.txt", "text/plain", digest.byte_size,
+                  digest.sha256, 1, 1,
+                  {{"placement", "asset", "location", "object", "plain",
+                    digest.byte_size, digest.sha256, 1}}}},
+  };
+  const auto cache = f.root / "cache/holder/asset-cache";
+
+  std::unique_ptr<holder::test::StorageHttpTestServer> server;
+  std::optional<http::status> expected_error;
+  std::string expected_code;
+  SECTION("missing object") {
+    expected_error = http::status::service_unavailable;
+    expected_code = "storage_unavailable";
+    std::filesystem::remove(object);
+  }
+  SECTION("object bytes fail integrity verification") {
+    expected_error = http::status::unprocessable_entity;
+    expected_code = "storage_integrity_failed";
+    std::ofstream(object, std::ios::binary) << "wrong";
+  }
+  SECTION("stored encoding is unsupported") {
+    expected_error = http::status::bad_request;
+    expected_code = "bad_request";
+    bundle.assets.front().placements.front().encoding = "unsupported";
+  }
+  SECTION("object key escapes the storage root") {
+    expected_error = http::status::bad_request;
+    expected_code = "storage_configuration_invalid";
+    bundle.assets.front().placements.front().object_key = "../object";
+  }
+  SECTION("remote provider denies access") {
+    using Server = holder::test::StorageHttpTestServer;
+    server = std::make_unique<Server>([](const Server::Request&) {
+      return Server::response(403);
+    });
+    f.put("s3_compatible",
+          {{"endpoint", server->endpoint()}, {"region", "region"}, {"bucket", "bucket"},
+           {"allow_insecure_localhost", "true"}, {"addressing_style", "path"}},
+          {{"access_key_id", "access"}, {"secret_access_key", "secret"}});
+    expected_error = http::status::bad_gateway;
+    expected_code = "storage_permission_denied";
+  }
+  SECTION("socket cannot write the recovered file") {}
+
+  holder::resource::ResourceRepo(f.db).put_bundle(bundle);
+  boost::asio::io_context io;
+  boost::asio::ip::tcp::socket closed_socket(io);
+  auto req = make_request(http::verb::get, "/resources/resource/assets/asset/content");
+  http::response<http::string_body> res;
+  const auto served = holder::test::serve_generated(
+      req, res, closed_socket, f.db, nullptr, nullptr, f.secrets.get(), &git,
+      [] { return std::string("download-test"); });
+  INFO(res.body());
+  REQUIRE(served.handled);
+  CHECK(std::filesystem::is_empty(cache));
+
+  REQUIRE(served.streamed == !expected_error.has_value());
+  if (expected_error) {
+    CHECK(res.result() == *expected_error);
+    const auto error = nlohmann::json::parse(res.body()).at("error");
+    CHECK(error.at("code") == expected_code);
+  }
+}
+
+TEST_CASE("Resource writes preserve an attached resource when its project key is missing",
+          "[resources][routes]") {
+  LocationRouteFixture f;
+  holder::test::EnvGuard keys("HOLDER_TEST_KEYSTORE_DIR", (f.root / "empty-keystore").string());
+  holder::git::RealGitOps git;
+  holder::project::ProjectRepo projects(f.db);
+  projects.update_privacy_mode("project", "encrypted_git", 1);
+  const auto key_id = holder::privacy::ensure_project_key_material(
+      projects, "project", std::nullopt, 1, [] { return std::string("fixture-key"); });
+  holder::card::CardStore cards(f.db, nullptr);
+  holder::test::create_card_fixture(cards, "card", "project", "Card", "Body", 10);
+
+  const std::string list_path = "/projects/project/resources";
+  const auto resource_path = list_path + "/resource";
+  const nlohmann::json body{{"resource_id", "resource"}, {"type", "file"}, {"label", "Original"}};
+  const auto call = [&](http::verb method, const std::string& path,
+                        const nlohmann::json& payload = nlohmann::json::object()) {
+    return f.call(method, path, payload, "project", true, {}, &git);
+  };
+  REQUIRE(call(http::verb::post, list_path, body).result() == http::status::created);
+  REQUIRE(call(http::verb::put, "/projects/project/cards/card/resources/resource").result() ==
+          http::status::ok);
+
+  const auto check_error = [](const auto& res, http::status status, const char* code) {
+    INFO(res.body());
+    REQUIRE(res.result() == status);
+    CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == code);
+  };
+  check_error(call(http::verb::post, list_path, body), http::status::conflict, "conflict");
+  check_error(call(http::verb::post, "/projects/missing/resources", body),
+              http::status::not_found, "not_found");
+  check_error(call(http::verb::patch, list_path + "/missing", {{"label", "Missing"}}),
+              http::status::not_found, "not_found");
+
+  holder::git::GitRepo repo;
+  repo.open_or_init(f.root / "project");
+  const auto head = repo.head_oid();
+  REQUIRE(head);
+  REQUIRE(std::filesystem::remove(f.root / "empty-keystore" / (key_id + ".key")));
+
+  auto new_resource = body;
+  new_resource["resource_id"] = "new-resource";
+  check_error(call(http::verb::post, list_path, new_resource), http::status::conflict, "key_missing");
+  check_error(call(http::verb::patch, resource_path, {{"label", "Changed"}}),
+              http::status::conflict, "key_missing");
+  check_error(call(http::verb::delete_, resource_path), http::status::conflict, "key_missing");
+  CHECK(repo.head_oid() == head);
+  holder::resource::ResourceRepo resources(f.db);
+  const auto original = resources.get("resource");
+  REQUIRE(original);
+  CHECK(original->label == "Original");
+  CHECK_FALSE(resources.get("new-resource"));
+  const auto attached = call(http::verb::get, "/projects/project/cards/card/resources");
+  REQUIRE(attached.result() == http::status::ok);
+  CHECK(nlohmann::json::parse(attached.body()).at("data").size() == 1);
+}
+
+TEST_CASE("Asset import reports a failed location lookup without accepting a job",
+          "[resources][routes]") {
+  LocationRouteFixture f;
+  holder::git::RealGitOps git;
+  const auto source = f.root / "source.txt";
+  std::ofstream(source) << "asset";
+  f.db.exec("DROP TABLE storage_locations");
+  const auto res = f.call(
+      http::verb::post, "/imports",
+      {{"project_id", "project"}, {"card_id", "card"}, {"location_id", "location"},
+       {"source_path", source.string()}},
+      "project", true, {}, &git);
+  REQUIRE(res.result() == http::status::internal_server_error);
+  CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == "internal_error");
+  CHECK(f.sequence == 0);
+}
+
+TEST_CASE("Resource routes validate metadata and leave rejected updates uncommitted",
+          "[resources][routes]") {
+  LocationRouteFixture f;
+  holder::git::RealGitOps git;
+  const std::string list = "/projects/project/resources";
+  const auto target = list + "/resource";
+  const auto call = [&](http::verb method, const std::string& path, const nlohmann::json& body) {
+    return f.call(method, path, body, "project", true, {}, &git);
+  };
+  const nlohmann::json resource{
+      {"resource_id", "resource"}, {"type", "file"}, {"label", "Original"},
+      {"metadata", {{"topic", {"work"}}, {"status", {"draft"}}}}};
+  REQUIRE(call(http::verb::post, list, resource).result() == http::status::created);
+  holder::git::GitRepo repo;
+  repo.open_or_init(f.root / "project");
+  const auto original_head = repo.head_oid();
+  REQUIRE(original_head);
+
+  struct InvalidRequest {
+    http::verb method;
+    std::string path;
+    nlohmann::json body;
+    const char* field;
+  };
+  auto bad_id = resource;
+  bad_id["resource_id"] = "bad/path";
+  for (const auto& item : {
+           InvalidRequest{http::verb::post, list, bad_id, "resource ID"},
+           InvalidRequest{http::verb::patch, target, {{"metadata", nullptr}}, "metadata"},
+           InvalidRequest{http::verb::patch, target, {{"metadata", {{"", {"x"}}}}}, "metadata name"},
+           InvalidRequest{http::verb::patch, target, {{"metadata", {{"topic", "work"}}}}, "metadata"},
+           InvalidRequest{http::verb::patch, target, {{"label", nullptr}}, "label"},
+           InvalidRequest{http::verb::get, list + "/x", {}, "resource_id"},
+       }) {
+    CAPTURE(item.path, item.body);
+    const auto res = call(item.method, item.path, item.body);
+    REQUIRE(res.result() == http::status::bad_request);
+    const auto error = nlohmann::json::parse(res.body()).at("error");
+    CHECK(error.at("code") == "invalid_argument");
+    CHECK(error.at("message").get<std::string>().find(item.field) != std::string::npos);
+  }
+  CHECK(repo.head_oid() == original_head);
+
+  const auto updated = call(
+      http::verb::patch, target, {{"metadata", {{"status", nlohmann::json::array()}}}});
+  REQUIRE(updated.result() == http::status::ok);
+  const auto metadata = nlohmann::json::parse(updated.body()).at("data").at("metadata");
+  CHECK(metadata.at("topic") == nlohmann::json::array({"work"}));
+  CHECK_FALSE(metadata.contains("status"));
+  const auto updated_head = repo.head_oid();
+  CHECK(updated_head != original_head);
+  REQUIRE(call(http::verb::patch, target, {{"label", "Original"}}).result() == http::status::ok);
+  CHECK(repo.head_oid() == updated_head);
 }

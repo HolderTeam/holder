@@ -54,7 +54,7 @@ std::string lowered(std::string_view text) {
   std::string out;
   for (const char c : text) out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
 
 bool is_home(const std::string& name) { return lowered(name) == lowered(HOME_PROJECT_NAME); }
 

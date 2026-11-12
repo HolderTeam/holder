@@ -25,6 +25,20 @@ private void test_parse_projects_missing_data_is_protocol_error() {
     assert(got_protocol);
 }
 
+private void test_parse_project_sync_status_missing_data_is_protocol_error() {
+    bool got_protocol = false;
+    try {
+        HolderLinux.ApiParsersProjects.parse_project_sync_status(
+            parse_json_object("{\"ok\":true}"));
+    } catch (HolderLinux.ApiError.PROTOCOL e) {
+        assert(e.message == "Missing data for project sync status response");
+        got_protocol = true;
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    assert(got_protocol);
+}
+
 private void test_parse_projects_full_and_defaults() {
     var root = parse_json_object(
         "{\"data\":[" +
@@ -127,6 +141,7 @@ public static int main(string[] args) {
     Test.init(ref args);
 
     Test.add_func("/parsers/projects/missing-data-protocol-error", test_parse_projects_missing_data_is_protocol_error);
+    Test.add_func("/parsers/projects/sync-status-missing-data-protocol-error", test_parse_project_sync_status_missing_data_is_protocol_error);
     Test.add_func("/parsers/projects/full-and-defaults", test_parse_projects_full_and_defaults);
 
     return Test.run();

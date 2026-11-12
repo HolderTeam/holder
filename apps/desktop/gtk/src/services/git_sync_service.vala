@@ -1,10 +1,12 @@
 namespace HolderLinux {
 
+#if HOLDER_WINDOWS
 [CCode (cname = "holder_windows_capture_async", finish_name = "holder_windows_capture_finish")]
 private extern static async string capture_windows_command(
     [CCode (array_length = false, array_null_terminated = true)] string[] argv,
     out int exit_code
 ) throws Error;
+#endif
 
 public class GitCommandResult : Object {
     public int exit_code { get; construct; }
@@ -57,15 +59,15 @@ public class GitRemoteApplyResult : Object {
 
 public class GitSyncService : Object {
     public virtual async GitCommandResult run_command(string[] argv) {
-        if (Path.DIR_SEPARATOR_S == "\\") {
-            try {
-                int status;
-                var output = yield capture_windows_command(argv, out status);
-                return new GitCommandResult(status, output.strip());
-            } catch (Error e) {
-                return new GitCommandResult(-1, e.message);
-            }
+#if HOLDER_WINDOWS
+        try {
+            int status;
+            var output = yield capture_windows_command(argv, out status);
+            return new GitCommandResult(status, output.strip());
+        } catch (Error e) {
+            return new GitCommandResult(-1, e.message);
         }
+#else
         try {
             var proc = new Subprocess.newv(argv,
                 SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE);
@@ -84,6 +86,7 @@ public class GitSyncService : Object {
         } catch (Error e) {
             return new GitCommandResult(-1, e.message);
         }
+#endif
     }
 
     public virtual async GitHubCliState detect_github_cli_state() {

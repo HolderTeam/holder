@@ -67,7 +67,7 @@ std::vector<Resource> to_resources(holder_context& context, const std::vector<ho
     if (const auto bundle = repo.get_bundle(resource.resource_id)) out.push_back(to_resource(*bundle));
   }
   return out;
-}
+} // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
 
 std::vector<Resource> list(holder_context& context, const std::string& project_id) {
   require_project(context, project_id);

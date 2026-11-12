@@ -43,7 +43,7 @@ public class TerminalSessionStore : Object {
         return session;
     }
 
-    public Gee.ArrayList<TerminalSession> load_sessions(string? project_id = null) throws Error {
+    public virtual Gee.ArrayList<TerminalSession> load_sessions(string? project_id = null) throws Error {
         var sessions = new Gee.ArrayList<TerminalSession>();
         if (!FileUtils.test(root_dir, FileTest.IS_DIR)) {
             return sessions;
@@ -82,7 +82,7 @@ public class TerminalSessionStore : Object {
         return sessions;
     }
 
-    public PowerShellTranscriptSnapshot read_transcript(TerminalSession session) throws Error {
+    public virtual PowerShellTranscriptSnapshot read_transcript(TerminalSession session) throws Error {
         if (!FileUtils.test(session.transcript_path, FileTest.IS_REGULAR)) {
             return transcript_parser.parse("");
         }

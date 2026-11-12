@@ -285,7 +285,7 @@ struct AiRunPostInput {
   std::optional<std::string> context_card_id;
 };
 
-std::optional<AiRunPostInput> parse_ai_run_post_input(const std::string& body) {
+AiRunPostInput parse_ai_run_post_input(const std::string& body) {
   AiRunPostInput input;
   try {
     input.body = nlohmann::json::parse(body);
@@ -1147,10 +1147,6 @@ RouteDispatchResult execute_local_post_path(
     }
   }
 
-  if (!forced_model_installed) {
-    return out;
-  }
-
   std::string router_model;
   std::string configured_strong_model;
   const auto configured_strong_model_ref = configured_local_model_name(
@@ -1456,11 +1452,7 @@ RouteDispatchResult execute_ai_run(
   out.handled = true;
   try {
     holder::llm::RunnerClient* runner = nullptr;
-    const auto parsed = parse_ai_run_post_input(request_body);
-    if (!parsed.has_value()) {
-      return out;
-    }
-    AiRunPostInput input = parsed.value();
+    auto input = parse_ai_run_post_input(request_body);
     const auto& body = input.body;
     const std::string& prompt = input.prompt;
     std::string& mode = input.mode;

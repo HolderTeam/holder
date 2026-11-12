@@ -143,10 +143,11 @@ private void test_a_missing_daemon_is_retried() {
 private void test_stop_cancels_the_retry_and_nothing_follows() {
     var f = new Fixture();
     f.transport.enqueue_stream_throw("refused");
-    f.presence.start();
+    HolderLinux.IPresence presence = f.presence;
+    presence.start();
     assert(wait_for_condition(() => f.scheduler.pending_one_shots() == 1));
 
-    f.presence.stop();
+    presence.stop();
 
     assert(f.scheduler.pending_one_shots() == 0);
     assert(f.scheduler.cancel_calls == 1);

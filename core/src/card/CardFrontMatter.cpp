@@ -2,6 +2,7 @@
 
 #include <yaml-cpp/yaml.h>
 
+#include <new>
 #include <string_view>
 
 namespace holder::core {
@@ -215,6 +216,10 @@ ParsedCardFile parse_card_file(const std::string& raw) {
 
     parsed.body = raw.substr(end + closing_delimiter.size());
     return parsed;
+  } catch (const std::bad_alloc&) {
+    // Resource exhaustion is not malformed input: callers must not publish a
+    // valid card as raw text with its front matter exposed in the body.
+    throw;
   } catch (const std::exception&) {
     // A later field can fail after identity, links or milestones were read.
     // Report no metadata rather than returning a partially accepted record.

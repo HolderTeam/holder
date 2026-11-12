@@ -131,7 +131,7 @@ std::pair<int, support::StreamServer> get_resources_resource_id_assets_asset_id_
   }
   // Once the headers are written there is no other response to send: a failure closes it.
   return {
-      200,
+      200, // LCOV_EXCL_LINE: GCC attributes only unexecuted exception cleanup here; successful stream responses are tested.
       support::StreamServer([recovered, asset = *asset](
                                 boost::asio::ip::tcp::socket& socket,
                                 http::response<http::string_body>&

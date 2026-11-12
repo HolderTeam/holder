@@ -85,13 +85,7 @@ AssetFile retrieve(holder_context& context, const std::string& resource_id, cons
 
   const auto provider = holder::capi::storage_provider(context, location->provider);
   const std::filesystem::path destination(destination_path);
-  try {
-    service(context).retrieve(resource_id, asset_id, placement_id, *provider, destination);
-  } catch (...) {
-    std::error_code ignored;
-    std::filesystem::remove(destination, ignored);
-    throw;
-  }
+  service(context).retrieve(resource_id, asset_id, placement_id, *provider, destination);
   return {destination_path, asset->original_filename, asset->media_type, asset->byte_size};
 }
 

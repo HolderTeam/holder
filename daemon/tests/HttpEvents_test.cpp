@@ -268,3 +268,23 @@ TEST_CASE(
   REQUIRE(status == http::status::ok);
   REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, "testtoken"));
 }
+
+TEST_CASE("An active HTTP change stream requests resync when its observer fails", "[http][events]") {
+  auto db = holder::test::open_db_with_schema(holder::test::make_temp_dir() / "holder.db");
+  holder::test::create_project(db, "p");
+  holder::api::HttpServer server("127.0.0.1", 0, db, "testtoken", nullptr, nullptr);
+  const auto bound = server.start();
+  holder::core::SignalHandler signals;
+  holder::test::HttpServerThreadGuard guard(server, signals);
+  REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, "testtoken"));
+  EventClient client(bound.port, "/events?project_id=p");
+  REQUIRE(client.next().name == "ready");
+
+  db.exec("ALTER TABLE cards RENAME TO hidden_cards");
+  const auto recovery = client.next();
+  CHECK(recovery.name == "resync_required");
+  CHECK(recovery.data.at("reason") == "observer_unavailable");
+  CHECK(recovery.data.at("history_urls").at("p") == "/projects/p/history");
+  CHECK(recovery.data.at("git_revisions").contains("p"));
+  CHECK(holder::test::wait_for_http_health_ready(bound.bind, bound.port, "testtoken"));
+}

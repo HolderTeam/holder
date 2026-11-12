@@ -3042,6 +3042,35 @@ private void test_move_card_to_trash_failure_emits_error() {
     assert(api.delete_card_calls == 0);
 }
 
+private void test_move_card_to_trash_without_project_emits_error_without_deleting() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+    assert(controller.get_current_project() == null);
+
+    int errors = 0;
+    bool completed = false;
+    bool trashed = false;
+    controller.error_reported.connect((title, details) => {
+        assert(title == "Move to trash failed");
+        assert(details == "Select a project first.");
+        errors++;
+    });
+    controller.card_trashed.connect((card_id) => { trashed = true; });
+    controller.move_card_to_trash.begin("c1", false, (source, result) => {
+        controller.move_card_to_trash.end(result);
+        completed = true;
+    });
+
+    assert(wait_for_condition(() => completed));
+    assert(errors == 1);
+    assert(api.delete_card_calls == 0);
+    assert(api.list_cards_calls == 0);
+    assert(!trashed);
+}
+
 private void test_move_card_to_trash_without_api_emits_unavailable() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -3744,6 +3773,10 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/move_card_to_trash_failure_emits_error",
         test_move_card_to_trash_failure_emits_error
+    );
+    Test.add_func(
+        "/main_controller/move_card_to_trash_without_project_emits_error_without_deleting",
+        test_move_card_to_trash_without_project_emits_error_without_deleting
     );
     Test.add_func(
         "/main_controller/move_card_to_trash_without_api_emits_unavailable",

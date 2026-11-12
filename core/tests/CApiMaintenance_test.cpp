@@ -6,6 +6,11 @@
 #include "card/CardPaths.h"
 #include "card/LinkMutation.h"
 #include "core_test_helpers.h"
+#if __has_include(<catch2/matchers/catch_matchers_string.hpp>)
+#include <catch2/matchers/catch_matchers_string.hpp>
+#endif
+#include "sqlite_read_race_test_helpers.h"
+#include "card/CardStore.h"
 #include "git/GitOps.h"
 #include "git/EcdsaDerSigningCredentialProvider.h"
 #include "project/ProjectRepo.h"
@@ -84,6 +89,307 @@ struct Host {
   }
 };
 } // namespace
+
+TEST_CASE(
+    "Card creation rejects a cyclic existing parent chain without writing a new card",
+    "[capi][cyclic-create-parent]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto first = host.card(project, "First");
+  const auto second = host.card(project, "Second", first.c_str());
+  host.db.exec("UPDATE cards SET parent_card_id='" + second + "' WHERE card_id='" + first + "';");
+  const auto record = holder::project::ProjectRepo(host.db).get(project);
+  REQUIRE(record.has_value());
+  holder::git::GitRepo git;
+  git.open_existing(record->root_path);
+  const auto head = git.head_oid();
+  holder_new_card request{};
+  request.title = "Cannot create";
+  request.parent_card_id = first.c_str();
+  const holder_card* card = nullptr;
+  host.failed(
+      holder_create_card(
+          &host.context,
+          project.c_str(),
+          &request,
+          host.arena.get(),
+          &card,
+          &host.error
+      ),
+      HOLDER_ERROR_INVALID_ARGUMENT
+  );
+  CHECK(card == nullptr);
+  CHECK(holder::card::CardRepo(host.db).list_all(project).size() == 2);
+  CHECK(git.head_oid() == head);
+}
+
+TEST_CASE("Card moves revalidate source and parent changes before writing", "[capi][broad-move-race]") {
+  Host host;
+  const auto project = host.project();
+  const auto source = host.card(project, "Source");
+  const auto target = host.card(project, "Target");
+  const auto row = holder::project::ProjectRepo(host.db).get(project);
+  REQUIRE(row.has_value());
+  holder::git::GitRepo git;
+  git.open_existing(row->root_path);
+  const auto head = git.head_oid();
+  int operation = 0;
+  int expected = HOLDER_ERROR_NOT_FOUND;
+  std::string mutation;
+  SECTION("source is trashed after the initial lookup") {
+    mutation = "UPDATE cards SET deleted_at=10 WHERE card_id='" + source + "';";
+  }
+  SECTION("a parent cycle appears after the initial check") {
+    mutation = "UPDATE cards SET parent_card_id='" + source + "' WHERE card_id='" + target + "';";
+    expected = HOLDER_ERROR_INVALID_MOVE;
+  }
+  SECTION("an update's parent disappears after validation") {
+    operation = 1;
+    mutation = "UPDATE cards SET deleted_at=10 WHERE card_id='" + target + "';";
+  }
+  holder::test::SqliteReadRace race(host.db.handle(), "FROM cards WHERE card_id", source, 2, mutation);
+  const holder_card* result = nullptr;
+  if (operation == 0) {
+    holder_card_move move{};
+    move.intent = HOLDER_CARD_MOVE_INTENT_INTO;
+    move.target_card_id = target.c_str();
+    host.failed(holder_move_card(&host.context, project.c_str(), source.c_str(), &move,
+        host.arena.get(), &result, &host.error), expected);
+  } else {
+    holder_card_update update{};
+    update.parent_card_id = {HOLDER_SET, target.c_str()};
+    host.failed(holder_update_card(&host.context, project.c_str(), source.c_str(), &update,
+        host.arena.get(), &result, &host.error), expected);
+  }
+  REQUIRE(race.fired);
+  REQUIRE(race.result == SQLITE_OK);
+  CHECK(result == nullptr);
+  CHECK(git.head_oid() == head);
+  CHECK_FALSE(holder::card::CardRepo(host.db).get(source)->parent_card_id.has_value());
+}
+
+TEST_CASE("Permanent deletion rechecks a card or message's project ownership",
+          "[capi][broad-purge-race]") {
+  Host host;
+  const auto project = host.project();
+  const auto other = host.project();
+  SECTION("trashed card changes projects before the locked read") {
+    const auto id = host.card(project, "Keep card");
+    holder::card::CardStore store(host.db, &host.fts, nullptr, &host.git);
+    store.trash(id, 10);
+    const auto row = holder::project::ProjectRepo(host.db).get(project);
+    holder::git::GitRepo git;
+    git.open_existing(row->root_path);
+    const auto head = git.head_oid();
+    holder::test::SqliteReadRace race(host.db.handle(), "FROM cards WHERE card_id", id, 2,
+        "UPDATE cards SET project_id='" + other + "' WHERE card_id='" + id + "';");
+    REQUIRE_THROWS_WITH(store.hard_delete(id, project),
+        Catch::Matchers::ContainsSubstring("card not found in project"));
+    REQUIRE(race.fired);
+    REQUIRE(race.result == SQLITE_OK);
+    const auto saved = store.get(id);
+    REQUIRE(saved.has_value());
+    CHECK(saved->project_id == other);
+    CHECK(saved->deleted_at == 10);
+    CHECK(git.head_oid() == head);
+    CHECK(std::filesystem::is_regular_file(std::filesystem::path(row->root_path) / holder::core::card_trash_rel_path(id)));
+  }
+  SECTION("trashed message changes to another project's thread") {
+    host.message(project, "message-first", "Keep message");
+    host.message(other, "message-second", "Other message");
+    holder::ai::AiMessageRepo messages(host.db, &host.fts);
+    messages.trash("message-first", 10);
+    holder::test::SqliteReadRace race(host.db.handle(), "FROM ai_messages WHERE message_id", "message-first", 2,
+        "UPDATE ai_messages SET thread_id='thread-message-second' WHERE message_id='message-first';");
+    REQUIRE_THROWS_WITH(messages.remove_trashed(project, "message-first"),
+        Catch::Matchers::ContainsSubstring("ai message not found in project"));
+    REQUIRE(race.fired);
+    REQUIRE(race.result == SQLITE_OK);
+    const auto saved = messages.get("message-first");
+    REQUIRE(saved.has_value());
+    CHECK(saved->thread_id == "thread-message-second");
+    CHECK(saved->deleted_at == 10);
+    CHECK(saved->content == "Keep message");
+  }
+}
+
+TEST_CASE("Generated API aliases preserve their documented behavior", "[capi][broad-api-aliases]") {
+  Host host;
+  const auto project = host.project();
+  const auto parent = host.card(project, "Parent");
+  const auto child = host.card(project, "Child", parent.c_str());
+  const holder_project_encryption_check* safety = nullptr;
+  REQUIRE(holder_check_project_encryption(&host.context, project.c_str(), host.arena.get(),
+      &safety, &host.error) == HOLDER_OK);
+  CHECK(safety->privacy_mode == HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_PLAIN);
+  holder_list_cards_parent scope{};
+  const holder_card_list_item_page* page = nullptr;
+  REQUIRE(holder_list_cards(&host.context, project.c_str(), scope, nullptr,
+      HOLDER_LIST_CARDS_ORDER_CARD_ID_ASC, nullptr, nullptr, false, false,
+      host.arena.get(), &page, &host.error) == HOLDER_OK);
+  REQUIRE(page->items.count == 2);
+  CHECK(std::string(page->items.items[0].card_id) < std::string(page->items.items[1].card_id));
+  const holder_card* trashed = nullptr;
+  REQUIRE(holder_trash_card(&host.context, project.c_str(), parent.c_str(),
+      HOLDER_TRASH_CARD_CHILDREN_PROMOTE, host.arena.get(), &trashed, &host.error) == HOLDER_OK);
+  const auto promoted = holder::card::CardRepo(host.db).get(child);
+  REQUIRE(promoted.has_value());
+  CHECK_FALSE(promoted->parent_card_id.has_value());
+  CHECK_FALSE(promoted->deleted_at.has_value());
+  const holder_trash_empty_result* emptied = nullptr;
+  REQUIRE(holder_empty_trash(&host.context, project.c_str(), HOLDER_EMPTY_TRASH_TYPE_AI_MESSAGE,
+      host.arena.get(), &emptied, &host.error) == HOLDER_OK);
+  CHECK(holder::card::CardRepo(host.db).get(parent).has_value());
+  REQUIRE(holder_empty_trash(&host.context, project.c_str(), HOLDER_EMPTY_TRASH_TYPE_DEFAULT,
+      host.arena.get(), &emptied, &host.error) == HOLDER_OK);
+  CHECK_FALSE(holder::card::CardRepo(host.db).get(parent).has_value());
+  CHECK(holder::card::CardRepo(host.db).get(child).has_value());
+}
+
+TEST_CASE("Generated C API rejects unsupported input enums without changing cards",
+          "[capi][batch-enum-validation]") {
+  Host host;
+  const auto project = host.project();
+  const auto card_id = host.card(project, "Keep me");
+  const auto project_row = holder::project::ProjectRepo(host.db).get(project);
+  REQUIRE(project_row.has_value());
+  holder::git::GitRepo git;
+  git.open_existing(project_row->root_path);
+  const auto head = git.head_oid();
+  for (int operation = 0; operation < 5; ++operation) {
+    INFO("invalid enum operation " << operation);
+    const holder_card_list_item_page* cards = nullptr;
+    const holder_card* card = nullptr;
+    const holder_project_history_page* history = nullptr;
+    const holder_card_history_comparison* comparison = nullptr;
+    const holder_trash_empty_result* emptied = nullptr;
+    int status;
+    if (operation == 0) {
+      holder_list_cards_parent parent{};
+      parent.kind = HOLDER_LIST_CARDS_PARENT_MAX_ENUM;
+      status = holder_list_cards(&host.context, project.c_str(), parent, nullptr,
+          HOLDER_LIST_CARDS_ORDER_DEFAULT, nullptr, nullptr, false, false, host.arena.get(), &cards, &host.error);
+    } else if (operation == 1) {
+      status = holder_trash_card(&host.context, project.c_str(), card_id.c_str(),
+          HOLDER_TRASH_CARD_CHILDREN_MAX_ENUM, host.arena.get(), &card, &host.error);
+    } else if (operation == 2) {
+      status = holder_list_project_history(&host.context, project.c_str(), nullptr, nullptr,
+          HOLDER_LIST_PROJECT_HISTORY_KIND_MAX_ENUM, host.arena.get(), &history, &host.error);
+    } else if (operation == 3) {
+      status = holder_compare_card_history(&host.context, project.c_str(), card_id.c_str(),
+          head->c_str(), nullptr, HOLDER_COMPARE_CARD_HISTORY_MODE_MAX_ENUM,
+          host.arena.get(), &comparison, &host.error);
+    } else {
+      status = holder_empty_trash(&host.context, project.c_str(), HOLDER_EMPTY_TRASH_TYPE_MAX_ENUM,
+          host.arena.get(), &emptied, &host.error);
+    }
+    host.failed(status, HOLDER_ERROR_INVALID_ARGUMENT);
+    CHECK(cards == nullptr);
+    CHECK(card == nullptr);
+    CHECK(history == nullptr);
+    CHECK(comparison == nullptr);
+    CHECK(emptied == nullptr);
+    CHECK(git.head_oid() == head);
+    const auto current = holder::card::CardRepo(host.db).get(card_id);
+    REQUIRE(current.has_value());
+    CHECK_FALSE(current->deleted_at.has_value());
+    CHECK(current->title == "Keep me");
+  }
+}
+
+TEST_CASE(
+    "Generated card moves reject invalid targets and damaged sources without changing hierarchy",
+    "[capi][move-errors]"
+) {
+  Host host;
+  const auto project = host.project();
+  const auto root = host.card(project, "Root");
+  const auto source = host.card(project, "Source", root.c_str());
+  const auto child = host.card(project, "Child", source.c_str());
+  const auto sibling = host.card(project, "Sibling", root.c_str());
+  const auto other_project = host.project();
+  const auto foreign = host.card(other_project, "Foreign");
+  const auto project_record = holder::project::ProjectRepo(host.db).get(project);
+  REQUIRE(project_record.has_value());
+  holder::git::GitRepo git;
+  git.open_existing(project_record->root_path);
+  holder_card_move move{};
+  move.intent = HOLDER_CARD_MOVE_INTENT_INTO;
+  std::string target = sibling;
+  std::string moved = source;
+  int expected = HOLDER_ERROR_INVALID_MOVE;
+  bool missing_file = false;
+  bool bad_path = false;
+  SECTION("before itself") {
+    move.intent = HOLDER_CARD_MOVE_INTENT_BEFORE;
+    target = source;
+  }
+  SECTION("after itself") {
+    move.intent = HOLDER_CARD_MOVE_INTENT_AFTER;
+    target = source;
+  }
+  SECTION("into its descendant") { target = child; }
+  SECTION("missing target") {
+    target = "00000000-0000-4000-8000-000000000001";
+    expected = HOLDER_ERROR_NOT_FOUND;
+  }
+  SECTION("foreign target") {
+    target = foreign;
+    expected = HOLDER_ERROR_NOT_FOUND;
+  }
+  SECTION("trashed target") {
+    const holder_card* trashed = nullptr;
+    REQUIRE(holder_trash_card(&host.context, project.c_str(), sibling.c_str(),
+        HOLDER_TRASH_CARD_CHILDREN_TRASH_SUBTREE, host.arena.get(), &trashed, &host.error) == HOLDER_OK);
+    expected = HOLDER_ERROR_NOT_FOUND;
+  }
+  SECTION("root cannot move up a level") {
+    moved = root;
+    move.intent = HOLDER_CARD_MOVE_INTENT_UP_LEVEL;
+  }
+  SECTION("missing source content") {
+    missing_file = true;
+    expected = HOLDER_ERROR_RUNTIME;
+  }
+  SECTION("source path does not match its identity") {
+    bad_path = true;
+    expected = HOLDER_ERROR_RUNTIME;
+    host.db.exec("UPDATE cards SET rel_path='cards/wrong.md' WHERE card_id='" + source + "';");
+  }
+  const auto path = std::filesystem::path(project_record->root_path) / holder::core::card_rel_path(source);
+  std::ifstream input(path, std::ios::binary);
+  REQUIRE(input.is_open());
+  const std::string content{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+  input.close();
+  if (missing_file) std::filesystem::rename(path, path.string() + ".saved");
+  const auto before = holder::card::CardRepo(host.db).list_all(project);
+  const auto head = git.head_oid();
+  REQUIRE(head.has_value());
+  move.target_card_id = target.c_str();
+  const holder_card* result = nullptr;
+  host.failed(holder_move_card(&host.context, project.c_str(), moved.c_str(), &move,
+      host.arena.get(), &result, &host.error), expected);
+  CHECK(result == nullptr);
+  CHECK(git.head_oid() == head);
+  const auto after = holder::card::CardRepo(host.db).list_all(project);
+  REQUIRE(after.size() == before.size());
+  for (const auto& old : before) {
+    const auto current = holder::card::CardRepo(host.db).get(old.card_id);
+    REQUIRE(current.has_value());
+    CHECK(current->parent_card_id == old.parent_card_id);
+    CHECK(current->sort_key == old.sort_key);
+    CHECK(current->updated_at == old.updated_at);
+    CHECK(current->deleted_at == old.deleted_at);
+    CHECK(current->rel_path == old.rel_path);
+  }
+  if (missing_file) std::filesystem::rename(path.string() + ".saved", path);
+  if (bad_path) host.db.exec("UPDATE cards SET rel_path='" + holder::core::card_rel_path(source) +
+                           "' WHERE card_id='" + source + "';");
+  std::ifstream remaining(path, std::ios::binary);
+  REQUIRE(remaining.is_open());
+  CHECK(std::string(std::istreambuf_iterator<char>(remaining), std::istreambuf_iterator<char>()) == content);
+}
 
 TEST_CASE(
     "Generated Home creation is idempotent and returns an optional project",
