@@ -166,9 +166,10 @@ if terminal_backend == 'vte'
   endif
 endif
 
+# Everything but the entry point, so the app view tests can build the same program around their
+# own main.
 sources = [
   holder_config,
-  'main.vala',
   'src/app.vala',
   'src/models/server.vala',
     'src/models/project.vala',
@@ -415,7 +416,7 @@ endif
 
 executable(
   'holder-desktop',
-  [sources, help_resources, windows_resources],
+  ['main.vala', sources, help_resources, windows_resources],
   dependencies: deps,
   vala_args: [
     '--target-glib=2.70',
@@ -3969,6 +3970,38 @@ if gtk_dep.version().version_compare('>=4.18')
   app_test_env.set('GDK_DEBUG', 'no-portals')
 endif
 test('holder-gtk-app-tests', app_test_exe, env: app_test_env)
+
+# The app's own views (the window, its workspace, the toolbox and their adapters) build on nearly
+# every other part of the app, so their tests are one program built from the app's sources.
+app_views_test_exe = executable(
+  'holder-gtk-app-views-tests',
+  [
+    sources,
+    help_resources,
+    'tests/support/test_utils.vala',
+    'tests/app_views/harness.vala',
+    'tests/app_views/editor_renderer_test.vala',
+    'tests/app_views/main.vala',
+  ],
+  dependencies: deps,
+  vala_args: [
+    '--target-glib=2.70',
+  ] + calendar_compat_vala_args + terminal_compat_vala_args,
+  c_args: vala_generated_c_args,
+  link_with: hidden_process_link + [command_capture_lib],
+  install: false,
+)
+
+app_views_test_env = environment()
+# Installed, the app's Markdown language is among the data directories; the tests point at the source.
+app_views_test_env.set(
+  'HOLDER_MARKDOWN_LANGUAGE_DIR',
+  meson.project_source_root() / 'data' / 'gtksourceview-5' / 'language-specs',
+)
+if host_machine.system() not in ['darwin', 'linux']
+  app_views_test_env.set('GTK_A11Y', 'none')
+endif
+test('holder-gtk-app-views-tests', app_views_test_exe, env: app_views_test_env, timeout: 120)
 
 print_service_test_exe = executable(
   'holder-gtk-print-service-tests',
