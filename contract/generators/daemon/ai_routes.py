@@ -193,9 +193,11 @@ def generate_ai_routes(contract: ContractView) -> str:
         lines += [f"            {line}" for line in decodes]
         if op.returns.kind == "stream":
             lines += [f"            auto outcome = {call};",
+                      "            // LCOV_EXCL_START - runtime stream implementations return only 200 or 204;",
+                      "            // a defensive contract guard.",
                       "            if (outcome.status != 200 && outcome.status != 204)",
-                      (f'                throw std::logic_error("{name} chose an undeclared success status"); '
-                       '// LCOV_EXCL_LINE: runtime stream implementations return only 200 or 204; defensive contract guard.'),
+                      f'                throw std::logic_error("{name} chose an undeclared success status");',
+                      "            // LCOV_EXCL_STOP",
                       f'            return response{{outcome.status, json(), "{name}", std::move(outcome.value)}};']
         else:
             lines += [f'            return response{{{binding.status}, ai_json::encode({call}), "{name}"}};']
