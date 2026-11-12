@@ -93,8 +93,15 @@ signing handoffs and [Python distribution preparation](python-preparation.md), t
 publication decision. [Linux signing](linux-signing.md) and [prepared Python publication](python-publication.md) use
 the same record. [Linux promotion](linux-promotion.md) delivers the accepted signed
 files using that record; [core SDK publication](sdk-publication.md) publishes its
-accepted SDK set. Other desktop delivery, PPA
-completion and website completion remain subsequent coordinator slices in #120.
+accepted SDK set. [Windows delivery](windows-promotion.md), the
+[macOS handoff](macos-delivery.md), [PPA availability](launchpad-availability.md)
+and [website verification](runbook.md#9-update-the-website-and-installed-app-feed)
+also use the same record.
+
+Select the intended destinations with `scope --include <destinations>` and the
+same `--record` argument. The `status` completion table lists saved destination
+outcomes, last checks and commands to continue or refresh them. The detailed
+artifact and verification evidence follows the table.
 The first end-to-end validation is the next actual release using this entry
 point; a separate rehearsal or extra build matrix is not required.
 

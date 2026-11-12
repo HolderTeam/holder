@@ -101,6 +101,32 @@ uncertain requests, expiry and recovery points. After `candidate_staged`, contin
 with section 5's validation and the publication decision. The manual steps in
 sections 3–4 remain available independently.
 
+Record the intended destinations after the candidate record exists.
+
+```sh
+python3 release/scripts/release.py scope \
+  --record release/records/<version>-candidate-1.json \
+  --include linux macos windows sdk kit-pypi python-pypi ppa website
+python3 release/scripts/release.py status \
+  --record release/records/<version>-candidate-1.json
+```
+
+The selection defines which destinations the completion table tracks. Use the
+existing phase commands to perform each operation. Running `scope` again replaces
+the selection and retains all recorded evidence. Optional `kit-testpypi` and
+`python-testpypi` selections track those destinations independently.
+
+The table shows the recorded outcome, last check and relevant continuation or
+recheck command. A delivered draft remains labelled as a draft. PPA availability
+counts the source/series targets with matching current observations and accepted
+receipts. Follow the displayed command with the same `--record` argument to
+refresh a destination's remote evidence. `status` reads the saved record locally,
+including while another release command holds its lock.
+
+Older records display the normal destinations and any recorded TestPyPI
+publications until a scope is selected. Review the recorded outcomes alongside
+section 5's platform/upgrade matrix and section 6's publication decision.
+
 Dispatch both workflows on the frozen build branch:
 
 ```sh
@@ -452,5 +478,5 @@ correct the procedure where needed, and retain evidence for any recovery that
 was necessary. Do not manufacture failures or require a separate rehearsal to
 finish the documentation work. The [roadmap](https://github.com/HolderTeam/holder/issues/122)
 tracks manifest generation (#121), version derivation (#130), website generation
-(#110) and a future single entry point (#120). Replace manual steps when their
-automation is proven; monthly scheduling (#192) remains a separate decision.
+(#110) and the resumable release coordinator (#120). Record operational evidence
+from the next actual release as these handoffs are exercised; monthly scheduling (#192) remains a separate decision.
