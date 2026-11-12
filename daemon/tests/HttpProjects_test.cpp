@@ -1,5 +1,5 @@
-#include "http_test_helpers.h"
 #include "card/TagRepo.h"
+#include "http_test_helpers.h"
 
 #include <fstream>
 #include <git2.h>
@@ -64,38 +64,69 @@ TEST_CASE("HTTP project tags use the generated route", "[http][tags]") {
   REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, token));
 
   const auto bye = holder::test::http_request_raw(
-      bound.bind, bound.port, token, boost::beast::http::verb::post, "/bye");
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::post,
+      "/bye"
+  );
   REQUIRE(bye.status == boost::beast::http::status::ok);
   REQUIRE(nlohmann::json::parse(bye.body) == nlohmann::json{{"ok", true}});
 
   const auto reply = holder::test::http_request_raw(
-      bound.bind, bound.port, token, boost::beast::http::verb::get,
-      "/projects/proj-1/tags");
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::get,
+      "/projects/proj-1/tags"
+  );
   REQUIRE(reply.status == boost::beast::http::status::ok);
   REQUIRE(reply.content_type == "application/json");
-  REQUIRE(nlohmann::json::parse(reply.body) == nlohmann::json{
-      {"ok", true}, {"data", nlohmann::json::array({{{"tag", "sync"}, {"card_count", 1}}})}});
+  REQUIRE(
+      nlohmann::json::parse(reply.body) ==
+      nlohmann::json{
+          {"ok", true},
+          {"data", nlohmann::json::array({{{"tag", "sync"}, {"card_count", 1}}})}
+      }
+  );
 
   const auto missing = holder::test::http_request_raw(
-      bound.bind, bound.port, token, boost::beast::http::verb::get,
-      "/projects/missing/tags");
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::get,
+      "/projects/missing/tags"
+  );
   REQUIRE(missing.status == boost::beast::http::status::not_found);
   REQUIRE(nlohmann::json::parse(missing.body)["error"]["code"] == "not_found");
 
   const auto malformed = holder::test::http_request_raw(
-      bound.bind, bound.port, token, boost::beast::http::verb::get,
-      "/projects/bad%XX/tags");
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::get,
+      "/projects/bad%XX/tags"
+  );
   REQUIRE(malformed.status == boost::beast::http::status::bad_request);
   REQUIRE(nlohmann::json::parse(malformed.body)["error"]["code"] == "invalid_argument");
 
   const auto legacy = holder::test::http_request_raw(
-      bound.bind, bound.port, token, boost::beast::http::verb::get, "/projects");
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::get,
+      "/projects"
+  );
   REQUIRE(legacy.status == boost::beast::http::status::ok);
   REQUIRE(nlohmann::json::parse(legacy.body)["ok"] == true);
 
   const auto denied = holder::test::http_request_raw(
-      bound.bind, bound.port, "wrong-token", boost::beast::http::verb::get,
-      "/projects/proj-1/tags");
+      bound.bind,
+      bound.port,
+      "wrong-token",
+      boost::beast::http::verb::get,
+      "/projects/proj-1/tags"
+  );
   REQUIRE(denied.status == boost::beast::http::status::unauthorized);
 }
 
@@ -261,10 +292,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
   git_repo.open_or_init(manual_project_root.string());
   git_repo.set_remote("origin", "git@github.com:me/demo.git");
 
-  nlohmann::json clear_git = {
-      {"git_remote_url", nullptr},
-      {"git_provider", nullptr}
-  };
+  nlohmann::json clear_git = {{"git_remote_url", nullptr}, {"git_provider", nullptr}};
 
   http_json_request(
       bound.bind,
@@ -388,12 +416,24 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
   REQUIRE(proj2_seen);
 
   const auto numeric_count = http_json_request(
-      bound.bind, bound.port, token, boost::beast::http::verb::get,
-      "/projects?include_card_counts=true", nlohmann::json::object(), boost::beast::http::status::ok);
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::get,
+      "/projects?include_card_counts=true",
+      nlohmann::json::object(),
+      boost::beast::http::status::ok
+  );
   REQUIRE(numeric_count["data"][0].contains("card_count"));
   const auto numeric_no_count = http_json_request(
-      bound.bind, bound.port, token, boost::beast::http::verb::get,
-      "/projects?include_card_counts=false", nlohmann::json::object(), boost::beast::http::status::ok);
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::get,
+      "/projects?include_card_counts=false",
+      nlohmann::json::object(),
+      boost::beast::http::status::ok
+  );
   REQUIRE_FALSE(numeric_no_count["data"][0].contains("card_count"));
 
   const auto filtered_by_name = http_json_request(

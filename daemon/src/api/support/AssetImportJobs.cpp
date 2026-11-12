@@ -16,9 +16,11 @@ void put_import_job(const ImportJob& job) {
   import_jobs[job.job_id] = job;
 }
 
-void update_import_job(const std::string& job_id,
-                       const std::string& status,
-                       const std::string& error) {
+void update_import_job(
+    const std::string& job_id,
+    const std::string& status,
+    const std::string& error
+) {
   std::lock_guard<std::mutex> lock(import_jobs_mutex);
   auto found = import_jobs.find(job_id);
   if (found == import_jobs.end()) return;
@@ -26,11 +28,13 @@ void update_import_job(const std::string& job_id,
   found->second.error = error;
 }
 
-void complete_import_job(const std::string& job_id,
-                         const std::string& resource_id,
-                         const std::string& asset_id,
-                         bool duplicate_reused,
-                         bool link_created) {
+void complete_import_job(
+    const std::string& job_id,
+    const std::string& resource_id,
+    const std::string& asset_id,
+    bool duplicate_reused,
+    bool link_created
+) {
   std::lock_guard<std::mutex> lock(import_jobs_mutex);
   auto found = import_jobs.find(job_id);
   if (found == import_jobs.end()) return;

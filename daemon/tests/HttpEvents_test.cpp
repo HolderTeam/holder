@@ -96,10 +96,10 @@ TEST_CASE(
   for (const auto& [target, status] :
        {std::pair{"/events/cursor?project_id=missing", http::status::not_found},
         std::pair{"/events/cursor?project_id=", http::status::bad_request}}) {
-    REQUIRE(holder::test::http_request_raw(
-                bound.bind, bound.port, "testtoken", http::verb::get, target
-            )
-                .status == status);
+    REQUIRE(
+        holder::test::http_request_raw(bound.bind, bound.port, "testtoken", http::verb::get, target)
+            .status == status
+    );
   }
   std::vector<std::unique_ptr<EventClient>> clients;
   for (int i = 0; i < 16; ++i) {
@@ -269,7 +269,10 @@ TEST_CASE(
   REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, "testtoken"));
 }
 
-TEST_CASE("An active HTTP change stream requests resync when its observer fails", "[http][events]") {
+TEST_CASE(
+    "An active HTTP change stream requests resync when its observer fails",
+    "[http][events]"
+) {
   auto db = holder::test::open_db_with_schema(holder::test::make_temp_dir() / "holder.db");
   holder::test::create_project(db, "p");
   holder::api::HttpServer server("127.0.0.1", 0, db, "testtoken", nullptr, nullptr);

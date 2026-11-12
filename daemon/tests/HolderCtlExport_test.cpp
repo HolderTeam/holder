@@ -224,10 +224,7 @@ TEST_CASE(
       "asset_not_found"
   );
   run_error("missing --output " + quote_export_path(output), "not_found");
-  run_error(
-      foreign.resource.resource_id + " --output " + quote_export_path(output),
-      "not_found"
-  );
+  run_error(foreign.resource.resource_id + " --output " + quote_export_path(output), "not_found");
   run_error(resource_id, "invalid_arguments");
   run_error(resource_id + " --output -", "invalid_arguments");
   run_error(resource_id + " --output", "invalid_arguments");
@@ -242,8 +239,10 @@ TEST_CASE(
   REQUIRE(read_export_bytes(output) == "original");
   write_export_bytes(objects / big.assets[0].placements[0].object_key, "damaged stored asset");
   // Core's envelope verifier reports damaged bytes as a storage integrity failure.
-  const auto damaged = run_error(big.resource.resource_id + " --output " + quote_export_path(output),
-                                 "storage_integrity_failed");
+  const auto damaged = run_error(
+      big.resource.resource_id + " --output " + quote_export_path(output),
+      "storage_integrity_failed"
+  );
   REQUIRE(
       damaged["error"]["message"].get<std::string>().find("integrity check failed") !=
       std::string::npos

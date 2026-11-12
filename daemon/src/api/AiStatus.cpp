@@ -36,9 +36,11 @@ CasteRecommendedModel recommended_model(const nlohmann::json& item) {
 
 } // namespace
 
-RunnerCapabilitiesResponse get_ai_capabilities(holder::platform::Db& db,
-                                               holder::llm::RunnerRegistry* registry,
-                                               std::optional<std::string> runner_id) {
+RunnerCapabilitiesResponse get_ai_capabilities(
+    holder::platform::Db& db,
+    holder::llm::RunnerRegistry* registry,
+    std::optional<std::string> runner_id
+) {
   RunnerCapabilitiesResponse response{true, {}};
   auto& data = response.data;
   try {
@@ -47,11 +49,12 @@ RunnerCapabilitiesResponse get_ai_capabilities(holder::platform::Db& db,
     // The capabilities view stays available without the saved model preferences.
   }
   const auto caste = support::detect_machine_caste();
-  data.caste.emplace();  // Always sent, as null when the caste cannot be detected.
+  data.caste.emplace(); // Always sent, as null when the caste cannot be detected.
   if (caste) {
-    data.caste->emplace(CasteInfo{caste->name, caste->reason.empty()
-                                                   ? std::nullopt
-                                                   : std::optional<std::string>(caste->reason)});
+    data.caste->emplace(CasteInfo{
+        caste->name,
+        caste->reason.empty() ? std::nullopt : std::optional<std::string>(caste->reason)
+    });
   }
   data.runners = runners_with_runtime(registry);
   if (!caste) return response;
@@ -62,7 +65,10 @@ RunnerCapabilitiesResponse get_ai_capabilities(holder::platform::Db& db,
   auto* client = registry ? registry->get_client(selected) : nullptr;
   const auto installed = client ? client->status().models : std::vector<holder::llm::LocalModel>{};
   for (const auto& item : support::build_caste_recommendations(
-           installed, support::load_local_model_meta(), caste->name)) {
+           installed,
+           support::load_local_model_meta(),
+           caste->name
+       )) {
     auto model = recommended_model(item);
     if (!model.installed) data.recommended_install.push_back(model);
     data.recommended_models.push_back(std::move(model));

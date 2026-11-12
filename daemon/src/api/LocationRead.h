@@ -9,8 +9,12 @@
 #include <string>
 #include <vector>
 
-namespace holder::platform { class Db; }
-namespace holder::privacy { class SecretStore; }
+namespace holder::platform {
+class Db;
+}
+namespace holder::privacy {
+class SecretStore;
+}
 
 namespace holder::api {
 
@@ -25,8 +29,10 @@ struct LocationNotFound : std::runtime_error {
       : std::runtime_error(message) {}
 };
 
-StorageLocationListResponse get_locations(holder::platform::Db& db,
-                                          holder::privacy::SecretStore* secret_store,
-                                          std::string project_id);
+StorageLocationListResponse get_locations(
+    holder::platform::Db& db,
+    holder::privacy::SecretStore* secret_store,
+    std::string project_id
+);
 
 } // namespace holder::api

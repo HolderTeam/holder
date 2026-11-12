@@ -15,9 +15,11 @@ void require_change_feed_project(holder::platform::Db& db, const std::string& pr
   if (!exists) throw EventCursorProjectNotFound();
 }
 
-EventCheckpointResponse get_events_cursor(holder::platform::Db& db,
-                                          holder::api::support::EventService* events,
-                                          std::optional<std::string> project_id) {
+EventCheckpointResponse get_events_cursor(
+    holder::platform::Db& db,
+    holder::api::support::EventService* events,
+    std::optional<std::string> project_id
+) {
   if (project_id.has_value()) require_change_feed_project(db, *project_id);
   if (events == nullptr) throw ChangeFeedUnavailable();
   auto checkpoint = events->current_checkpoint(project_id.value_or(""));

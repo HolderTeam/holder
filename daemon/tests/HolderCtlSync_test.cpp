@@ -192,8 +192,11 @@ class ConcurrentPullGitOps final : public holder::git::GitOps {
 
 // A remote change's --json output is the project as it is now, with the remote shown as holderctl
 // shows it.
-void check_mutation(const CliResult& result, SyncFixture& fixture,
-                    std::optional<std::string> shown_remote = std::nullopt) {
+void check_mutation(
+    const CliResult& result,
+    SyncFixture& fixture,
+    std::optional<std::string> shown_remote = std::nullopt
+) {
   REQUIRE(result.code == 0);
   CHECK(result.error.empty());
   auto expected = fixture.request(http::verb::get, work_id);
@@ -315,7 +318,9 @@ TEST_CASE("holderctl sync remote redacts URLs and diagnostics", "[holderctl][syn
           "remote 'https://user:private-secret@example.com/new.git' --project " + work_id +
           " --json"
       ),
-      fixture, "[redacted]");
+      fixture,
+      "[redacted]"
+  );
 }
 
 TEST_CASE(
@@ -488,7 +493,11 @@ TEST_CASE(
   );
   CHECK(read_text(fixture.dir / "work" / "seed.txt") == "uncommitted edits");
   CHECK(
-      fixture.request(http::verb::get, work_id + "/git/sync-status")["data"]["uncommitted_changes_count"]
+      fixture
+          .request(
+              http::verb::get,
+              work_id + "/git/sync-status"
+          )["data"]["uncommitted_changes_count"]
           .get<int>() > 0
   );
   local.write_file("seed.txt", "seed");
@@ -615,7 +624,8 @@ TEST_CASE("holderctl sync push preserves results and conflict state", "[holderct
       fixture.request(http::verb::get, work_id + "/git/sync-status")["data"]["last_push_status"] ==
       holder::git::push_status_name(git.push_result.status)
   );
-  CHECK(fixture.request(http::verb::get, "home-id/git/sync-status")["data"]["updated_at"].is_null());
+  CHECK(fixture.request(http::verb::get, "home-id/git/sync-status")["data"]["updated_at"].is_null()
+  );
 }
 
 TEST_CASE("holderctl sync test redacts successful remote URLs", "[holderctl][sync][probe]") {

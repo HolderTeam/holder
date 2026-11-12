@@ -89,19 +89,24 @@ class ProjectRoutesTestGitOps final : public holder::git::GitOps {
   std::filesystem::path repo_dir() const override { return {}; }
 };
 
-
 // Routes a request through the generated routes, as the daemon does.
-bool route_project(const boost::beast::http::request<boost::beast::http::string_body>& req,
-                   boost::beast::http::response<boost::beast::http::string_body>& res,
-                   holder::platform::Db& db,
-                   holder::git::GitOps* git) {
-  return holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, nullptr, git,
-                                                [] { return std::string("generated-id"); });
+bool route_project(
+    const boost::beast::http::request<boost::beast::http::string_body>& req,
+    boost::beast::http::response<boost::beast::http::string_body>& res,
+    holder::platform::Db& db,
+    holder::git::GitOps* git
+) {
+  return holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, nullptr, git, [] {
+    return std::string("generated-id");
+  });
 }
 
 } // namespace
 
-TEST_CASE("Generated project deletion records a removal without deleting files", "[project-routes]") {
+TEST_CASE(
+    "Generated project deletion records a removal without deleting files",
+    "[project-routes]"
+) {
   const auto dir = holder::test::make_temp_dir();
   holder::test::EnvGuard data_env("XDG_DATA_HOME", (dir / "data").string());
   holder::test::EnvGuard config_env("XDG_CONFIG_HOME", (dir / "config").string());
@@ -124,7 +129,8 @@ TEST_CASE("Generated project deletion records a removal without deleting files",
   holder::project::ProjectSyncRepo sync_repo(db);
   sync_repo.record_push_result(project.project_id, "pushed", true, std::nullopt, 2);
   holder::core::ProjectRegistry registry(
-      holder::core::Paths::resolve("holder").project_registry_path());
+      holder::core::Paths::resolve("holder").project_registry_path()
+  );
   registry.remember({project});
   REQUIRE(registry.discover_roots(managed_root).size() == 1);
 
@@ -260,11 +266,8 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
         .remote_has_head = false,
         .error_message = "auth",
     };
-    auto [status, payload] = call(
-        http::verb::post,
-        "/projects/proj-1/git/test-remote",
-        {{"remote_url", nullptr}}
-    );
+    auto [status, payload] =
+        call(http::verb::post, "/projects/proj-1/git/test-remote", {{"remote_url", nullptr}});
     REQUIRE(status == http::status::bad_request);
     REQUIRE(payload["error"]["code"] == "invalid_argument");
   }
@@ -289,7 +292,15 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     req.prepare_payload();
     http::response<http::string_body> res;
     const bool handled = holder::api::dispatch_generated_routes(
-        req, res, db, nullptr, nullptr, nullptr, &git, uuid_v4);
+        req,
+        res,
+        db,
+        nullptr,
+        nullptr,
+        nullptr,
+        &git,
+        uuid_v4
+    );
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::bad_request);
   }
@@ -311,15 +322,15 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
   SECTION("git push refuses plaintext blobs in an encrypted project") {
     repo.update_privacy_mode(project.project_id, "encrypted_git", 2);
     std::filesystem::create_directories(std::filesystem::path(project.root_path) / "cards");
-    std::ofstream(std::filesystem::path(project.root_path) / "cards" / "unsafe.md")
-        << "plaintext";
+    std::ofstream(std::filesystem::path(project.root_path) / "cards" / "unsafe.md") << "plaintext";
     auto [status, payload] =
         call(http::verb::post, "/projects/proj-1/git/push", nlohmann::json::object());
     // Plaintext where only ciphertext belongs: Holder refuses to push it.
     REQUIRE(status == http::status::internal_server_error);
     REQUIRE(payload["error"]["code"] == "data_corrupted");
-    REQUIRE(payload["error"]["message"].get<std::string>().find("cards/unsafe.md") !=
-            std::string::npos);
+    REQUIRE(
+        payload["error"]["message"].get<std::string>().find("cards/unsafe.md") != std::string::npos
+    );
     // Refused before any Git work.
     REQUIRE(git.calls.empty());
   }
@@ -360,7 +371,15 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     req.prepare_payload();
     http::response<http::string_body> res;
     const bool handled = holder::api::dispatch_generated_routes(
-        req, res, db, nullptr, nullptr, nullptr, &git, uuid_v4);
+        req,
+        res,
+        db,
+        nullptr,
+        nullptr,
+        nullptr,
+        &git,
+        uuid_v4
+    );
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::bad_request);
   }
@@ -376,9 +395,13 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
 
   SECTION("missing key material is an internal privacy failure") {
     const holder::privacy::PrivacyError missing(
-        holder::privacy::PrivacyErrorCode::KeyMaterialMissing, "missing");
-    REQUIRE_THROWS_AS(holder::api::support::throw_privacy_failure(missing),
-                      holder::api::support::PrivacyBroken);
+        holder::privacy::PrivacyErrorCode::KeyMaterialMissing,
+        "missing"
+    );
+    REQUIRE_THROWS_AS(
+        holder::api::support::throw_privacy_failure(missing),
+        holder::api::support::PrivacyBroken
+    );
   }
 
   SECTION("forced pull returns structured success") {
@@ -421,11 +444,8 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
         .behind_count = 0,
         .error_message = "push authentication failed",
     };
-    auto [status, payload] = call(
-        http::verb::post,
-        "/projects/proj-1/git/sync",
-        {{"branch", "main"}}
-    );
+    auto [status, payload] =
+        call(http::verb::post, "/projects/proj-1/git/sync", {{"branch", "main"}});
     REQUIRE(status == http::status::ok);
     REQUIRE(payload["data"]["status"] == "failed");
     REQUIRE(payload["data"]["push"]["status"] == "auth_failed");
@@ -445,7 +465,15 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     req.prepare_payload();
     http::response<http::string_body> res;
     const bool handled = holder::api::dispatch_generated_routes(
-        req, res, db, nullptr, nullptr, nullptr, &git, uuid_v4);
+        req,
+        res,
+        db,
+        nullptr,
+        nullptr,
+        nullptr,
+        &git,
+        uuid_v4
+    );
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::bad_request);
   }
@@ -536,8 +564,7 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
   }
 
   SECTION("project metadata update persists successfully") {
-    auto [status, payload] =
-        call(http::verb::patch, "/projects/proj-1", {{"name", "Renamed"}});
+    auto [status, payload] = call(http::verb::patch, "/projects/proj-1", {{"name", "Renamed"}});
     REQUIRE(status == http::status::ok);
     REQUIRE(payload["data"]["project_id"] == "proj-1");
     REQUIRE(payload["data"]["name"] == "Renamed");
@@ -552,8 +579,11 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
   }
 
   SECTION("project update clears nullable remote and provider") {
-    auto [status, payload] = call(http::verb::patch, "/projects/proj-1",
-                                  {{"git_remote_url", nullptr}, {"git_provider", nullptr}});
+    auto [status, payload] = call(
+        http::verb::patch,
+        "/projects/proj-1",
+        {{"git_remote_url", nullptr}, {"git_provider", nullptr}}
+    );
     REQUIRE(status == http::status::ok);
     REQUIRE(payload["data"]["git_remote_url"].is_null());
     const auto updated = holder::project::ProjectRepo(db).get("proj-1");
@@ -563,13 +593,17 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
 
   SECTION("project update does not persist a rejected remote") {
     git.throw_on_set_remote = true;
-    auto [status, payload] = call(http::verb::patch, "/projects/proj-1",
-                                  {{"git_remote_url", "https://example.com/new.git"}});
+    auto [status, payload] = call(
+        http::verb::patch,
+        "/projects/proj-1",
+        {{"git_remote_url", "https://example.com/new.git"}}
+    );
     REQUIRE(status == http::status::bad_request);
     REQUIRE(payload["error"]["code"] == "invalid_argument");
     REQUIRE(git.calls == std::vector<std::string>{"remote"});
-    REQUIRE(holder::project::ProjectRepo(db).get("proj-1")->git_remote_url ==
-            project.git_remote_url);
+    REQUIRE(
+        holder::project::ProjectRepo(db).get("proj-1")->git_remote_url == project.git_remote_url
+    );
   }
 }
 
@@ -848,8 +882,10 @@ TEST_CASE("Privacy failures retain their category when translated for HTTP", "[p
   check.operator()<PrivacyRejected>(Code::EnvelopeInvalid);
 }
 
-TEST_CASE("Scheduled project sync validates intervals and skips projects without a remote",
-          "[project-routes]") {
+TEST_CASE(
+    "Scheduled project sync validates intervals and skips projects without a remote",
+    "[project-routes]"
+) {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::test::create_project(db, "local", (dir / "project").string());
@@ -876,7 +912,9 @@ TEST_CASE("Scheduled project sync validates intervals and skips projects without
   REQUIRE(missing.result() == http::status::not_found);
   CHECK(nlohmann::json::parse(missing.body()).at("error").at("code") == "not_found");
 
-  const auto skipped = call("/projects/local/git/sync-if-due?push_interval_seconds=20&pull_interval_seconds=30");
+  const auto skipped = call(
+      "/projects/local/git/sync-if-due?push_interval_seconds=20&pull_interval_seconds=30"
+  );
   REQUIRE(skipped.result() == http::status::ok);
   const auto data = nlohmann::json::parse(skipped.body()).at("data");
   CHECK(data.at("project_id") == "local");
@@ -914,7 +952,8 @@ TEST_CASE("Project history routes page card activity and validate filters", "[pr
   REQUIRE(next_page.at("activities").size() == 1);
   CHECK(page.at("activities").front().at("oid") != next_page.at("activities").front().at("oid"));
 
-  for (const std::string kind : {"resource", "location", "ai_data", "project_settings", "unknown"}) {
+  for (const std::string kind :
+       {"resource", "location", "ai_data", "project_settings", "unknown"}) {
     CAPTURE(kind);
     const auto filtered = get("?kind=" + kind);
     REQUIRE(filtered.result() == http::status::ok);

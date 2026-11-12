@@ -6,8 +6,8 @@
 
 #include "ai/AiRunnerRepo.h"
 #include "api/GeneratedRoutes.h"
-#include "llm/RunnerModelRef.h"
 #include "http_test_helpers.h"
+#include "llm/RunnerModelRef.h"
 
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/http.hpp>
@@ -73,9 +73,21 @@ holder::test::ServedRequest route_runner(
     holder::llm::RunnerRegistry* registry,
     const std::string& id
 ) {
-  return {holder::api::dispatch_generated_routes(req, res, db, registry, nullptr, nullptr, nullptr,
-                                                 [id] { return id; }),
-          false};
+  return {
+      holder::api::dispatch_generated_routes(
+          req,
+          res,
+          db,
+          registry,
+          nullptr,
+          nullptr,
+          nullptr,
+          [id] {
+            return id;
+          }
+      ),
+      false
+  };
 }
 
 } // namespace
@@ -498,14 +510,17 @@ TEST_CASE("AiRunnerRoutes covers retry guards and runtime pull serialization", "
     REQUIRE(runtime["last_checked"] == 123);
     REQUIRE(runtime["version"] == "fake");
     REQUIRE(runtime["error"].is_null());
-    REQUIRE(runtime["models"] == nlohmann::json::array({{
-        {"name", "qwen3:4b"},
-        {"runner_id", "auto-local"},
-        {"model_ref", holder::llm::make_runner_model_ref("auto-local", "qwen3:4b")},
-        {"digest", "sha256:abc"},
-        {"size", 42},
-        {"modified_at", "now"},
-    }}));
+    REQUIRE(
+        runtime["models"] ==
+        nlohmann::json::array({{
+            {"name", "qwen3:4b"},
+            {"runner_id", "auto-local"},
+            {"model_ref", holder::llm::make_runner_model_ref("auto-local", "qwen3:4b")},
+            {"digest", "sha256:abc"},
+            {"size", 42},
+            {"modified_at", "now"},
+        }})
+    );
     // The same pull shape as GET /ai/runner/pull/{job_id}.
     const auto& pull = runtime["pulls"][0];
     REQUIRE(pull["error"].is_null());
@@ -527,8 +542,10 @@ TEST_CASE("AiRunnerRoutes covers retry guards and runtime pull serialization", "
     auto req = make_request(http::verb::get, "/ai/runners");
     REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
     REQUIRE(res.result() == http::status::ok);
-    REQUIRE(nlohmann::json::parse(res.body()) ==
-            nlohmann::json{{"ok", true}, {"data", {{"runners", nlohmann::json::array()}}}});
+    REQUIRE(
+        nlohmann::json::parse(res.body()) ==
+        nlohmann::json{{"ok", true}, {"data", {{"runners", nlohmann::json::array()}}}}
+    );
   }
 }
 

@@ -23,7 +23,11 @@ class EventService {
   std::optional<EventCheckpoint> current_checkpoint(const std::string& project);
   // Subscribes to changes for every project or only the named one, resuming after cursor;
   // revision is the client's last-known Git revision, for recovery.
-  StreamServer subscribe(const std::string& project, const std::string& revision, std::string cursor);
+  StreamServer subscribe(
+      const std::string& project,
+      const std::string& revision,
+      std::string cursor
+  );
 
  private:
   struct State {

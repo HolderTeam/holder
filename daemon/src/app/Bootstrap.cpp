@@ -1,8 +1,8 @@
 #include "app/Bootstrap.h"
 
 #include "platform/Paths.h"
-#include "project/ProjectRegistry.h"
 #include "project/DefaultProject.h"
+#include "project/ProjectRegistry.h"
 #include "project/ProjectRepo.h"
 #include "project/StartupRecovery.h"
 
@@ -43,7 +43,10 @@ std::optional<holder::model::Project> bootstrap_default_home_project(
     holder::index::FtsIndexer* fts
 ) {
   const auto home = holder::project::ensure_default_project(
-      db, generate_uuid_v4, holder::core::default_projects_root(), fts
+      db,
+      generate_uuid_v4,
+      holder::core::default_projects_root(),
+      fts
   );
   if (home.has_value()) {
     spdlog::info("Bootstrapped default Home project ({})", home->project_id);

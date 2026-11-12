@@ -190,13 +190,15 @@ void ProjectSyncWorker::run_startup_repair_pass() {
       if (store.plan_hierarchy_repair(project.project_id).placements.empty()) continue;
       const auto activity_scope = holder::core::activity().begin();
       const auto plan = store.repair_hierarchy(project.project_id, now_epoch_seconds());
-      spdlog::info( // LCOV_EXCL_LINE: GCC records only unused inline cleanup here; startup repair is tested.
+      spdlog::info( // LCOV_EXCL_LINE: GCC records only unused inline cleanup here; startup repair
+                    // is tested.
           "made {} hidden card(s) reachable again in project {}",
           plan.moved_card_ids.size(),
           project.project_id
       );
       if (!plan.cycle_card_ids.empty()) {
-        spdlog::warn( // LCOV_EXCL_LINE: GCC records only unused inline cleanup here; preserved parent cycles are tested.
+        spdlog::warn( // LCOV_EXCL_LINE: GCC records only unused inline cleanup here; preserved
+                      // parent cycles are tested.
             "project {} has {} card(s) in parent cycles; repair leaves them alone",
             project.project_id,
             plan.cycle_card_ids.size()
@@ -303,7 +305,8 @@ int ProjectSyncWorker::run_push_cycle(bool final_push) {
           status == holder::git::PushStatus::UpToDate) {
         spdlog::info("final push of project {} done.", project.project_id);
       } else {
-        spdlog::warn( // LCOV_EXCL_LINE: GCC records only unused inline cleanup here; failed final pushes are tested.
+        spdlog::warn( // LCOV_EXCL_LINE: GCC records only unused inline cleanup here; failed final
+                      // pushes are tested.
             "final push of project {} did not complete ({}): {}. The commits stay local and will be pushed on the next run.",
             project.project_id,
             holder::git::push_status_name(status),

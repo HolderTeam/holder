@@ -32,15 +32,21 @@ class HookedSecretStore final : public holder::privacy::SecretStore {
   std::function<std::optional<holder::privacy::StoredSecret>(const std::string& account)> on_get;
   std::function<void(const std::string& account)> on_remove;
 
-  std::optional<holder::privacy::StoredSecret> get(const std::string&,
-                                                   const std::string& account) const override {
+  std::optional<holder::privacy::StoredSecret> get(const std::string&, const std::string& account)
+      const override {
     return on_get ? on_get(account) : std::nullopt;
   }
   std::vector<holder::privacy::SecretMetadata> list(const std::string&) const override {
     return {};
   }
-  void set(const std::string&, const std::string&, const std::string&, const std::string&,
-           long long, long long) override {}
+  void set(
+      const std::string&,
+      const std::string&,
+      const std::string&,
+      const std::string&,
+      long long,
+      long long
+  ) override {}
   void remove(const std::string&, const std::string& account) override {
     if (on_remove) on_remove(account);
   }
@@ -418,14 +424,8 @@ TEST_CASE("Listener stop cancels in-flight ingress read and returns promptly", "
   holder::platform::Db db;
   db.open(db_path);
   const std::string token = "testtoken";
-  holder::api::Listener listener(
-      "127.0.0.1",
-      0,
-      db,
-      token,
-      std::chrono::steady_clock::now(),
-      nullptr,
-      nullptr);
+  holder::api::Listener
+      listener("127.0.0.1", 0, db, token, std::chrono::steady_clock::now(), nullptr, nullptr);
   holder::api::Listener::BoundInfo bound;
   try {
     bound = listener.start();
@@ -860,7 +860,9 @@ TEST_CASE("Listener stop drops queued background work and returns promptly", "[l
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
     return std::optional<holder::privacy::StoredSecret>();
   };
-  secrets.on_remove = [&background_runs](const std::string&) { background_runs.fetch_add(1); };
+  secrets.on_remove = [&background_runs](const std::string&) {
+    background_runs.fetch_add(1);
+  };
 
   const std::string token = "testtoken";
   holder::api::ConcurrencyProfile concurrency;
@@ -971,8 +973,7 @@ TEST_CASE("Listener stop cancels in-flight writer response and returns promptly"
   // The preferred location ID is the response's large payload.
   secrets.on_get = [&route_started, &payload](const std::string&) {
     route_started.fetch_add(1);
-    return std::optional<holder::privacy::StoredSecret>(
-        holder::privacy::StoredSecret{{}, payload});
+    return std::optional<holder::privacy::StoredSecret>(holder::privacy::StoredSecret{{}, payload});
   };
 
   const std::string token = "testtoken";
@@ -1390,8 +1391,8 @@ TEST_CASE(
   // Deterministic, not a timing race: the default ConcurrencyProfile has exactly 3
   // general_workers_, all still occupied by the still-sleeping slow1/slow2/slow3 handlers at
   // this point (each holds its worker for a fixed 300ms, far longer than this test body takes
-  // to reach here) -- so it is architecturally impossible for the fast foreground request to have been
-  // dispatched yet, regardless of scheduling delays on this thread. A wait_for(...)-based
+  // to reach here) -- so it is architecturally impossible for the fast foreground request to have
+  // been dispatched yet, regardless of scheduling delays on this thread. A wait_for(...)-based
   // check here previously inferred that from a fixed wall-clock window instead of observing it
   // directly, which is what made this assertion flaky under CI scheduling contention.
   REQUIRE_FALSE(fast_foreground_started.load());

@@ -3,9 +3,9 @@
 #include "api/support/RunEventStore.h"
 #include "api/support/SseStream.h"
 #include "api/support/StreamServer.h"
+#include <array>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <array>
 #include <future>
 #include <thread>
 
@@ -145,7 +145,9 @@ TEST_CASE("Event stream admission reports a full registry as server busy", "[eve
   boost::asio::io_context ioc;
   boost::asio::ip::tcp::socket socket(ioc);
   auto registry = std::make_shared<SseRegistry>(0);
-  auto serve = serve_events(registry, [] { return EventBatch{}; });
+  auto serve = serve_events(registry, [] {
+    return EventBatch{};
+  });
   boost::beast::http::response<boost::beast::http::string_body> response;
 
   REQUIRE_FALSE(serve(socket, response));
@@ -193,7 +195,10 @@ TEST_CASE("SSE closes a socket when writing response headers fails", "[events][s
   CHECK(registry->open_count() == 0);
 }
 
-TEST_CASE("SSE closes a blocked event write when its peer resets the connection", "[events][sse-boundaries]") {
+TEST_CASE(
+    "SSE closes a blocked event write when its peer resets the connection",
+    "[events][sse-boundaries]"
+) {
   using tcp = boost::asio::ip::tcp;
   boost::asio::io_context io;
   tcp::acceptor acceptor(io, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));

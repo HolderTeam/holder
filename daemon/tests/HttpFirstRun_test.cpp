@@ -65,10 +65,7 @@ TEST_CASE("HTTP first-run flow creates project and card", "[http]") {
   REQUIRE(created_project["data"]["project_id"].is_string());
   const std::string project_id = created_project["data"]["project_id"].get<std::string>();
 
-  nlohmann::json card_body = {
-      {"title", "First Card"},
-      {"content", "hello"}
-  };
+  nlohmann::json card_body = {{"title", "First Card"}, {"content", "hello"}};
 
   const auto created_card = http_json_request(
       bound.bind,

@@ -5,8 +5,7 @@
 
 namespace api_runtime {
 
-template <typename Body>
-struct success {
+template <typename Body> struct success {
   int status;
   Body body;
 };
@@ -18,8 +17,7 @@ struct host_value {
 };
 
 // A named event and its already encoded JSON data.
-template <typename Json>
-struct event {
+template <typename Json> struct event {
   std::string name;
   Json data;
 };

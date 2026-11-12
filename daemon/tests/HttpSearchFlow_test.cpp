@@ -51,10 +51,7 @@ TEST_CASE("HTTP search flow finds card and opens it", "[http]") {
   );
   const std::string project_id = created_project["data"]["project_id"].get<std::string>();
 
-  nlohmann::json card_body = {
-      {"title", "Searchable Card"},
-      {"content", "unique search term café"}
-  };
+  nlohmann::json card_body = {{"title", "Searchable Card"}, {"content", "unique search term café"}};
 
   const auto created_card = http_json_request(
       bound.bind,

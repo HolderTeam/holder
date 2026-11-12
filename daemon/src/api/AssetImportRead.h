@@ -8,7 +8,8 @@
 namespace holder::api {
 
 struct AssetImportJobNotFound : std::runtime_error {
-  AssetImportJobNotFound() : std::runtime_error("Import job not found.") {}
+  AssetImportJobNotFound()
+      : std::runtime_error("Import job not found.") {}
 };
 
 AssetImportJobResponse get_import_job(std::string job_id);

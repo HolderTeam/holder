@@ -8,7 +8,9 @@
 #include <string>
 #include <vector>
 
-namespace holder::platform { class Db; }
+namespace holder::platform {
+class Db;
+}
 
 namespace holder::api {
 
@@ -65,7 +67,8 @@ struct AiProviderCatalogResponse {
 };
 
 struct AiProviderCatalogMissing : std::runtime_error {
-  AiProviderCatalogMissing() : std::runtime_error("ai_catalog.yaml models runtime/catalog not found.") {}
+  AiProviderCatalogMissing()
+      : std::runtime_error("ai_catalog.yaml models runtime/catalog not found.") {}
 };
 
 AiProviderCatalogResponse get_ai_provider_catalog(holder::platform::Db& db);

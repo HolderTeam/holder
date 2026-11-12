@@ -44,13 +44,27 @@ void seed_project_and_thread(holder::platform::Db& db, const std::filesystem::pa
 }
 
 // Routes a request through the generated routes, as the daemon does.
-bool route_message(const http::request<http::string_body>& req,
-                   http::response<http::string_body>& res,
-                   holder::platform::Db& db,
-                   holder::index::FtsIndexer* fts,
-                   std::function<std::string()> uuid_v4 = [] { return std::string("u"); }) {
-  return holder::api::dispatch_generated_routes(req, res, db, nullptr, fts, nullptr, nullptr, uuid_v4,
-                                             {});
+bool route_message(
+    const http::request<http::string_body>& req,
+    http::response<http::string_body>& res,
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    std::function<std::string()> uuid_v4 =
+        [] {
+          return std::string("u");
+        }
+) {
+  return holder::api::dispatch_generated_routes(
+      req,
+      res,
+      db,
+      nullptr,
+      fts,
+      nullptr,
+      nullptr,
+      uuid_v4,
+      {}
+  );
 }
 
 } // namespace
@@ -69,8 +83,8 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
     );
     http::response<http::string_body> post1_res;
     REQUIRE(route_message(post1, post1_res, db, &fts, [] {
-          return std::string("x");
-        }));
+      return std::string("x");
+    }));
     REQUIRE(post1_res.result() == http::status::created);
 
     auto post2 = make_request(
@@ -80,8 +94,8 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
     );
     http::response<http::string_body> post2_res;
     REQUIRE(route_message(post2, post2_res, db, &fts, [] {
-          return std::string("y");
-        }));
+      return std::string("y");
+    }));
     REQUIRE(post2_res.result() == http::status::created);
 
     holder::ai::AiMessageRepo(db, &fts).trash("msg-0002", 99);
@@ -108,7 +122,8 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
 
   SECTION("list validates its query and reports storage failures as internal errors") {
     for (const std::string target :
-         {"/ai/messages", "/ai/messages?thread_id=", "/ai/messages?thread_id=t&include_deleted=2"}) {
+         {"/ai/messages", "/ai/messages?thread_id=", "/ai/messages?thread_id=t&include_deleted=2"
+         }) {
       CAPTURE(target);
       auto req = make_request(http::verb::get, target);
       http::response<http::string_body> res;
@@ -137,8 +152,8 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
     );
     http::response<http::string_body> res;
     REQUIRE(route_message(req, res, db, &fts, [] {
-          return std::string("generated-m");
-        }));
+      return std::string("generated-m");
+    }));
     REQUIRE(res.result() == http::status::created);
     const auto body = nlohmann::json::parse(res.body());
     const auto id = body["data"]["message_id"].get<std::string>();
@@ -158,17 +173,22 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
     http::response<http::string_body> trashed_res;
     REQUIRE(holder::api::dispatch_generated_routes(get_req, trashed_res, db, nullptr, &fts));
     REQUIRE(trashed_res.result() == http::status::not_found);
-    REQUIRE(nlohmann::json::parse(trashed_res.body())["error"]["message"] == "AI message not found.");
+    REQUIRE(
+        nlohmann::json::parse(trashed_res.body())["error"]["message"] == "AI message not found."
+    );
   }
 
   SECTION("post conflict, unknown thread, failures and bad JSON") {
     const std::string body =
         R"({"message_id":"msg-dup","thread_id":"thread-1","role":"assistant","source":"runner","content":"hello"})";
     http::response<http::string_body> first_res;
-    REQUIRE(route_message(make_request(http::verb::post, "/ai/messages", body), first_res, db, &fts));
+    REQUIRE(route_message(make_request(http::verb::post, "/ai/messages", body), first_res, db, &fts)
+    );
     REQUIRE(first_res.result() == http::status::created);
     http::response<http::string_body> conflict_res;
-    REQUIRE(route_message(make_request(http::verb::post, "/ai/messages", body), conflict_res, db, &fts));
+    REQUIRE(
+        route_message(make_request(http::verb::post, "/ai/messages", body), conflict_res, db, &fts)
+    );
     REQUIRE(conflict_res.result() == http::status::conflict);
     REQUIRE(nlohmann::json::parse(conflict_res.body())["error"]["code"] == "conflict");
 
@@ -179,7 +199,10 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
             "/ai/messages",
             R"({"thread_id":"missing","role":"user","source":"manual","content":"x"})"
         ),
-        thread_res, db, &fts));
+        thread_res,
+        db,
+        &fts
+    ));
     REQUIRE(thread_res.result() == http::status::bad_request);
     REQUIRE(nlohmann::json::parse(thread_res.body())["error"]["message"] == "Thread not found.");
 
@@ -191,11 +214,19 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
             "/ai/messages",
             R"({"thread_id":"thread-1","role":"user","source":"manual","content":"x"})"
         ),
-        failed_res, db, &fts, []() -> std::string { throw std::runtime_error("synthetic"); }));
+        failed_res,
+        db,
+        &fts,
+        []() -> std::string {
+          throw std::runtime_error("synthetic");
+        }
+    ));
     REQUIRE(failed_res.result() == http::status::internal_server_error);
 
     http::response<http::string_body> bad_res;
-    REQUIRE(route_message(make_request(http::verb::post, "/ai/messages", "not-json"), bad_res, db, &fts));
+    REQUIRE(
+        route_message(make_request(http::verb::post, "/ai/messages", "not-json"), bad_res, db, &fts)
+    );
     REQUIRE(bad_res.result() == http::status::bad_request);
   }
 }
@@ -217,14 +248,19 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
 
   SECTION("route guards and fallbacks") {
     http::response<http::string_body> res;
-    REQUIRE_FALSE(route_message(make_request(http::verb::get, "/ai/messagez/msg-1"), res, db, &fts));
+    REQUIRE_FALSE(route_message(make_request(http::verb::get, "/ai/messagez/msg-1"), res, db, &fts)
+    );
 
     REQUIRE_FALSE(route_message(make_request(http::verb::get, "/ai/messages/"), res, db, &fts));
 
     // An empty message ID matches no route, so the router answers 404.
-    REQUIRE_FALSE(route_message(make_request(http::verb::post, "/ai/messages//restore"), res, db, &fts));
+    REQUIRE_FALSE(
+        route_message(make_request(http::verb::post, "/ai/messages//restore"), res, db, &fts)
+    );
 
-    REQUIRE_FALSE(route_message(make_request(http::verb::get, "/ai/messages/msg-1/other"), res, db, &fts));
+    REQUIRE_FALSE(
+        route_message(make_request(http::verb::get, "/ai/messages/msg-1/other"), res, db, &fts)
+    );
   }
 
   SECTION("restore method and catch branches") {
@@ -239,7 +275,12 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
     REQUIRE(missing_restore_res.result() == http::status::not_found);
 
     http::response<http::string_body> live_res;
-    REQUIRE(route_message(make_request(http::verb::post, "/ai/messages/msg-1/restore"), live_res, db, &fts));
+    REQUIRE(route_message(
+        make_request(http::verb::post, "/ai/messages/msg-1/restore"),
+        live_res,
+        db,
+        &fts
+    ));
     REQUIRE(live_res.result() == http::status::bad_request);
   }
 
@@ -250,9 +291,12 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
     REQUIRE(res.result() == http::status::ok);
     REQUIRE(route_message(req, res, db, &fts));
     REQUIRE(res.result() == http::status::bad_request);
-    REQUIRE(route_message(make_request(http::verb::delete_, "/ai/messages/missing"), res, db, &fts));
+    REQUIRE(route_message(make_request(http::verb::delete_, "/ai/messages/missing"), res, db, &fts)
+    );
     REQUIRE(res.result() == http::status::not_found);
-    REQUIRE(route_message(make_request(http::verb::post, "/ai/messages/msg-1/restore"), res, db, &fts));
+    REQUIRE(
+        route_message(make_request(http::verb::post, "/ai/messages/msg-1/restore"), res, db, &fts)
+    );
     REQUIRE(res.result() == http::status::ok);
 
     db.exec("DROP TABLE ai_messages;");

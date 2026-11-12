@@ -63,8 +63,18 @@ bool dispatch_history(
     separator = '&';
   }
   http::request<http::string_body> req{method, target, 11};
-  return holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, nullptr, nullptr,
-                                                {}, {}, card_store);
+  return holder::api::dispatch_generated_routes(
+      req,
+      res,
+      db,
+      nullptr,
+      nullptr,
+      nullptr,
+      nullptr,
+      {},
+      {},
+      card_store
+  );
 }
 
 template <typename Param>
@@ -78,10 +88,12 @@ bool dispatch_history_get(
 }
 
 // The generated routes answer a history path's undeclared methods with 405.
-void require_method_not_allowed(http::verb method,
-                                const std::string& path,
-                                holder::platform::Db& db,
-                                const std::string& allow) {
+void require_method_not_allowed(
+    http::verb method,
+    const std::string& path,
+    holder::platform::Db& db,
+    const std::string& allow
+) {
   http::request<http::string_body> req{method, path, 11};
   http::response<http::string_body> res;
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
@@ -644,7 +656,8 @@ TEST_CASE("HistoryRoutes validates project and comparison parameters", "[http][h
   const auto project_root = dir / "project";
   holder::test::create_project(db, "history-project", project_root.string());
   res = {};
-  REQUIRE(dispatch_history_get("/projects/history-project/history/cards/abc", res, db, empty_param));
+  REQUIRE(dispatch_history_get("/projects/history-project/history/cards/abc", res, db, empty_param)
+  );
   CHECK(res.result() == http::status::bad_request);
 }
 
@@ -849,7 +862,12 @@ TEST_CASE("HistoryRoutes reports an unavailable encrypted project key", "[http][
   auto empty_param = [](const std::string&) {
     return std::string{};
   };
-  REQUIRE(dispatch_history_get("/projects/encrypted-history-project/history/cards/" + card_id, res, db, empty_param));
+  REQUIRE(dispatch_history_get(
+      "/projects/encrypted-history-project/history/cards/" + card_id,
+      res,
+      db,
+      empty_param
+  ));
   CHECK(res.result() == http::status::conflict);
   const auto error = nlohmann::json::parse(res.body())["error"];
   CHECK(error["code"] == "history_key_unavailable");
@@ -874,7 +892,12 @@ TEST_CASE("HistoryRoutes reports malformed historical card data", "[http][histor
   auto empty_param = [](const std::string&) {
     return std::string{};
   };
-  REQUIRE(dispatch_history_get("/projects/history-project/history/cards/" + card_id, res, db, empty_param));
+  REQUIRE(dispatch_history_get(
+      "/projects/history-project/history/cards/" + card_id,
+      res,
+      db,
+      empty_param
+  ));
   CHECK(res.result() == http::status::service_unavailable);
   const auto error = nlohmann::json::parse(res.body())["error"];
   CHECK(error["code"] == "history_unavailable");
@@ -907,9 +930,14 @@ TEST_CASE("HistoryRoutes restores a selected card version", "[http][history]") {
   auto param = [&](const std::string& key) {
     return key == "oid" ? abbreviated_oid : std::string{};
   };
-  REQUIRE(dispatch_history(http::verb::post,
-                           "/projects/history-project/history/cards/" + card.card_id + "/restore",
-                           res, db, param, &store));
+  REQUIRE(dispatch_history(
+      http::verb::post,
+      "/projects/history-project/history/cards/" + card.card_id + "/restore",
+      res,
+      db,
+      param,
+      &store
+  ));
   CHECK(res.result() == http::status::ok);
   const auto response = nlohmann::json::parse(res.body());
   REQUIRE(response["ok"] == true);
@@ -945,9 +973,14 @@ TEST_CASE(
   auto params = [](const std::string&) {
     return std::string();
   };
-  CHECK_FALSE(dispatch_history(http::verb::post,
-                               "/projects/history-project/history/cards/card-one/unknown",
-                               response, db, params, &cards));
+  CHECK_FALSE(dispatch_history(
+      http::verb::post,
+      "/projects/history-project/history/cards/card-one/unknown",
+      response,
+      db,
+      params,
+      &cards
+  ));
   require_method_not_allowed(http::verb::get, path, db, "POST");
   // The revision is required before the card is looked up.
   REQUIRE(dispatch_history(http::verb::post, path, response, db, params));
@@ -966,7 +999,13 @@ TEST_CASE(
   REQUIRE(dispatch_history(http::verb::post, path, response, db, oid_param, &cards));
   CHECK(response.result() == http::status::not_found);
   CHECK(nlohmann::json::parse(response.body())["error"]["message"] == "Card not found.");
-  REQUIRE(dispatch_history(http::verb::post, "/projects/missing/history/cards/card-one/restore",
-                           response, db, oid_param, &cards));
+  REQUIRE(dispatch_history(
+      http::verb::post,
+      "/projects/missing/history/cards/card-one/restore",
+      response,
+      db,
+      oid_param,
+      &cards
+  ));
   CHECK(response.result() == http::status::not_found);
 }

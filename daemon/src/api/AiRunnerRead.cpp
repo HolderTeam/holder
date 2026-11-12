@@ -58,8 +58,10 @@ AiRunnerRuntime runtime(const std::string& runner_id, holder::llm::RunnerClient*
 
 } // namespace
 
-AiRunner runner_with_runtime(const holder::model::AiRunner& runner,
-                             holder::llm::RunnerRegistry* registry) {
+AiRunner runner_with_runtime(
+    const holder::model::AiRunner& runner,
+    holder::llm::RunnerRegistry* registry
+) {
   return {
       runner.runner_id,
       runner.name,

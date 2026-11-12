@@ -366,15 +366,30 @@ TEST_CASE("Recovery routes distinguish a missing project from missing key materi
     const char* code;
   };
   for (const auto& test : {
-           Case{"/projects/missing/recovery-token/export", {{"pin", "1234"}},
-                http::status::not_found, "not_found"},
-           Case{"/projects/plain/recovery-token/export", {{"pin", "1234"}},
-                http::status::bad_request, "invalid_argument"},
-           Case{"/projects/locked/recovery-token/export", {{"pin", "1234"}},
-                http::status::conflict, "key_missing"},
-           Case{"/projects/missing/recovery-token/import",
-                {{"pin", "1234"}, {"recovery_token", "unused"}},
-                http::status::not_found, "not_found"},
+           Case{
+               "/projects/missing/recovery-token/export",
+               {{"pin", "1234"}},
+               http::status::not_found,
+               "not_found"
+           },
+           Case{
+               "/projects/plain/recovery-token/export",
+               {{"pin", "1234"}},
+               http::status::bad_request,
+               "invalid_argument"
+           },
+           Case{
+               "/projects/locked/recovery-token/export",
+               {{"pin", "1234"}},
+               http::status::conflict,
+               "key_missing"
+           },
+           Case{
+               "/projects/missing/recovery-token/import",
+               {{"pin", "1234"}, {"recovery_token", "unused"}},
+               http::status::not_found,
+               "not_found"
+           },
        }) {
     CAPTURE(test.target);
     http::request<http::string_body> req{http::verb::post, test.target, 11};

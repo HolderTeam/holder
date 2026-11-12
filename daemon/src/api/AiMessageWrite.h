@@ -1,9 +1,9 @@
 #pragma once
 
 #include "api/AiMessageRead.h"
+#include "api/AiRuntimeTypes.h"
 #include "api/CardLinks.h"
 #include "api/HttpError.h"
-#include "api/AiRuntimeTypes.h"
 #include "api/Schemas.h"
 #include "model/ConflictError.h"
 
@@ -12,8 +12,12 @@
 #include <stdexcept>
 #include <string>
 
-namespace holder::platform { class Db; }
-namespace holder::index { class FtsIndexer; }
+namespace holder::platform {
+class Db;
+}
+namespace holder::index {
+class FtsIndexer;
+}
 
 namespace holder::api {
 
@@ -89,7 +93,8 @@ struct AiCaptureNotFound : std::runtime_error {
 };
 
 struct AiMessageThreadNotFound : std::invalid_argument {
-  AiMessageThreadNotFound() : std::invalid_argument("Thread not found.") {}
+  AiMessageThreadNotFound()
+      : std::invalid_argument("Thread not found.") {}
 };
 
 // The message is in the trash (or, for restore, is not).
@@ -97,40 +102,51 @@ struct AiMessageWrongState : std::invalid_argument {
   using std::invalid_argument::invalid_argument;
 };
 
-AiMessageCreateResponse post_ai_messages(holder::platform::Db& db,
-                                         holder::index::FtsIndexer* fts,
-                                         const std::function<std::string()>& uuid_v4,
-                                         AiMessageCreateRequest request);
+AiMessageCreateResponse post_ai_messages(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    const std::function<std::string()>& uuid_v4,
+    AiMessageCreateRequest request
+);
 
-AiMessageUpdateResponse patch_ai_messages_message_id(holder::platform::Db& db,
-                                                     holder::index::FtsIndexer* fts,
-                                                     std::string message_id,
-                                                     AiMessageUpdateRequest request);
+AiMessageUpdateResponse patch_ai_messages_message_id(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    std::string message_id,
+    AiMessageUpdateRequest request
+);
 
-AiMessageUpdateResponse delete_ai_messages_message_id(holder::platform::Db& db,
-                                                      holder::index::FtsIndexer* fts,
-                                                      std::string message_id);
+AiMessageUpdateResponse delete_ai_messages_message_id(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    std::string message_id
+);
 
 AiMessageUpdateResponse post_ai_messages_message_id_restore(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    std::string message_id);
+    std::string message_id
+);
 
 routes::CardLinkCreateResponse post_ai_messages_message_id_links(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
     std::string message_id,
-    routes::CardLinkCreateRequest request);
+    routes::CardLinkCreateRequest request
+);
 
 AiMessageCreateResponse delete_ai_messages_message_id_links(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
     std::string message_id,
-    std::optional<CardLinkDeleteRequest> request);
+    std::optional<CardLinkDeleteRequest> request
+);
 
-AiMessageCaptureResponse post_ai_messages_capture(holder::platform::Db& db,
-                                                  holder::index::FtsIndexer* fts,
-                                                  const std::function<std::string()>& uuid_v4,
-                                                  AiMessageCaptureRequest request);
+AiMessageCaptureResponse post_ai_messages_capture(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    const std::function<std::string()>& uuid_v4,
+    AiMessageCaptureRequest request
+);
 
 } // namespace holder::api

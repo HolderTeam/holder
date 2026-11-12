@@ -91,9 +91,10 @@ inline ServedRequest serve_generated(
     holder::api::support::EventService* events = nullptr,
     holder::privacy::SecretStore* secret_store = nullptr,
     holder::git::GitOps* git_ops = nullptr,
-    std::function<std::string()> uuid_v4 = [] {
-      return std::string("id");
-    }
+    std::function<std::string()> uuid_v4 =
+        [] {
+          return std::string("id");
+        }
 ) {
   holder::api::support::StreamServer stream;
   const bool handled = holder::api::dispatch_generated_routes(

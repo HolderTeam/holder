@@ -22,9 +22,13 @@ std::string preview_for_output(const std::string& stored) {
 AiProviderCredentialsListResponse list_provider_credentials(holder::platform::Db& db) {
   AiProviderCredentialsListData data;
   for (const auto& credential : holder::ai::AiProviderCredentialRepo(db).list()) {
-    data.providers.push_back({credential.provider, true,
-                              preview_for_output(credential.api_key_preview),
-                              credential.created_at, credential.updated_at});
+    data.providers.push_back(
+        {credential.provider,
+         true,
+         preview_for_output(credential.api_key_preview),
+         credential.created_at,
+         credential.updated_at}
+    );
   }
   return {true, std::move(data)};
 }
@@ -32,18 +36,18 @@ AiProviderCredentialsListResponse list_provider_credentials(holder::platform::Db
 AiProviderCredentialUpsertResponse upsert_provider_credential(
     holder::platform::Db& db,
     holder::privacy::SecretStore* secret_store,
-    AiProviderCredentialUpsertRequest request) {
+    AiProviderCredentialUpsertRequest request
+) {
   static constexpr const char* kSecretService = "holder.ai_provider_credentials";
   if (!secret_store) throw SecretStoreUnavailable{};
   auto provider = support::normalize_provider_name(request.provider);
   if (provider.empty()) {
-    throw std::invalid_argument(
-        "provider must be alphanumeric and may include '-', '_' or '.'.");
+    throw std::invalid_argument("provider must be alphanumeric and may include '-', '_' or '.'.");
   }
   auto api_key = support::trim_ascii(request.api_key);
   if (api_key.empty()) throw std::invalid_argument("api_key cannot be empty.");
-  const long long ts = request.updated_at && *request.updated_at
-                           ? **request.updated_at : support::now_epoch_seconds();
+  const long long ts = request.updated_at && *request.updated_at ? **request.updated_at
+                                                                 : support::now_epoch_seconds();
   const auto api_key_preview = support::mask_api_key(api_key);
   holder::ai::AiProviderCredentialRepo repo(db);
   const auto existing = repo.get(provider);
@@ -62,7 +66,8 @@ AiProviderCredentialUpsertResponse upsert_provider_credential(
 AiProviderCredentialDeleteResponse delete_provider_credential(
     holder::platform::Db& db,
     holder::privacy::SecretStore* secret_store,
-    std::string provider) {
+    std::string provider
+) {
   static constexpr const char* kSecretService = "holder.ai_provider_credentials";
   if (!secret_store) throw SecretStoreUnavailable{};
   provider = support::normalize_provider_name(provider);

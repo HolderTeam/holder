@@ -64,9 +64,7 @@ struct RunStreamCompletion {
             std::nullopt,
             support::now_epoch_seconds()
         );
-        channel->send(
-            support::append_run_event(run_id, ai_events::failed, {.error = error}, true)
-        );
+        channel->send(support::append_run_event(run_id, ai_events::failed, {.error = error}, true));
       } catch (const std::exception& ex) {
         spdlog::warn("Cannot persist failed streaming run: {}", ex.what());
       }

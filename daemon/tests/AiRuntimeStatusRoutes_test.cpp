@@ -402,9 +402,18 @@ TEST_CASE("AiCapabilitiesRoutes with runner separates installed recommendations"
 
   // The response carries exactly these fields; nothing about a single runner at the top level.
   std::vector<std::string> fields;
-  for (const auto& [name, value] : payload["data"].items()) fields.push_back(name);
-  REQUIRE(fields == std::vector<std::string>{"caste", "local_model_config", "recommended_install",
-                                             "recommended_models", "runners"});
+  for (const auto& [name, value] : payload["data"].items())
+    fields.push_back(name);
+  REQUIRE(
+      fields ==
+      std::vector<std::string>{
+          "caste",
+          "local_model_config",
+          "recommended_install",
+          "recommended_models",
+          "runners"
+      }
+  );
   REQUIRE(payload["data"]["caste"].is_object());
   REQUIRE(payload["data"]["recommended_install"][0].size() == 6);
 
@@ -426,9 +435,19 @@ TEST_CASE("Generated /ai/status carries runners and device-wide counts", "[http]
   REQUIRE(res.result() == http::status::ok);
   const auto payload = nlohmann::json::parse(res.body());
   std::vector<std::string> fields;
-  for (const auto& [name, value] : payload["data"].items()) fields.push_back(name);
-  REQUIRE(fields == std::vector<std::string>{"active_pull_jobs", "active_runs", "checked_at",
-                                             "cloud", "cloud_configured_providers", "runners"});
+  for (const auto& [name, value] : payload["data"].items())
+    fields.push_back(name);
+  REQUIRE(
+      fields ==
+      std::vector<std::string>{
+          "active_pull_jobs",
+          "active_runs",
+          "checked_at",
+          "cloud",
+          "cloud_configured_providers",
+          "runners"
+      }
+  );
   REQUIRE(payload["data"]["runners"].empty());
   REQUIRE(payload["data"]["active_pull_jobs"] == 0);
 }

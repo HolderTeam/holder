@@ -38,6 +38,4 @@ RouteDispatchResult execute_ai_run(
     std::shared_ptr<holder::api::support::SseRegistry> streams = {}
 );
 
-
-
 } // namespace holder::api::routes::ai::runs

@@ -1,8 +1,8 @@
 #pragma once
 
+#include "api/AiRuntimeTypes.h"
 #include "api/ApiService.h"
 #include "api/HttpError.h"
-#include "api/AiRuntimeTypes.h"
 
 #include <optional>
 #include <stdexcept>
@@ -61,23 +61,30 @@ struct PostAiRunnerPullRequest {
 };
 
 struct RunnerNotConfigured : std::runtime_error {
-  RunnerNotConfigured() : std::runtime_error("Runner not configured.") {}
+  RunnerNotConfigured()
+      : std::runtime_error("Runner not configured.") {}
 };
 
 struct PullJobNotFound : std::runtime_error {
-  PullJobNotFound() : std::runtime_error("Pull job not found.") {}
+  PullJobNotFound()
+      : std::runtime_error("Pull job not found.") {}
 };
 
-RunnerPullStatusResponse get_pull_status(holder::llm::RunnerRegistry* registry,
-                                         std::optional<std::string> runner_id,
-                                         std::string job_id);
+RunnerPullStatusResponse get_pull_status(
+    holder::llm::RunnerRegistry* registry,
+    std::optional<std::string> runner_id,
+    std::string job_id
+);
 
 // The runner is configured but not answering.
 struct RunnerUnavailable : CodedError {
-  RunnerUnavailable() : CodedError("runner_unavailable", "Local model runner unavailable.") {}
+  RunnerUnavailable()
+      : CodedError("runner_unavailable", "Local model runner unavailable.") {}
 };
 
-RunnerPullStartResponse post_ai_runner_pull(holder::llm::RunnerRegistry* registry,
-                                            PostAiRunnerPullRequest request);
+RunnerPullStartResponse post_ai_runner_pull(
+    holder::llm::RunnerRegistry* registry,
+    PostAiRunnerPullRequest request
+);
 
 } // namespace holder::api

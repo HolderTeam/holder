@@ -25,14 +25,26 @@ struct Routed {
   nlohmann::json body;
 };
 
-Routed route(holder::platform::Db& db,
-             holder::index::FtsIndexer& fts,
-             holder::card::CardStore* card_store,
-             const std::string& target) {
+Routed route(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer& fts,
+    holder::card::CardStore* card_store,
+    const std::string& target
+) {
   http::request<http::string_body> req{http::verb::delete_, target, 11};
   http::response<http::string_body> res;
-  if (!holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts, nullptr, nullptr, {},
-                                              {}, card_store))
+  if (!holder::api::dispatch_generated_routes(
+          req,
+          res,
+          db,
+          nullptr,
+          &fts,
+          nullptr,
+          nullptr,
+          {},
+          {},
+          card_store
+      ))
     return {false, {}, {}};
   return {true, res.result(), nlohmann::json::parse(res.body())};
 }
@@ -48,8 +60,12 @@ TEST_CASE("Trash deletes validate requests and report missing services", "[trash
   const std::string live = "12121212-1212-4212-8212-121212121212";
   holder::test::create_card_fixture(card_store, live, "proj-1", "Live", "live", 10);
 
-  for (const std::string target : {"/trash", "/trash?project_id=", "/trash?project_id=proj-1&type=x",
-                                   "/trash/note/id", "/projects/proj-1/trash/note/id"}) {
+  for (const std::string target :
+       {"/trash",
+        "/trash?project_id=",
+        "/trash?project_id=proj-1&type=x",
+        "/trash/note/id",
+        "/projects/proj-1/trash/note/id"}) {
     CAPTURE(target);
     const auto rejected = route(db, fts, &card_store, target);
     REQUIRE(rejected.status == http::status::bad_request);
@@ -60,22 +76,29 @@ TEST_CASE("Trash deletes validate requests and report missing services", "[trash
 
   // Core can construct a card store from the request context.
   REQUIRE(route(db, fts, nullptr, "/trash?project_id=proj-1").status == http::status::ok);
-  REQUIRE(route(db, fts, nullptr, "/trash?project_id=proj-1&type=ai_message").status ==
-          http::status::ok);
+  REQUIRE(
+      route(db, fts, nullptr, "/trash?project_id=proj-1&type=ai_message").status == http::status::ok
+  );
   REQUIRE(route(db, fts, nullptr, "/trash/card/" + live).status == http::status::conflict);
 
   const auto not_trashed = route(db, fts, &card_store, "/projects/proj-1/trash/card/" + live);
   REQUIRE(not_trashed.status == http::status::conflict);
   REQUIRE(not_trashed.body["error"]["code"] == "not_trashed");
-  REQUIRE(route(db, fts, &card_store, "/projects/proj-2/trash/card/" + live).status ==
-          http::status::not_found);
-  REQUIRE(route(db, fts, &card_store, "/trash/ai_message/missing").status ==
-          http::status::not_found);
+  REQUIRE(
+      route(db, fts, &card_store, "/projects/proj-2/trash/card/" + live).status ==
+      http::status::not_found
+  );
+  REQUIRE(
+      route(db, fts, &card_store, "/trash/ai_message/missing").status == http::status::not_found
+  );
 
   card_store.trash(live, 20);
   const auto removed = route(db, fts, &card_store, "/trash/card/" + live);
   REQUIRE(removed.status == http::status::ok);
-  REQUIRE(removed.body == nlohmann::json{{"ok", true}, {"data", {{"card_id", live}, {"message_id", nullptr}}}});
+  REQUIRE(
+      removed.body ==
+      nlohmann::json{{"ok", true}, {"data", {{"card_id", live}, {"message_id", nullptr}}}}
+  );
   const auto emptied = route(db, fts, &card_store, "/trash?project_id=proj-1&type=all");
   REQUIRE(emptied.body == nlohmann::json{{"ok", true}, {"data", {{"project_id", "proj-1"}}}});
 }

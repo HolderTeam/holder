@@ -85,7 +85,10 @@ TEST_CASE(
   CHECK_FALSE(holder::ai::AiProviderSettingRepo(db).get("provider").has_value());
 }
 
-TEST_CASE("DeviceConfigStore keeps settings when a snapshot cannot be opened", "[database][config]") {
+TEST_CASE(
+    "DeviceConfigStore keeps settings when a snapshot cannot be opened",
+    "[database][config]"
+) {
   const auto root = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(root / "holder.db");
   holder::ai::AiProviderSettingRepo settings(db);

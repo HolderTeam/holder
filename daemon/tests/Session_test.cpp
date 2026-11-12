@@ -1,8 +1,8 @@
 #include "api/Session.h"
 
-#include "platform/Db.h"
 #include "ai/AiThreadRepo.h"
 #include "http_test_helpers.h"
+#include "platform/Db.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -15,8 +15,8 @@
 #include <cstddef>
 #include <future>
 #include <mutex>
-#include <string>
 #include <set>
+#include <string>
 #include <thread>
 
 namespace {
@@ -57,7 +57,10 @@ struct SocketPair {
 
 } // namespace
 
-TEST_CASE("Session generates distinct UUIDs with seeded and invalid seed settings", "[session][uuid]") {
+TEST_CASE(
+    "Session generates distinct UUIDs with seeded and invalid seed settings",
+    "[session][uuid]"
+) {
   namespace http = boost::beast::http;
   const auto root = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(root / "holder.db");
@@ -75,14 +78,15 @@ TEST_CASE("Session generates distinct UUIDs with seeded and invalid seed setting
     req.body() = R"({"project_id":"project","title":"Generated thread"})";
     req.prepare_payload();
     const auto now = std::chrono::steady_clock::now();
-    holder::api::Session::PreparedRequest prepared{
-        tcp::socket(io), std::move(req), now, "/ai/threads", ""};
+    holder::api::Session::PreparedRequest
+        prepared{tcp::socket(io), std::move(req), now, "/ai/threads", ""};
     holder::api::Session session(std::move(prepared), db, token, now, nullptr, nullptr);
     auto response = session.execute();
     REQUIRE(response.has_value());
     INFO(response->res.body());
     REQUIRE(response->res.result() == http::status::created);
-    const auto id = nlohmann::json::parse(response->res.body()).at("data").at("thread_id").get<std::string>();
+    const auto id =
+        nlohmann::json::parse(response->res.body()).at("data").at("thread_id").get<std::string>();
     REQUIRE(id.size() == 36);
     CHECK(id[14] == '4');
     CHECK(std::string("89ab").find(id[19]) != std::string::npos);
@@ -356,7 +360,8 @@ TEST_CASE("Session write_prepared_response cancel hook terminates in-flight writ
 
 TEST_CASE("Session prepare_request classifies card writes as save lane", "[session]") {
   for (const std::string target :
-       {"/projects/project-123/cards/card-123", "/projects/project-123/cards",
+       {"/projects/project-123/cards/card-123",
+        "/projects/project-123/cards",
         "/projects/project-123/cards/card-123/tags/work"}) {
     CAPTURE(target);
     SocketPair pair;
@@ -392,9 +397,11 @@ TEST_CASE("Session prepare_request classifies links reads as background lane", "
 }
 
 TEST_CASE("Session prepare_request classifies history reads as background lane", "[session]") {
-  for (const auto& path : {"/projects/project-123/history", "/projects/project-123/history/cards/card-123"}) {
+  for (const auto& path :
+       {"/projects/project-123/history", "/projects/project-123/history/cards/card-123"}) {
     SocketPair pair;
-    const std::string req = "GET " + std::string(path) + " HTTP/1.1\r\n"
+    const std::string req = "GET " + std::string(path) +
+                            " HTTP/1.1\r\n"
                             "Host: localhost\r\n"
                             "Connection: close\r\n"
                             "\r\n";

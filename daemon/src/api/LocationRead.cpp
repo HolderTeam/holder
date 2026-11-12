@@ -7,9 +7,11 @@
 
 namespace holder::api {
 
-StorageLocationListResponse get_locations(holder::platform::Db& db,
-                                          holder::privacy::SecretStore* secret_store,
-                                          std::string project_id) {
+StorageLocationListResponse get_locations(
+    holder::platform::Db& db,
+    holder::privacy::SecretStore* secret_store,
+    std::string project_id
+) {
   // The listing is core's contract operation; the daemon adds its response envelope.
   holder::index::FtsIndexer fts(db);
   holder_context core(db, fts);

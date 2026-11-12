@@ -8,8 +8,8 @@
 #include "platform/DeviceConfigStore.h"
 #include "platform/Migrations.h"
 #include "platform/Paths.h"
-#include "project/ProjectRegistry.h"
 #include "privacy/ProjectPrivacy.h"
+#include "project/ProjectRegistry.h"
 #include "project/StartupRecovery.h"
 
 #include <iterator>
@@ -93,14 +93,16 @@ struct HomeLifecycle {
   }
 };
 
-
 // Routes a request through the generated routes, as the daemon does.
-bool route_project(const boost::beast::http::request<boost::beast::http::string_body>& req,
-                   boost::beast::http::response<boost::beast::http::string_body>& res,
-                   holder::platform::Db& db,
-                   holder::git::GitOps* git) {
-  return holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, nullptr, git,
-                                                [] { return std::string("generated-id"); });
+bool route_project(
+    const boost::beast::http::request<boost::beast::http::string_body>& req,
+    boost::beast::http::response<boost::beast::http::string_body>& res,
+    holder::platform::Db& db,
+    holder::git::GitOps* git
+) {
+  return holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, nullptr, git, [] {
+    return std::string("generated-id");
+  });
 }
 
 } // namespace

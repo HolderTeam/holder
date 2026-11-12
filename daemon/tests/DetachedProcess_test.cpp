@@ -42,8 +42,10 @@ std::string read_log(const std::filesystem::path& path) {
 }
 } // namespace
 
-TEST_CASE("DetachedProcess appends stdout and stderr and preserves the child across moves",
-          "[detached-process]") {
+TEST_CASE(
+    "DetachedProcess appends stdout and stderr and preserves the child across moves",
+    "[detached-process]"
+) {
   const auto dir = holder::test::make_temp_dir();
   const auto log = dir / "logs" / "child.log";
   const DetachedProcessRequest request{
@@ -75,7 +77,8 @@ TEST_CASE("DetachedProcess appends stdout and stderr and preserves the child acr
   CHECK(code == 23);
 
   const auto contents = read_log(log);
-  for (const std::string marker : {"stdout: argument with spaces", "stderr: argument with spaces"}) {
+  for (const std::string marker :
+       {"stdout: argument with spaces", "stderr: argument with spaces"}) {
     CAPTURE(marker);
     const auto occurrence = contents.find(marker);
     REQUIRE(occurrence != std::string::npos);
@@ -109,11 +112,17 @@ TEST_CASE("DetachedProcess can launch without a log", "[detached-process]") {
   const auto dir = holder::test::make_temp_dir();
   std::ofstream(dir / "release").put('\n');
   auto process = DetachedProcess::start(
-      {.executable = helper_path, .args = {"discard this output"}, .working_dir = dir}, nullptr);
+      {.executable = helper_path, .args = {"discard this output"}, .working_dir = dir},
+      nullptr
+  );
   REQUIRE(process);
   CHECK(wait_for_exit(*process) == 23);
-  CHECK(std::distance(std::filesystem::directory_iterator(dir),
-                      std::filesystem::directory_iterator{}) == 1);
+  CHECK(
+      std::distance(
+          std::filesystem::directory_iterator(dir),
+          std::filesystem::directory_iterator{}
+      ) == 1
+  );
 }
 
 #if defined(_WIN32) || defined(__linux__) || defined(__APPLE__)
@@ -157,12 +166,16 @@ TEST_CASE("DetachedProcess resolves only runnable files on PATH", "[detached-pro
   }
 }
 
-TEST_CASE("DetachedProcess reports unknown status after another caller reaps the child",
-          "[detached-process]") {
+TEST_CASE(
+    "DetachedProcess reports unknown status after another caller reaps the child",
+    "[detached-process]"
+) {
   const auto dir = holder::test::make_temp_dir();
   std::ofstream(dir / "release").put('\n');
   auto process = DetachedProcess::start(
-      {.executable = helper_path, .args = {"reaped externally"}, .working_dir = dir}, nullptr);
+      {.executable = helper_path, .args = {"reaped externally"}, .working_dir = dir},
+      nullptr
+  );
   REQUIRE(process);
   const auto pid = static_cast<pid_t>(process->pid());
   REQUIRE(pid > 0);
@@ -198,7 +211,8 @@ TEST_CASE("DetachedProcess keeps logging when standard input was closed", "[deta
     ::close(STDIN_FILENO);
     return DetachedProcess::start(
         {.executable = helper_path, .args = {"closed stdin"}, .working_dir = dir, .log_path = log},
-        &error);
+        &error
+    );
   }();
   INFO(error);
   REQUIRE(process);
@@ -210,18 +224,23 @@ TEST_CASE("DetachedProcess keeps logging when standard input was closed", "[deta
 #endif
 
 #ifdef __linux__
-TEST_CASE("DetachedProcess does not leak a log descriptor when its working directory is missing",
-          "[detached-process]") {
+TEST_CASE(
+    "DetachedProcess does not leak a log descriptor when its working directory is missing",
+    "[detached-process]"
+) {
   const auto dir = holder::test::make_temp_dir();
   const auto descriptor_count = [] {
-    return std::distance(std::filesystem::directory_iterator("/proc/self/fd"),
-                         std::filesystem::directory_iterator{});
+    return std::distance(
+        std::filesystem::directory_iterator("/proc/self/fd"),
+        std::filesystem::directory_iterator{}
+    );
   };
   const auto before = descriptor_count();
   for (int i = 0; i < 4; ++i) {
     CHECK_FALSE(DetachedProcess::start(
-        {.executable = helper_path, .working_dir = dir / "missing",
-         .log_path = dir / "child.log"}, nullptr));
+        {.executable = helper_path, .working_dir = dir / "missing", .log_path = dir / "child.log"},
+        nullptr
+    ));
   }
   CHECK(descriptor_count() == before);
 }

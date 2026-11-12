@@ -361,25 +361,23 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
         "unauthorized",
         "Missing or invalid token."
     );
-  } else if (
-      dispatch_generated_routes(
-          req_,
-          res,
-          db_,
-          runner_registry_,
-          fts_,
-          secret_store_,
-          git_ops_,
-          [] {
-            return generate_uuid_v4();
-          },
-          started_at_,
-          card_store_,
-          events_,
-          &stream,
-          &socket_
-      )
-  ) {
+  } else if (dispatch_generated_routes(
+                 req_,
+                 res,
+                 db_,
+                 runner_registry_,
+                 fts_,
+                 secret_store_,
+                 git_ops_,
+                 [] {
+                   return generate_uuid_v4();
+                 },
+                 started_at_,
+                 card_store_,
+                 events_,
+                 &stream,
+                 &socket_
+             )) {
     // Generated, or a 405 for a declared path with another method. A stream the generated
     // route has checked is written here, on this request's socket.
     if (stream && stream(socket_, res)) return std::nullopt;
@@ -448,7 +446,8 @@ Session::RequestLane Session::classify_request_lane(const Request& req, const st
   const bool is_get_like = method == http::verb::get || method == http::verb::head;
   const bool is_card_route = is_card_path(path);
   const bool is_ai_route = path == "/ai" || path.rfind("/ai/", 0) == 0;
-  const bool is_history_route = path.ends_with("/history") || path.find("/history/") != std::string::npos;
+  const bool is_history_route = path.ends_with("/history") ||
+                                path.find("/history/") != std::string::npos;
   const bool is_link_route = path.find("/links") != std::string::npos ||
                              path.find("/backlinks") != std::string::npos;
   const bool is_forced_sync_route = path.ends_with("/git/pull") || path.ends_with("/git/sync");

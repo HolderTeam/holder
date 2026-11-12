@@ -49,8 +49,11 @@ nlohmann::json checkpoint_json(const EventCheckpoint& value) {
   nlohmann::json revisions = nlohmann::json::object();
   for (const auto& [project, revision] : value.git_revisions)
     revisions[project] = revision ? nlohmann::json(*revision) : nlohmann::json(nullptr);
-  return {{"cursor", value.cursor}, {"git_revisions", std::move(revisions)},
-          {"history_urls", value.history_urls}};
+  return {
+      {"cursor", value.cursor},
+      {"git_revisions", std::move(revisions)},
+      {"history_urls", value.history_urls}
+  };
 }
 
 api_runtime::event<nlohmann::json> resync_required(
@@ -111,7 +114,8 @@ EventService::EventService(const std::filesystem::path& database) {
   });
   try {
     future.get();
-    // LCOV_EXCL_START: the worker only calls set_value; future failure requires a runtime synchronization fault.
+    // LCOV_EXCL_START: the worker only calls set_value; future failure requires a runtime
+    // synchronization fault.
   } catch (...) {
     observer_.join();
     throw;

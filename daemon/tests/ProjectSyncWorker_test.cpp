@@ -814,10 +814,7 @@ TEST_CASE("a final push skips a project without a remote", "[sync][worker][final
   REQUIRE(worker.run_final_push() == 0);
 }
 
-TEST_CASE(
-    "an idle sync worker polling does not count as activity",
-    "[sync][worker][activity]"
-) {
+TEST_CASE("an idle sync worker polling does not count as activity", "[sync][worker][activity]") {
   // Every poll wakes the worker, but with nothing due it does no work, and a daemon started with
   // --idle-exit must still be able to go quiet. Otherwise an idle period longer than the poll
   // interval could never be reached.
@@ -879,8 +876,10 @@ TEST_CASE("sync work that is due does count as activity", "[sync][worker][activi
   REQUIRE(holder::core::activity().quiet_for() < std::chrono::milliseconds(1400));
 }
 
-
-TEST_CASE("A failed final push leaves commits local for a later run", "[sync][worker][final-push]") {
+TEST_CASE(
+    "A failed final push leaves commits local for a later run",
+    "[sync][worker][final-push]"
+) {
   FinalPushFixture fixture;
   const auto unavailable = fixture.dir / "offline.git";
   std::filesystem::rename(fixture.remote_dir, unavailable);

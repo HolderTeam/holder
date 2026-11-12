@@ -97,7 +97,10 @@ TEST_CASE("holderd --idle-exit stops a daemon that nobody uses", "[idle][process
   );
 }
 
-TEST_CASE("holderd still exits cleanly when its final push cannot read projects", "[idle][process]") {
+TEST_CASE(
+    "holderd still exits cleanly when its final push cannot read projects",
+    "[idle][process]"
+) {
   IsolatedHome home;
   auto daemon = start_daemon(home, {"--idle-exit", "2"});
   REQUIRE(daemon);
@@ -110,7 +113,9 @@ TEST_CASE("holderd still exits cleanly when its final push cannot read projects"
     db.exec("ALTER TABLE projects RENAME TO withheld_projects");
   }
   int code = -1;
-  REQUIRE(holder::test::wait_until(30s, [&] { return exited(*daemon, &code); }));
+  REQUIRE(holder::test::wait_until(30s, [&] {
+    return exited(*daemon, &code);
+  }));
   CHECK(code == 0);
   const auto log = holder::test::read_file(home.root() / "holderd.log");
   INFO(log);

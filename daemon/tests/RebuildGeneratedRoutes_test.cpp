@@ -11,8 +11,7 @@ TEST_CASE("Generated rebuild route decodes its required body", "[http][rebuild]"
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   http::response<http::string_body> res;
 
-  const auto dispatch = [&](http::verb method, const std::string& target,
-                            const std::string& body) {
+  const auto dispatch = [&](http::verb method, const std::string& target, const std::string& body) {
     http::request<http::string_body> req{method, target, 11};
     req.body() = body;
     req.prepare_payload();

@@ -43,8 +43,10 @@ RunnerPullStatusResponse get_pull_status(
   return {true, pull_job_status(*job, runner_id)};
 }
 
-RunnerPullStartResponse post_ai_runner_pull(holder::llm::RunnerRegistry* registry,
-                                            PostAiRunnerPullRequest request) {
+RunnerPullStartResponse post_ai_runner_pull(
+    holder::llm::RunnerRegistry* registry,
+    PostAiRunnerPullRequest request
+) {
   const std::string runner_id = request.runner_id && !request.runner_id->empty()
                                     ? *request.runner_id
                                     : holder::llm::RunnerRegistry::kAutoLocalRunnerId;
@@ -55,9 +57,14 @@ RunnerPullStartResponse post_ai_runner_pull(holder::llm::RunnerRegistry* registr
   const auto job = runner->start_pull(request.model);
   if (job.status == "failed")
     throw std::invalid_argument(job.error.empty() ? "Pull failed." : job.error);
-  return {true,
-          {job.job_id, runner_id, holder::llm::make_runner_model_ref(runner_id, job.model),
-           job.model, job.status}};
+  return {
+      true,
+      {job.job_id,
+       runner_id,
+       holder::llm::make_runner_model_ref(runner_id, job.model),
+       job.model,
+       job.status}
+  };
 }
 
 } // namespace holder::api

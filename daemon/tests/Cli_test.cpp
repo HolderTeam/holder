@@ -13,8 +13,8 @@
 #include "platform/LockFile.h"
 #include "platform/Migrations.h"
 #include "platform/Paths.h"
-#include "project/ProjectRegistry.h"
 #include "project/ProjectManifest.h"
+#include "project/ProjectRegistry.h"
 #include "project/ProjectRepo.h"
 
 #include <chrono>

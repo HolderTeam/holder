@@ -1,7 +1,7 @@
 #pragma once
 
-#include "api/HttpError.h"
 #include "api/AiRuntimeTypes.h"
+#include "api/HttpError.h"
 #include "privacy/PrivacyError.h"
 
 #include <optional>
@@ -9,8 +9,12 @@
 #include <string>
 #include <vector>
 
-namespace holder::platform { class Db; }
-namespace holder::privacy { class SecretStore; }
+namespace holder::platform {
+class Db;
+}
+namespace holder::privacy {
+class SecretStore;
+}
 
 namespace holder::api {
 
@@ -61,11 +65,13 @@ AiProviderCredentialsListResponse list_provider_credentials(holder::platform::Db
 AiProviderCredentialUpsertResponse upsert_provider_credential(
     holder::platform::Db& db,
     holder::privacy::SecretStore* secret_store,
-    AiProviderCredentialUpsertRequest request);
+    AiProviderCredentialUpsertRequest request
+);
 
 AiProviderCredentialDeleteResponse delete_provider_credential(
     holder::platform::Db& db,
     holder::privacy::SecretStore* secret_store,
-    std::string provider);
+    std::string provider
+);
 
 } // namespace holder::api

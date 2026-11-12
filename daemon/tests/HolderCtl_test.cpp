@@ -1854,7 +1854,9 @@ TEST_CASE(
   REQUIRE(days["data"]["card_id"] == card_id);
   REQUIRE(
       days["data"]["dates"] ==
-      nlohmann::json::parse(R"([{"role": "start", "date": "2026-06-01"}, {"role": "end", "date": "2026-06-03"}])")
+      nlohmann::json::parse(
+          R"([{"role": "start", "date": "2026-06-01"}, {"role": "end", "date": "2026-06-03"}])"
+      )
   );
   REQUIRE(days["data"]["kind"] == "release");
   REQUIRE(days["data"]["description"] == "Release train");
@@ -1872,8 +1874,10 @@ TEST_CASE(
       ) == 0
   );
   const auto timed_output = read_text(timed_path);
-  REQUIRE(timed_output.find("start 2026-06-02T10:00:00+00:00, due 2026-06-02T11:00:00+00:00") !=
-          std::string::npos);
+  REQUIRE(
+      timed_output.find("start 2026-06-02T10:00:00+00:00, due 2026-06-02T11:00:00+00:00") !=
+      std::string::npos
+  );
 
   // An undated milestone.
   REQUIRE(run_command(bin + " milestone add 'Release Card' --kind someday >/dev/null") == 0);
@@ -1892,16 +1896,23 @@ TEST_CASE(
   }
   REQUIRE(timed_id.size() == 36);
   REQUIRE(
-      listed.dump().find(R"({"datetime":"2026-06-02T12:30:00+02:30","role":"start"})") != std::string::npos
+      listed.dump().find(R"({"datetime":"2026-06-02T12:30:00+02:30","role":"start"})") !=
+      std::string::npos
   );
-  REQUIRE(listed.dump().find(R"({"datetime":"2026-06-02T11:00:00Z","role":"due"})") != std::string::npos);
+  REQUIRE(
+      listed.dump().find(R"({"datetime":"2026-06-02T11:00:00Z","role":"due"})") != std::string::npos
+  );
 
   const auto human_list_path = xdg_root / "milestones.out";
-  REQUIRE(run_command(bin + " milestones 'Release Card' > \"" + human_list_path.string() + "\"") == 0);
+  REQUIRE(
+      run_command(bin + " milestones 'Release Card' > \"" + human_list_path.string() + "\"") == 0
+  );
   const auto human_list = read_text(human_list_path);
   REQUIRE(human_list.find("MILESTONE_ID\tDATES\tKIND\tDESCRIPTION\n") == 0);
-  REQUIRE(human_list.find(days_id + "\tstart 2026-06-01, end 2026-06-03\trelease\tRelease train\n") !=
-          std::string::npos);
+  REQUIRE(
+      human_list.find(days_id + "\tstart 2026-06-01, end 2026-06-03\trelease\tRelease train\n") !=
+      std::string::npos
+  );
   REQUIRE(human_list.find("\t-\tsomeday\t\n") != std::string::npos);
 
   const auto edit_partial_path = xdg_root / "milestone-edit-partial.json";
@@ -1928,9 +1939,11 @@ TEST_CASE(
       ) == 0
   );
   REQUIRE(
-      read_text(edit_dates_path).find(
-          "Updated milestone " + timed_id + " on aaaaaaaa: start 2026-06-02, review 2026-06-04, end 2026-06-03."
-      ) != std::string::npos
+      read_text(edit_dates_path)
+          .find(
+              "Updated milestone " + timed_id +
+              " on aaaaaaaa: start 2026-06-02, review 2026-06-04, end 2026-06-03."
+          ) != std::string::npos
   );
 
   db.exec("UPDATE cards SET updated_at=1780398000 WHERE card_id="
@@ -1962,9 +1975,13 @@ TEST_CASE(
       ) == 0
   );
   const auto calendar_human = read_text(calendar_human_path);
-  REQUIRE(calendar_human.find("2026-06-01\tmilestone-start\t" + days_id + "\t") != std::string::npos);
+  REQUIRE(
+      calendar_human.find("2026-06-01\tmilestone-start\t" + days_id + "\t") != std::string::npos
+  );
   REQUIRE(calendar_human.find("2026-06-03\tmilestone-end\t" + days_id + "\t") != std::string::npos);
-  REQUIRE(calendar_human.find("2026-06-02\tmilestone-start\t" + timed_id + "\t") != std::string::npos);
+  REQUIRE(
+      calendar_human.find("2026-06-02\tmilestone-start\t" + timed_id + "\t") != std::string::npos
+  );
   REQUIRE(calendar_human.find("milestone-review") == std::string::npos);
   REQUIRE(calendar_human.find("\tcard-created\t-\t") != std::string::npos);
   REQUIRE(calendar_human.find("\tcard-updated\t-\t") != std::string::npos);
@@ -1994,7 +2011,8 @@ TEST_CASE(
   const auto naive_path = xdg_root / "milestone-naive.json";
   REQUIRE(
       run_command(
-          bin + " milestone add 'Release Card' --date due=2026-06-01T12:00:00 --json >/dev/null 2> \"" +
+          bin +
+          " milestone add 'Release Card' --date due=2026-06-01T12:00:00 --json >/dev/null 2> \"" +
           naive_path.string() + "\""
       ) == 1
   );
@@ -2005,12 +2023,15 @@ TEST_CASE(
   const auto unreal_path = xdg_root / "milestone-unreal.json";
   REQUIRE(
       run_command(
-          bin + " milestone add 'Release Card' 2026-02-30 --json >/dev/null 2> \"" + unreal_path.string() +
-          "\""
+          bin + " milestone add 'Release Card' 2026-02-30 --json >/dev/null 2> \"" +
+          unreal_path.string() + "\""
       ) == 1
   );
   const auto unreal = nlohmann::json::parse(read_text(unreal_path));
-  REQUIRE((unreal["error"]["code"] == "invalid_milestone_time" || unreal["error"]["code"] == "invalid_argument"));
+  REQUIRE(
+      (unreal["error"]["code"] == "invalid_milestone_time" ||
+       unreal["error"]["code"] == "invalid_argument")
+  );
 
   const auto range_path = xdg_root / "calendar-invalid.json";
   REQUIRE(
@@ -2022,14 +2043,19 @@ TEST_CASE(
   const auto invalid_range = nlohmann::json::parse(read_text(range_path));
   REQUIRE(invalid_range["error"]["code"] == "invalid_calendar_range");
 
-  REQUIRE(run_command(bin + " milestone edit 'Release Card' " + timed_id + " --json >/dev/null 2>&1") == 1);
+  REQUIRE(
+      run_command(bin + " milestone edit 'Release Card' " + timed_id + " --json >/dev/null 2>&1") ==
+      1
+  );
   REQUIRE(
       run_command(
           bin + " milestone edit 'Release Card' " + timed_id +
           " --start 2026-06-02 --clear-dates >/dev/null 2>&1"
       ) == 1
   );
-  REQUIRE(run_command(bin + " milestone add 'Release Card' --date =2026-06-02 >/dev/null 2>&1") == 1);
+  REQUIRE(
+      run_command(bin + " milestone add 'Release Card' --date =2026-06-02 >/dev/null 2>&1") == 1
+  );
 
   const auto missing_edit_path = xdg_root / "milestone-edit-missing.json";
   REQUIRE(
@@ -2346,10 +2372,7 @@ TEST_CASE("holderctl history exposes project and card revision workflows", "[hol
           restore_missing_path.string() + "\""
       ) == 1
   );
-  CHECK(
-      nlohmann::json::parse(read_text(restore_missing_path))["error"]["code"] ==
-      "not_found"
-  );
+  CHECK(nlohmann::json::parse(read_text(restore_missing_path))["error"]["code"] == "not_found");
   REQUIRE(card_store.get(card_id).has_value());
   CHECK(card_store.get(card_id)->deleted_at.has_value());
 
@@ -2808,12 +2831,16 @@ TEST_CASE("holderctl links backlinks and link expose card links", "[holderctl]")
   REQUIRE(read_text(hidden_out) == "No links.\n");
   const auto shown_out = xdg_root / "links-shown.out";
   REQUIRE(
-      run_command(bin + " links --include-deleted 'Source Card' > \"" + shown_out.string() + "\"") == 0
+      run_command(
+          bin + " links --include-deleted 'Source Card' > \"" + shown_out.string() + "\""
+      ) == 0
   );
   REQUIRE(read_text(shown_out).find("target-card") != std::string::npos);
   // A card in the trash is not found, so its own links and backlinks are not listed.
   REQUIRE(run_command(bin + " backlinks 'Target Card' >/dev/null 2>/dev/null") == 1);
-  REQUIRE(run_command(bin + " backlinks --include-deleted 'Target Card' >/dev/null 2>/dev/null") == 1);
+  REQUIRE(
+      run_command(bin + " backlinks --include-deleted 'Target Card' >/dev/null 2>/dev/null") == 1
+  );
 
   server.stop();
   server_thread.join();
@@ -3277,8 +3304,8 @@ TEST_CASE(
   const auto error = root / "list.err";
   auto run = [&](const std::string& args, int expected = 0) {
     const auto status = run_command(
-        std::string("\"") + HOLDER_CTL_PATH + "\" resource " + args + " > \"" + output.string() + "\" 2> \"" +
-        error.string() + "\""
+        std::string("\"") + HOLDER_CTL_PATH + "\" resource " + args + " > \"" + output.string() +
+        "\" 2> \"" + error.string() + "\""
     );
     INFO(read_text(error));
     REQUIRE(status == expected);
@@ -3306,7 +3333,8 @@ TEST_CASE(
   REQUIRE(ids(attached) == attached_ids);
   REQUIRE(read_text(error).empty());
   std::string table = heading;
-  for (const auto& row : attached_rows) table += row;
+  for (const auto& row : attached_rows)
+    table += row;
   REQUIRE(run("list 'Many Attachments'") == table);
   REQUIRE(
       ids(nlohmann::json::parse(run("list abcdef12 --filter example.com/1204 --json"))) ==
@@ -3421,7 +3449,9 @@ TEST_CASE("holderctl resource manages resources in Home by default", "[holderctl
       attachment_command("detach 'Import Target' " + resource_id) ==
       "Resource " + resource_id + " is not attached to abcdef12.\n"
   );
-  REQUIRE(nlohmann::json::parse(attachment_command("detach abcdef12 " + resource_id + " --json"))["data"].empty());
+  REQUIRE(nlohmann::json::parse(attachment_command("detach abcdef12 " + resource_id + " --json")
+  )["data"]
+              .empty());
   REQUIRE(nlohmann::json::parse(attachment_command("list 'Import Target' --json"))["data"].empty());
   REQUIRE(nlohmann::json::parse(attachment_command("list --json"))["data"].size() == 1);
   attachment_command("attach abcdef12 missing --json", 1);
@@ -4186,7 +4216,10 @@ TEST_CASE("holderctl logs follow reports tail failure", "[holderctl]") {
 
 #include "storage_http_test_server.h"
 
-TEST_CASE("holderctl search reports daemon rejection and HTTP fallback errors", "[holderctl][errors]") {
+TEST_CASE(
+    "holderctl search reports daemon rejection and HTTP fallback errors",
+    "[holderctl][errors]"
+) {
   using Server = holder::test::StorageHttpTestServer;
   const auto xdg = prepare_xdg_tree();
   holder::test::EnvGuard data("XDG_DATA_HOME", (xdg / "data").string());
@@ -4204,8 +4237,10 @@ TEST_CASE("holderctl search reports daemon rejection and HTTP fallback errors", 
   }
   Server server([&](const Server::Request& request) {
     if (request.target() == "/projects") {
-      return Server::response(200,
-          R"({"ok":true,"data":[{"project_id":"project","name":"Home"}]})");
+      return Server::response(
+          200,
+          R"({"ok":true,"data":[{"project_id":"project","name":"Home"}]})"
+      );
     }
     return Server::response(status, body);
   });
@@ -4216,11 +4251,17 @@ TEST_CASE("holderctl search reports daemon rejection and HTTP fallback errors", 
 #endif
   const auto output = xdg / "search.out";
   const auto error = xdg / "search.err";
-  REQUIRE(run_command(std::string("\"") + HOLDER_CTL_PATH + "\" search words > \"" +
-      output.string() + "\" 2> \"" + error.string() + "\"") == 1);
+  REQUIRE(
+      run_command(
+          std::string("\"") + HOLDER_CTL_PATH + "\" search words > \"" + output.string() +
+          "\" 2> \"" + error.string() + "\""
+      ) == 1
+  );
   CHECK(read_text(output).empty());
-  CHECK(read_text(error).find("Failed to search cards: Search failed: " + expected) !=
-        std::string::npos);
+  CHECK(
+      read_text(error).find("Failed to search cards: Search failed: " + expected) !=
+      std::string::npos
+  );
   server.stop();
   server.rethrow_error();
   const auto requests = server.requests();
@@ -4228,7 +4269,10 @@ TEST_CASE("holderctl search reports daemon rejection and HTTP fallback errors", 
   CHECK(requests.back().target() == "/search/cards?project_id=project&q=words&limit=20");
 }
 
-TEST_CASE("holderctl repair explains parent cycles without claiming to repair them", "[holderctl][hierarchy]") {
+TEST_CASE(
+    "holderctl repair explains parent cycles without claiming to repair them",
+    "[holderctl][hierarchy]"
+) {
   using Server = holder::test::StorageHttpTestServer;
   const auto xdg = prepare_xdg_tree();
   holder::test::EnvGuard data("XDG_DATA_HOME", (xdg / "data").string());
@@ -4236,17 +4280,27 @@ TEST_CASE("holderctl repair explains parent cycles without claiming to repair th
   holder::test::EnvGuard cache("XDG_CACHE_HOME", (xdg / "cache").string());
   std::ofstream(xdg / "config/holder/holderctl.json") << R"({"current_project_id":"project"})";
   nlohmann::json cycles = {"cycle-a"};
-  std::string expected = "1 card is in a parent cycle and left alone; move them to fix it:\n  cycle-a\n";
+  std::string expected =
+      "1 card is in a parent cycle and left alone; move them to fix it:\n  cycle-a\n";
   SECTION("a self cycle uses singular wording") {}
   SECTION("a multi-card cycle lists every card") {
     cycles.push_back("cycle-b");
-    expected = "2 cards are in a parent cycle and left alone; move them to fix it:\n  cycle-a\n  cycle-b\n";
+    expected =
+        "2 cards are in a parent cycle and left alone; move them to fix it:\n  cycle-a\n  cycle-b\n";
   }
   Server server([&](const Server::Request& request) {
     if (request.target() == "/projects")
-      return Server::response(200, R"({"ok":true,"data":[{"project_id":"project","name":"Home"}]})");
-    return Server::response(200, nlohmann::json{{"ok", true}, {"data", {
-        {"moved", nlohmann::json::array()}, {"cycle_card_ids", cycles}}}}.dump());
+      return Server::response(
+          200,
+          R"({"ok":true,"data":[{"project_id":"project","name":"Home"}]})"
+      );
+    return Server::response(
+        200,
+        nlohmann::json{
+            {"ok", true},
+            {"data", {{"moved", nlohmann::json::array()}, {"cycle_card_ids", cycles}}}
+        }.dump()
+    );
   });
   write_server_info(xdg / "data/holder/server/holder.json", 12345, server.address().port());
 #ifndef _WIN32
@@ -4254,7 +4308,11 @@ TEST_CASE("holderctl repair explains parent cycles without claiming to repair th
   ::chmod((xdg / "data/holder/server/holder.json").c_str(), S_IRUSR | S_IWUSR);
 #endif
   const auto output = xdg / "repair.out";
-  REQUIRE(run_command(std::string("\"") + HOLDER_CTL_PATH + "\" repair > \"" + output.string() + "\"") == 0);
+  REQUIRE(
+      run_command(
+          std::string("\"") + HOLDER_CTL_PATH + "\" repair > \"" + output.string() + "\""
+      ) == 0
+  );
   CHECK(read_text(output) == "No hidden cards: every live card is reachable.\n" + expected);
   server.stop();
   server.rethrow_error();
@@ -4583,9 +4641,13 @@ TEST_CASE(
            {"tags", empty, "No tags."},
            {"tags work", empty, "No cards tagged #work."},
            {"tag add card work", {{"card_id", "card-one"}, {"tags", {"work"}}}, "has tag #work"},
-           {"tag remove card work", {{"card_id", "card-one"}, {"tags", empty}}, "does not have tag"},
+           {"tag remove card work", {{"card_id", "card-one"}, {"tags", empty}}, "does not have tag"
+           },
            // A card that does not show the change is not a valid answer.
-           {"tag add card work", {{"card_id", "card-one"}, {"tags", empty}}, "Invalid tag mutation", 1},
+           {"tag add card work",
+            {{"card_id", "card-one"}, {"tags", empty}},
+            "Invalid tag mutation",
+            1},
            {"history", {{"activities", empty}, {"scan_limited", true}}, "History scan limit reached"
            },
            {"history card", {{"entries", empty}}, "No card history."},
@@ -4624,9 +4686,11 @@ TEST_CASE(
             R"({"ok":true,"data":{"status":"resolved","card":{"card_id":"card-one"}}})"
         );
       if (request.target().starts_with("/projects/project/cards?"))
-        return Server::response(200, Json{{"ok", true}, {"data", {
-            {"items", item.response}, {"next_cursor", nullptr}
-        }}}.dump());
+        return Server::response(
+            200,
+            Json{{"ok", true}, {"data", {{"items", item.response}, {"next_cursor", nullptr}}}}.dump(
+            )
+        );
       return Server::response(200, Json{{"ok", true}, {"data", item.response}}.dump());
     });
     write_server_info(xdg / "data/holder/server/holder.json", 12345, server.address().port());

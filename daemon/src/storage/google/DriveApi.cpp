@@ -208,7 +208,10 @@ std::string find_or_create_folder(
   nlohmann::json metadata = {{"name", name}, {"mimeType", kFolderMimeType}};
   if (parent_id.has_value()) metadata["parents"] = nlohmann::json::array({*parent_id});
   const auto response = json_request(
-      http::verb::post, kFilesPath, access_token, std::make_optional<nlohmann::json>(metadata)
+      http::verb::post,
+      kFilesPath,
+      access_token,
+      std::make_optional<nlohmann::json>(metadata)
   );
   check_ok(response, "folder create");
   try {

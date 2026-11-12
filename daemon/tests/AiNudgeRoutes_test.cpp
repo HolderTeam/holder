@@ -477,8 +477,7 @@ TEST_CASE("AI nudge routes lists and dismisses created nudges", "[ai][nudges]") 
     auto list_req =
         make_request(http::verb::get, "/ai/nudges?project_id=proj-1&card_id=card-1", "");
     http::response<http::string_body> list_res;
-    REQUIRE(dispatch(list_req, list_res, db)
-    );
+    REQUIRE(dispatch(list_req, list_res, db));
 
     const auto payload = nlohmann::json::parse(list_res.body());
     REQUIRE(payload["data"]["nudges"].is_array());
@@ -550,6 +549,8 @@ TEST_CASE("Listing nudges preserves suggestions with an empty card selector", "[
   REQUIRE(result.data.nudges.size() == 1);
   CHECK(result.data.nudges.front().nudge_id == "nudge-with-suggestions");
   REQUIRE(result.data.nudges.front().suggestions);
-  CHECK(*result.data.nudges.front().suggestions ==
-        std::vector<std::string>{"Check the remote", "Retry the push"});
+  CHECK(
+      *result.data.nudges.front().suggestions ==
+      std::vector<std::string>{"Check the remote", "Retry the push"}
+  );
 }

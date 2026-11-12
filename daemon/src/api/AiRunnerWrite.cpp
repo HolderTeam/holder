@@ -43,10 +43,12 @@ void saved(holder::platform::Db& db, holder::llm::RunnerRegistry* registry) {
 
 } // namespace
 
-AiRunnerResponse post_ai_runners(holder::platform::Db& db,
-                                 holder::llm::RunnerRegistry* registry,
-                                 const std::function<std::string()>& uuid_v4,
-                                 AiRunnerCreateRequest request) {
+AiRunnerResponse post_ai_runners(
+    holder::platform::Db& db,
+    holder::llm::RunnerRegistry* registry,
+    const std::function<std::string()>& uuid_v4,
+    AiRunnerCreateRequest request
+) {
   const long long now = support::now_epoch_seconds();
   holder::model::AiRunner runner;
   runner.name = runner_name(request.name);
@@ -62,10 +64,12 @@ AiRunnerResponse post_ai_runners(holder::platform::Db& db,
   return {true, runner_with_runtime(runner, registry)};
 }
 
-AiRunnerResponse patch_ai_runners_runner_id(holder::platform::Db& db,
-                                            holder::llm::RunnerRegistry* registry,
-                                            std::string runner_id,
-                                            AiRunnerUpdateRequest request) {
+AiRunnerResponse patch_ai_runners_runner_id(
+    holder::platform::Db& db,
+    holder::llm::RunnerRegistry* registry,
+    std::string runner_id,
+    AiRunnerUpdateRequest request
+) {
   require_editable(runner_id, "editable");
   holder::ai::AiRunnerRepo repo(db);
   auto runner = repo.get(runner_id);
@@ -82,9 +86,11 @@ AiRunnerResponse patch_ai_runners_runner_id(holder::platform::Db& db,
   return {true, runner_with_runtime(*runner, registry)};
 }
 
-AiRunnerDeleteResponse delete_ai_runners_runner_id(holder::platform::Db& db,
-                                                   holder::llm::RunnerRegistry* registry,
-                                                   std::string runner_id) {
+AiRunnerDeleteResponse delete_ai_runners_runner_id(
+    holder::platform::Db& db,
+    holder::llm::RunnerRegistry* registry,
+    std::string runner_id
+) {
   require_editable(runner_id, "deletable");
   holder::ai::AiRunnerRepo repo(db);
   if (!repo.get(runner_id)) throw AiRunnerNotFound{};
@@ -93,8 +99,10 @@ AiRunnerDeleteResponse delete_ai_runners_runner_id(holder::platform::Db& db,
   return {true, {std::move(runner_id)}};
 }
 
-AiRunnerResponse post_ai_runners_runner_id_retry(holder::llm::RunnerRegistry* registry,
-                                                 std::string runner_id) {
+AiRunnerResponse post_ai_runners_runner_id_retry(
+    holder::llm::RunnerRegistry* registry,
+    std::string runner_id
+) {
   if (registry == nullptr) throw AiRunnerNotFound{};
   auto* client = registry->get_client(runner_id);
   const auto runner = registry->get_runner(runner_id);

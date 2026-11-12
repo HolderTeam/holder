@@ -32,7 +32,8 @@ std::filesystem::path isolate_temp_dir() {
 #endif
   const auto started_at = std::chrono::steady_clock::now().time_since_epoch().count();
   const auto root = std::filesystem::temp_directory_path() /
-                    ("holder_daemon_test_" + std::to_string(pid) + "-" + std::to_string(started_at));
+                    ("holder_daemon_test_" + std::to_string(pid) + "-" + std::to_string(started_at)
+                    );
   if (!std::filesystem::create_directory(root)) {
     throw std::runtime_error("daemon test scratch directory already exists: " + root.string());
   }
@@ -53,8 +54,8 @@ void remove_isolated_temp_dir(const std::filesystem::path& root) {
   std::error_code ec;
   std::filesystem::remove_all(root, ec);
   if (ec) {
-    std::cerr << "Could not remove daemon test scratch directory " << root << ": "
-              << ec.message() << '\n';
+    std::cerr << "Could not remove daemon test scratch directory " << root << ": " << ec.message()
+              << '\n';
   }
 }
 

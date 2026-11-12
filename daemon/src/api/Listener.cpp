@@ -471,9 +471,9 @@ void Listener::start_accept_loop() {
 
     if (const int send_buffer = accepted_send_buffer_size_for_test_.load(); send_buffer >= 0) {
       boost::system::error_code option_ec;
-      ignore_result(socket.set_option(
-          boost::asio::socket_base::send_buffer_size(send_buffer), option_ec
-      )); // NOLINT(bugprone-unused-return-value)
+      ignore_result(
+          socket.set_option(boost::asio::socket_base::send_buffer_size(send_buffer), option_ec)
+      ); // NOLINT(bugprone-unused-return-value)
     }
 
     {

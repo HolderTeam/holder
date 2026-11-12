@@ -55,8 +55,13 @@ TEST_CASE("Ai runner pull routes ignore unmatched paths", "[http]") {
 
 TEST_CASE("Ai runner pull routes POST reports a runner that is not configured", "[http]") {
   http::response<http::string_body> res;
-  auto out = call_pull_route("/ai/runner/pull", http::verb::post, R"({"model":"fake-echo"})",
-                             static_cast<holder::llm::RunnerRegistry*>(nullptr), res);
+  auto out = call_pull_route(
+      "/ai/runner/pull",
+      http::verb::post,
+      R"({"model":"fake-echo"})",
+      static_cast<holder::llm::RunnerRegistry*>(nullptr),
+      res
+  );
   REQUIRE(out.handled);
   REQUIRE(res.result() == http::status::not_found);
 }
@@ -184,8 +189,8 @@ TEST_CASE("Generated ai runner pull GET returns job payload", "[http]") {
   holder::llm::RunnerRegistry runner_registry(nullptr, &local_runner_client);
 
   http::response<http::string_body> res;
-  REQUIRE(call_generated_pull_route("/ai/runner/pull/" + started.job_id,
-                                    db, &runner_registry, res));
+  REQUIRE(call_generated_pull_route("/ai/runner/pull/" + started.job_id, db, &runner_registry, res)
+  );
   REQUIRE(res.result() == http::status::ok);
 
   const auto payload = nlohmann::json::parse(res.body());
@@ -195,25 +200,39 @@ TEST_CASE("Generated ai runner pull GET returns job payload", "[http]") {
   REQUIRE(payload["data"]["model"] == "fake-echo");
   REQUIRE(payload["data"]["model_ref"] == "auto-local::fake-echo");
   REQUIRE(payload["data"]["status"].is_string());
-  REQUIRE(payload["data"]["active"] ==
-          holder::llm::pull_job_active({.status = payload["data"]["status"].get<std::string>()}));
+  REQUIRE(
+      payload["data"]["active"] ==
+      holder::llm::pull_job_active({.status = payload["data"]["status"].get<std::string>()})
+  );
   REQUIRE(payload["data"]["updated_at"].is_number_integer());
   REQUIRE(payload["data"]["progress"]["completed"].is_number_integer());
   REQUIRE(payload["data"]["progress"]["total"].is_number_integer());
   REQUIRE(payload["data"]["progress"]["percent"].is_number());
   REQUIRE(payload["data"]["progress"]["stage"].is_string());
 
-  REQUIRE(call_generated_pull_route("/ai/runner/pull/" + started.job_id +
-                                    "?runner_id=auto%2Dlocal", db, &runner_registry, res));
+  REQUIRE(call_generated_pull_route(
+      "/ai/runner/pull/" + started.job_id + "?runner_id=auto%2Dlocal",
+      db,
+      &runner_registry,
+      res
+  ));
   REQUIRE(res.result() == http::status::ok);
   REQUIRE(nlohmann::json::parse(res.body())["data"]["runner_id"] == "auto-local");
 
-  REQUIRE(call_generated_pull_route("/ai/runner/pull/" + started.job_id +
-                                    "?runner_id=missing", db, &runner_registry, res));
+  REQUIRE(call_generated_pull_route(
+      "/ai/runner/pull/" + started.job_id + "?runner_id=missing",
+      db,
+      &runner_registry,
+      res
+  ));
   REQUIRE(res.result() == http::status::not_found);
 
-  REQUIRE(call_generated_pull_route("/ai/runner/pull/" + started.job_id +
-                                    "?runner_id=%XX", db, &runner_registry, res));
+  REQUIRE(call_generated_pull_route(
+      "/ai/runner/pull/" + started.job_id + "?runner_id=%XX",
+      db,
+      &runner_registry,
+      res
+  ));
   REQUIRE(res.result() == http::status::bad_request);
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "bad_request");
 }
@@ -228,8 +247,7 @@ TEST_CASE("HTTP runner pull status uses the generated route", "[http]") {
   holder::llm::RunnerRegistry registry(nullptr, &local_client);
 
   const std::string token = "testtoken";
-  holder::api::HttpServer server("127.0.0.1", 0, db, token, nullptr, nullptr,
-                                 nullptr, &registry);
+  holder::api::HttpServer server("127.0.0.1", 0, db, token, nullptr, nullptr, nullptr, &registry);
   holder::api::HttpServer::BoundInfo bound;
   try {
     bound = server.start();
@@ -241,11 +259,9 @@ TEST_CASE("HTTP runner pull status uses the generated route", "[http]") {
   REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, token));
 
   const auto get = [&](const std::string& path, const std::string& bearer) {
-    return holder::test::http_request_raw(bound.bind, bound.port, bearer,
-                                          http::verb::get, path);
+    return holder::test::http_request_raw(bound.bind, bound.port, bearer, http::verb::get, path);
   };
-  const auto status = get("/ai/runner/pull/" + started.job_id +
-                          "?runner_id=auto%2Dlocal", token);
+  const auto status = get("/ai/runner/pull/" + started.job_id + "?runner_id=auto%2Dlocal", token);
   REQUIRE(status.status == http::status::ok);
   REQUIRE(status.content_type == "application/json");
   const auto payload = nlohmann::json::parse(status.body);

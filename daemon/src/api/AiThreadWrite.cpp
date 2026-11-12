@@ -19,9 +19,11 @@ void require_card(holder::platform::Db& db, const std::optional<std::string>& ca
 
 } // namespace
 
-AiThreadCreateResponse post_ai_threads(holder::platform::Db& db,
-                                       const std::function<std::string()>& uuid_v4,
-                                       AiThreadCreateRequest request) {
+AiThreadCreateResponse post_ai_threads(
+    holder::platform::Db& db,
+    const std::function<std::string()>& uuid_v4,
+    AiThreadCreateRequest request
+) {
   holder::model::AiThread thread;
   thread.thread_id = request.thread_id.value_or("");
   if (thread.thread_id.empty()) thread.thread_id = uuid_v4();
@@ -43,9 +45,11 @@ AiThreadCreateResponse post_ai_threads(holder::platform::Db& db,
   return {true, {std::move(thread.thread_id)}};
 }
 
-AiThreadPatchResponse patch_ai_threads_thread_id(holder::platform::Db& db,
-                                                 std::string thread_id,
-                                                 AiThreadUpdateRequest request) {
+AiThreadPatchResponse patch_ai_threads_thread_id(
+    holder::platform::Db& db,
+    std::string thread_id,
+    AiThreadUpdateRequest request
+) {
   holder::ai::AiThreadRepo repo(db);
   if (!repo.get(thread_id)) throw AiThreadNotFound{};
   if (request.card_id) require_card(db, *request.card_id);

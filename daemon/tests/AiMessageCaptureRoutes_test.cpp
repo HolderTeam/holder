@@ -60,7 +60,14 @@ TEST_CASE("AiMessageCaptureRoutes uncovered branches", "[ai][capture-routes]") {
     auto req = make_request(http::verb::post, "/ai/messages/capture", body);
     http::response<http::string_body> res;
     const bool handled = holder::api::dispatch_generated_routes(
-        req, res, db, nullptr, nullptr, nullptr, nullptr, uuid_v4
+        req,
+        res,
+        db,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        uuid_v4
     );
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
@@ -145,7 +152,14 @@ TEST_CASE("AiMessageCaptureRoutes uncovered branches", "[ai][capture-routes]") {
     auto req = make_request(http::verb::post, "/ai/messages/capture", "{");
     http::response<http::string_body> res;
     const bool handled = holder::api::dispatch_generated_routes(
-        req, res, db, nullptr, nullptr, nullptr, nullptr, []() {
+        req,
+        res,
+        db,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        []() {
           return std::string("id");
         }
     );

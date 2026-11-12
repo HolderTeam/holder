@@ -38,10 +38,12 @@ http::request<http::string_body> make_route_request(
 }
 
 // Routes a request through the generated routes, as the daemon does.
-bool route_message(const http::request<http::string_body>& req,
-                   http::response<http::string_body>& res,
-                   holder::platform::Db& db,
-                   holder::index::FtsIndexer* fts) {
+bool route_message(
+    const http::request<http::string_body>& req,
+    http::response<http::string_body>& res,
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts
+) {
   return holder::api::dispatch_generated_routes(req, res, db, nullptr, fts);
 }
 
@@ -72,8 +74,11 @@ TEST_CASE("AI message links preserve qualified card targets", "[http]") {
 
   const auto created = request(
       http::verb::post,
-      {{"to_card_id", "remote-card"}, {"to_type", "card"}, {"kind", "ref"},
-       {"target_project_id", "not-loaded"}, {"label", "Source label"}}
+      {{"to_card_id", "remote-card"},
+       {"to_type", "card"},
+       {"kind", "ref"},
+       {"target_project_id", "not-loaded"},
+       {"label", "Source label"}}
   );
   REQUIRE(res.result() == http::status::created);
   REQUIRE(created["data"]["target_project_id"] == "not-loaded");
@@ -102,8 +107,12 @@ TEST_CASE("AI message links preserve qualified card targets", "[http]") {
 
   for (const auto& selector : {
            nlohmann::json{{"target_project_id", "not-loaded"}},
-           nlohmann::json{{"to_card_id", "remote-card"}, {"to_type", "card"}, {"kind", "ref"},
-                          {"target_project_id", ""}},
+           nlohmann::json{
+               {"to_card_id", "remote-card"},
+               {"to_type", "card"},
+               {"kind", "ref"},
+               {"target_project_id", ""}
+           },
        }) {
     CAPTURE(selector);
     const auto error = request(http::verb::delete_, selector).at("error");
@@ -114,7 +123,9 @@ TEST_CASE("AI message links preserve qualified card targets", "[http]") {
 
   request(
       http::verb::delete_,
-      {{"to_card_id", "remote-card"}, {"to_type", "card"}, {"kind", "ref"},
+      {{"to_card_id", "remote-card"},
+       {"to_type", "card"},
+       {"kind", "ref"},
        {"target_project_id", "not-loaded"}}
   );
   REQUIRE(res.result() == http::status::ok);

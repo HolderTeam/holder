@@ -44,7 +44,8 @@ TEST_CASE("Generated AI run listing validates its scope", "[http]") {
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
 
   for (const std::string target :
-       {"/ai/runs", "/ai/runs?project_id=", "/ai/runs?thread_id=", "/ai/runs?project_id=&thread_id="}) {
+       {"/ai/runs", "/ai/runs?project_id=", "/ai/runs?thread_id=", "/ai/runs?project_id=&thread_id="
+       }) {
     CAPTURE(target);
     const auto [status, payload] = get(db, target);
     REQUIRE(status == http::status::bad_request);
@@ -69,7 +70,8 @@ TEST_CASE("Generated AI run listing validates its scope", "[http]") {
   REQUIRE(status == http::status::ok);
   REQUIRE(listed["ok"] == true);
   REQUIRE(listed["data"].size() == 2);
-  const auto& first = listed["data"][0]["run_id"] == "run-1" ? listed["data"][0] : listed["data"][1];
+  const auto& first = listed["data"][0]["run_id"] == "run-1" ? listed["data"][0]
+                                                             : listed["data"][1];
   REQUIRE(first["router_runner_id"] == "auto-local");
   REQUIRE(first["chosen_runner_id"] == "auto-local");
   REQUIRE(first["thread_id"].is_null());
@@ -77,8 +79,7 @@ TEST_CASE("Generated AI run listing validates its scope", "[http]") {
   REQUIRE(first.size() == 18);
 
   // thread_id wins when both are given.
-  const auto [thread_status, by_thread] =
-      get(db, "/ai/runs?project_id=proj-1&thread_id=thread-1");
+  const auto [thread_status, by_thread] = get(db, "/ai/runs?project_id=proj-1&thread_id=thread-1");
   REQUIRE(thread_status == http::status::ok);
   REQUIRE(by_thread["data"].size() == 1);
   REQUIRE(by_thread["data"][0]["run_id"] == "run-2");
@@ -123,7 +124,8 @@ TEST_CASE("Generated AI run fetch handles fallback policy parsing and not_found"
 
 TEST_CASE("Generated AI run reads report storage failures as internal errors", "[http]") {
   holder::platform::Db unopened_db;
-  REQUIRE(get(unopened_db, "/ai/runs?project_id=proj-1").first ==
-          http::status::internal_server_error);
+  REQUIRE(
+      get(unopened_db, "/ai/runs?project_id=proj-1").first == http::status::internal_server_error
+  );
   REQUIRE(get(unopened_db, "/ai/runs/run-1").first == http::status::internal_server_error);
 }

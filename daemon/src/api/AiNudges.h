@@ -1,7 +1,7 @@
 #pragma once
 
-#include "api/HttpError.h"
 #include "api/AiRuntimeTypes.h"
+#include "api/HttpError.h"
 
 #include <nlohmann/json.hpp>
 
@@ -10,13 +10,18 @@
 #include <string>
 #include <vector>
 
-namespace holder::llm { class RunnerRegistry; }
-namespace holder::platform { class Db; }
+namespace holder::llm {
+class RunnerRegistry;
+}
+namespace holder::platform {
+class Db;
+}
 
 namespace holder::api {
 
 struct AiNudgeNotFound : std::runtime_error {
-  AiNudgeNotFound() : std::runtime_error("Nudge not found.") {}
+  AiNudgeNotFound()
+      : std::runtime_error("Nudge not found.") {}
 };
 
 struct AiNudge {
@@ -79,16 +84,19 @@ AiNudgeListResponse get_ai_nudges(
     holder::platform::Db& db,
     holder::llm::RunnerRegistry* registry,
     std::string project_id,
-    std::optional<std::string> card_id);
+    std::optional<std::string> card_id
+);
 
 AiNudgeDismissResponse post_ai_nudges_nudge_id_dismiss(
     holder::platform::Db& db,
     holder::llm::RunnerRegistry* registry,
-    std::string nudge_id);
+    std::string nudge_id
+);
 
 AiNudgeEvaluateResponse post_ai_nudges_evaluate(
     holder::platform::Db& db,
     holder::llm::RunnerRegistry* registry,
-    AiNudgeCandidate candidate);
+    AiNudgeCandidate candidate
+);
 
 } // namespace holder::api
