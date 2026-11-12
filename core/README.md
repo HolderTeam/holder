@@ -186,7 +186,7 @@ for individual ASan/UBSan tests. Set
 `HOLDER_SAN_DETECT_LEAKS=1` to enable ASan leak detection. On Linux, the
 ThreadSanitizer suite runs through `setarch -R`, as in holder-daemon.
 
-On Fedora 45, the uninstrumented glibc timezone code can report a race inside
+On Fedora 45 and Ubuntu 26.04, the uninstrumented glibc timezone code can report a race inside
 `tzset_internal` during concurrent libgit2 signature creation. The narrowly scoped
 `tools/tsan/glibc.supp` documents glibc's internal lock and the instrumentation
 limitation. Opt in only for that report, using an absolute path because CTest
