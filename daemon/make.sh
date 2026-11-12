@@ -481,6 +481,12 @@ coverage_all() {
   JOBS="$(jobs)"
   cmake_build "${build_dir}" -- -j "${JOBS}"
 
+  # Drop objects the build no longer makes (a renamed or removed target), then their notes files:
+  # their line numbers are from old sources, and lcov rejects a function placed on two lines.
+  if [ -f "${build_dir}/build.ninja" ]; then
+    ninja -C "${build_dir}" -t cleandead >/dev/null
+  fi
+  find "${build_dir}" -type f -path '*.dir/*' -name '*.gcno' -exec sh -c '[ -e "${1%.gcno}.o" ] || rm -f "$1"' _ {} \;
   # Discard old profiles entirely: zeroing preserves stale stamps when a source
   # was rebuilt, which makes gcov reject the profile against its current notes.
   find "${build_dir}" -type f -name '*.gcda' -delete
@@ -501,6 +507,7 @@ coverage_all() {
     '*/tests/*' \
     '*/CMakeFiles/*/CompilerIdCXX/*' \
     --filter brace \
+    --ignore-errors unused \
     --output-file "${info_total}"
   genhtml "${info_total}" --output-directory "${report_dir}" --title "holder backend coverage"
   if command -v gcovr >/dev/null 2>&1; then
