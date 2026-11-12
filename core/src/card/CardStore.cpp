@@ -14,8 +14,8 @@
 #include "model/ConflictError.h"
 #include "platform/Fs.h"
 #include "platform/Tx.h"
-#include "privacy/ProjectPrivacy.h"
 #include "privacy/PrivacyError.h"
+#include "privacy/ProjectPrivacy.h"
 #include "project/Rebuilder.h"
 
 #include <yaml-cpp/yaml.h>
@@ -72,7 +72,8 @@ std::pair<std::vector<std::size_t>, std::vector<std::optional<std::string>>> bat
     const std::vector<BatchCardInput>& items
 ) {
   std::map<std::string, std::size_t> index;
-  for (std::size_t i = 0; i < items.size(); ++i) index.emplace(items[i].card_id, i);
+  for (std::size_t i = 0; i < items.size(); ++i)
+    index.emplace(items[i].card_id, i);
   std::vector<std::optional<std::string>> parents(items.size());
   for (std::size_t i = 0; i < items.size(); ++i) {
     const auto& parent = items[i].parent_card_id;
@@ -92,7 +93,7 @@ std::pair<std::vector<std::size_t>, std::vector<std::optional<std::string>>> bat
       if (!parents[at]) break;
       at = index.at(*parents[at]);
       if (marks[at] == Mark::Visiting) {
-        parents[path.back()].reset();  // The loop closes here: make this card a root.
+        parents[path.back()].reset(); // The loop closes here: make this card a root.
         break;
       }
     }
@@ -286,7 +287,8 @@ void CardStore::create_batch(
     card.title = item.title;
     card.rel_path = holder::core::card_rel_path(card.card_id);
     if (parents[index]) card.parent_card_id = id_remap.at(*parents[index]);
-    card.sort_key = item.sort_key.value_or(card_repo_.next_sort_key(project_id, card.parent_card_id));
+    card.sort_key = item.sort_key.value_or(card_repo_.next_sort_key(project_id, card.parent_card_id)
+    );
     card.created_at = item.created_at;
     card.updated_at = item.updated_at;
 
@@ -523,13 +525,16 @@ CardMoveResult CardStore::move_to(
 ) {
   auto card = card_repo_.get(card_id);
   if (!card || card->deleted_at) throw CardPlacementError(CardPlacementErrorCode::CardNotFound);
-  if (card->project_id != project_id) throw CardPlacementError(CardPlacementErrorCode::CrossProjectMoveForbidden);
+  if (card->project_id != project_id)
+    throw CardPlacementError(CardPlacementErrorCode::CrossProjectMoveForbidden);
   const auto project = require_project(project_id);
   auto operation = git_->lock_operation(project.root_path);
   const auto placement =
       CardPlacementResolver(card_repo_).resolve(project_id, card_id, request, updated_at);
   card = card_repo_.get(card_id);
-  if (!card) throw CardPlacementError(CardPlacementErrorCode::CardNotFound); // LCOV_EXCL_LINE - resolve checked.
+  if (!card)
+    throw CardPlacementError(CardPlacementErrorCode::CardNotFound
+    ); // LCOV_EXCL_LINE - resolve checked.
   const bool moved = placement.parent_card_id != card->parent_card_id ||
                      placement.sort_key != card->sort_key;
   if (!moved && placement.sibling_changes.empty()) return {*card, placement.moved_into_title};
@@ -701,7 +706,8 @@ holder::model::Milestone CardStore::add_milestone(
 ) {
   if (milestone.project_id.empty() || milestone.card_id.empty())
     throw std::invalid_argument("milestone project_id/card_id must not be empty");
-  for (const auto& value : milestone.dates) holder::model::validate_milestone_date(value);
+  for (const auto& value : milestone.dates)
+    holder::model::validate_milestone_date(value);
   if (milestone.milestone_id.empty()) milestone.milestone_id = holder::identity::uuid_v4();
   if (milestone.created_at == 0) milestone.created_at = updated_at;
   milestone.updated_at = updated_at;
@@ -774,10 +780,10 @@ std::optional<holder::model::Milestone> CardStore::update_milestone(
           if (update.dates)
             throw std::invalid_argument("dates cannot be mixed with legacy milestone fields");
           const auto find_role = [&](const std::string& role) {
-            auto first = std::find_if(
-                updated.dates.begin(), updated.dates.end(),
-                [&](const auto& value) { return value.role == role; }
-            );
+            auto first =
+                std::find_if(updated.dates.begin(), updated.dates.end(), [&](const auto& value) {
+                  return value.role == role;
+                });
             if (first != updated.dates.end() &&
                 std::find_if(std::next(first), updated.dates.end(), [&](const auto& value) {
                   return value.role == role;
@@ -803,8 +809,11 @@ std::optional<holder::model::Milestone> CardStore::update_milestone(
           const auto end = find_role("end");
           std::optional<long long> end_at;
           if (end != updated.dates.end()) end_at = holder::model::milestone_legacy_epoch(*end);
+          // LCOV_EXCL_START - parsed milestone dates already require exactly one valid date or
+          // datetime.
           if (end != updated.dates.end() && !end_at && !update.has_end_at)
-            throw std::invalid_argument("legacy milestone update requires a single end value"); // LCOV_EXCL_LINE - parsed milestone dates already require exactly one valid date or datetime.
+            throw std::invalid_argument("legacy milestone update requires a single end value");
+          // LCOV_EXCL_STOP
           if (update.has_end_at) end_at = update.end_at;
           const auto normalized_start = holder::model::milestone_legacy_epoch(new_start).value();
           if (end_at) {
@@ -828,7 +837,8 @@ std::optional<holder::model::Milestone> CardStore::update_milestone(
         }
         if (update.has_kind) updated.kind = update.kind;
         if (update.has_description) updated.description = update.description;
-        for (const auto& value : updated.dates) holder::model::validate_milestone_date(value);
+        for (const auto& value : updated.dates)
+          holder::model::validate_milestone_date(value);
         const bool changed = updated.dates != position->dates || updated.kind != position->kind ||
                              updated.description != position->description;
         if (changed) {
@@ -888,7 +898,9 @@ void CardStore::apply_card_changes(
     const auto live_path = holder::core::card_rel_path(current.card_id);
     const auto trash_path = holder::core::card_trash_rel_path(current.card_id);
     if (current.rel_path != live_path && !(current.deleted_at && current.rel_path == trash_path))
-      throw std::runtime_error("card rel_path does not match card_id"); // LCOV_EXCL_LINE - all private callers validate immutable source snapshots before applying changes.
+      throw std::runtime_error("card rel_path does not match card_id"
+      ); // LCOV_EXCL_LINE - all private callers validate immutable source snapshots before applying
+         // changes.
     const auto source_path = current.deleted_at ? trash_path : live_path;
     const auto target_path = change.target.card.deleted_at ? trash_path : live_path;
     if (!fs_->exists(git_->repo_dir() / source_path))

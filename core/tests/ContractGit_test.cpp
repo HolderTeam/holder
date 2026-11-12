@@ -52,41 +52,57 @@ struct Host {
 
 } // namespace
 
-TEST_CASE("A project without a remote reports it, and records nothing as pushed", "[contract][git]") {
+TEST_CASE(
+    "A project without a remote reports it, and records nothing as pushed",
+    "[contract][git]"
+) {
   Host host;
   auto state = contract::get_project_sync_state(host.context, host.project_id);
   REQUIRE(state.project_id == host.project_id);
   REQUIRE(state.last_push_at == std::nullopt);
 
-  const auto pushed = contract::push_project(host.context, host.project_id, contract::PushOptions{});
+  const auto pushed =
+      contract::push_project(host.context, host.project_id, contract::PushOptions{});
   REQUIRE(pushed.project_id == host.project_id);
   REQUIRE(pushed.status == contract::SyncResultStatus::Failed);
   REQUIRE(pushed.remote_url == std::nullopt);
   REQUIRE_FALSE(pushed.pull.attempted);
   REQUIRE(pushed.pull.status == contract::PullPhaseStatus::NotAttempted);
   REQUIRE(pushed.push.status == contract::PushPhaseStatus::RemoteUnset);
-  REQUIRE(contract::get_project_sync_state(host.context, host.project_id).last_push_status == "remote_unset");
+  REQUIRE(
+      contract::get_project_sync_state(host.context, host.project_id).last_push_status ==
+      "remote_unset"
+  );
 
-  const auto tested = contract::test_project_remote(host.context, host.project_id, contract::RemoteTest{});
+  const auto tested =
+      contract::test_project_remote(host.context, host.project_id, contract::RemoteTest{});
   REQUIRE(tested.project_id == host.project_id);
   REQUIRE(tested.status == contract::RemoteTestResultStatus::RemoteUnset);
   REQUIRE(tested.remote_url == std::nullopt);
 
   REQUIRE_THROWS_AS(contract::pull_project(host.context, "no-such-project"), contract::NotFound);
-  REQUIRE_THROWS_AS(contract::get_project_sync_state(host.context, "no-such-project"), contract::NotFound);
+  REQUIRE_THROWS_AS(
+      contract::get_project_sync_state(host.context, "no-such-project"),
+      contract::NotFound
+  );
 }
 
-TEST_CASE("A project pushes, pulls and syncs with its remote, and each records its outcome", "[contract][git]") {
+TEST_CASE(
+    "A project pushes, pulls and syncs with its remote, and each records its outcome",
+    "[contract][git]"
+) {
   Host host;
   const auto remote = host.remote();
 
-  const auto tested = contract::test_project_remote(host.context, host.project_id, contract::RemoteTest{});
+  const auto tested =
+      contract::test_project_remote(host.context, host.project_id, contract::RemoteTest{});
   REQUIRE(tested.status == contract::RemoteTestResultStatus::Reachable);
   REQUIRE(tested.remote_url == remote);
   REQUIRE_FALSE(tested.remote_has_head);
   REQUIRE(tested.error_message == std::nullopt);
 
-  const auto pushed = contract::push_project(host.context, host.project_id, contract::PushOptions{});
+  const auto pushed =
+      contract::push_project(host.context, host.project_id, contract::PushOptions{});
   REQUIRE(pushed.status == contract::SyncResultStatus::Succeeded);
   REQUIRE(pushed.remote_url == remote);
   REQUIRE(pushed.push.attempted);
@@ -103,7 +119,8 @@ TEST_CASE("A project pushes, pulls and syncs with its remote, and each records i
   REQUIRE_FALSE(pulled.push.attempted);
   REQUIRE(pulled.push.status == contract::PushPhaseStatus::NotAttempted);
 
-  const auto synced = contract::sync_project(host.context, host.project_id, contract::PushOptions{});
+  const auto synced =
+      contract::sync_project(host.context, host.project_id, contract::PushOptions{});
   REQUIRE(synced.status == contract::SyncResultStatus::Succeeded);
   REQUIRE(synced.pull.status == contract::PullPhaseStatus::Succeeded);
   REQUIRE(synced.push.status == contract::PushPhaseStatus::UpToDate);
@@ -120,7 +137,8 @@ TEST_CASE("A project pushes, pulls and syncs with its remote, and each records i
 
 TEST_CASE("Scheduled contract sync respects remote and cadence", "[contract][git]") {
   Host host;
-  const auto without_remote = contract::sync_project_if_due(host.context, host.project_id, 3600, 3600);
+  const auto without_remote =
+      contract::sync_project_if_due(host.context, host.project_id, 3600, 3600);
   REQUIRE_FALSE(without_remote.pull.attempted);
   REQUIRE_FALSE(without_remote.push.attempted);
   REQUIRE(without_remote.remote_url == std::nullopt);
@@ -133,14 +151,18 @@ TEST_CASE("Scheduled contract sync respects remote and cadence", "[contract][git
   const auto second = contract::sync_project_if_due(host.context, host.project_id, 3600, 3600);
   REQUIRE_FALSE(second.pull.attempted);
   REQUIRE_FALSE(second.push.attempted);
-  REQUIRE_THROWS_AS(contract::sync_project_if_due(host.context, "no-such-project", 0, 0), contract::NotFound);
+  REQUIRE_THROWS_AS(
+      contract::sync_project_if_due(host.context, "no-such-project", 0, 0),
+      contract::NotFound
+  );
 }
 
 namespace {
 // Real local file operations with deterministic remote outcomes; no network is used.
 class RemoteOutcomes final : public holder::git::GitOps {
  public:
-  explicit RemoteOutcomes(holder::git::RealGitOps& real) : real_(real) {}
+  explicit RemoteOutcomes(holder::git::RealGitOps& real)
+      : real_(real) {}
   holder::git::PushResult push_result;
   holder::git::RemoteProbeResult probe_result;
   std::string probed_url;

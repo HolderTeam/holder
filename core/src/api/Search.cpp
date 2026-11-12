@@ -10,13 +10,24 @@
 
 namespace holder::contract {
 
-std::vector<SearchCard> search_cards(holder_context& context, std::string project_id, std::string q,
-                                     std::int32_t limit, std::int32_t offset) {
+std::vector<SearchCard> search_cards(
+    holder_context& context,
+    std::string project_id,
+    std::string q,
+    std::int32_t limit,
+    std::int32_t offset
+) {
   try {
     std::vector<SearchCard> items;
     for (auto& row : context.fts.search_cards(project_id, q, limit, offset)) {
-      items.push_back({std::move(row.id), std::move(row.title), row.updated_at, row.created_at,
-                       std::move(row.snippet), row.rank});
+      items.push_back(
+          {std::move(row.id),
+           std::move(row.title),
+           row.updated_at,
+           row.created_at,
+           std::move(row.snippet),
+           row.rank}
+      );
     }
     return items;
   } catch (const holder::index::FtsQueryError& error) {
@@ -24,8 +35,13 @@ std::vector<SearchCard> search_cards(holder_context& context, std::string projec
   }
 }
 
-std::vector<SearchMessage> search_ai_messages(holder_context& context, std::string project_id, std::string q,
-                                               std::int32_t limit, std::int32_t offset) {
+std::vector<SearchMessage> search_ai_messages(
+    holder_context& context,
+    std::string project_id,
+    std::string q,
+    std::int32_t limit,
+    std::int32_t offset
+) {
   try {
     std::vector<SearchMessage> items;
     for (auto& row : context.fts.search_messages(project_id, q, limit, offset)) {

@@ -27,14 +27,21 @@ ProjectEncryptionCheck check_project_encryption(holder_context& context, std::st
   if (project->privacy_mode != "encrypted_git") throw Error("Unknown project privacy mode.");
   result.privacy_mode = ProjectEncryptionCheckPrivacyMode::EncryptedGit;
   auto checked = holder::privacy::run_encryption_safety_check(project->root_path);
-  result.check = {checked.ok, static_cast<std::int32_t>(checked.checked_files),
-                  static_cast<std::int32_t>(checked.unsafe_paths.size()),
-                  std::move(checked.unsafe_paths), std::move(checked.message)};
+  result.check = {
+      checked.ok,
+      static_cast<std::int32_t>(checked.checked_files),
+      static_cast<std::int32_t>(checked.unsafe_paths.size()),
+      std::move(checked.unsafe_paths),
+      std::move(checked.message)
+  };
   return result;
 }
 
-HierarchyRepair repair_project_hierarchy(holder_context& context, std::string project_id,
-                                         const HierarchyRepairRequest& request) {
+HierarchyRepair repair_project_hierarchy(
+    holder_context& context,
+    std::string project_id,
+    const HierarchyRepairRequest& request
+) {
   if (!holder::project::ProjectRepo(context.db).get(project_id))
     throw NotFound("Project not found.");
 

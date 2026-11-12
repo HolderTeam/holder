@@ -12,8 +12,10 @@
 #include "card/CardRepo.h"
 #include "project/ProjectRepo.h"
 
-TEST_CASE("Contract project maintenance plans repairs and checks encryption safety",
-          "[contract][project-maintenance]") {
+TEST_CASE(
+    "Contract project maintenance plans repairs and checks encryption safety",
+    "[contract][project-maintenance]"
+) {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::index::FtsIndexer fts{db};
@@ -30,8 +32,10 @@ TEST_CASE("Contract project maintenance plans repairs and checks encryption safe
   CHECK(plain.privacy_mode == holder::contract::ProjectEncryptionCheckPrivacyMode::Plain);
   CHECK(plain.check.ok);
   CHECK(plain.check.checked_files == 0);
-  REQUIRE_THROWS_AS(holder::contract::check_project_encryption(context, "missing"),
-                    holder::contract::NotFound);
+  REQUIRE_THROWS_AS(
+      holder::contract::check_project_encryption(context, "missing"),
+      holder::contract::NotFound
+  );
 
   holder::contract::NewCard parent_request;
   parent_request.title = "Parent";
@@ -51,13 +55,18 @@ TEST_CASE("Contract project maintenance plans repairs and checks encryption safe
   CHECK_FALSE(planned.moved[0].parent_card_id);
   CHECK(cards.get(child.card_id)->parent_card_id == parent.card_id);
 
-  const auto applied = holder::contract::repair_project_hierarchy(context, project.project_id, {true});
+  const auto applied =
+      holder::contract::repair_project_hierarchy(context, project.project_id, {true});
   CHECK(applied.applied);
   CHECK(applied.changed_card_count == 1);
   CHECK_FALSE(cards.get(child.card_id)->parent_card_id);
-  CHECK_FALSE(holder::contract::repair_project_hierarchy(context, project.project_id, {true}).applied);
-  REQUIRE_THROWS_AS(holder::contract::repair_project_hierarchy(context, "missing", {}),
-                    holder::contract::NotFound);
+  CHECK_FALSE(
+      holder::contract::repair_project_hierarchy(context, project.project_id, {true}).applied
+  );
+  REQUIRE_THROWS_AS(
+      holder::contract::repair_project_hierarchy(context, "missing", {}),
+      holder::contract::NotFound
+  );
 
   holder::project::ProjectRepo(db).update_privacy_mode(project.project_id, "encrypted_git", 60);
   const auto unsafe = holder::contract::check_project_encryption(context, project.project_id);

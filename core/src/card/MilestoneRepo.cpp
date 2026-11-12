@@ -54,9 +54,8 @@ holder::model::Milestone read_milestone(sqlite3_stmt* stmt) {
 } // LCOV_EXCL_LINE
 
 void load_dates(sqlite3* db, holder::model::Milestone& milestone) {
-  static constexpr const char* SQL =
-      "SELECT role, date_value, datetime_value FROM milestone_dates "
-      "WHERE milestone_id = ? ORDER BY position;";
+  static constexpr const char* SQL = "SELECT role, date_value, datetime_value FROM milestone_dates "
+                                     "WHERE milestone_id = ? ORDER BY position;";
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db, SQL, -1, &stmt, nullptr) != SQLITE_OK)
     throw_sqlite(db, "prepare milestone dates failed");
@@ -92,7 +91,8 @@ void MilestoneRepo::replace_for_card(
   for (const auto& milestone : milestones) {
     if (milestone.project_id != project_id || milestone.card_id != card_id)
       throw std::runtime_error("milestone project_id/card_id mismatch");
-    for (const auto& value : milestone.dates) holder::model::validate_milestone_date(value);
+    for (const auto& value : milestone.dates)
+      holder::model::validate_milestone_date(value);
   }
   static constexpr const char* DELETE_DATES_SQL =
       "DELETE FROM milestone_dates WHERE milestone_id IN "
@@ -285,10 +285,10 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_in_range(
     }
     auto milestone = read_milestone(stmt);
     load_dates(db_.handle(), milestone);
-    const bool has_end = std::any_of(
-        milestone.dates.begin(), milestone.dates.end(),
-        [](const auto& value) { return value.role == "end"; }
-    );
+    const bool has_end =
+        std::any_of(milestone.dates.begin(), milestone.dates.end(), [](const auto& value) {
+          return value.role == "end";
+        });
     if (holder::model::milestone_unique_date_for_role(milestone, "start") &&
         (!has_end || holder::model::milestone_unique_date_for_role(milestone, "end")))
       out.push_back(std::move(milestone));

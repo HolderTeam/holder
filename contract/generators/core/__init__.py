@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from compiler.ir import ContractView
 
+from ..clang_format import clang_format
 from .c_header import generate_c_header
 from .cpp_header import generate_cpp_header
 from .glue import generate_glue
@@ -27,11 +28,17 @@ CORE_PATHS = {"holder_api.h": "core/include/holder/holder_api.h", "Contract.h": 
               "HostCApi.cpp": "core/src/api/HostCApi.cpp"}
 
 
-def generate_core(contract: ContractView) -> dict[str, str]:
-    """The generated files, by name."""
+def render_core(contract: ContractView) -> dict[str, str]:
+    """The generated files, by name, as the generators write them, before clang-format lays them out.
+    Tests of what the generators emit look at these."""
     types = CoreTypes(contract)
     files = {"holder_api.h": generate_c_header(types), "Contract.h": generate_cpp_header(types),
              "ContractCApi.cpp": generate_glue(types)}
     if types.host_operations:
         files["HostCApi.cpp"] = generate_host_glue(types)
     return files
+
+
+def generate_core(contract: ContractView) -> dict[str, str]:
+    """The generated files, by name, laid out by clang-format-18 with core's style, as core holds them."""
+    return {name: clang_format(text, CORE_PATHS[name]) for name, text in render_core(contract).items()}

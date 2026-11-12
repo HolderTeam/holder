@@ -29,8 +29,7 @@ namespace {
 // The contract's target types, in its order; each enum of them lists them in that order.
 constexpr std::array<const char*, 4> TARGET_TYPES{"card", "ai_message", "ai_thread", "resource"};
 
-template <class Type>
-std::string type_name(Type type) {
+template <class Type> std::string type_name(Type type) {
   return TARGET_TYPES.at(static_cast<std::size_t>(type));
 }
 
@@ -40,7 +39,8 @@ LinkTargetType target_type(const std::string& name) {
   return static_cast<LinkTargetType>(at - TARGET_TYPES.begin());
 }
 
-// A card's source, or an AI message's, in the link's own project; nothing for a source that is gone.
+// A card's source, or an AI message's, in the link's own project; nothing for a source that is
+// gone.
 struct Source {
   LinkSourceType type;
   bool deleted;
@@ -58,12 +58,25 @@ std::optional<Source> source_of(holder_context& context, const holder::model::Ca
 }
 
 Link to_link(const holder::model::CardLink& link, LinkSourceType source_type) {
-  return Link{link.project_id, source_type, link.from_card_id, link.target_project_id.value_or(link.project_id),
-              target_type(link.to_type), link.to_card_id, link.kind, link.label, link.created_at};
+  return Link{
+      link.project_id,
+      source_type,
+      link.from_card_id,
+      link.target_project_id.value_or(link.project_id),
+      target_type(link.to_type),
+      link.to_card_id,
+      link.kind,
+      link.label,
+      link.created_at
+  };
 }
 
-std::vector<Link> outgoing(holder_context& context, const std::string& project_id, const std::string& card_id,
-                           bool include_deleted) {
+std::vector<Link> outgoing(
+    holder_context& context,
+    const std::string& project_id,
+    const std::string& card_id,
+    bool include_deleted
+) {
   std::vector<Link> out;
   for (const auto& link : holder::card::LinkRepo(context.db).list_outgoing(project_id, card_id)) {
     if (include_deleted || holder::card::link_target_visible(context.db, link))
@@ -77,9 +90,13 @@ bool on_this_device(const holder::model::Project& project) {
   return std::filesystem::is_directory(project.root_path, error);
 }
 
-// Links newest first, then by source, each with its source's type; a link whose source is gone is never listed.
-std::vector<Link> with_sources(holder_context& context, std::vector<holder::model::CardLink> links,
-                               bool include_deleted) {
+// Links newest first, then by source, each with its source's type; a link whose source is gone is
+// never listed.
+std::vector<Link> with_sources(
+    holder_context& context,
+    std::vector<holder::model::CardLink> links,
+    bool include_deleted
+) {
   std::sort(links.begin(), links.end(), [](const auto& left, const auto& right) {
     if (left.created_at != right.created_at) return left.created_at > right.created_at;
     if (left.project_id != right.project_id) return left.project_id < right.project_id;
@@ -94,17 +111,24 @@ std::vector<Link> with_sources(holder_context& context, std::vector<holder::mode
   return out;
 } // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
 
-std::vector<Link> backlinks(holder_context& context, const std::string& project_id, const std::string& card_id,
-                            ListCardBacklinksScope scope, bool include_deleted) {
+std::vector<Link> backlinks(
+    holder_context& context,
+    const std::string& project_id,
+    const std::string& card_id,
+    ListCardBacklinksScope scope,
+    bool include_deleted
+) {
   auto store = card_store(context);
   live_card(store, project_id, card_id);
   holder::card::LinkRepo repo(context.db);
   std::vector<holder::model::CardLink> links;
-  if (scope != ListCardBacklinksScope::External) links = repo.list_backlinks_typed(project_id, card_id, "card");
+  if (scope != ListCardBacklinksScope::External)
+    links = repo.list_backlinks_typed(project_id, card_id, "card");
   if (scope != ListCardBacklinksScope::Local) {
     std::vector<std::string> others;
     for (const auto& project : holder::project::ProjectRepo(context.db).list())
-      if (project.project_id != project_id && on_this_device(project)) others.push_back(project.project_id);
+      if (project.project_id != project_id && on_this_device(project))
+        others.push_back(project.project_id);
     auto external = repo.list_external_backlinks_typed(project_id, card_id, "card", others);
     links.insert(links.end(), external.begin(), external.end());
   }
@@ -113,16 +137,25 @@ std::vector<Link> backlinks(holder_context& context, const std::string& project_
 
 // A target in the card's own project must be there and not in the trash. A card in another project
 // may be one this device does not have, but one it has must not be in the trash.
-void check_target(holder_context& context, holder::card::CardStore& store, const std::string& project_id,
-                  const std::string& type, const std::string& id, const std::string& target_project_id) {
-  const auto missing = [&] { return NotFound("link target not found: " + type + " " + id); };
+void check_target(
+    holder_context& context,
+    holder::card::CardStore& store,
+    const std::string& project_id,
+    const std::string& type,
+    const std::string& id,
+    const std::string& target_project_id
+) {
+  const auto missing = [&] {
+    return NotFound("link target not found: " + type + " " + id);
+  };
   if (type == "card") {
     const auto card = card_in(store, target_project_id, id);
     if (target_project_id != project_id && !card) return;
     if (!card || card->deleted_at) throw missing();
     return;
   }
-  if (target_project_id != project_id) throw InvalidArgument("only a card can be in another project");
+  if (target_project_id != project_id)
+    throw InvalidArgument("only a card can be in another project");
   if (type == "resource") {
     const auto resource = holder::resource::ResourceRepo(context.db).get(id);
     if (!resource || resource->project_id != project_id) throw missing();
@@ -134,15 +167,21 @@ void check_target(holder_context& context, holder::card::CardStore& store, const
     return;
   }
   const auto message = holder::ai::AiMessageRepo(context.db, nullptr).get(id);
-  const auto thread = message ? holder::ai::AiThreadRepo(context.db).get(message->thread_id) : std::nullopt;
+  const auto thread = message ? holder::ai::AiThreadRepo(context.db).get(message->thread_id)
+                              : std::nullopt;
   if (!thread || thread->project_id != project_id || message->deleted_at) throw missing();
 }
 
 // The card's link to that target, kind and project, when it has one.
-std::optional<holder::model::CardLink> find_link(holder_context& context, const std::string& project_id,
-                                                 const std::string& card_id, const std::string& type,
-                                                 const std::string& id, const std::string& kind,
-                                                 const std::string& target_project_id) {
+std::optional<holder::model::CardLink> find_link(
+    holder_context& context,
+    const std::string& project_id,
+    const std::string& card_id,
+    const std::string& type,
+    const std::string& id,
+    const std::string& kind,
+    const std::string& target_project_id
+) {
   for (auto& link : holder::card::LinkRepo(context.db).list_outgoing(project_id, card_id)) {
     if (link.to_type == type && link.to_card_id == id && link.kind == kind &&
         link.target_project_id.value_or(link.project_id) == target_project_id)
@@ -154,15 +193,24 @@ std::optional<holder::model::CardLink> find_link(holder_context& context, const 
 // Writes the card's links to its file. The index changes with the file or not at all, so a write
 // that fails, such as one an encrypted project's missing key stops, leaves both as they were.
 template <class Change>
-void write_links(holder_context& context, holder::card::CardStore& store, const std::string& card_id,
-                 Change&& change) {
+void write_links(
+    holder_context& context,
+    holder::card::CardStore& store,
+    const std::string& card_id,
+    Change&& change
+) {
   holder::platform::Tx tx(context.db);
   change(holder::card::LinkRepo(context.db));
   store.update_links(card_id, now_epoch_seconds());
   tx.commit();
 }
 
-Link add(holder_context& context, const std::string& project_id, const std::string& card_id, const NewLink& request) {
+Link add(
+    holder_context& context,
+    const std::string& project_id,
+    const std::string& card_id,
+    const NewLink& request
+) {
   auto store = card_store(context);
   live_card(store, project_id, card_id);
   const auto type = type_name(request.target_type);
@@ -178,20 +226,35 @@ Link add(holder_context& context, const std::string& project_id, const std::stri
   link.label = request.label;
   if (target_project_id != project_id) link.target_project_id = target_project_id;
   link.created_at = request.created_at.value_or(now_epoch_seconds());
-  // A link that already exists keeps when it was made, and one whose label is unchanged is not written.
-  if (const auto existing =
-          find_link(context, project_id, card_id, type, request.target_id, request.kind, target_project_id)) {
+  // A link that already exists keeps when it was made, and one whose label is unchanged is not
+  // written.
+  if (const auto existing = find_link(
+          context,
+          project_id,
+          card_id,
+          type,
+          request.target_id,
+          request.kind,
+          target_project_id
+      )) {
     if (existing->label == link.label) return to_link(*existing, LinkSourceType::Card);
     link.created_at = existing->created_at;
   }
-  write_links(context, store, card_id,
-              [&](holder::card::LinkRepo repo) { repo.upsert_links(project_id, card_id, {link}); });
+  write_links(context, store, card_id, [&](holder::card::LinkRepo repo) {
+    repo.upsert_links(project_id, card_id, {link});
+  });
   return to_link(link, LinkSourceType::Card);
 }
 
-std::vector<Link> remove(holder_context& context, const std::string& project_id, const std::string& card_id,
-                         RemoveCardLinkTargetType target_type, const std::string& target_id, const std::string& kind,
-                         const std::optional<std::string>& target_project) {
+std::vector<Link> remove(
+    holder_context& context,
+    const std::string& project_id,
+    const std::string& card_id,
+    RemoveCardLinkTargetType target_type,
+    const std::string& target_id,
+    const std::string& kind,
+    const std::optional<std::string>& target_project
+) {
   auto store = card_store(context);
   live_card(store, project_id, card_id);
   const auto type = type_name(target_type);
@@ -204,8 +267,12 @@ std::vector<Link> remove(holder_context& context, const std::string& project_id,
   return outgoing(context, project_id, card_id, false);
 }
 
-std::vector<Link> links(holder_context& context, const std::string& project_id, const std::string& card_id,
-                        bool include_deleted) {
+std::vector<Link> links(
+    holder_context& context,
+    const std::string& project_id,
+    const std::string& card_id,
+    bool include_deleted
+) {
   auto store = card_store(context);
   live_card(store, project_id, card_id);
   return outgoing(context, project_id, card_id, include_deleted);
@@ -213,32 +280,66 @@ std::vector<Link> links(holder_context& context, const std::string& project_id, 
 
 } // namespace
 
-std::vector<Link> local_backlinks(holder_context& context, const std::string& project_id,
-                                  const std::string& target_type, const std::string& target_id, bool include_deleted) {
+std::vector<Link> local_backlinks(
+    holder_context& context,
+    const std::string& project_id,
+    const std::string& target_type,
+    const std::string& target_id,
+    bool include_deleted
+) {
   return with_sources(
-      context, holder::card::LinkRepo(context.db).list_backlinks_typed(project_id, target_id, target_type),
-      include_deleted);
+      context,
+      holder::card::LinkRepo(context.db).list_backlinks_typed(project_id, target_id, target_type),
+      include_deleted
+  );
 }
 
-std::vector<Link> list_card_links(holder_context& context, std::string project_id, std::string card_id,
-                                  bool include_deleted) {
-  return with_contract_errors([&] { return links(context, project_id, card_id, include_deleted); });
+std::vector<Link> list_card_links(
+    holder_context& context,
+    std::string project_id,
+    std::string card_id,
+    bool include_deleted
+) {
+  return with_contract_errors([&] {
+    return links(context, project_id, card_id, include_deleted);
+  });
 }
 
-std::vector<Link> list_card_backlinks(holder_context& context, std::string project_id, std::string card_id,
-                                      ListCardBacklinksScope scope, bool include_deleted) {
-  return with_contract_errors([&] { return backlinks(context, project_id, card_id, scope, include_deleted); });
+std::vector<Link> list_card_backlinks(
+    holder_context& context,
+    std::string project_id,
+    std::string card_id,
+    ListCardBacklinksScope scope,
+    bool include_deleted
+) {
+  return with_contract_errors([&] {
+    return backlinks(context, project_id, card_id, scope, include_deleted);
+  });
 }
 
-Link add_card_link(holder_context& context, std::string project_id, std::string card_id, const NewLink& link) {
-  return with_contract_errors([&] { return add(context, project_id, card_id, link); });
+Link add_card_link(
+    holder_context& context,
+    std::string project_id,
+    std::string card_id,
+    const NewLink& link
+) {
+  return with_contract_errors([&] {
+    return add(context, project_id, card_id, link);
+  });
 }
 
-std::vector<Link> remove_card_link(holder_context& context, std::string project_id, std::string card_id,
-                                   RemoveCardLinkTargetType target_type, std::string target_id, std::string kind,
-                                   std::optional<std::string> target_project_id) {
-  return with_contract_errors(
-      [&] { return remove(context, project_id, card_id, target_type, target_id, kind, target_project_id); });
+std::vector<Link> remove_card_link(
+    holder_context& context,
+    std::string project_id,
+    std::string card_id,
+    RemoveCardLinkTargetType target_type,
+    std::string target_id,
+    std::string kind,
+    std::optional<std::string> target_project_id
+) {
+  return with_contract_errors([&] {
+    return remove(context, project_id, card_id, target_type, target_id, kind, target_project_id);
+  });
 }
 
 std::vector<LinkKindLabels> list_link_kinds(holder_context&) {

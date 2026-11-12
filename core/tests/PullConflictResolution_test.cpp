@@ -7,8 +7,8 @@
 
 #include "sync/PullConflictResolution.h"
 
-#include "card/CardPaths.h"
 #include "card/CardFrontMatter.h"
+#include "card/CardPaths.h"
 #include "card/CardRepo.h"
 #include "card/CardStore.h"
 #include "card/LinkRepo.h"
@@ -52,8 +52,10 @@ void create_plain_project(
 
 } // namespace
 
-TEST_CASE("Conflict preservation rejects duplicate identities and cyclic parents",
-          "[sync][conflict-validation]") {
+TEST_CASE(
+    "Conflict preservation rejects duplicate identities and cyclic parents",
+    "[sync][conflict-validation]"
+) {
   const auto dir = make_temp_dir();
   const std::string project_id = "proj-conflicts";
   const std::string second_id = "22222222-2222-4222-8222-222222222222";
@@ -100,7 +102,10 @@ TEST_CASE("Conflict preservation rejects duplicate identities and cyclic parents
     const auto path = holder::core::card_rel_path(id);
     std::ifstream input(local_dir / path);
     REQUIRE(input.is_open());
-    const std::string bytes{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    const std::string bytes{
+        std::istreambuf_iterator<char>(input),
+        std::istreambuf_iterator<char>()
+    };
     auto parsed = holder::core::parse_card_file(bytes);
     REQUIRE(parsed.has_front_matter);
     if (duplicate)
@@ -108,8 +113,11 @@ TEST_CASE("Conflict preservation rejects duplicate identities and cyclic parents
     else
       parsed.card.parent_card_id = id == kSharedCardId ? second_id : std::string(kSharedCardId);
     const auto changed = malformed ? std::string("not card front matter\nlocal body to preserve\n")
-        : holder::core::render_card_front_matter(parsed.card, parsed.links, parsed.milestones) +
-          "local body to preserve\n";
+                                   : holder::core::render_card_front_matter(
+                                         parsed.card,
+                                         parsed.links,
+                                         parsed.milestones
+                                     ) + "local body to preserve\n";
     local_bytes.emplace(path, changed);
     local_git.write_file(path, changed);
     local_git.stage_path(path);
@@ -126,11 +134,28 @@ TEST_CASE("Conflict preservation rejects duplicate identities and cyclic parents
   }
   REQUIRE(seen);
   if (malformed) {
-    CHECK(holder::sync::resolve_pull_conflicts(local_db, &local_fts, local_project, local_git, diverged, 3) == 0);
+    CHECK(
+        holder::sync::resolve_pull_conflicts(
+            local_db,
+            &local_fts,
+            local_project,
+            local_git,
+            diverged,
+            3
+        ) == 0
+    );
   } else {
-    REQUIRE_THROWS_WITH(holder::sync::resolve_pull_conflicts(
-      local_db, &local_fts, local_project, local_git, diverged, 3),
-      Catch::Matchers::ContainsSubstring(expected));
+    REQUIRE_THROWS_WITH(
+        holder::sync::resolve_pull_conflicts(
+            local_db,
+            &local_fts,
+            local_project,
+            local_git,
+            diverged,
+            3
+        ),
+        Catch::Matchers::ContainsSubstring(expected)
+    );
   }
   const auto cards = holder::card::CardRepo(local_db).list_all(project_id);
   REQUIRE(cards.size() == 2);
@@ -306,7 +331,9 @@ TEST_CASE(
     REQUIRE(milestones.size() == 1);
     REQUIRE(milestones[0].milestone_id != "milestone-original");
     REQUIRE(milestones[0].card_id == duplicate->card_id);
-    REQUIRE(holder::model::milestone_unique_date_for_role(milestones[0], "start")->date == "2026-10-16");
+    REQUIRE(
+        holder::model::milestone_unique_date_for_role(milestones[0], "start")->date == "2026-10-16"
+    );
     REQUIRE(
         holder::model::milestone_unique_date_for_role(milestones[0], "resolved")->datetime ==
         "2026-10-17T09:30:00+01:00"

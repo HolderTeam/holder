@@ -74,8 +74,9 @@ class RecordingGitOps final : public holder::git::GitOps {
     if (fail_pull) throw std::runtime_error("pull failed for tests");
     if (diverge_pull) throw holder::git::NonFastForwardPullError("local", "remote", "origin");
   }
-  holder::git::GitRepo::DivergedMergeResult merge_remote_taking_theirs_for_conflicts(
-      const std::string&, const std::string&, const std::string&) override {
+  holder::git::GitRepo::DivergedMergeResult
+  merge_remote_taking_theirs_for_conflicts(const std::string&, const std::string&, const std::string&)
+      override {
     calls.push_back("merge");
     return {};
   }
@@ -315,7 +316,10 @@ TEST_CASE("ProjectSyncOperation pulls before a successful push", "[sync][operati
   REQUIRE(state->last_push_status == "pushed");
 }
 
-TEST_CASE("ProjectSyncOperation resolves a diverged pull before rebuilding the index", "[sync][operation]") {
+TEST_CASE(
+    "ProjectSyncOperation resolves a diverged pull before rebuilding the index",
+    "[sync][operation]"
+) {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::index::FtsIndexer fts(db);
@@ -324,9 +328,16 @@ TEST_CASE("ProjectSyncOperation resolves a diverged pull before rebuilding the i
   git.diverge_pull = true;
 
   const auto result = holder::sync::run_project_sync(
-      db, &fts, git, "proj-1",
-      {.pull = true, .push = false, .push_after_failed_pull = false,
-       .branch = "", .set_upstream = true, .now = 300}
+      db,
+      &fts,
+      git,
+      "proj-1",
+      {.pull = true,
+       .push = false,
+       .push_after_failed_pull = false,
+       .branch = "",
+       .set_upstream = true,
+       .now = 300}
   );
 
   REQUIRE(result.succeeded());
@@ -347,9 +358,16 @@ TEST_CASE("ProjectSyncOperation records an unexpected push failure", "[sync][ope
   git.fail_push = true;
 
   const auto result = holder::sync::run_project_sync(
-      db, &fts, git, "proj-1",
-      {.pull = false, .push = true, .push_after_failed_pull = false,
-       .branch = "", .set_upstream = true, .now = 300}
+      db,
+      &fts,
+      git,
+      "proj-1",
+      {.pull = false,
+       .push = true,
+       .push_after_failed_pull = false,
+       .branch = "",
+       .set_upstream = true,
+       .now = 300}
   );
 
   REQUIRE_FALSE(result.succeeded());
@@ -521,11 +539,9 @@ TEST_CASE(
     reject_repair = true;
     // Imported records keep their historical timestamps; only the optional
     // repair stamps the new parent with this sync request's time (400).
-    local_db.exec(
-        "CREATE TRIGGER reject_parent_change BEFORE UPDATE OF parent_card_id ON cards "
-        "WHEN NEW.updated_at=400 AND OLD.parent_card_id IS NOT NEW.parent_card_id "
-        "BEGIN SELECT RAISE(ABORT, 'parent repair denied'); END;"
-    );
+    local_db.exec("CREATE TRIGGER reject_parent_change BEFORE UPDATE OF parent_card_id ON cards "
+                  "WHEN NEW.updated_at=400 AND OLD.parent_card_id IS NOT NEW.parent_card_id "
+                  "BEGIN SELECT RAISE(ABORT, 'parent repair denied'); END;");
   }
   holder::git::RealGitOps local_git;
   const auto result = holder::sync::run_project_sync(
@@ -554,7 +570,8 @@ TEST_CASE(
     REQUIRE(state.has_value());
     CHECK(state->last_pull_status == "succeeded");
     local_db.exec("DROP TRIGGER reject_parent_change;");
-    const auto repaired = holder::card::CardStore(local_db, &local_fts).repair_hierarchy("proj-1", 500);
+    const auto repaired =
+        holder::card::CardStore(local_db, &local_fts).repair_hierarchy("proj-1", 500);
     REQUIRE(repaired.moved_card_ids.size() == 1);
     CHECK(repaired.moved_card_ids[0] == child_id);
   } else {

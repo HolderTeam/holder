@@ -40,10 +40,14 @@ Review both shape and meaning. Generated-file checks detect drift. Compilation c
 
 ## Working on the contract
 
-Use Python 3.12 or later and the pinned dependencies:
+Use Python 3.12 or later and the pinned dependencies. Core's generated C and C++ files are laid out
+by `clang-format-18` with core's `.clang-format`, so generating or checking them also needs that
+exact version on `PATH` (another version lays code out differently, and `check` would report the
+files out of date):
 
 ```sh
 python3 -m pip install -r contract/requirements.txt
+sudo apt install clang-format-18   # or your platform's package
 make -C contract update   # regenerate interfaces
 make -C contract check    # lint, tests, declaration checks and generated-file freshness
 ```

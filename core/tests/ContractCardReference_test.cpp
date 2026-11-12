@@ -11,7 +11,10 @@
 
 #include "card/CardRepo.h"
 
-TEST_CASE("Contract card references keep resolution status and candidate shape", "[contract][card-reference]") {
+TEST_CASE(
+    "Contract card references keep resolution status and candidate shape",
+    "[contract][card-reference]"
+) {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::index::FtsIndexer fts{db};
@@ -24,7 +27,8 @@ TEST_CASE("Contract card references keep resolution status and candidate shape",
   request.privacy_mode = holder::contract::NewProjectPrivacyMode::Plain;
   const auto project = holder::contract::create_project(context, request);
   holder::card::CardRepo cards(db);
-  const auto make_card = [&](const std::string& id, const std::string& title,
+  const auto make_card = [&](const std::string& id,
+                             const std::string& title,
                              std::optional<long long> deleted_at = std::nullopt) {
     holder::model::Card card;
     card.card_id = id;
@@ -45,7 +49,9 @@ TEST_CASE("Contract card references keep resolution status and candidate shape",
   using holder::contract::CardReferenceResolveDataStatus;
   using holder::contract::CardReferenceResolveRequestScope;
   const auto full = holder::contract::resolve_card_reference(
-      context, {project.project_id, first, CardReferenceResolveRequestScope::Live});
+      context,
+      {project.project_id, first, CardReferenceResolveRequestScope::Live}
+  );
   REQUIRE(full.status == CardReferenceResolveDataStatus::Resolved);
   REQUIRE(full.card);
   CHECK(full.card->card_id == first);
@@ -53,7 +59,9 @@ TEST_CASE("Contract card references keep resolution status and candidate shape",
   CHECK_FALSE(full.candidates);
 
   const auto ambiguous = holder::contract::resolve_card_reference(
-      context, {project.project_id, "12345678", CardReferenceResolveRequestScope::Either});
+      context,
+      {project.project_id, "12345678", CardReferenceResolveRequestScope::Either}
+  );
   CHECK(ambiguous.status == CardReferenceResolveDataStatus::Ambiguous);
   CHECK(ambiguous.match_kind == "id_prefix");
   REQUIRE(ambiguous.candidates);
@@ -61,16 +69,24 @@ TEST_CASE("Contract card references keep resolution status and candidate shape",
   CHECK_FALSE(ambiguous.card);
 
   const auto old = holder::contract::resolve_card_reference(
-      context, {project.project_id, "Old", CardReferenceResolveRequestScope::Trashed});
+      context,
+      {project.project_id, "Old", CardReferenceResolveRequestScope::Trashed}
+  );
   REQUIRE(old.card);
   CHECK(old.card->deleted_at == 42);
   const auto absent = holder::contract::resolve_card_reference(
-      context, {project.project_id, "Old", CardReferenceResolveRequestScope::Live});
+      context,
+      {project.project_id, "Old", CardReferenceResolveRequestScope::Live}
+  );
   CHECK(absent.status == CardReferenceResolveDataStatus::NotFound);
   CHECK_FALSE(absent.match_kind);
   CHECK_FALSE(absent.card);
   CHECK_FALSE(absent.candidates);
-  REQUIRE_THROWS_AS(holder::contract::resolve_card_reference(
-                        context, {"missing", first, CardReferenceResolveRequestScope::Live}),
-                    holder::contract::NotFound);
+  REQUIRE_THROWS_AS(
+      holder::contract::resolve_card_reference(
+          context,
+          {"missing", first, CardReferenceResolveRequestScope::Live}
+      ),
+      holder::contract::NotFound
+  );
 }

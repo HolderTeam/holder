@@ -33,16 +33,19 @@ namespace {
 // A content page reads every body under one project lock, so it is kept smaller.
 constexpr int MAX_CONTENT_PAGE = 1000;
 
-
 Card full_card(holder::card::CardStore& store, const holder::model::Card& card) {
   auto content = store.get_content(card);
   if (!content) throw NotFound("card content missing: " + card.card_id);
-  // Tags are read from the content, so a card in the trash, which the tag index leaves out, has them too.
+  // Tags are read from the content, so a card in the trash, which the tag index leaves out, has
+  // them too.
   Card out{card, std::move(*content), {}, {}, {}};
   std::set<std::string> tags;
   for (const auto& occurrence : holder::core::extract_tag_occurrences(out.content)) {
-    out.tag_occurrences.push_back({occurrence.tag, static_cast<long long>(occurrence.byte_start),
-                                   static_cast<long long>(occurrence.byte_end)});
+    out.tag_occurrences.push_back(
+        {occurrence.tag,
+         static_cast<long long>(occurrence.byte_start),
+         static_cast<long long>(occurrence.byte_end)}
+    );
     tags.insert(occurrence.tag);
   }
   out.tags.assign(tags.begin(), tags.end());
@@ -53,9 +56,12 @@ Card full_card(holder::card::CardStore& store, const holder::model::Card& card) 
 
 const char* order_name(ListCardsOrder order) {
   switch (order) {
-  case ListCardsOrder::UpdatedDesc: return "updated_desc";
-  case ListCardsOrder::SortKeyAsc: return "sort_key_asc";
-  case ListCardsOrder::CardIdAsc: break;
+  case ListCardsOrder::UpdatedDesc:
+    return "updated_desc";
+  case ListCardsOrder::SortKeyAsc:
+    return "sort_key_asc";
+  case ListCardsOrder::CardIdAsc:
+    break;
   }
   return "card_id_asc";
 }
@@ -65,10 +71,17 @@ Card find_card(holder_context& context, const std::string& project_id, const std
   return full_card(store, live_card(store, project_id, card_id));
 }
 
-Page<CardListItem> list_page(holder_context& context, const std::string& project_id,
-                             std::optional<ListCardsParent> parent, std::optional<std::string> tag,
-                             ListCardsOrder order, std::int32_t limit, std::optional<std::string> cursor,
-                             bool include_content, bool include_child_count) {
+Page<CardListItem> list_page(
+    holder_context& context,
+    const std::string& project_id,
+    std::optional<ListCardsParent> parent,
+    std::optional<std::string> tag,
+    ListCardsOrder order,
+    std::int32_t limit,
+    std::optional<std::string> cursor,
+    bool include_content,
+    bool include_child_count
+) {
   holder::card::CardPageQuery query;
   std::string normalized_tag;
   if (tag) {
@@ -90,12 +103,15 @@ Page<CardListItem> list_page(holder_context& context, const std::string& project
     throw InvalidArgument("limit must be from 1 to 1000 when include_content is true");
   if (order == ListCardsOrder::UpdatedDesc) query.order = holder::card::CardPageOrder::UpdatedDesc;
   if (order == ListCardsOrder::SortKeyAsc) query.order = holder::card::CardPageOrder::SortKeyAsc;
-  const nlohmann::json scope = {{"project_id", project_id},
-                                {"tag", normalized_tag},
-                                {"parent", parent_value},
-                                {"order", order_name(order)}};
+  const nlohmann::json scope = {
+      {"project_id", project_id},
+      {"tag", normalized_tag},
+      {"parent", parent_value},
+      {"order", order_name(order)} // LCOV_EXCL_LINE - GCC cleanup-only counter
+  };
   if (cursor) query.cursor = decode_cursor(*cursor, scope, order == ListCardsOrder::SortKeyAsc);
-  if (!holder::project::ProjectRepo(context.db).get(project_id)) throw NotFound("project not found: " + project_id);
+  if (!holder::project::ProjectRepo(context.db).get(project_id))
+    throw NotFound("project not found: " + project_id);
 
   holder::card::CollectionCardPage page;
   holder::card::CardRepo cards(context.db);
@@ -105,22 +121,30 @@ Page<CardListItem> list_page(holder_context& context, const std::string& project
     auto rows = cards.list_collection_page(project_id, query, limit + 1);
     if (rows.size() > static_cast<std::size_t>(limit)) {
       rows.resize(static_cast<std::size_t>(limit));
-      page.next_cursor = holder::card::CardPageCursor{rows.back().card_id, rows.back().updated_at, rows.back().sort_key};
+      page.next_cursor = holder::card::CardPageCursor{
+          rows.back().card_id,
+          rows.back().updated_at,
+          rows.back().sort_key
+      };
     }
-    for (auto& card : rows) page.cards.push_back({std::move(card), {}});
+    for (auto& card : rows)
+      page.cards.push_back({std::move(card), {}});
   }
 
   Page<CardListItem> out;
   if (page.next_cursor) {
-    out.next_cursor = encode_cursor({{"version", 1},
-                                     {"query", scope},
-                                     {"card_id", page.next_cursor->card_id},
-                                     {"updated_at", *page.next_cursor->updated_at},
-                                     {"sort_key", *page.next_cursor->sort_key}});
+    out.next_cursor = encode_cursor(
+        {{"version", 1}, // LCOV_EXCL_LINE - GCC cleanup-only counter
+         {"query", scope},
+         {"card_id", page.next_cursor->card_id},
+         {"updated_at", *page.next_cursor->updated_at},
+         {"sort_key", *page.next_cursor->sort_key}}
+    );
   }
   for (auto& [card, content] : page.cards) {
     CardListItem item{card, std::nullopt, std::nullopt};
-    if (include_child_count) item.child_count = cards.count_children_not_deleted(project_id, card.card_id);
+    if (include_child_count)
+      item.child_count = cards.count_children_not_deleted(project_id, card.card_id);
     if (include_content) item.content = std::move(content);
     out.items.push_back(std::move(item));
   }
@@ -154,7 +178,11 @@ Card create(holder_context& context, const std::string& project_id, const NewCar
 }
 
 // Whether parent is the card itself or one of its descendants: a parent the card cannot go under.
-bool under_itself(holder::card::CardStore& store, const std::string& card_id, std::optional<std::string> parent) {
+bool under_itself(
+    holder::card::CardStore& store,
+    const std::string& card_id,
+    std::optional<std::string> parent
+) {
   std::set<std::string> seen;
   while (parent && seen.insert(*parent).second) {
     if (*parent == card_id) return true;
@@ -166,8 +194,11 @@ bool under_itself(holder::card::CardStore& store, const std::string& card_id, st
 }
 
 // Checks a new parent before anything is written: live, in the card's project, and not under it.
-void check_parent(holder::card::CardStore& store, const holder::model::Card& card,
-                  const std::optional<std::string>& parent) {
+void check_parent(
+    holder::card::CardStore& store,
+    const holder::model::Card& card,
+    const std::optional<std::string>& parent
+) {
   if (!parent) return;
   const auto found = store.get(*parent);
   if (!found || found->deleted_at || found->project_id != card.project_id)
@@ -188,20 +219,35 @@ Card read_back(holder::card::CardStore& store, const std::string& card_id) {
 [[noreturn]] void placement_failed(const holder::card::CardPlacementError& error) {
   using Code = holder::card::CardPlacementErrorCode;
   switch (error.code()) {
-  case Code::CardNotFound: throw NotFound("card not found");
+  case Code::CardNotFound:
+    throw NotFound("card not found");
   case Code::CrossProjectMoveForbidden:
-  case Code::TargetNotFound: throw NotFound("the target or parent card is not found");
-  case Code::MoveWouldCreateCycle: throw InvalidMove("a card cannot go under itself or one of its descendants");
-  case Code::InvalidTarget: throw InvalidMove("the target cannot be the card's sibling");
-  case Code::AlreadyAtProjectRoot: throw InvalidMove("the card is already at the top level");
-  case Code::MissingTargetCardId: throw InvalidArgument("target_card_id is required for into, before and after");
-  case Code::InvalidMoveIntent: break; // LCOV_EXCL_LINE - private translator; placement_intent rejects invalid intents before core resolution.
+  case Code::TargetNotFound:
+    throw NotFound("the target or parent card is not found");
+  case Code::MoveWouldCreateCycle:
+    throw InvalidMove("a card cannot go under itself or one of its descendants");
+  case Code::InvalidTarget:
+    throw InvalidMove("the target cannot be the card's sibling");
+  case Code::AlreadyAtProjectRoot:
+    throw InvalidMove("the card is already at the top level");
+  case Code::MissingTargetCardId:
+    throw InvalidArgument("target_card_id is required for into, before and after");
+  // LCOV_EXCL_START - private translator; placement_intent rejects invalid intents before core
+  // resolution.
+  case Code::InvalidMoveIntent:
+    break;
+    // LCOV_EXCL_STOP
   }
-  throw InvalidArgument(error.what()); // LCOV_EXCL_LINE - private translator; placement_intent rejects invalid intents before core resolution.
+  throw InvalidArgument(error.what()); // LCOV_EXCL_LINE - private translator; placement_intent
+                                       // rejects invalid intents before core resolution.
 }
 
-Card update(holder_context& context, const std::string& project_id, const std::string& card_id,
-            const CardUpdate& update) {
+Card update(
+    holder_context& context,
+    const std::string& project_id,
+    const std::string& card_id,
+    const CardUpdate& update
+) {
   auto store = card_store(context);
   const auto card = live_card(store, project_id, card_id);
   // A field set to its current value changes nothing, and nothing is written for it.
@@ -220,11 +266,21 @@ Card update(holder_context& context, const std::string& project_id, const std::s
   try {
     if (rewrite) {
       // The title is written in the card's file, so a new title rewrites the file with its content.
-      store.update_content(card_id, update.content.value_or(*content), retitle ? update.title : std::nullopt,
-                           updated_at);
+      store.update_content(
+          card_id,
+          update.content.value_or(*content),
+          retitle ? update.title : std::nullopt,
+          updated_at
+      );
     }
     if (reparent || resort) {
-      store.move(card_id, reparent, reparent ? *update.parent_card_id : std::nullopt, update.sort_key, updated_at);
+      store.move(
+          card_id,
+          reparent,
+          reparent ? *update.parent_card_id : std::nullopt,
+          update.sort_key,
+          updated_at
+      );
     }
   } catch (const holder::card::CardPlacementError& error) {
     placement_failed(error);
@@ -232,13 +288,20 @@ Card update(holder_context& context, const std::string& project_id, const std::s
   return read_back(store, card_id);
 }
 
-Card trash(holder_context& context, const std::string& project_id, const std::string& card_id,
-           TrashCardChildren children) {
+Card trash(
+    holder_context& context,
+    const std::string& project_id,
+    const std::string& card_id,
+    TrashCardChildren children
+) {
   auto store = card_store(context);
   live_card(store, project_id, card_id);
-  store.trash(card_id, now_epoch_seconds(),
-              children == TrashCardChildren::TrashSubtree ? holder::card::TrashChildren::TrashSubtree
-                                                          : holder::card::TrashChildren::Promote);
+  store.trash(
+      card_id,
+      now_epoch_seconds(),
+      children == TrashCardChildren::TrashSubtree ? holder::card::TrashChildren::TrashSubtree
+                                                  : holder::card::TrashChildren::Promote
+  );
   return read_back(store, card_id);
 }
 
@@ -254,20 +317,32 @@ Card restore(holder_context& context, const std::string& project_id, const std::
 holder::card::CardPlacementIntent placement_intent(CardMoveIntent intent) {
   using Intent = holder::card::CardPlacementIntent;
   switch (intent) {
-  case CardMoveIntent::Into: return Intent::Into;
-  case CardMoveIntent::Before: return Intent::Before;
-  case CardMoveIntent::After: return Intent::After;
-  case CardMoveIntent::Left: return Intent::Left;
-  case CardMoveIntent::Right: return Intent::Right;
-  case CardMoveIntent::ToStart: return Intent::ToStart;
-  case CardMoveIntent::ToEnd: return Intent::ToEnd;
-  case CardMoveIntent::UpLevel: return Intent::UpLevel;
+  case CardMoveIntent::Into:
+    return Intent::Into;
+  case CardMoveIntent::Before:
+    return Intent::Before;
+  case CardMoveIntent::After:
+    return Intent::After;
+  case CardMoveIntent::Left:
+    return Intent::Left;
+  case CardMoveIntent::Right:
+    return Intent::Right;
+  case CardMoveIntent::ToStart:
+    return Intent::ToStart;
+  case CardMoveIntent::ToEnd:
+    return Intent::ToEnd;
+  case CardMoveIntent::UpLevel:
+    return Intent::UpLevel;
   }
   throw InvalidArgument("unknown card move intent");
 }
 
-Card move(holder_context& context, const std::string& project_id, const std::string& card_id,
-          const CardMove& move) {
+Card move(
+    holder_context& context,
+    const std::string& project_id,
+    const std::string& card_id,
+    const CardMove& move
+) {
   auto store = card_store(context);
   const auto card = live_card(store, project_id, card_id);
   holder::card::CardPlacementRequest placement;
@@ -297,14 +372,19 @@ Card move(holder_context& context, const std::string& project_id, const std::str
   return read_back(store, card_id);
 }
 
-// A tag, checked before anything is read: an argument that is not a tag is invalid whatever the card.
+// A tag, checked before anything is read: an argument that is not a tag is invalid whatever the
+// card.
 std::string checked_tag(const std::string& tag) {
   if (!holder::core::is_valid_tag(tag)) throw InvalidArgument("not a tag: " + tag);
   return tag;
 }
 
-Card add_tag(holder_context& context, const std::string& project_id, const std::string& card_id,
-             const std::string& tag) {
+Card add_tag(
+    holder_context& context,
+    const std::string& project_id,
+    const std::string& card_id,
+    const std::string& tag
+) {
   checked_tag(tag);
   auto store = card_store(context);
   live_card(store, project_id, card_id);
@@ -313,29 +393,37 @@ Card add_tag(holder_context& context, const std::string& project_id, const std::
   return read_back(store, card_id);
 }
 
-Card remove_tag(holder_context& context, const std::string& project_id, const std::string& card_id,
-                const std::string& tag) {
+Card remove_tag(
+    holder_context& context,
+    const std::string& project_id,
+    const std::string& card_id,
+    const std::string& tag
+) {
   checked_tag(tag);
   const auto normalized = holder::core::normalize_tag(tag);
   auto store = card_store(context);
   const auto card = live_card(store, project_id, card_id);
   const auto content = store.get_content(card);
   if (!content) throw NotFound("card content missing: " + card_id);
-  // Only the trailing tag line is edited. A card that would still carry the tag, in its prose, is left as it is.
+  // Only the trailing tag line is edited. A card that would still carry the tag, in its prose, is
+  // left as it is.
   const auto carries = [&](const std::string& body) {
     const auto tags = holder::core::extract_tags(body);
     return std::find(tags.begin(), tags.end(), normalized) != tags.end();
   };
   if (!carries(*content)) return read_back(store, card_id);
   if (!holder::core::tag_removable(*content, normalized))
-    throw Conflict("the card carries #" + normalized +
-                   " in its prose, which Holder does not rewrite; edit its content to remove it");
+    throw Conflict(
+        "the card carries #" + normalized +
+        " in its prose, which Holder does not rewrite; edit its content to remove it"
+    );
   store.remove_tag(card_id, tag, now_epoch_seconds());
   return read_back(store, card_id);
 }
 
 std::vector<TagCount> project_tags(holder_context& context, const std::string& project_id) {
-  if (!holder::project::ProjectRepo(context.db).get(project_id)) throw NotFound("project not found: " + project_id);
+  if (!holder::project::ProjectRepo(context.db).get(project_id))
+    throw NotFound("project not found: " + project_id);
   std::vector<TagCount> out;
   for (auto& [tag, card_count] : holder::card::TagRepo(context.db).list_project_tags(project_id))
     out.push_back({std::move(tag), card_count});
@@ -345,17 +433,27 @@ std::vector<TagCount> project_tags(holder_context& context, const std::string& p
 } // namespace
 
 Card get_card(holder_context& context, std::string project_id, std::string card_id) {
-  return with_contract_errors([&] { return find_card(context, project_id, card_id); });
+  return with_contract_errors([&] {
+    return find_card(context, project_id, card_id);
+  });
 }
 
-CardMetadata get_card_metadata(holder_context& context, std::string project_id, std::string card_id) {
+CardMetadata get_card_metadata(
+    holder_context& context,
+    std::string project_id,
+    std::string card_id
+) {
   return with_contract_errors([&] {
     auto store = card_store(context);
     return live_card(store, project_id, card_id);
   });
 }
 
-CardMetadata get_card_any_state(holder_context& context, std::string project_id, std::string card_id) {
+CardMetadata get_card_any_state(
+    holder_context& context,
+    std::string project_id,
+    std::string card_id
+) {
   return with_contract_errors([&] {
     auto store = card_store(context);
     auto card = card_in(store, project_id, card_id);
@@ -364,45 +462,103 @@ CardMetadata get_card_any_state(holder_context& context, std::string project_id,
   });
 }
 
-Page<CardListItem> list_cards(holder_context& context, std::string project_id, std::optional<ListCardsParent> parent,
-                              std::optional<std::string> tag, ListCardsOrder order, std::int32_t limit,
-                              std::optional<std::string> cursor, bool include_content, bool include_child_count) {
+Page<CardListItem> list_cards(
+    holder_context& context,
+    std::string project_id,
+    std::optional<ListCardsParent> parent,
+    std::optional<std::string> tag,
+    ListCardsOrder order,
+    std::int32_t limit,
+    std::optional<std::string> cursor,
+    bool include_content,
+    bool include_child_count
+) {
   return with_contract_errors([&] {
-    return list_page(context, project_id, std::move(parent), std::move(tag), order, limit, std::move(cursor),
-                     include_content, include_child_count);
+    return list_page(
+        context,
+        project_id,
+        std::move(parent),
+        std::move(tag),
+        order,
+        limit,
+        std::move(cursor),
+        include_content,
+        include_child_count
+    );
   });
 }
 
 Card create_card(holder_context& context, std::string project_id, const NewCard& request) {
-  return with_contract_errors([&] { return create(context, project_id, request); });
+  return with_contract_errors([&] {
+    return create(context, project_id, request);
+  });
 }
 
-Card update_card(holder_context& context, std::string project_id, std::string card_id, const CardUpdate& update) {
-  return with_contract_errors([&] { return holder::contract::update(context, project_id, card_id, update); });
+Card update_card(
+    holder_context& context,
+    std::string project_id,
+    std::string card_id,
+    const CardUpdate& update
+) {
+  return with_contract_errors([&] {
+    return holder::contract::update(context, project_id, card_id, update);
+  });
 }
 
-Card trash_card(holder_context& context, std::string project_id, std::string card_id, TrashCardChildren children) {
-  return with_contract_errors([&] { return trash(context, project_id, card_id, children); });
+Card trash_card(
+    holder_context& context,
+    std::string project_id,
+    std::string card_id,
+    TrashCardChildren children
+) {
+  return with_contract_errors([&] {
+    return trash(context, project_id, card_id, children);
+  });
 }
 
 Card restore_card(holder_context& context, std::string project_id, std::string card_id) {
-  return with_contract_errors([&] { return restore(context, project_id, card_id); });
+  return with_contract_errors([&] {
+    return restore(context, project_id, card_id);
+  });
 }
 
-Card move_card(holder_context& context, std::string project_id, std::string card_id, const CardMove& move) {
-  return with_contract_errors([&] { return holder::contract::move(context, project_id, card_id, move); });
+Card move_card(
+    holder_context& context,
+    std::string project_id,
+    std::string card_id,
+    const CardMove& move
+) {
+  return with_contract_errors([&] {
+    return holder::contract::move(context, project_id, card_id, move);
+  });
 }
 
-Card add_card_tag(holder_context& context, std::string project_id, std::string card_id, std::string tag) {
-  return with_contract_errors([&] { return add_tag(context, project_id, card_id, tag); });
+Card add_card_tag(
+    holder_context& context,
+    std::string project_id,
+    std::string card_id,
+    std::string tag
+) {
+  return with_contract_errors([&] {
+    return add_tag(context, project_id, card_id, tag);
+  });
 }
 
-Card remove_card_tag(holder_context& context, std::string project_id, std::string card_id, std::string tag) {
-  return with_contract_errors([&] { return remove_tag(context, project_id, card_id, tag); });
+Card remove_card_tag(
+    holder_context& context,
+    std::string project_id,
+    std::string card_id,
+    std::string tag
+) {
+  return with_contract_errors([&] {
+    return remove_tag(context, project_id, card_id, tag);
+  });
 }
 
 std::vector<TagCount> list_project_tags(holder_context& context, std::string project_id) {
-  return with_contract_errors([&] { return project_tags(context, project_id); });
+  return with_contract_errors([&] {
+    return project_tags(context, project_id);
+  });
 }
 
 } // namespace holder::contract

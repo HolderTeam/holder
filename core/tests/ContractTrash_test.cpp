@@ -26,23 +26,49 @@ TEST_CASE("Contract Trash lists and permanently removes a scoped card", "[contra
   card_request.content = "Saved body";
   const auto card = holder::contract::create_card(context, project.project_id, card_request);
 
-  REQUIRE_THROWS_AS(holder::contract::delete_project_trash_item(
-                        context, project.project_id, holder::contract::DeleteProjectTrashItemType::Card,
-                        card.card_id), holder::contract::NotTrashed);
-  holder::contract::trash_card(context, project.project_id, card.card_id,
-                               holder::contract::TrashCardChildren::Promote);
+  REQUIRE_THROWS_AS(
+      holder::contract::delete_project_trash_item(
+          context,
+          project.project_id,
+          holder::contract::DeleteProjectTrashItemType::Card,
+          card.card_id
+      ),
+      holder::contract::NotTrashed
+  );
+  holder::contract::trash_card(
+      context,
+      project.project_id,
+      card.card_id,
+      holder::contract::TrashCardChildren::Promote
+  );
   const auto items = holder::contract::list_trash(context, project.project_id, "card");
   REQUIRE(items.size() == 1);
   REQUIRE(items[0].card_id == card.card_id);
   REQUIRE(items[0].title == "Discarded");
   REQUIRE(items[0].message_id == std::nullopt);
-  REQUIRE_THROWS_AS(holder::contract::delete_project_trash_item(
-                        context, "another-project", holder::contract::DeleteProjectTrashItemType::Card,
-                        card.card_id), holder::contract::NotFound);
+  REQUIRE_THROWS_AS(
+      holder::contract::delete_project_trash_item(
+          context,
+          "another-project",
+          holder::contract::DeleteProjectTrashItemType::Card,
+          card.card_id
+      ),
+      holder::contract::NotFound
+  );
   const auto removed = holder::contract::delete_project_trash_item(
-      context, project.project_id, holder::contract::DeleteProjectTrashItemType::Card, card.card_id);
+      context,
+      project.project_id,
+      holder::contract::DeleteProjectTrashItemType::Card,
+      card.card_id
+  );
   REQUIRE(removed.card_id == card.card_id);
   REQUIRE(holder::contract::list_trash(context, project.project_id, std::nullopt).empty());
-  REQUIRE(holder::contract::empty_trash(context, project.project_id,
-                                        holder::contract::EmptyTrashType::All).project_id == project.project_id);
+  REQUIRE(
+      holder::contract::empty_trash(
+          context,
+          project.project_id,
+          holder::contract::EmptyTrashType::All
+      )
+          .project_id == project.project_id
+  );
 }

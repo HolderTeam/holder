@@ -93,7 +93,8 @@ void LinkRepo::upsert_links(
     bind_text_optional(stmt, 6, link.label);
     bind_int64(stmt, 7, link.created_at);
     bind_text_optional(
-        stmt, 8,
+        stmt,
+        8,
         link.target_project_id == link.project_id ? std::nullopt : link.target_project_id
     );
 

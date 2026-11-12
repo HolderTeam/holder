@@ -1255,16 +1255,24 @@ TEST_CASE("CardStore complete pages read encrypted authoritative content", "[car
   REQUIRE(second.cards[0].card.card_id == "encpage2");
   REQUIRE(second.cards[0].content == "second secret body");
   REQUIRE_FALSE(second.next_cursor.has_value());
-  REQUIRE_THROWS_WITH(store.list_complete_page(project.project_id, std::nullopt, 0),
-                      Catch::Matchers::ContainsSubstring("limit must be positive"));
-  const auto path = std::filesystem::path(project.root_path) / holder::core::card_rel_path("encpage2");
+  REQUIRE_THROWS_WITH(
+      store.list_complete_page(project.project_id, std::nullopt, 0),
+      Catch::Matchers::ContainsSubstring("limit must be positive")
+  );
+  const auto path = std::filesystem::path(project.root_path) /
+                    holder::core::card_rel_path("encpage2");
   std::filesystem::rename(path, path.string() + ".saved");
-  REQUIRE_THROWS_WITH(store.list_complete_page(project.project_id, first.next_cursor, 1),
-                      Catch::Matchers::ContainsSubstring("card content missing: encpage2"));
+  REQUIRE_THROWS_WITH(
+      store.list_complete_page(project.project_id, first.next_cursor, 1),
+      Catch::Matchers::ContainsSubstring("card content missing: encpage2")
+  );
   // A failed content read must neither delete metadata nor advance the caller's
   // cursor; the same page works once its authoritative file is available again.
   CHECK(holder::card::CardRepo(db).count_all_not_deleted(project.project_id) == 2);
-  CHECK(store.list_complete_page(project.project_id, std::nullopt, 1).cards[0].content == "first secret body");
+  CHECK(
+      store.list_complete_page(project.project_id, std::nullopt, 1).cards[0].content ==
+      "first secret body"
+  );
   std::filesystem::rename(path.string() + ".saved", path);
   const auto retried = store.list_complete_page(project.project_id, first.next_cursor, 1);
   REQUIRE(retried.cards.size() == 1);
@@ -2045,9 +2053,7 @@ TEST_CASE(
   store.update_links(card.card_id, 2);
 
   auto original_milestone = make_milestone_for("original-milestone", card.project_id, card.card_id);
-  original_milestone.dates.push_back(
-      holder::model::milestone_date_from_legacy("end", 200, false)
-  );
+  original_milestone.dates.push_back(holder::model::milestone_date_from_legacy("end", 200, false));
   original_milestone.kind = "Review";
   original_milestone.description = "Original milestone";
   milestones.replace_for_card(card.project_id, card.card_id, {original_milestone});
@@ -2438,8 +2444,10 @@ TEST_CASE("CardStore tag and historical restore methods reject missing cards", "
   );
 }
 
-TEST_CASE("Permanent deletion checks project ownership before changing a trashed card",
-          "[cardstore][batch-delete-ownership]") {
+TEST_CASE(
+    "Permanent deletion checks project ownership before changing a trashed card",
+    "[cardstore][batch-delete-ownership]"
+) {
   const auto dir = make_temp_dir();
   holder::platform::Db db;
   db.open(dir / "holder.db");
@@ -2459,8 +2467,10 @@ TEST_CASE("Permanent deletion checks project ownership before changing a trashed
   git.open_existing(root);
   const auto head = git.head_oid();
   const auto path = root / holder::core::card_trash_rel_path(card.card_id);
-  REQUIRE_THROWS_WITH(store.hard_delete(card.card_id, "wrong-project"),
-                      Catch::Matchers::ContainsSubstring("card not found in project:"));
+  REQUIRE_THROWS_WITH(
+      store.hard_delete(card.card_id, "wrong-project"),
+      Catch::Matchers::ContainsSubstring("card not found in project:")
+  );
   const auto saved = store.get(card.card_id);
   REQUIRE(saved.has_value());
   CHECK(saved->deleted_at == 10);

@@ -110,8 +110,8 @@ holder_context* holder::contract::context_open(
     throw std::runtime_error("database I/O failure: " + health.detail);
   }
   bool needs_rebuild = health.health == holder::platform::DatabaseHealth::Corrupt ||
-                       (health.health == holder::platform::DatabaseHealth::Missing &&
-                        !roots.empty());
+                       (health.health == holder::platform::DatabaseHealth::Missing && !roots.empty()
+                       );
   // quick_check (what `health` reflects) only catches corruption, not staleness: a
   // structurally intact database left behind by an older build can still be on an
   // older schema_version than this one expects -- the one case this whole codebase's

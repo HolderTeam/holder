@@ -6,9 +6,9 @@
 #endif
 
 #include "core_test_helpers.h"
-#include "git_revision_test_helpers.h"
 #include "git/GitRepo.h"
 #include "git/RevisionReferenceResolver.h"
+#include "git_revision_test_helpers.h"
 #include "history/CardHistory.h"
 #include "model/Project.h"
 

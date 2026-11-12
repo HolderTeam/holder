@@ -623,7 +623,10 @@ TEST_CASE("Tx destructor swallows rollback failure", "[db][tx]") {
   }());
 }
 
-TEST_CASE("Database rebuild JSON distinguishes preview from a completed backup", "[db][rebuild-report]") {
+TEST_CASE(
+    "Database rebuild JSON distinguishes preview from a completed backup",
+    "[db][rebuild-report]"
+) {
   const auto dir = make_temp_dir();
   const auto database = dir / "holder.db";
   {

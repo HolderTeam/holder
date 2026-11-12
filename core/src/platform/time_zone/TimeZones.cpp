@@ -45,16 +45,23 @@ std::shared_ptr<TimeZoneProvider> time_zone_provider() {
   return built_in;
 }
 
-long long local_to_utc(TimeZoneProvider& provider, const std::string& zone, long long local_seconds) {
+long long local_to_utc(
+    TimeZoneProvider& provider,
+    const std::string& zone,
+    long long local_seconds
+) {
   // A zone changes its offset at most once within a day, so the offsets a day either side are the
   // ones in force before and after any change around this local time.
   constexpr long long day = 24 * 60 * 60;
   const auto before = offset(provider, zone, local_seconds - day);
   const auto after = offset(provider, zone, local_seconds + day);
-  const auto valid = [&](long long utc) { return offset(provider, zone, utc) == local_seconds - utc; };
-  if (valid(local_seconds - before)) return local_seconds - before;  // Unique, or the earlier of two.
+  const auto valid = [&](long long utc) {
+    return offset(provider, zone, utc) == local_seconds - utc;
+  };
+  if (valid(local_seconds - before))
+    return local_seconds - before; // Unique, or the earlier of two.
   if (valid(local_seconds - after)) return local_seconds - after;
-  return local_seconds - before;  // In a gap: forward by its length.
+  return local_seconds - before; // In a gap: forward by its length.
 }
 
 } // namespace holder::platform

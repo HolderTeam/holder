@@ -194,7 +194,10 @@ TEST_CASE(
   );
 }
 
-TEST_CASE("tag_removable says whether removal from the trailing tag line would untag the card", "[tag_line_editor]") {
+TEST_CASE(
+    "tag_removable says whether removal from the trailing tag line would untag the card",
+    "[tag_line_editor]"
+) {
   using holder::core::tag_removable;
   // On the trailing tag line only.
   REQUIRE(tag_removable("hello\n\n#work #android", "android"));

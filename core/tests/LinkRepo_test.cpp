@@ -221,28 +221,32 @@ TEST_CASE("LinkRepo external backlinks require an allowed source and exact targe
 
   REQUIRE(repo.list_external_backlinks_typed("target", "target-card", "card", {}).empty());
   REQUIRE(repo.list_external_backlinks_typed("target", "target-card", "card", {"target"}).empty());
-  const auto allowed = repo.list_external_backlinks_typed(
-      "target", "target-card", "card", {"source-a", "source-a"}
-  );
+  const auto allowed =
+      repo.list_external_backlinks_typed("target", "target-card", "card", {"source-a", "source-a"});
   REQUIRE(allowed.size() == 1);
   REQUIRE(allowed[0].project_id == "source-a");
   REQUIRE(allowed[0].target_project_id == "target");
 
-  const auto both = repo.list_external_backlinks_typed(
-      "target", "target-card", "card", {"source-a", "source-b"}
-  );
+  const auto both =
+      repo.list_external_backlinks_typed("target", "target-card", "card", {"source-a", "source-b"});
   REQUIRE(both.size() == 2);
   REQUIRE(both[0].project_id == "source-b");
   REQUIRE(both[1].project_id == "source-a");
+  REQUIRE(
+      repo.list_external_backlinks_typed("other-target", "target-card", "card", {"source-a"})
+          .size() == 1
+  );
+  REQUIRE(
+      repo.list_external_backlinks_typed("target", "target-card", "resource", {"source-a"})
+          .size() == 1
+  );
   REQUIRE(repo.list_external_backlinks_typed(
-      "other-target", "target-card", "card", {"source-a"}
-  ).size() == 1);
-  REQUIRE(repo.list_external_backlinks_typed(
-      "target", "target-card", "resource", {"source-a"}
-  ).size() == 1);
-  REQUIRE(repo.list_external_backlinks_typed(
-      "target", "different-card", "card", {"source-a", "source-b"}
-  ).empty());
+                  "target",
+                  "different-card",
+                  "card",
+                  {"source-a", "source-b"}
+  )
+              .empty());
   REQUIRE(repo.list_backlinks("source-a", "target-card").size() == 1);
 }
 
@@ -681,12 +685,13 @@ TEST_CASE(
   for (const auto& row : rows)
     order.push_back(row.project_id + "/" + row.from_card_id + "/" + row.kind);
   REQUIRE(
-      order == std::vector<std::string>{
-                   "source-a/a/newest",
-                   "source-a/a/a",
-                   "source-a/a/z",
-                   "source-a/b/ref",
-                   "source-b/c/ref"
-               }
+      order ==
+      std::vector<std::string>{
+          "source-a/a/newest",
+          "source-a/a/a",
+          "source-a/a/z",
+          "source-a/b/ref",
+          "source-b/c/ref"
+      }
   );
 }

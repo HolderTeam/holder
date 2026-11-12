@@ -1,7 +1,7 @@
 #include "git/GitRepo.h"
 
-#include "git/SshAgentAndFileCredentialProvider.h"
 #include "git/GitHubHostTrust.h"
+#include "git/SshAgentAndFileCredentialProvider.h"
 
 #include <git2.h>
 #include <spdlog/spdlog.h>

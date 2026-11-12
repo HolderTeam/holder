@@ -80,7 +80,9 @@ std::vector<Card> insert_block_into(
     const auto keys = spaced_keys(left, right, high - low);
     if (!keys) {
       if (low == 0 && high == destination.size()) {
-        throw std::runtime_error("no sort keys available for card placement"); // LCOV_EXCL_LINE - full-window double-key exhaustion requires an impractically large in-memory collection; resource guard retained.
+        throw std::runtime_error("no sort keys available for card placement"
+        ); // LCOV_EXCL_LINE - full-window double-key exhaustion requires an impractically large
+           // in-memory collection; resource guard retained.
       }
       continue;
     }
@@ -119,7 +121,8 @@ std::optional<std::string> reachable_card_parent(CardRepo& repo, const Card& car
   auto next = card.parent_card_id;
   std::optional<std::string> candidate;
   while (next) {
-    if (!visited.insert(*next).second) throw CardPlacementError(CardPlacementErrorCode::MoveWouldCreateCycle);
+    if (!visited.insert(*next).second)
+      throw CardPlacementError(CardPlacementErrorCode::MoveWouldCreateCycle);
     const auto ancestor = repo.get(*next);
     if (!ancestor || ancestor->project_id != card.project_id) return std::nullopt;
     if (ancestor->deleted_at) {
@@ -246,7 +249,11 @@ HierarchyRepairPlan plan_hierarchy_repair(
   for (auto& head : heads)
     by_destination[head.destination].push_back(std::move(head));
   std::map<std::string, Card> changed;
-  for (auto& [destination, group] : by_destination) {
+  for (auto& entry : by_destination) {
+    // Named references rather than a structured binding: clang-tidy 18's analyzer does not follow
+    // structured bindings into the lambda below and reports them as uninitialized.
+    const auto& destination = entry.first;
+    auto& group = entry.second;
     std::vector<Card> siblings;
     for (const auto& [id, card] : by_id)
       if (!card.deleted_at && card.parent_card_id == destination) siblings.push_back(card);

@@ -18,9 +18,9 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <set>
 #include <sqlite3.h>
 #include <string>
-#include <set>
 #include <thread>
 #include <vector>
 
@@ -117,8 +117,10 @@ int sqlite_interrupt_cb(void* data) {
 
 } // namespace
 
-TEST_CASE("Sort-key pagination refuses an incomplete cursor and resumes correctly once repaired",
-          "[cardrepo][page-errors]") {
+TEST_CASE(
+    "Sort-key pagination refuses an incomplete cursor and resumes correctly once repaired",
+    "[cardrepo][page-errors]"
+) {
   const auto dir = make_temp_dir();
   holder::platform::Db db;
   db.open(dir / "holder.db");
@@ -133,8 +135,10 @@ TEST_CASE("Sort-key pagination refuses an incomplete cursor and resumes correctl
   REQUIRE(first.size() == 1);
   REQUIRE(first[0].card_id == "card-a");
   query.cursor = holder::card::CardPageCursor{first[0].card_id, std::nullopt, std::nullopt};
-  REQUIRE_THROWS_WITH(repo.list_collection_page("proj-1", query, 1),
-                      Catch::Matchers::ContainsSubstring("sort-order cursor must include sort_key"));
+  REQUIRE_THROWS_WITH(
+      repo.list_collection_page("proj-1", query, 1),
+      Catch::Matchers::ContainsSubstring("sort-order cursor must include sort_key")
+  );
   query.cursor->sort_key = first[0].sort_key;
   const auto next = repo.list_collection_page("proj-1", query, 1);
   REQUIRE(next.size() == 1);
@@ -142,8 +146,10 @@ TEST_CASE("Sort-key pagination refuses an incomplete cursor and resumes correctl
   CHECK(repo.count_all_not_deleted("proj-1") == 2);
 }
 
-TEST_CASE("An interrupted collection page releases its query and allows retry",
-          "[cardrepo][page-errors]") {
+TEST_CASE(
+    "An interrupted collection page releases its query and allows retry",
+    "[cardrepo][page-errors]"
+) {
   const auto dir = make_temp_dir();
   holder::platform::Db db;
   db.open(dir / "holder.db");
@@ -153,21 +159,30 @@ TEST_CASE("An interrupted collection page releases its query and allows retry",
   create_card(repo, "card-a", "proj-1", "First");
   std::set<sqlite3_stmt*> existing;
   for (auto* stmt = sqlite3_next_stmt(db.handle(), nullptr); stmt;
-       stmt = sqlite3_next_stmt(db.handle(), stmt)) existing.insert(stmt);
+       stmt = sqlite3_next_stmt(db.handle(), stmt))
+    existing.insert(stmt);
   struct TraceGuard {
     sqlite3* db;
     ~TraceGuard() { sqlite3_trace_v2(db, 0, nullptr, nullptr); }
   } guard{db.handle()};
-  sqlite3_trace_v2(db.handle(), SQLITE_TRACE_STMT, +[](unsigned, void* raw, void*, void*) {
-    sqlite3_interrupt(static_cast<sqlite3*>(raw));
-    return 0;
-  }, db.handle());
-  REQUIRE_THROWS_WITH(repo.list_collection_page("proj-1", {}, 10),
-                      Catch::Matchers::ContainsSubstring("card collection page failed"));
+  sqlite3_trace_v2(
+      db.handle(),
+      SQLITE_TRACE_STMT,
+      +[](unsigned, void* raw, void*, void*) {
+        sqlite3_interrupt(static_cast<sqlite3*>(raw));
+        return 0;
+      },
+      db.handle()
+  );
+  REQUIRE_THROWS_WITH(
+      repo.list_collection_page("proj-1", {}, 10),
+      Catch::Matchers::ContainsSubstring("card collection page failed")
+  );
   sqlite3_trace_v2(db.handle(), 0, nullptr, nullptr);
   std::set<sqlite3_stmt*> remaining;
   for (auto* stmt = sqlite3_next_stmt(db.handle(), nullptr); stmt;
-       stmt = sqlite3_next_stmt(db.handle(), stmt)) remaining.insert(stmt);
+       stmt = sqlite3_next_stmt(db.handle(), stmt))
+    remaining.insert(stmt);
   CHECK(remaining == existing);
   const auto retried = repo.list_collection_page("proj-1", {}, 10);
   REQUIRE(retried.size() == 1);

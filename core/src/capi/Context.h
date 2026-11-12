@@ -11,8 +11,12 @@
 #include <memory>
 #include <string>
 
-namespace holder::git { class GitOps; }
-namespace holder::privacy { class SecretStore; }
+namespace holder::git {
+class GitOps;
+}
+namespace holder::privacy {
+class SecretStore;
+}
 
 // The services operations run with. holder_context_open makes a context that owns its database
 // and indexer; a host with its own, such as a daemon worker, makes one on them instead, and they
@@ -24,9 +28,14 @@ struct holder_context {
         db(*owned_db),
         fts(*owned_fts) {}
 
-  holder_context(holder::platform::Db& host_db, holder::index::FtsIndexer& host_fts,
-                 holder::git::GitOps* host_git = nullptr)
-      : db(host_db), fts(host_fts), git(host_git) {}
+  holder_context(
+      holder::platform::Db& host_db,
+      holder::index::FtsIndexer& host_fts,
+      holder::git::GitOps* host_git = nullptr
+  )
+      : db(host_db),
+        fts(host_fts),
+        git(host_git) {}
 
   holder_context(const holder_context&) = delete;
   holder_context& operator=(const holder_context&) = delete;

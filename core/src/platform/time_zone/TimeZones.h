@@ -40,6 +40,10 @@ std::shared_ptr<TimeZoneProvider> time_zone_provider();
 // A local time that happens twice, when clocks go back, is its earlier instant. One that never
 // happens, when clocks go forward, moves forward by the length of the gap, as java.time does.
 // Throws std::invalid_argument for an unknown zone.
-long long local_to_utc(TimeZoneProvider& provider, const std::string& zone, long long local_seconds);
+long long local_to_utc(
+    TimeZoneProvider& provider,
+    const std::string& zone,
+    long long local_seconds
+);
 
 } // namespace holder::platform

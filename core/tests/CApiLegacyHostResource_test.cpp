@@ -5,6 +5,7 @@
 #include <catch2/catch.hpp>
 #endif
 
+#include "capi/StorageProviders.h"
 #include "capi_asset_helpers.h"
 #include "core_test_helpers.h"
 #include "model/Project.h"
@@ -77,7 +78,8 @@ void create_location(
     const std::map<std::string, std::string>& configuration = {}
 ) {
   std::vector<holder_location_configuration_entry> entries;
-  for (const auto& [key, value] : configuration) entries.push_back({key.c_str(), value.c_str()});
+  for (const auto& [key, value] : configuration)
+    entries.push_back({key.c_str(), value.c_str()});
   const holder_location_configuration config{entries.data(), entries.size()};
   holder_new_storage_location request{};
   request.location_id = location_id.c_str();
@@ -85,7 +87,10 @@ void create_location(
   request.name = name.c_str();
   request.provider = provider;
   request.configuration = &config;
-  const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(holder_arena_new(), holder_arena_free);
+  const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
+      holder_arena_new(),
+      holder_arena_free
+  );
   const holder_project_storage_location* location = nullptr;
   holder_error* error = nullptr;
   const int rc = holder_create_storage_location(context, &request, arena.get(), &location, &error);
@@ -176,14 +181,7 @@ void init_bare_repo(const std::filesystem::path& repo_path) {
 
 namespace {
 
-int fake_sign_ok(
-    void*,
-    const unsigned char*,
-    size_t,
-    unsigned char** out_der_sig,
-    size_t* out_der_sig_len,
-    char**
-) {
+int fake_sign_ok(void*, const unsigned char*, size_t, unsigned char** out_der_sig, size_t* out_der_sig_len, char**) {
   auto* buf = static_cast<unsigned char*>(std::malloc(1));
   buf[0] = 0x00;
   *out_der_sig = buf;
@@ -192,13 +190,26 @@ int fake_sign_ok(
 }
 
 int register_ssh_signer(
-    holder_context* context, const char* username, const unsigned char* public_key_blob,
-    size_t public_key_blob_len, decltype(holder_ssh_signer_callbacks::sign) sign,
-    void* user_data, holder_destroy_fn destroy, holder_error** error
+    holder_context* context,
+    const char* username,
+    const unsigned char* public_key_blob,
+    size_t public_key_blob_len,
+    decltype(holder_ssh_signer_callbacks::sign) sign,
+    void* user_data,
+    holder_destroy_fn destroy,
+    holder_error** error
 ) {
   holder_ssh_signer_callbacks callbacks{sign};
-  return holder_register_ssh_signer(context, username, public_key_blob, public_key_blob_len,
-                                    &callbacks, user_data, destroy, error);
+  return holder_register_ssh_signer(
+      context,
+      username,
+      public_key_blob,
+      public_key_blob_len,
+      &callbacks,
+      user_data,
+      destroy,
+      error
+  );
 }
 
 } // namespace
@@ -261,17 +272,41 @@ TEST_CASE(
 
   SECTION("rejects a null context, still destroying user_data exactly once") {
     int destroy_count = 0;
-    auto destroy = [](void* user_data) { ++*static_cast<int*>(user_data); };
-    REQUIRE(register_ssh_signer(nullptr, "git", pubkey, sizeof(pubkey), fake_sign_ok,
-                                &destroy_count, destroy, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+    auto destroy = [](void* user_data) {
+      ++*static_cast<int*>(user_data);
+    };
+    REQUIRE(
+        register_ssh_signer(
+            nullptr,
+            "git",
+            pubkey,
+            sizeof(pubkey),
+            fake_sign_ok,
+            &destroy_count,
+            destroy,
+            &error
+        ) == HOLDER_ERROR_INVALID_ARGUMENT
+    );
     REQUIRE(destroy_count == 1);
   }
 
   SECTION("rejects an empty public key, still destroying user_data exactly once") {
     int destroy_count = 0;
-    auto destroy = [](void* user_data) { ++*static_cast<int*>(user_data); };
-    REQUIRE(register_ssh_signer(context, "git", pubkey, 0, fake_sign_ok,
-                                &destroy_count, destroy, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+    auto destroy = [](void* user_data) {
+      ++*static_cast<int*>(user_data);
+    };
+    REQUIRE(
+        register_ssh_signer(
+            context,
+            "git",
+            pubkey,
+            0,
+            fake_sign_ok,
+            &destroy_count,
+            destroy,
+            &error
+        ) == HOLDER_ERROR_INVALID_ARGUMENT
+    );
     REQUIRE(destroy_count == 1);
   }
 
@@ -331,10 +366,7 @@ TEST_CASE(
   }
 }
 
-TEST_CASE(
-    "Generated C API SSH signer is wired into git operations",
-    "[capi][git]"
-) {
+TEST_CASE("Generated C API SSH signer is wired into git operations", "[capi][git]") {
   const auto data_dir = holder::test::make_temp_dir();
   const auto remote_dir = data_dir / "remote";
   init_bare_repo(remote_dir);
@@ -450,7 +482,9 @@ int register_keyring_provider(
     decltype(holder_keyring_provider_callbacks::lookup) lookup,
     decltype(holder_keyring_provider_callbacks::store) store,
     decltype(holder_keyring_provider_callbacks::remove) remove,
-    void* user_data, holder_destroy_fn destroy, holder_error** error
+    void* user_data,
+    holder_destroy_fn destroy,
+    holder_error** error
 ) {
   holder_keyring_provider_callbacks callbacks{lookup, store, remove};
   return holder_register_keyring_provider(&callbacks, user_data, destroy, error);
@@ -477,15 +511,7 @@ int failing_keyring_lookup_with_message(
   *out_error = malloc_copy("lookup exploded");
   return 1;
 }
-int failing_keyring_lookup_silent(
-    void*,
-    int,
-    const char*,
-    const char*,
-    const char*,
-    char**,
-    char**
-) {
+int failing_keyring_lookup_silent(void*, int, const char*, const char*, const char*, char**, char**) {
   return 1;
 }
 int failing_keyring_store_with_message(
@@ -501,16 +527,7 @@ int failing_keyring_store_with_message(
   *out_error = malloc_copy("store exploded");
   return 1;
 }
-int failing_keyring_store_silent(
-    void*,
-    int,
-    const char*,
-    const char*,
-    const char*,
-    const char*,
-    const char*,
-    char**
-) {
+int failing_keyring_store_silent(void*, int, const char*, const char*, const char*, const char*, const char*, char**) {
   return 1;
 }
 int failing_keyring_remove_with_message(
@@ -534,8 +551,7 @@ struct ReplacingKeyringState {
   int replacement_status = -1;
 };
 
-int absent_keyring_lookup(void*, int32_t, const char*, const char*, const char*, char** out_value,
-                          char**) {
+int absent_keyring_lookup(void*, int32_t, const char*, const char*, const char*, char** out_value, char**) {
   *out_value = nullptr;
   return 0;
 }
@@ -544,10 +560,13 @@ void replacing_keyring_destroy(void* user_data) {
   ++static_cast<ReplacingKeyringState*>(user_data)->destroyed;
 }
 
-int replacing_keyring_lookup(void* user_data, int32_t, const char*, const char*, const char*,
-                             char** out_value, char**) {
+int replacing_keyring_lookup(void* user_data, int32_t, const char*, const char*, const char*, char** out_value, char**) {
   auto* state = static_cast<ReplacingKeyringState*>(user_data);
-  holder_keyring_provider_callbacks next{absent_keyring_lookup, fake_keyring_store, fake_keyring_remove};
+  holder_keyring_provider_callbacks next{
+      absent_keyring_lookup,
+      fake_keyring_store,
+      fake_keyring_remove
+  };
   holder_error* error = nullptr;
   state->replacement_status = holder_register_keyring_provider(&next, nullptr, nullptr, &error);
   state->observed_during_callback = state->destroyed;
@@ -784,10 +803,16 @@ TEST_CASE(
 
 TEST_CASE("generated keyring callbacks can replace their own provider safely", "[capi][privacy]") {
   ReplacingKeyringState state;
-  holder_keyring_provider_callbacks callbacks{replacing_keyring_lookup, fake_keyring_store,
-                                               fake_keyring_remove};
+  holder_keyring_provider_callbacks callbacks{
+      replacing_keyring_lookup,
+      fake_keyring_store,
+      fake_keyring_remove
+  };
   holder_error* error = nullptr;
-  REQUIRE(holder_register_keyring_provider(&callbacks, &state, replacing_keyring_destroy, &error) == HOLDER_OK);
+  REQUIRE(
+      holder_register_keyring_provider(&callbacks, &state, replacing_keyring_destroy, &error) ==
+      HOLDER_OK
+  );
   const holder::privacy::PlatformKeyringSecretRef ref{
       .kind = holder::privacy::PlatformKeyringSecretKind::GenericSecret,
       .service = "holder.test",
@@ -879,6 +904,11 @@ int fake_storage_exists(
   return 0;
 }
 
+int exists_neither_yes_nor_no(void*, const char*, int* out_exists, int*, char**) {
+  *out_exists = 2;
+  return 0;
+}
+
 int fake_storage_remove(
     void* user_data,
     const char* object_key,
@@ -907,13 +937,7 @@ int failing_storage_put_with_message(
   return 1;
 }
 
-int fake_storage_exists_but_block_git_write(
-    void* user_data,
-    const char* object_key,
-    int* out_exists,
-    int*,
-    char**
-) {
+int fake_storage_exists_but_block_git_write(void* user_data, const char* object_key, int* out_exists, int*, char**) {
   auto* backend = static_cast<FakeStorageBackend*>(user_data);
   backend->exists_calls++;
   *out_exists = std::filesystem::is_regular_file(backend->root / object_key) ? 1 : 0;
@@ -922,12 +946,24 @@ int fake_storage_exists_but_block_git_write(
 
 void noop_storage_destroy(void*) {}
 
+// Registrations last for the whole process. A test whose provider holds data on its own stack
+// clears them when it ends, so a later test in the same process never calls into that data.
+struct ClearStorageProvidersAtEnd {
+  ClearStorageProvidersAtEnd() = default;
+  ClearStorageProvidersAtEnd(const ClearStorageProvidersAtEnd&) = delete;
+  ClearStorageProvidersAtEnd& operator=(const ClearStorageProvidersAtEnd&) = delete;
+  ~ClearStorageProvidersAtEnd() { holder::capi::clear_storage_providers(); }
+};
+
 int register_storage_provider(
-    holder_register_storage_provider_kind kind, decltype(holder_storage_provider_callbacks::put) put,
+    holder_register_storage_provider_kind kind,
+    decltype(holder_storage_provider_callbacks::put) put,
     decltype(holder_storage_provider_callbacks::get) get,
     decltype(holder_storage_provider_callbacks::exists) exists,
     decltype(holder_storage_provider_callbacks::remove) remove,
-    void* user_data, holder_destroy_fn destroy, holder_error** error
+    void* user_data,
+    holder_destroy_fn destroy,
+    holder_error** error
 ) {
   holder_storage_provider_callbacks callbacks{put, get, exists, remove};
   return holder_register_storage_provider(kind, &callbacks, user_data, destroy, error);
@@ -1011,8 +1047,7 @@ TEST_CASE(
   auto first_destroy_count = std::make_shared<int>(0);
   auto second_destroy_count = std::make_shared<int>(0);
   auto destroy = [](void* user_data) {
-    const std::unique_ptr<std::shared_ptr<int>> count(
-        static_cast<std::shared_ptr<int>*>(user_data)
+    const std::unique_ptr<std::shared_ptr<int>> count(static_cast<std::shared_ptr<int>*>(user_data)
     );
     ++**count;
   };
@@ -1064,7 +1099,13 @@ TEST_CASE(
   const auto& project_id = created.project_id;
   const auto& card_id = created.card_id;
 
-  create_location(context, project_id, "loc-local-1", "Local", HOLDER_NEW_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY);
+  create_location(
+      context,
+      project_id,
+      "loc-local-1",
+      "Local",
+      HOLDER_NEW_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY
+  );
 
   const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "fake jpeg bytes");
 
@@ -1121,6 +1162,7 @@ TEST_CASE(
   );
 
   FakeStorageBackend backend{.root = data_dir / "fake-drive"};
+  const ClearStorageProvidersAtEnd clear_providers;
   REQUIRE(
       register_storage_provider(
           HOLDER_REGISTER_STORAGE_PROVIDER_KIND_GOOGLE_DRIVE,
@@ -1204,6 +1246,7 @@ TEST_CASE(
   );
 
   int failure_code = HOLDER_STORAGE_ERROR_CAPACITY;
+  const ClearStorageProvidersAtEnd clear_providers;
   REQUIRE(
       register_storage_provider(
           HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE,
@@ -1221,7 +1264,13 @@ TEST_CASE(
   const auto& project_id = created.project_id;
   const auto& card_id = created.card_id;
 
-  create_location(context, project_id, "loc-quota-1", "Full Drive", HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE);
+  create_location(
+      context,
+      project_id,
+      "loc-quota-1",
+      "Full Drive",
+      HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE
+  );
 
   const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "won't fit");
 
@@ -1295,6 +1344,7 @@ TEST_CASE(
   );
 
   FakeStorageBackend backend{.root = data_dir / "rollback-provider"};
+  const ClearStorageProvidersAtEnd clear_providers;
   REQUIRE(
       register_storage_provider(
           HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE,
@@ -1313,8 +1363,13 @@ TEST_CASE(
   const auto& card_id = created.card_id;
   const auto& project_root = created.project_root;
 
-  create_location(context, project_id, "loc-rollback-1", "Rollback provider",
-                  HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE);
+  create_location(
+      context,
+      project_id,
+      "loc-rollback-1",
+      "Rollback provider",
+      HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE
+  );
 
   // A regular file where the resource directory must be makes the Git-backed manifest write
   // fail after the provider has accepted the bytes.
@@ -1341,7 +1396,42 @@ TEST_CASE(
   holder_context_destroy(context);
 }
 
-TEST_CASE("C API asset_import_file reports an unregistered provider kind by name", "[capi][resource]") {
+TEST_CASE("C API storage providers must answer exists with 0 or 1", "[capi][resource]") {
+  const auto data_dir = holder::test::make_temp_dir();
+  const auto schema = read_schema_sql();
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+  FakeStorageBackend backend{.root = data_dir / "unsure-provider"};
+  const ClearStorageProvidersAtEnd clear_providers;
+  REQUIRE(
+      register_storage_provider(
+          HOLDER_REGISTER_STORAGE_PROVIDER_KIND_S3_COMPATIBLE,
+          fake_storage_put,
+          fake_storage_get,
+          exists_neither_yes_nor_no,
+          fake_storage_remove,
+          &backend,
+          noop_storage_destroy,
+          &error
+      ) == HOLDER_OK
+  );
+
+  const auto provider = holder::capi::storage_provider(*context, "s3_compatible");
+  REQUIRE_THROWS_WITH(
+      provider->exists("assets/a1"),
+      Catch::Matchers::ContainsSubstring("StorageProvider.exists: invalid boolean result")
+  );
+
+  holder_context_destroy(context);
+}
+
+TEST_CASE(
+    "C API asset_import_file reports an unregistered provider kind by name",
+    "[capi][resource]"
+) {
   const auto data_dir = holder::test::make_temp_dir();
   const auto schema = read_schema_sql();
   holder_context* context = nullptr;
@@ -1354,9 +1444,15 @@ TEST_CASE("C API asset_import_file reports an unregistered provider kind by name
   const auto& project_id = created.project_id;
   const auto& card_id = created.card_id;
 
-  // Nothing registers s3_compatible in this process.
-  create_location(context, project_id, "loc-unregistered-1", "Bucket (not wired up)",
-                  HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE);
+  // Earlier tests in the same process may have registered s3_compatible; this one needs none.
+  holder::capi::clear_storage_providers();
+  create_location(
+      context,
+      project_id,
+      "loc-unregistered-1",
+      "Bucket (not wired up)",
+      HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE
+  );
 
   const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "bytes");
 
@@ -1391,8 +1487,13 @@ TEST_CASE(
   REQUIRE(
       holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
   );
-  create_location(context, "project-1", "location-1234", "Family Assets",
-                  HOLDER_NEW_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY);
+  create_location(
+      context,
+      "project-1",
+      "location-1234",
+      "Family Assets",
+      HOLDER_NEW_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY
+  );
   const std::unique_ptr<holder_arena, decltype(&holder_arena_free)> arena(
       holder_arena_new(),
       holder_arena_free

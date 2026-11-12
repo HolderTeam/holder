@@ -31,9 +31,13 @@ inline const MilestoneDate* milestone_unique_date_for_role(
         return value.role == role;
       });
   if (it == milestone.dates.end()) return nullptr;
-  return std::find_if(std::next(it), milestone.dates.end(), [&](const auto& value) {
-           return value.role == role;
-         }) == milestone.dates.end()
+  return std::find_if(
+             std::next(it),
+             milestone.dates.end(),
+             [&](const auto& value) {
+               return value.role == role;
+             }
+         ) == milestone.dates.end()
              ? &*it
              : nullptr;
 }

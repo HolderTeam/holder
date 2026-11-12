@@ -1,6 +1,6 @@
 #include "card/CardPlacementResolver.h"
-#include "card/CardPlacementError.h"
 #include "card/CardHierarchy.h"
+#include "card/CardPlacementError.h"
 
 #include <algorithm>
 #include <optional>

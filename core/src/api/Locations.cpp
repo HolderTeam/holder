@@ -28,9 +28,12 @@ ProjectStorageLocationProvider provider(const std::string& value) {
 
 std::string provider(NewStorageLocationProvider value) {
   switch (value) {
-  case NewStorageLocationProvider::LocalDirectory: return "local_directory";
-  case NewStorageLocationProvider::S3Compatible: return "s3_compatible";
-  case NewStorageLocationProvider::GoogleDrive: return "google-drive";
+  case NewStorageLocationProvider::LocalDirectory:
+    return "local_directory";
+  case NewStorageLocationProvider::S3Compatible:
+    return "s3_compatible";
+  case NewStorageLocationProvider::GoogleDrive:
+    return "google-drive";
   }
   throw InvalidArgument("unknown storage provider");
 }
@@ -40,12 +43,23 @@ std::unique_ptr<holder::resource::LocationBindingStore> binding_store(holder_con
   return std::make_unique<holder::resource::LocationBindingStore>(*context.secret_store);
 }
 
-ProjectStorageLocation item(const holder::model::Location& location,
-                     const holder::resource::LocationBindingStore* bindings) {
-  auto preview = bindings ? bindings->preview(location.project_id, location.location_id) : std::nullopt;
-  return {location.location_id, location.project_id, location.name, provider(location.provider),
-          location.configuration, preview.has_value(), std::move(preview),
-          location.created_at, location.updated_at};
+ProjectStorageLocation item(
+    const holder::model::Location& location,
+    const holder::resource::LocationBindingStore* bindings
+) {
+  auto preview = bindings ? bindings->preview(location.project_id, location.location_id)
+                          : std::nullopt;
+  return {
+      location.location_id,
+      location.project_id,
+      location.name,
+      provider(location.provider),
+      location.configuration,
+      preview.has_value(),
+      std::move(preview),
+      location.created_at,
+      location.updated_at
+  };
 }
 
 holder::model::Location require_location(holder_context& context, const std::string& id) {
@@ -80,7 +94,10 @@ ProjectStorageLocation get_storage_location(holder_context& context, std::string
   });
 }
 
-ProjectStorageLocation create_storage_location(holder_context& context, const NewStorageLocation& request) {
+ProjectStorageLocation create_storage_location(
+    holder_context& context,
+    const NewStorageLocation& request
+) {
   return with_contract_errors([&] {
     holder::model::Location location;
     location.location_id = request.location_id.value_or("");
@@ -99,8 +116,11 @@ ProjectStorageLocation create_storage_location(holder_context& context, const Ne
   });
 }
 
-ProjectStorageLocation update_storage_location(holder_context& context, std::string location_id,
-                                               const StorageLocationUpdate& request) {
+ProjectStorageLocation update_storage_location(
+    holder_context& context,
+    std::string location_id,
+    const StorageLocationUpdate& request
+) {
   return with_contract_errors([&] {
     auto location = require_location(context, location_id);
     if (request.name) location.name = *request.name;

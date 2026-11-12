@@ -138,17 +138,22 @@ def generate_host_glue(types: CoreTypes) -> str:
         # Registration stores callbacks rather than invoking them. Validation is above;
         # bad_alloc and real mutex system_errors remain measured. These narrow fallbacks
         # defend future adapters (and unrepresentably large SSH string/vector arguments).
-        defensive = " // LCOV_EXCL_LINE - defensive registration fallback; see core coverage audit."
-        ssh_only = defensive if op.name == "register_ssh_signer" else ""
+        # Excluded as blocks rather than with same-line markers, because clang-format may split
+        # the statements; the SSH signer's runtime handler is excluded as well.
+        start = "    // LCOV_EXCL_START - defensive registration fallback; see core coverage audit."
+        stop = "  // LCOV_EXCL_STOP"
+        runtime_handler = ["  } catch (const std::exception& error) {",
+                           "    return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, error.what());"]
         out += ["  try {", f"    holder::contract::{op.name}({', '.join(call_args)});", "    return HOLDER_OK;",
                 "  } catch (const std::bad_alloc&) {",
                 '    return holder::contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");',
-                "  } catch (const std::invalid_argument& error) {",
-                "    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, error.what());" + defensive,
-                "  } catch (const std::exception& error) {" + ssh_only,
-                "    return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, error.what());" + ssh_only,
-                "  } catch (...) {" + ssh_only,
-                '    return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown holder error");' + defensive,
-                "  }" + defensive, "}", ""]
+                "  } catch (const std::invalid_argument& error) {", start,
+                "    return holder::contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, error.what());"]
+        if op.name == "register_ssh_signer":
+            out += runtime_handler + ["  } catch (...) {"]
+        else:
+            out += [stop.replace("  //", "    //"), *runtime_handler, "  } catch (...) {", start]
+        out += ['    return holder::contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown holder error");',
+                "  }", stop, "}", ""]
 
     return "\n".join(out)

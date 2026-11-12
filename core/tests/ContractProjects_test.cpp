@@ -37,8 +37,11 @@ struct Host {
     context.registry_path = dir / "projects.json";
   }
 
-  contract::Project make(const std::string& name, std::optional<std::string> project_id = std::nullopt,
-                         std::optional<long long> created_at = std::nullopt) {
+  contract::Project make(
+      const std::string& name,
+      std::optional<std::string> project_id = std::nullopt,
+      std::optional<long long> created_at = std::nullopt
+  ) {
     contract::NewProject request;
     request.name = name;
     request.project_id = std::move(project_id);
@@ -47,18 +50,22 @@ struct Host {
     return contract::create_project(context, request);
   }
 
-  std::vector<std::string> names(std::optional<contract::ListProjectsOrder> order = std::nullopt,
-                                 std::optional<std::string> name = std::nullopt, std::int32_t limit = 100,
-                                 std::int32_t offset = 0) {
+  std::vector<std::string> names(
+      std::optional<contract::ListProjectsOrder> order = std::nullopt,
+      std::optional<std::string> name = std::nullopt,
+      std::int32_t limit = 100,
+      std::int32_t offset = 0
+  ) {
     std::vector<std::string> out;
-    for (const auto& project :
-         contract::list_projects(context, name, std::nullopt, std::nullopt, order, limit, offset, false))
+    for (const auto& project : contract::
+             list_projects(context, name, std::nullopt, std::nullopt, order, limit, offset, false))
       out.push_back(project.name);
     return out;
   }
 };
 
-// The registry keeps canonical paths, which may spell a directory differently, as macOS's /private/var.
+// The registry keeps canonical paths, which may spell a directory differently, as macOS's
+// /private/var.
 bool registered(const Host& host, const contract::Project& project) {
   std::error_code error;
   for (const auto& root : holder::core::ProjectRegistry(host.context.registry_path).roots())
@@ -68,8 +75,10 @@ bool registered(const Host& host, const contract::Project& project) {
 
 } // namespace
 
-TEST_CASE("A locked Git configuration leaves project metadata unchanged and allows retry",
-          "[contract][projects][project-failures]") {
+TEST_CASE(
+    "A locked Git configuration leaves project metadata unchanged and allows retry",
+    "[contract][projects][project-failures]"
+) {
   Host host;
   const auto made = host.make("Work", std::nullopt, 1700000000);
   const auto root = std::filesystem::path(made.root_path);
@@ -94,8 +103,10 @@ TEST_CASE("A locked Git configuration leaves project metadata unchanged and allo
   update.name = "Renamed";
   update.git_remote_url = std::optional<std::string>("https://example.invalid/work.git");
   update.git_provider = std::optional<std::string>("github");
-  REQUIRE_THROWS_WITH(contract::update_project(host.context, made.project_id, update),
-                      Catch::Matchers::ContainsSubstring("Git does not accept the remote:"));
+  REQUIRE_THROWS_WITH(
+      contract::update_project(host.context, made.project_id, update),
+      Catch::Matchers::ContainsSubstring("Git does not accept the remote:")
+  );
   const auto unchanged = contract::get_project(host.context, made.project_id);
   CHECK(unchanged.name == made.name);
   CHECK(unchanged.git_remote_url == made.git_remote_url);
@@ -112,12 +123,16 @@ TEST_CASE("A locked Git configuration leaves project metadata unchanged and allo
   CHECK(updated.git_provider == "github");
   CHECK(updated.updated_at > made.updated_at);
   CHECK(git.head_oid() != head);
-  CHECK(read(root / ".git" / "config").find("https://example.invalid/work.git") != std::string::npos);
+  CHECK(
+      read(root / ".git" / "config").find("https://example.invalid/work.git") != std::string::npos
+  );
   CHECK(registered(host, updated));
 }
 
-TEST_CASE("A failed project deletion commit restores the registry and database",
-          "[contract][projects][project-failures]") {
+TEST_CASE(
+    "A failed project deletion commit restores the registry and database",
+    "[contract][projects][project-failures]"
+) {
   Host host;
   const auto made = host.make("Keep me");
   contract::NewCard request;
@@ -132,10 +147,14 @@ TEST_CASE("A failed project deletion commit restores the registry and database",
     ~CommitGuard() { sqlite3_commit_hook(db, nullptr, nullptr); }
   } guard{host.db.handle()};
   int rejected = 0;
-  sqlite3_commit_hook(host.db.handle(), +[](void* data) {
-    ++*static_cast<int*>(data);
-    return 1;
-  }, &rejected);
+  sqlite3_commit_hook(
+      host.db.handle(),
+      +[](void* data) {
+        ++*static_cast<int*>(data);
+        return 1;
+      },
+      &rejected
+  );
   REQUIRE_THROWS(contract::delete_project(host.context, made.project_id));
   sqlite3_commit_hook(host.db.handle(), nullptr, nullptr);
   REQUIRE(rejected == 1);
@@ -153,7 +172,10 @@ TEST_CASE("A failed project deletion commit restores the registry and database",
   CHECK(std::filesystem::exists(made.root_path));
 }
 
-TEST_CASE("Projects are made under the host's directory and known to its registry", "[contract][projects]") {
+TEST_CASE(
+    "Projects are made under the host's directory and known to its registry",
+    "[contract][projects]"
+) {
   Host host;
   const auto made = host.make("Research notes", "proj-research", 1700000000);
   REQUIRE(made.project_id == "proj-research");
@@ -163,7 +185,9 @@ TEST_CASE("Projects are made under the host's directory and known to its registr
   REQUIRE(made.updated_at == 1700000000);
   REQUIRE(made.git_remote_url == std::nullopt);
   REQUIRE(std::filesystem::path(made.root_path).parent_path() == host.dir / "projects");
-  REQUIRE(std::filesystem::is_regular_file(std::filesystem::path(made.root_path) / ".holder" / "project.json"));
+  REQUIRE(std::filesystem::is_regular_file(
+      std::filesystem::path(made.root_path) / ".holder" / "project.json"
+  ));
   REQUIRE(registered(host, made));
   REQUIRE(contract::get_project(host.context, "proj-research").name == "Research notes");
   REQUIRE_THROWS_AS(host.make("Again", "proj-research"), contract::Conflict);
@@ -175,11 +199,16 @@ TEST_CASE("Projects are made under the host's directory and known to its registr
   REQUIRE_THROWS_AS(contract::get_project(host.context, "no-such-project"), contract::NotFound);
 }
 
-TEST_CASE("Project settings change one at a time, and a change of nothing writes nothing", "[contract][projects]") {
+TEST_CASE(
+    "Project settings change one at a time, and a change of nothing writes nothing",
+    "[contract][projects]"
+) {
   Host host;
   const auto made = host.make("Work", std::nullopt, 1700000000);
   contract::ProjectUpdate nothing;
-  REQUIRE(contract::update_project(host.context, made.project_id, nothing).updated_at == made.updated_at);
+  REQUIRE(
+      contract::update_project(host.context, made.project_id, nothing).updated_at == made.updated_at
+  );
 
   contract::ProjectUpdate remote;
   remote.git_remote_url = std::optional<std::string>("https://example.com/work.git");
@@ -191,7 +220,10 @@ TEST_CASE("Project settings change one at a time, and a change of nothing writes
   {
     // Closed again before the next update, which Windows would otherwise stop rewriting the file.
     std::ifstream config(std::filesystem::path(updated.root_path) / ".git" / "config");
-    const std::string text((std::istreambuf_iterator<char>(config)), std::istreambuf_iterator<char>());
+    const std::string text(
+        (std::istreambuf_iterator<char>(config)),
+        std::istreambuf_iterator<char>()
+    );
     REQUIRE(text.find("https://example.com/work.git") != std::string::npos);
   }
 
@@ -201,10 +233,16 @@ TEST_CASE("Project settings change one at a time, and a change of nothing writes
   updated = contract::update_project(host.context, made.project_id, rename);
   REQUIRE(updated.name == "Day job");
   REQUIRE(updated.git_remote_url == std::nullopt);
-  REQUIRE_THROWS_AS(contract::update_project(host.context, "no-such-project", rename), contract::NotFound);
+  REQUIRE_THROWS_AS(
+      contract::update_project(host.context, "no-such-project", rename),
+      contract::NotFound
+  );
 }
 
-TEST_CASE("Projects list with filters, orders and pages, Home first by default", "[contract][projects]") {
+TEST_CASE(
+    "Projects list with filters, orders and pages, Home first by default",
+    "[contract][projects]"
+) {
   Host host;
   host.make("Alpha", std::nullopt, 100);
   host.make("Home", std::nullopt, 50);
@@ -215,7 +253,8 @@ TEST_CASE("Projects list with filters, orders and pages, Home first by default",
   REQUIRE(host.names(Order::NameAsc) == std::vector<std::string>{"Alpha", "Beta", "Home"});
   REQUIRE(host.names(Order::CreatedAtAsc, std::nullopt, 1, 1) == std::vector<std::string>{"Alpha"});
   REQUIRE(host.names(std::nullopt, "ta") == std::vector<std::string>{"Beta"});
-  const auto after = contract::list_projects(host.context, std::nullopt, 100, 150, std::nullopt, 100, 0, true);
+  const auto after =
+      contract::list_projects(host.context, std::nullopt, 100, 150, std::nullopt, 100, 0, true);
   REQUIRE(after.size() == 1);
   REQUIRE(after[0].name == "Alpha");
   REQUIRE(after[0].card_count == 0);
@@ -233,14 +272,26 @@ TEST_CASE("Removing a project keeps its files and remembers the removal", "[cont
   REQUIRE_THROWS_AS(contract::delete_project(host.context, "proj-old"), contract::NotFound);
 }
 
-TEST_CASE("ensure_home_project makes Home once, first in the project list and in the registry", "[contract][projects]") {
+TEST_CASE(
+    "ensure_home_project makes Home once, first in the project list and in the registry",
+    "[contract][projects]"
+) {
   Host host;
   const auto home = contract::ensure_home_project(host.context);
   REQUIRE(home.project);
   REQUIRE(home.project->name == contract::HOME_PROJECT_NAME);
   REQUIRE(home.project->privacy_mode == contract::ProjectPrivacyMode::EncryptedGit);
-  const auto cards = contract::list_cards(host.context, home.project->project_id, std::nullopt, std::nullopt,
-                                          contract::ListCardsOrder::SortKeyAsc, 10, std::nullopt, true, false);
+  const auto cards = contract::list_cards(
+      host.context,
+      home.project->project_id,
+      std::nullopt,
+      std::nullopt,
+      contract::ListCardsOrder::SortKeyAsc,
+      10,
+      std::nullopt,
+      true,
+      false
+  );
   REQUIRE(cards.items.size() == 1);
   REQUIRE(cards.items[0].title == "Welcome to Holder");
   REQUIRE(cards.items[0].content == std::string(contract::WELCOME_CARD));
@@ -249,7 +300,10 @@ TEST_CASE("ensure_home_project makes Home once, first in the project list and in
   host.make("Another");
   REQUIRE(host.names() == std::vector<std::string>{"Home", "Another"});
   std::ifstream registry(host.context.registry_path);
-  const std::string text{std::istreambuf_iterator<char>(registry), std::istreambuf_iterator<char>()};
+  const std::string text{
+      std::istreambuf_iterator<char>(registry),
+      std::istreambuf_iterator<char>()
+  };
   REQUIRE(text.find(home.project->project_id) != std::string::npos);
 }
 

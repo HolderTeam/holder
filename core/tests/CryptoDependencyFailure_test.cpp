@@ -83,17 +83,8 @@ extern "C" int __wrap_sodium_init() {
   return __real_sodium_init();
 }
 
-extern "C" int __real_crypto_aead_xchacha20poly1305_ietf_encrypt(
-    unsigned char*,
-    unsigned long long*,
-    const unsigned char*,
-    unsigned long long,
-    const unsigned char*,
-    unsigned long long,
-    const unsigned char*,
-    const unsigned char*,
-    const unsigned char*
-);
+extern "C" int
+__real_crypto_aead_xchacha20poly1305_ietf_encrypt(unsigned char*, unsigned long long*, const unsigned char*, unsigned long long, const unsigned char*, unsigned long long, const unsigned char*, const unsigned char*, const unsigned char*);
 extern "C" int __wrap_crypto_aead_xchacha20poly1305_ietf_encrypt(
     unsigned char* output,
     unsigned long long* output_size,

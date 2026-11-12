@@ -11,9 +11,9 @@
 #include "identity/Uuid.h"
 #include "platform/Tx.h"
 #include "project/DefaultProject.h"
+#include "project/ProjectImport.h"
 #include "project/ProjectManifest.h"
 #include "project/ProjectRegistry.h"
-#include "project/ProjectImport.h"
 #include "project/ProjectRepo.h"
 #include "project/ProjectStore.h"
 #include "project/ProjectSyncRepo.h"
@@ -39,9 +39,17 @@ ProjectPrivacyMode privacy_mode(const std::string& name) {
 }
 
 Project to_project(const holder::model::Project& project) {
-  return {project.project_id,   project.name,         project.root_path,
-          project.git_remote_url, project.git_provider, privacy_mode(project.privacy_mode),
-          project.project_key_id, project.created_at,   project.updated_at};
+  return {
+      project.project_id,
+      project.name,
+      project.root_path,
+      project.git_remote_url,
+      project.git_provider,
+      privacy_mode(project.privacy_mode),
+      project.project_key_id,
+      project.created_at,
+      project.updated_at
+  };
 }
 
 holder::model::Project find(holder_context& context, const std::string& project_id) {
@@ -52,16 +60,23 @@ holder::model::Project find(holder_context& context, const std::string& project_
 
 std::string lowered(std::string_view text) {
   std::string out;
-  for (const char c : text) out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+  for (const char c : text)
+    out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
   return out;
 } // LCOV_EXCL_LINE - GCC unwind continuation only; body remains measured.
 
 bool is_home(const std::string& name) { return lowered(name) == lowered(HOME_PROJECT_NAME); }
 
-std::vector<ProjectListItem> list(holder_context& context, const std::optional<std::string>& name,
-                                  std::optional<long long> updated_after, std::optional<long long> updated_before,
-                                  std::optional<ListProjectsOrder> order, std::int32_t limit, std::int32_t offset,
-                                  bool include_card_counts) {
+std::vector<ProjectListItem> list(
+    holder_context& context,
+    const std::optional<std::string>& name,
+    std::optional<long long> updated_after,
+    std::optional<long long> updated_before,
+    std::optional<ListProjectsOrder> order,
+    std::int32_t limit,
+    std::int32_t offset,
+    bool include_card_counts
+) {
   auto projects = holder::project::ProjectRepo(context.db).list();
   std::erase_if(projects, [&](const holder::model::Project& project) {
     return (name && project.name.find(*name) == std::string::npos) ||
@@ -72,18 +87,26 @@ std::vector<ProjectListItem> list(holder_context& context, const std::optional<s
   const auto by = order.value_or(Order::UpdatedAtDesc);
   std::ranges::stable_sort(projects, [by](const auto& a, const auto& b) {
     switch (by) {
-    case Order::UpdatedAtAsc: return a.updated_at < b.updated_at;
-    case Order::CreatedAtDesc: return a.created_at > b.created_at;
-    case Order::CreatedAtAsc: return a.created_at < b.created_at;
-    case Order::NameDesc: return a.name > b.name;
-    case Order::NameAsc: return a.name < b.name;
-    case Order::UpdatedAtDesc: break;
+    case Order::UpdatedAtAsc:
+      return a.updated_at < b.updated_at;
+    case Order::CreatedAtDesc:
+      return a.created_at > b.created_at;
+    case Order::CreatedAtAsc:
+      return a.created_at < b.created_at;
+    case Order::NameDesc:
+      return a.name > b.name;
+    case Order::NameAsc:
+      return a.name < b.name;
+    case Order::UpdatedAtDesc:
+      break;
     }
     return a.updated_at > b.updated_at;
   });
   // Without an order, Home comes first.
   if (!order)
-    std::ranges::stable_partition(projects, [](const auto& project) { return is_home(project.name); });
+    std::ranges::stable_partition(projects, [](const auto& project) {
+      return is_home(project.name);
+    });
 
   holder::card::CardRepo cards(context.db);
   std::vector<ProjectListItem> out;
@@ -117,7 +140,8 @@ Project create(holder_context& context, const NewProject& request) {
   project.privacy_mode = privacy_name(request.privacy_mode);
   project.created_at = request.created_at.value_or(now_epoch_seconds());
   project.updated_at = request.updated_at.value_or(project.created_at);
-  if (!project.project_id.empty() && holder::project::ProjectRepo(context.db).get(project.project_id))
+  if (!project.project_id.empty() &&
+      holder::project::ProjectRepo(context.db).get(project.project_id))
     throw Conflict("project ID already in use: " + project.project_id);
   const bool own_root = !project.root_path.empty();
   auto created = holder::project::ProjectStore(context.db, context.git)
@@ -132,7 +156,11 @@ Project create(holder_context& context, const NewProject& request) {
   return to_project(created);
 }
 
-Project update(holder_context& context, const std::string& project_id, const ProjectUpdate& request) {
+Project update(
+    holder_context& context,
+    const std::string& project_id,
+    const ProjectUpdate& request
+) {
   auto project = find(context, project_id);
   std::optional<holder::git::RealGitOps> own_git;
   auto& git = context.git != nullptr ? *context.git : own_git.emplace();
@@ -190,21 +218,42 @@ Project remove(holder_context& context, const std::string& project_id) {
 
 } // namespace
 
-std::vector<ProjectListItem> list_projects(holder_context& context, std::optional<std::string> name,
-                                           std::optional<long long> updated_after,
-                                           std::optional<long long> updated_before,
-                                           std::optional<ListProjectsOrder> order, std::int32_t limit,
-                                           std::int32_t offset, bool include_card_counts) {
-  return with_contract_errors(
-      [&] { return list(context, name, updated_after, updated_before, order, limit, offset, include_card_counts); });
+std::vector<ProjectListItem> list_projects(
+    holder_context& context,
+    std::optional<std::string> name,
+    std::optional<long long> updated_after,
+    std::optional<long long> updated_before,
+    std::optional<ListProjectsOrder> order,
+    std::int32_t limit,
+    std::int32_t offset,
+    bool include_card_counts
+) {
+  return with_contract_errors([&] {
+    return list(
+        context,
+        name,
+        updated_after,
+        updated_before,
+        order,
+        limit,
+        offset,
+        include_card_counts
+    );
+  });
 }
 
 HomeProject ensure_home_project(holder_context& context) {
   return with_contract_errors([&] {
-    const auto created = holder::project::ensure_default_project(context.db, holder::identity::uuid_v4,
-                                                                 context.projects_root, &context.fts, context.git);
+    const auto created = holder::project::ensure_default_project(
+        context.db,
+        holder::identity::uuid_v4,
+        context.projects_root,
+        &context.fts,
+        context.git
+    );
     if (!created) return HomeProject{};
-    if (!context.registry_path.empty()) holder::core::ProjectRegistry(context.registry_path).restore(*created);
+    if (!context.registry_path.empty())
+      holder::core::ProjectRegistry(context.registry_path).restore(*created);
     return HomeProject{to_project(*created)};
   });
 }
@@ -213,7 +262,11 @@ Project import_project(holder_context& context, std::string project_root) {
   return with_contract_errors([&] {
     try {
       return to_project(holder::project::import_project_into_empty_database(
-          context.db, context.fts, context.data_dir, project_root));
+          context.db,
+          context.fts,
+          context.data_dir,
+          project_root
+      ));
     } catch (const std::invalid_argument& error) {
       throw InvalidArgument(error.what());
     }
@@ -221,19 +274,31 @@ Project import_project(holder_context& context, std::string project_root) {
 }
 
 Project get_project(holder_context& context, std::string project_id) {
-  return with_contract_errors([&] { return to_project(find(context, project_id)); });
+  return with_contract_errors([&] {
+    return to_project(find(context, project_id));
+  });
 }
 
 Project create_project(holder_context& context, const NewProject& project) {
-  return with_contract_errors([&] { return create(context, project); });
+  return with_contract_errors([&] {
+    return create(context, project);
+  });
 }
 
-Project update_project(holder_context& context, std::string project_id, const ProjectUpdate& request) {
-  return with_contract_errors([&] { return update(context, project_id, request); });
+Project update_project(
+    holder_context& context,
+    std::string project_id,
+    const ProjectUpdate& request
+) {
+  return with_contract_errors([&] {
+    return update(context, project_id, request);
+  });
 }
 
 Project delete_project(holder_context& context, std::string project_id) {
-  return with_contract_errors([&] { return remove(context, project_id); });
+  return with_contract_errors([&] {
+    return remove(context, project_id);
+  });
 }
 
 } // namespace holder::contract

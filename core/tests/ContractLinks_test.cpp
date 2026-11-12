@@ -75,8 +75,13 @@ struct Host {
   }
 
   // A link from an AI message, as the AI message routes write one.
-  void message_link(const std::string& project_id, const std::string& message_id, const std::string& card_id,
-                    const std::string& card_project_id, long long created_at) {
+  void message_link(
+      const std::string& project_id,
+      const std::string& message_id,
+      const std::string& card_id,
+      const std::string& card_project_id,
+      long long created_at
+  ) {
     holder::model::CardLink link;
     link.project_id = project_id;
     link.from_card_id = message_id;
@@ -98,7 +103,10 @@ contract::NewLink to(contract::NewLinkTargetType type, const std::string& id) {
 
 } // namespace
 
-TEST_CASE("Backlinks with identical timestamps and sources sort by kind", "[contract][broad-link-order]") {
+TEST_CASE(
+    "Backlinks with identical timestamps and sources sort by kind",
+    "[contract][broad-link-order]"
+) {
   Host host;
   const auto source = host.card("proj-1", "Source");
   const auto target = host.card("proj-1", "Target");
@@ -112,8 +120,13 @@ TEST_CASE("Backlinks with identical timestamps and sources sort by kind", "[cont
     link.created_at = 10;
     holder::card::LinkRepo(host.db).upsert_links("proj-1", source, {link});
   }
-  const auto backlinks = contract::list_card_backlinks(host.context, "proj-1", target,
-      contract::ListCardBacklinksScope::Local, false);
+  const auto backlinks = contract::list_card_backlinks(
+      host.context,
+      "proj-1",
+      target,
+      contract::ListCardBacklinksScope::Local,
+      false
+  );
   REQUIRE(backlinks.size() == 3);
   CHECK(backlinks[0].kind == "alpha");
   CHECK(backlinks[1].kind == "middle");
@@ -121,31 +134,47 @@ TEST_CASE("Backlinks with identical timestamps and sources sort by kind", "[cont
   CHECK(backlinks[0].source_id == source);
 }
 
-TEST_CASE("Direct reference resolution rejects empty fields before querying and remains usable",
-          "[contract][broad-reference-validation]") {
+TEST_CASE(
+    "Direct reference resolution rejects empty fields before querying and remains usable",
+    "[contract][broad-reference-validation]"
+) {
   Host host;
   const auto id = host.card("proj-1", "Resolvable");
-  contract::CardReferenceResolveRequest request{"", id, contract::CardReferenceResolveRequestScope::Live};
-  REQUIRE_THROWS_AS(contract::resolve_card_reference(host.context, request), contract::InvalidArgument);
+  contract::CardReferenceResolveRequest request{
+      "",
+      id,
+      contract::CardReferenceResolveRequestScope::Live
+  };
+  REQUIRE_THROWS_AS(
+      contract::resolve_card_reference(host.context, request),
+      contract::InvalidArgument
+  );
   request.project_id = "proj-1";
   request.reference.clear();
-  REQUIRE_THROWS_AS(contract::resolve_card_reference(host.context, request), contract::InvalidArgument);
+  REQUIRE_THROWS_AS(
+      contract::resolve_card_reference(host.context, request),
+      contract::InvalidArgument
+  );
   request.reference = id;
   const auto resolved = contract::resolve_card_reference(host.context, request);
   REQUIRE(resolved.card.has_value());
   CHECK(resolved.card->card_id == id);
 }
 
-TEST_CASE("A card links to threads, messages and resources in its own project", "[contract][links]") {
+TEST_CASE(
+    "A card links to threads, messages and resources in its own project",
+    "[contract][links]"
+) {
   Host host;
   using Type = contract::NewLinkTargetType;
   const auto card = host.card("proj-1", "Card");
   host.message("message-1", "thread-proj-1", 2);
   host.message("message-2", "thread-proj-2", 3);
 
-  for (const auto& [type, id] : {std::pair{Type::AiThread, "thread-proj-1"},
-                                 std::pair{Type::Resource, "resource-proj-1"},
-                                 std::pair{Type::AiMessage, "message-1"}}) {
+  for (const auto& [type, id] :
+       {std::pair{Type::AiThread, "thread-proj-1"},
+        std::pair{Type::Resource, "resource-proj-1"},
+        std::pair{Type::AiMessage, "message-1"}}) {
     const auto link = contract::add_card_link(host.context, "proj-1", card, to(type, id));
     REQUIRE(link.target_id == id);
     REQUIRE(link.target_project_id == "proj-1");
@@ -153,24 +182,39 @@ TEST_CASE("A card links to threads, messages and resources in its own project", 
   REQUIRE(contract::list_card_links(host.context, "proj-1", card, false).size() == 3);
 
   // Not ones in another project, and not a message in the trash.
-  for (const auto& [type, id] : {std::pair{Type::AiThread, "thread-proj-2"},
-                                 std::pair{Type::Resource, "resource-proj-2"},
-                                 std::pair{Type::AiMessage, "message-2"}}) {
-    REQUIRE_THROWS_AS(contract::add_card_link(host.context, "proj-1", card, to(type, id)), contract::NotFound);
+  for (const auto& [type, id] :
+       {std::pair{Type::AiThread, "thread-proj-2"},
+        std::pair{Type::Resource, "resource-proj-2"},
+        std::pair{Type::AiMessage, "message-2"}}) {
+    REQUIRE_THROWS_AS(
+        contract::add_card_link(host.context, "proj-1", card, to(type, id)),
+        contract::NotFound
+    );
   }
   holder::ai::AiMessageRepo(host.db, &host.fts).trash("message-1", 4);
   REQUIRE(contract::list_card_links(host.context, "proj-1", card, false).size() == 2);
   REQUIRE(contract::list_card_links(host.context, "proj-1", card, true).size() == 3);
   auto again = to(Type::AiMessage, "message-1");
   again.kind = "see_also";
-  REQUIRE_THROWS_AS(contract::add_card_link(host.context, "proj-1", card, again), contract::NotFound);
+  REQUIRE_THROWS_AS(
+      contract::add_card_link(host.context, "proj-1", card, again),
+      contract::NotFound
+  );
 }
 
-TEST_CASE("A card's backlinks come from cards and AI messages, here and in other projects", "[contract][links]") {
+TEST_CASE(
+    "A card's backlinks come from cards and AI messages, here and in other projects",
+    "[contract][links]"
+) {
   Host host;
   const auto card = host.card("proj-1", "Target");
   const auto from_card = host.card("proj-1", "Source");
-  contract::add_card_link(host.context, "proj-1", from_card, to(contract::NewLinkTargetType::Card, card));
+  contract::add_card_link(
+      host.context,
+      "proj-1",
+      from_card,
+      to(contract::NewLinkTargetType::Card, card)
+  );
   host.message("message-1", "thread-proj-1", 2);
   host.message_link("proj-1", "message-1", card, "proj-1", 5);
   host.message("message-2", "thread-proj-1", 3);
@@ -181,8 +225,13 @@ TEST_CASE("A card's backlinks come from cards and AI messages, here and in other
   // A link whose source is gone is never listed.
   host.message_link("proj-1", "ghost-source", card, "proj-1", 9);
 
-  const auto local =
-      contract::list_card_backlinks(host.context, "proj-1", card, contract::ListCardBacklinksScope::Local, false);
+  const auto local = contract::list_card_backlinks(
+      host.context,
+      "proj-1",
+      card,
+      contract::ListCardBacklinksScope::Local,
+      false
+  );
   // Newest first: the card's link was made now.
   REQUIRE(local.size() == 2);
   REQUIRE(local[0].source_type == contract::LinkSourceType::Card);
@@ -190,22 +239,47 @@ TEST_CASE("A card's backlinks come from cards and AI messages, here and in other
   REQUIRE(local[1].source_type == contract::LinkSourceType::AiMessage);
   REQUIRE(local[1].source_id == "message-1");
   // A message in the trash is a source only when asked for.
-  REQUIRE(contract::list_card_backlinks(host.context, "proj-1", card, contract::ListCardBacklinksScope::Local, true)
-              .size() == 3);
+  REQUIRE(
+      contract::list_card_backlinks(
+          host.context,
+          "proj-1",
+          card,
+          contract::ListCardBacklinksScope::Local,
+          true
+      )
+          .size() == 3
+  );
 
-  const auto external = contract::list_card_backlinks(host.context, "proj-1", card,
-                                                      contract::ListCardBacklinksScope::External, false);
+  const auto external = contract::list_card_backlinks(
+      host.context,
+      "proj-1",
+      card,
+      contract::ListCardBacklinksScope::External,
+      false
+  );
   REQUIRE(external.size() == 1);
   REQUIRE(external[0].source_project_id == "proj-2");
   REQUIRE(external[0].source_id == "message-3");
   REQUIRE(external[0].target_project_id == "proj-1");
-  REQUIRE(contract::list_card_backlinks(host.context, "proj-1", card,
-                                        contract::ListCardBacklinksScope::AllAvailable, false)
-              .size() == 3);
+  REQUIRE(
+      contract::list_card_backlinks(
+          host.context,
+          "proj-1",
+          card,
+          contract::ListCardBacklinksScope::AllAvailable,
+          false
+      )
+          .size() == 3
+  );
 
   // A project not on this device is not a source.
   std::filesystem::remove_all(host.dir / "proj-2");
-  REQUIRE(contract::list_card_backlinks(host.context, "proj-1", card, contract::ListCardBacklinksScope::External,
-                                        false)
+  REQUIRE(contract::list_card_backlinks(
+              host.context,
+              "proj-1",
+              card,
+              contract::ListCardBacklinksScope::External,
+              false
+  )
               .empty());
 }
