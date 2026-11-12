@@ -55,8 +55,8 @@ public class App : Adw.Application {
             if (!icon_theme.has_icon("image-missing")) {
                 stderr.printf("Holder cannot start because required interface icons are missing or cannot be found.\n");
                 if (PLATFORM == "darwin") {
-                    stderr.printf("Install them with: brew install adwaita-icon-theme\n");
-                    stderr.printf("For a Homebrew source build, try: XDG_DATA_DIRS=\"$(brew --prefix)/share:/usr/local/share:/usr/share\" ./make.sh\n");
+                    stderr.printf("Install them with: brew install adwaita-icon-theme\n"); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: macOS-only branch, unreachable on the Linux coverage run
+                    stderr.printf("For a Homebrew source build, try: XDG_DATA_DIRS=\"$(brew --prefix)/share:/usr/local/share:/usr/share\" ./make.sh\n"); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: macOS-only branch, unreachable on the Linux coverage run
                 } else {
                     stderr.printf("Install the Adwaita icon theme using your package manager, or repair your Holder installation.\n");
                 }
