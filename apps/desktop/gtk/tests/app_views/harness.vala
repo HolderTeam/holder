@@ -42,15 +42,31 @@ internal Gtk.Label? av_find_label(Gtk.Widget root, string text) {
     return null;
 }
 
-// A workspace, as the window builds it, with nothing loaded.
+// A workspace inside a toast overlay, as the window builds it, with nothing loaded.
 internal class WorkspaceFixture : Object {
     public GLib.ListStore search_store = new GLib.ListStore(typeof(HolderLinux.SearchCardResult));
     public HolderLinux.WorkspacePane workspace;
-    public Gtk.Window window = new Gtk.Window();
+    public Adw.ToastOverlay toast_overlay = new Adw.ToastOverlay();
+    public Adw.Window window = new Adw.Window();
 
     public WorkspaceFixture() {
         workspace = new HolderLinux.WorkspacePane(search_store);
-        window.set_child(workspace.widget);
+        toast_overlay.set_child(workspace.widget);
+        window.set_content(toast_overlay);
+    }
+
+    // Shows the window and waits until the editor has a size, for tests that need its layout.
+    public void present() {
+        window.set_default_size(1000, 700);
+        window.present();
+        assert(wait_for_condition(() => workspace.editor_view.get_width() > 0));
+        av_settle();
+    }
+
+    // Whether a toast with this title is showing.
+    public bool has_toast(string title) {
+        av_settle();
+        return av_find_label(toast_overlay, title) != null;
     }
 
     public string editor_text() {
@@ -60,7 +76,7 @@ internal class WorkspaceFixture : Object {
         return workspace.editor_buffer.get_text(start, end, false);
     }
 
-    public void destroy() {
+    public virtual void destroy() {
         window.destroy();
         av_settle();
     }

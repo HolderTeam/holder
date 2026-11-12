@@ -12,6 +12,7 @@ public static int main(string[] args) {
     av_use_source_markdown_language();
 
     register_editor_renderer_tests();
+    register_internal_link_navigator_tests();
     return Test.run();
 }
 
