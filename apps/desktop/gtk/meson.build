@@ -3507,10 +3507,23 @@ test(
 inline_resource_image_renderer_test_exe = executable(
   'holder-gtk-inline-resource-image-renderer-tests',
   [
+    'src/models/server.vala',
     'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/asset_cache.vala',
     'src/controllers/markdown_resource_images.vala',
     'src/controllers/inline_image_decoration_plan.vala',
+    'src/controllers/inline_image_refresh.vala',
     'src/views/inline_resource_image_renderer.vala',
+    'src/views/adapters/window_inline_image_sink.vala',
     'tests/inline_resource_image_renderer_test.vala',
   ],
   dependencies: [
@@ -3518,6 +3531,7 @@ inline_resource_image_renderer_test_exe = executable(
     dependency('gtksourceview-5'),
     dependency('gio-2.0'),
     dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
   ],
   vala_args: [
     '--target-glib=2.70',
