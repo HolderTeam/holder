@@ -34,6 +34,48 @@ private class HangingTransport : Object, HolderLinux.IApiHttpTransport {
     }
 }
 
+// A stream that has nothing to read and refuses to close.
+private class UnclosableInputStream : InputStream {
+    public int close_calls = 0;
+
+    public override ssize_t read(uint8[] buffer, Cancellable? cancellable = null) throws IOError {
+        return 0;
+    }
+
+    public override bool close(Cancellable? cancellable = null) throws IOError {
+        close_calls++;
+        throw new IOError.FAILED("close refused");
+    }
+}
+
+// A backend that answers GET /events only when the test releases it.
+private class HeldStreamTransport : Object, HolderLinux.IApiHttpTransport {
+    public UnclosableInputStream stream = new UnclosableInputStream();
+    public int sends = 0;
+    private SourceFunc? waiting = null;
+
+    public bool is_waiting {
+        get { return waiting != null; }
+    }
+
+    public void release() {
+        var resume = (owned) waiting;
+        waiting = null;
+        Idle.add((owned) resume);
+    }
+
+    public async HolderLinux.ApiHttpBytesResponse send_and_read(Soup.Message message) throws Error {
+        throw new IOError.FAILED("not used");
+    }
+
+    public async HolderLinux.ApiHttpStreamResponse send(Soup.Message message) throws Error {
+        sends++;
+        waiting = send.callback;
+        yield;
+        return new HolderLinux.ApiHttpStreamResponse(200, stream);
+    }
+}
+
 private class Fixture : Object {
     public FakeApiHttpTransport transport = new FakeApiHttpTransport();
     public FakeServerDiscovery discovery = new FakeServerDiscovery();
@@ -351,6 +393,38 @@ private void test_logs_why_a_connection_failed() {
     f.presence.stop();
 }
 
+private void test_an_attempt_before_start_does_nothing() {
+    var f = new Fixture();
+
+    f.presence.attempt.begin();
+
+    assert(f.transport.last_method == "");
+    assert(f.log.length == 0);
+    assert(f.scheduler.pending_one_shots() == 0);
+}
+
+private void test_a_stream_that_answers_after_stop_is_let_go() {
+    var transport = new HeldStreamTransport();
+    var scheduler = new TestScheduler();
+    var presence = new HolderLinux.PresenceStream(transport, new FakeServerDiscovery(), scheduler);
+    var changes = 0;
+    presence.connection_changed.connect(() => {
+        changes++;
+    });
+    presence.start();
+    assert(wait_for_condition(() => transport.is_waiting));
+
+    presence.stop();
+    transport.release();
+
+    // Closing fails, and that failure is only logged for debugging.
+    assert(wait_for_condition(() => transport.stream.close_calls == 1));
+    assert(changes == 0);
+    assert(!presence.is_connected);
+    assert(scheduler.pending_one_shots() == 0);
+    assert(transport.sends == 1);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -377,6 +451,8 @@ public static int main(string[] args) {
     Test.add_func("/presence_stream/leaving_gives_up_without_an_answer", test_leaving_gives_up_when_the_backend_does_not_answer);
     Test.add_func("/presence_stream/leaving_twice_says_goodbye_once", test_leaving_twice_says_goodbye_once);
     Test.add_func("/presence_stream/logs_why_a_connection_failed", test_logs_why_a_connection_failed);
+    Test.add_func("/presence_stream/attempt_before_start_does_nothing", test_an_attempt_before_start_does_nothing);
+    Test.add_func("/presence_stream/answer_after_stop_is_let_go", test_a_stream_that_answers_after_stop_is_let_go);
 
     return Test.run();
 }

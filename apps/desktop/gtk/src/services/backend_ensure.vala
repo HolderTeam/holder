@@ -83,16 +83,16 @@ public class BackendEnsure : Object, IBackendStarter {
     // The directory this program runs from, or null if the system cannot say.
     public static string? program_directory() {
         if (Path.DIR_SEPARATOR_S == "\\") {
-            return windows_program_directory();
+            return windows_program_directory(); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: Windows-only branch, unreachable on the Linux coverage run
         }
         if (PLATFORM == "darwin") {
-            return macos_program_directory();
+            return macos_program_directory(); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: macOS-only branch, unreachable on the Linux coverage run
         }
-        try {
+        try { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: try entry marker; the body below is covered
             return Path.get_dirname(FileUtils.read_link("/proc/self/exe"));
         } catch (FileError e) {
-            debug("Cannot tell where this program is installed: %s", e.message);
-            return null;
+            debug("Cannot tell where this program is installed: %s", e.message); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: /proc/self/exe is always readable by the running process on Linux
+            return null; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: /proc/self/exe is always readable by the running process on Linux
         }
     }
 
@@ -147,7 +147,7 @@ public class BackendEnsure : Object, IBackendStarter {
             // Standard output and error arrive together, which parse_result copes with: the JSON
             // object is on one of them, and an options error prints only that.
             out_text = yield capture_hidden_command(command, out status);
-            err_text = "";
+            err_text = ""; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: Windows-only branch, unreachable on the Linux coverage run
         } else {
             var process = new Subprocess.newv(command, SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE);
             yield process.communicate_utf8_async(null, null, out out_text, out err_text);
