@@ -13,6 +13,9 @@ public static int main(string[] args) {
 
     register_editor_renderer_tests();
     register_internal_link_navigator_tests();
+#if HOLDER_TERMINAL_VTE
+    register_terminal_tool_view_tests();
+#endif
     return Test.run();
 }
 

@@ -3973,23 +3973,27 @@ test('holder-gtk-app-tests', app_test_exe, env: app_test_env)
 
 # The app's own views (the window, its workspace, the toolbox and their adapters) build on nearly
 # every other part of the app, so their tests are one program built from the app's sources.
+app_views_test_sources = [
+  'tests/support/test_utils.vala',
+  'tests/support/main_controller_fakes.vala',
+  'tests/support/main_controller_harness.vala',
+  'tests/app_views/harness.vala',
+  'tests/app_views/editor_renderer_test.vala',
+  'tests/app_views/internal_link_navigator_test.vala',
+  'tests/app_views/main.vala',
+]
+app_views_test_vala_args = []
+if terminal_backend == 'vte'
+  app_views_test_sources += 'tests/app_views/terminal_tool_view_test.vala'
+  app_views_test_vala_args += ['--define=HOLDER_TERMINAL_VTE']
+endif
 app_views_test_exe = executable(
   'holder-gtk-app-views-tests',
-  [
-    sources,
-    help_resources,
-    'tests/support/test_utils.vala',
-    'tests/support/main_controller_fakes.vala',
-    'tests/support/main_controller_harness.vala',
-    'tests/app_views/harness.vala',
-    'tests/app_views/editor_renderer_test.vala',
-    'tests/app_views/internal_link_navigator_test.vala',
-    'tests/app_views/main.vala',
-  ],
+  [sources, help_resources, app_views_test_sources],
   dependencies: deps,
   vala_args: [
     '--target-glib=2.70',
-  ] + calendar_compat_vala_args + terminal_compat_vala_args,
+  ] + calendar_compat_vala_args + terminal_compat_vala_args + app_views_test_vala_args,
   c_args: vala_generated_c_args,
   link_with: hidden_process_link + [command_capture_lib],
   install: false,
