@@ -7,15 +7,23 @@ namespace HolderLinuxTests {
 private bool lt_freed_when_released(owned Object obj) {
     var weak = WeakRef(obj);
     obj = null;
-    // GTK finishes some teardown, such as unrealizing, from the main loop.
-    for (int i = 0; i < 20; i++) {
-        while (MainContext.default().iteration(false)) {}
+    // GTK finishes some teardown, such as unrealizing, from the main loop. Each turn dispatches
+    // what is ready once, so a source that is always ready cannot hold the test past the deadline.
+    return lt_wait_until(() => {
         var alive = weak.get();
-        if (alive == null) return true;
-        alive = null;
-        Thread.usleep(5000);
+        return alive == null;
+    });
+}
+
+// Runs the main loop until done returns true, for at most five seconds.
+private bool lt_wait_until(owned ConditionFunc done) {
+    var deadline = get_monotonic_time() + 5 * TimeSpan.SECOND;
+    while (get_monotonic_time() < deadline) {
+        if (done()) return true;
+        MainContext.default().iteration(false);
+        Thread.usleep(2000);
     }
-    return weak.get() == null;
+    return done();
 }
 
 private void lt_check(string what, owned Object obj) {
@@ -74,16 +82,30 @@ private Gtk.Box lt_scoped_form() {
     return form;
 }
 
+private class LtFlag : Object {
+    public bool raised = false;
+    public void raise() { raised = true; }
+}
+
 private void test_a_scoped_dialog_is_freed_when_it_closes() {
+    // Without animations the dialog closes at once rather than over however many frames a slow
+    // machine gets through.
+    var settings = (!) Gtk.Settings.get_default();
+    var animations = settings.gtk_enable_animations;
+    settings.gtk_enable_animations = false;
     var window = new Adw.Window();
     window.present();
     var dialog = lt_scoped_dialog();
+    // A flag, not a captured local: a closure here would put the dialog in this test's block.
+    var closed = new LtFlag();
+    dialog.closed.connect(closed.raise);
     dialog.present(window);
-    av_settle();
+    assert(lt_wait_until(() => window.get_visible_dialog() != null));
     dialog.force_close();
-    av_settle();
+    assert(lt_wait_until(() => closed.raised));
     lt_check("A closed dialog", (owned) dialog);
     window.destroy();
+    settings.gtk_enable_animations = animations;
 }
 
 private void test_a_scoped_form_is_freed_when_it_is_removed() {
