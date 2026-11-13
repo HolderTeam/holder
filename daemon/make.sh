@@ -275,27 +275,33 @@ if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; th
   is_git_repo=true
 fi
 
-if [ -f ".gitmodules" ] && grep -q "submodules/caste" ".gitmodules"; then
-  if [ "${is_git_repo}" = "true" ]; then
-    git submodule update --init --recursive -- submodules/caste
+# Formatting reads only the daemon's own sources, so it needs no dependencies.
+case "${MODE}" in
+format | format-check) ;;
+*)
+  if [ -f ".gitmodules" ] && grep -q "submodules/caste" ".gitmodules"; then
+    if [ "${is_git_repo}" = "true" ]; then
+      git submodule update --init --recursive -- submodules/caste
+    fi
   fi
-fi
 
-if [ ! -f "${CASTE_DIR}/CMakeLists.txt" ]; then
-  if [ "${is_git_repo}" = "true" ]; then
-    echo "Missing dependency: ${CASTE_DIR}" >&2
-    echo "Run: git submodule update --init --recursive -- submodules/caste" >&2
+  if [ ! -f "${CASTE_DIR}/CMakeLists.txt" ]; then
+    if [ "${is_git_repo}" = "true" ]; then
+      echo "Missing dependency: ${CASTE_DIR}" >&2
+      echo "Run: git submodule update --init --recursive -- submodules/caste" >&2
+      exit 1
+    fi
+
+    echo "No git metadata detected. Downloading pinned caste dependency..." >&2
+    download_caste_archive
+  fi
+
+  if [ ! -f "${CASTE_DIR}/CMakeLists.txt" ]; then
+    echo "Failed to prepare dependency at ${CASTE_DIR}" >&2
     exit 1
   fi
-
-  echo "No git metadata detected. Downloading pinned caste dependency..." >&2
-  download_caste_archive
-fi
-
-if [ ! -f "${CASTE_DIR}/CMakeLists.txt" ]; then
-  echo "Failed to prepare dependency at ${CASTE_DIR}" >&2
-  exit 1
-fi
+  ;;
+esac
 
 build_all() {
   cmake_configure -S . -B build -G Ninja -DCMAKE_BUILD_TYPE="${1}"
