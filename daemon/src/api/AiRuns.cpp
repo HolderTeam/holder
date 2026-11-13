@@ -11,8 +11,7 @@
 namespace holder::api {
 namespace {
 
-template <typename T>
-std::optional<std::optional<T>> present(std::optional<T> value) {
+template <typename T> std::optional<std::optional<T>> present(std::optional<T> value) {
   return std::optional<std::optional<T>>{std::in_place, std::move(value)};
 }
 
@@ -58,20 +57,23 @@ AiRunItem run_item(const holder::model::AiRun& run) {
 
 } // namespace
 
-AiRunListResponse get_ai_runs(holder::platform::Db& db,
-                              std::optional<std::string> project_id,
-                              std::optional<std::string> thread_id) {
+AiRunListResponse get_ai_runs(
+    holder::platform::Db& db,
+    std::optional<std::string> project_id,
+    std::optional<std::string> thread_id
+) {
   const bool by_thread = thread_id && !thread_id->empty();
   if (!by_thread && (!project_id || project_id->empty())) throw AiRunsMissingScope{};
   holder::ai::AiRunRepo repo(db);
   const auto runs = by_thread ? repo.list_by_thread(*thread_id) : repo.list_by_project(*project_id);
   AiRunListResponse response{true, {}};
   response.data.reserve(runs.size());
-  for (const auto& run : runs) response.data.push_back(run_item(run));
+  for (const auto& run : runs)
+    response.data.push_back(run_item(run));
   return response;
 }
 
-AiRunGetResponse get_ai_run(holder::platform::Db& db, std::string run_id) {
+AiRunGetResponse get_ai_run(holder::platform::Db& db, const std::string& run_id) {
   const auto run = holder::ai::AiRunRepo(db).get(run_id);
   if (!run) throw AiRunNotFound{};
   return {true, run_item(*run)};

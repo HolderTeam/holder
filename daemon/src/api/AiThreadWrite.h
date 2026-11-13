@@ -1,8 +1,8 @@
 #pragma once
 
+#include "api/AiRuntimeTypes.h"
 #include "api/AiThreadRead.h"
 #include "api/HttpError.h"
-#include "api/AiRuntimeTypes.h"
 #include "model/ConflictError.h"
 
 #include <functional>
@@ -10,7 +10,9 @@
 #include <stdexcept>
 #include <string>
 
-namespace holder::platform { class Db; }
+namespace holder::platform {
+class Db;
+}
 
 namespace holder::api {
 
@@ -47,15 +49,18 @@ struct AiThreadUpdateRequest {
   long long updated_at;
 };
 
-AiThreadCreateResponse post_ai_threads(holder::platform::Db& db,
-                                       const std::function<std::string()>& uuid_v4,
-                                       AiThreadCreateRequest request);
+AiThreadCreateResponse post_ai_threads(
+    holder::platform::Db& db,
+    const std::function<std::string()>& uuid_v4,
+    AiThreadCreateRequest request
+);
 
-AiThreadPatchResponse patch_ai_threads_thread_id(holder::platform::Db& db,
-                                                 std::string thread_id,
-                                                 AiThreadUpdateRequest request);
+AiThreadPatchResponse patch_ai_threads_thread_id(
+    holder::platform::Db& db,
+    std::string thread_id,
+    AiThreadUpdateRequest request
+);
 
-AiThreadPatchResponse delete_ai_threads_thread_id(holder::platform::Db& db,
-                                                  std::string thread_id);
+AiThreadPatchResponse delete_ai_threads_thread_id(holder::platform::Db& db, std::string thread_id);
 
 } // namespace holder::api

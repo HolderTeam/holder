@@ -18,8 +18,10 @@ AiProviderSettingsResponse list_provider_settings(holder::platform::Db& db) {
   return {true, std::move(data)};
 }
 
-AiProviderSettingResponse set_provider_setting(holder::platform::Db& db,
-                                               AiProviderSettingUpdateRequest request) {
+AiProviderSettingResponse set_provider_setting(
+    holder::platform::Db& db,
+    AiProviderSettingUpdateRequest request
+) {
   auto provider = support::normalize_provider_name(request.provider);
   if (provider.empty()) {
     throw std::invalid_argument("provider must be alphanumeric and may include '-', '_' or '.'.");
@@ -30,8 +32,10 @@ AiProviderSettingResponse set_provider_setting(holder::platform::Db& db,
   return {true, {std::move(provider), request.enabled, updated_at}};
 }
 
-AiProviderSettingDeleteResponse delete_provider_setting(holder::platform::Db& db,
-                                                         std::string provider) {
+AiProviderSettingDeleteResponse delete_provider_setting(
+    holder::platform::Db& db,
+    std::string provider
+) {
   provider = support::normalize_provider_name(provider);
   if (provider.empty()) throw std::invalid_argument("Invalid provider.");
   holder::ai::AiProviderSettingRepo(db).remove(provider);

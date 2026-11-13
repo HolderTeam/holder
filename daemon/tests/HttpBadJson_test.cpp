@@ -64,10 +64,11 @@ TEST_CASE("HTTP endpoints reject invalid JSON bodies", "[http]") {
     const char* target;
     const char* error_code;
   };
-  for (const auto& test : {Case{"/projects/proj-1/cards", "invalid_argument"},
-                           Case{"/locations", "invalid_argument"},
-                           Case{"/imports", "invalid_argument"},
-                           Case{"/ai/runners", "bad_request"}}) {
+  for (const auto& test :
+       {Case{"/projects/proj-1/cards", "invalid_argument"},
+        Case{"/locations", "invalid_argument"},
+        Case{"/imports", "invalid_argument"},
+        Case{"/ai/runners", "bad_request"}}) {
     const auto res = post(test.target, "{");
     CHECK(res.result() == http::status::bad_request);
 
@@ -96,22 +97,54 @@ TEST_CASE("Milestone range routes validate required bounds and project IDs", "[h
     const char* message;
   };
   for (const auto& item : {
-           Case{"/projects/project/milestones/days", http::status::bad_request,
-                "invalid_argument", "first_day is required"},
-           Case{"/projects/project/milestones/days?first_day=2026-01-01",
-                http::status::bad_request, "invalid_argument", "last_day is required"},
-           Case{"/projects/project/milestones/days?first_day=not-a-date&last_day=2026-01-02",
-                http::status::bad_request, "invalid_argument", "first_day must be a day"},
-           Case{"/projects/missing/milestones/days?first_day=2026-01-01&last_day=2026-01-02",
-                http::status::not_found, "not_found", "project not found"},
-           Case{"/projects/project/milestones/instants", http::status::bad_request,
-                "invalid_argument", "first_instant is required"},
-           Case{"/projects/project/milestones/instants?first_instant=1",
-                http::status::bad_request, "invalid_argument", "last_instant is required"},
-           Case{"/projects/project/milestones/instants?first_instant=no&last_instant=2",
-                http::status::bad_request, "invalid_argument", "first_instant"},
-           Case{"/projects/missing/milestones/instants?first_instant=1&last_instant=2",
-                http::status::not_found, "not_found", "project not found"},
+           Case{
+               "/projects/project/milestones/days",
+               http::status::bad_request,
+               "invalid_argument",
+               "first_day is required"
+           },
+           Case{
+               "/projects/project/milestones/days?first_day=2026-01-01",
+               http::status::bad_request,
+               "invalid_argument",
+               "last_day is required"
+           },
+           Case{
+               "/projects/project/milestones/days?first_day=not-a-date&last_day=2026-01-02",
+               http::status::bad_request,
+               "invalid_argument",
+               "first_day must be a day"
+           },
+           Case{
+               "/projects/missing/milestones/days?first_day=2026-01-01&last_day=2026-01-02",
+               http::status::not_found,
+               "not_found",
+               "project not found"
+           },
+           Case{
+               "/projects/project/milestones/instants",
+               http::status::bad_request,
+               "invalid_argument",
+               "first_instant is required"
+           },
+           Case{
+               "/projects/project/milestones/instants?first_instant=1",
+               http::status::bad_request,
+               "invalid_argument",
+               "last_instant is required"
+           },
+           Case{
+               "/projects/project/milestones/instants?first_instant=no&last_instant=2",
+               http::status::bad_request,
+               "invalid_argument",
+               "first_instant"
+           },
+           Case{
+               "/projects/missing/milestones/instants?first_instant=1&last_instant=2",
+               http::status::not_found,
+               "not_found",
+               "project not found"
+           },
        }) {
     CAPTURE(item.path);
     http::request<http::string_body> req{http::verb::get, item.path, 11};
@@ -137,8 +170,10 @@ TEST_CASE("Project routes report missing cards resources and projects consistent
   for (const auto& item : {
            Case{http::verb::get, "/projects/missing/history"},
            Case{http::verb::get, "/projects/missing/resources"},
-           Case{http::verb::get,
-                "/projects/missing/calendar?first_day=2026-01-01&last_day=2026-01-02&time_zone=UTC"},
+           Case{
+               http::verb::get,
+               "/projects/missing/calendar?first_day=2026-01-01&last_day=2026-01-02&time_zone=UTC"
+           },
            Case{http::verb::get, "/projects/project/cards/missing/metadata"},
            Case{http::verb::get, "/projects/project/cards/missing/links?include_deleted=true"},
            Case{http::verb::get, "/projects/project/cards/missing/backlinks?include_deleted=false"},
@@ -166,15 +201,13 @@ TEST_CASE("Calendar requests validate dates and accept an explicit time zone", "
   create_project(db, "project", (dir / "project").string());
   const auto get = [&](const std::string& query) {
     CAPTURE(query);
-    http::request<http::string_body> req{
-        http::verb::get, "/projects/project/calendar" + query, 11};
+    http::request<http::string_body> req{http::verb::get, "/projects/project/calendar" + query, 11};
     http::response<http::string_body> res;
     REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
     return res;
   };
 
-  for (const auto& [query, message] :
-       std::initializer_list<std::pair<const char*, const char*>>{
+  for (const auto& [query, message] : std::initializer_list<std::pair<const char*, const char*>>{
            {"", "first_day is required"},
            {"?first_day=2026-02-01", "last_day is required"},
            {"?first_day=not-a-date&last_day=2026-02-02", "first_day must be a day"},
@@ -219,13 +252,20 @@ TEST_CASE("Card mutation routes distinguish malformed selectors from missing car
            Case{http::verb::delete_, "/links?target_type=card&target_id=target", {}},
            Case{http::verb::delete_, "/links?target_type=ai_message&target_id=target&kind=ref", {}},
            Case{http::verb::delete_, "/links?target_type=ai_thread&target_id=target", {}},
-           Case{http::verb::delete_, "/links?target_type=resource&target_id=target&target_project_id=other", {}},
+           Case{
+               http::verb::delete_,
+               "/links?target_type=resource&target_id=target&target_project_id=other",
+               {}
+           },
            Case{http::verb::post, "/milestones", {{"dates", nlohmann::json::array()}}},
            Case{http::verb::delete_, "/milestones/missing", {}},
        }) {
     CAPTURE(item.suffix, item.body);
     http::request<http::string_body> req{
-        item.method, std::string("/projects/project/cards/missing") + item.suffix, 11};
+        item.method,
+        std::string("/projects/project/cards/missing") + item.suffix,
+        11
+    };
     if (!item.body.is_null()) {
       req.body() = item.body.dump();
       req.prepare_payload();
@@ -264,17 +304,35 @@ TEST_CASE("Card routes reject cycles and preserve tags written in prose", "[http
     const char* code;
   };
   for (const auto& item : {
-           Case{http::verb::patch, "", {{"parent_card_id", "child"}, {"content", "changed"}},
-                http::status::unprocessable_entity, "invalid_move"},
-           Case{http::verb::post, "/move", {{"intent", "into"}, {"target_card_id", "child"}},
-                http::status::unprocessable_entity, "invalid_move"},
-           Case{http::verb::post, "/move", {{"intent", "into"}},
-                http::status::bad_request, "invalid_argument"},
+           Case{
+               http::verb::patch,
+               "",
+               {{"parent_card_id", "child"}, {"content", "changed"}},
+               http::status::unprocessable_entity,
+               "invalid_move"
+           },
+           Case{
+               http::verb::post,
+               "/move",
+               {{"intent", "into"}, {"target_card_id", "child"}},
+               http::status::unprocessable_entity,
+               "invalid_move"
+           },
+           Case{
+               http::verb::post,
+               "/move",
+               {{"intent", "into"}},
+               http::status::bad_request,
+               "invalid_argument"
+           },
            Case{http::verb::delete_, "/tags/work", {}, http::status::conflict, "conflict"},
        }) {
     CAPTURE(item.suffix, item.body);
     http::request<http::string_body> req{
-        item.method, std::string("/projects/project/cards/parent") + item.suffix, 11};
+        item.method,
+        std::string("/projects/project/cards/parent") + item.suffix,
+        11
+    };
     if (!item.body.is_null()) {
       req.body() = item.body.dump();
       req.prepare_payload();
@@ -295,7 +353,10 @@ TEST_CASE("Card routes reject cycles and preserve tags written in prose", "[http
   CHECK(cards.get_content(*parent) == original);
 }
 
-TEST_CASE("Generated routes reject malformed URL text before accessing records", "[http][generated]") {
+TEST_CASE(
+    "Generated routes reject malformed URL text before accessing records",
+    "[http][generated]"
+) {
   namespace http = boost::beast::http;
   auto db = open_db_with_schema(make_temp_dir() / "holder.db");
   struct Case {
@@ -326,7 +387,10 @@ TEST_CASE("Generated routes reject malformed URL text before accessing records",
   }
 }
 
-TEST_CASE("Generated routes reject malformed request records before performing writes", "[http][generated]") {
+TEST_CASE(
+    "Generated routes reject malformed request records before performing writes",
+    "[http][generated]"
+) {
   namespace http = boost::beast::http;
   const auto dir = make_temp_dir();
   auto db = open_db_with_schema(dir / "holder.db");
@@ -340,16 +404,66 @@ TEST_CASE("Generated routes reject malformed request records before performing w
   for (const auto& item : {
            Case{http::verb::post, "/projects/p/cards", "[]", "invalid_argument"},
            Case{http::verb::post, "/projects/p/cards", R"({"title":""})", "invalid_argument"},
-           Case{http::verb::post, "/projects/p/cards", R"({"title":"Card","sort_key":"1"})", "invalid_argument"},
-           Case{http::verb::post, "/projects/p/cards", R"({"title":"Card","sort_key":1e999})", "invalid_argument"},
-           Case{http::verb::post, "/projects/p/cards", R"({"title":"Card","created_at":9223372036854775808})", "invalid_argument"},
-           Case{http::verb::post, "/projects/p/cards", R"({"title":"Card","created_at":1.5})", "invalid_argument"},
-           Case{http::verb::post, "/projects/p/resources", R"({"type":"file","label":"Asset","metadata":[]})", "invalid_argument"},
-           Case{http::verb::post, "/locations", R"({"project_id":"p","name":"Store","provider":"s3_compatible","configuration":{"region":1}})", "invalid_argument"},
-           Case{http::verb::post, "/ai/threads", R"({"project_id":"p","title":"Thread","created_at":-9223372036854775809})", "bad_request"},
-           Case{http::verb::post, "/ai/threads", R"({"project_id":"p","title":"Thread","created_at":1.25})", "bad_request"},
-           Case{http::verb::post, "/ai/runners", R"({"name":"Runner","base_url":42})", "bad_request"},
-           Case{http::verb::put, "/ai/local-models/config", R"({"updated_at":"yesterday"})", "bad_request"},
+           Case{
+               http::verb::post,
+               "/projects/p/cards",
+               R"({"title":"Card","sort_key":"1"})",
+               "invalid_argument"
+           },
+           Case{
+               http::verb::post,
+               "/projects/p/cards",
+               R"({"title":"Card","sort_key":1e999})",
+               "invalid_argument"
+           },
+           Case{
+               http::verb::post,
+               "/projects/p/cards",
+               R"({"title":"Card","created_at":9223372036854775808})",
+               "invalid_argument"
+           },
+           Case{
+               http::verb::post,
+               "/projects/p/cards",
+               R"({"title":"Card","created_at":1.5})",
+               "invalid_argument"
+           },
+           Case{
+               http::verb::post,
+               "/projects/p/resources",
+               R"({"type":"file","label":"Asset","metadata":[]})",
+               "invalid_argument"
+           },
+           Case{
+               http::verb::post,
+               "/locations",
+               R"({"project_id":"p","name":"Store","provider":"s3_compatible","configuration":{"region":1}})",
+               "invalid_argument"
+           },
+           Case{
+               http::verb::post,
+               "/ai/threads",
+               R"({"project_id":"p","title":"Thread","created_at":-9223372036854775809})",
+               "bad_request"
+           },
+           Case{
+               http::verb::post,
+               "/ai/threads",
+               R"({"project_id":"p","title":"Thread","created_at":1.25})",
+               "bad_request"
+           },
+           Case{
+               http::verb::post,
+               "/ai/runners",
+               R"({"name":"Runner","base_url":42})",
+               "bad_request"
+           },
+           Case{
+               http::verb::put,
+               "/ai/local-models/config",
+               R"({"updated_at":"yesterday"})",
+               "bad_request"
+           },
        }) {
     CAPTURE(item.path, item.body);
     http::request<http::string_body> req{item.method, item.path, 11};
@@ -365,11 +479,16 @@ TEST_CASE("Generated routes reject malformed request records before performing w
   CHECK_FALSE(std::filesystem::exists(dir / "project" / ".git"));
 }
 
-TEST_CASE("Contract routes reject unknown query parameters before executing operations",
-          "[http][contract-routes]") {
+TEST_CASE(
+    "Contract routes reject unknown query parameters before executing operations",
+    "[http][contract-routes]"
+) {
   namespace http = boost::beast::http;
   holder::platform::Db unavailable;
-  struct Case { http::verb method; const char* path; };
+  struct Case {
+    http::verb method;
+    const char* path;
+  };
   for (const auto& item : {
            Case{http::verb::get, "/link-kinds"},
            Case{http::verb::get, "/projects"},
@@ -425,7 +544,10 @@ TEST_CASE("Contract routes reject unknown query parameters before executing oper
        }) {
     CAPTURE(item.method, item.path);
     http::request<http::string_body> req{
-        item.method, std::string(item.path) + "?unexpected=true", 11};
+        item.method,
+        std::string(item.path) + "?unexpected=true",
+        11
+    };
     req.body() = "{}";
     req.prepare_payload();
     http::response<http::string_body> res;
@@ -438,16 +560,23 @@ TEST_CASE("Contract routes reject unknown query parameters before executing oper
   }
 }
 
-TEST_CASE("Contract read routes report database failures as JSON internal errors",
-          "[http][contract-routes]") {
+TEST_CASE(
+    "Contract read routes report database failures as JSON internal errors",
+    "[http][contract-routes]"
+) {
   namespace http = boost::beast::http;
   holder::platform::Db unavailable;
   for (const std::string path : {
-           "/locations/location", "/projects/project/resources",
-           "/projects/project/resources/resource", "/projects/project/cards/card/metadata",
-           "/projects/project/cards/card/breadcrumbs", "/projects/project/cards/card/links",
-           "/projects/project/cards/card/backlinks", "/projects/project/cards/card/milestones",
-           "/projects/project/cards/card/resources", "/projects/project/resources/resource/backlinks",
+           "/locations/location",
+           "/projects/project/resources",
+           "/projects/project/resources/resource",
+           "/projects/project/cards/card/metadata",
+           "/projects/project/cards/card/breadcrumbs",
+           "/projects/project/cards/card/links",
+           "/projects/project/cards/card/backlinks",
+           "/projects/project/cards/card/milestones",
+           "/projects/project/cards/card/resources",
+           "/projects/project/resources/resource/backlinks",
            "/projects/project/milestones/days?first_day=2026-01-01&last_day=2026-01-02",
            "/projects/project/milestones/instants?first_instant=1&last_instant=2",
            "/projects/project/calendar?first_day=2026-01-01&last_day=2026-01-02&time_zone=UTC",
@@ -462,7 +591,10 @@ TEST_CASE("Contract read routes report database failures as JSON internal errors
   }
 }
 
-TEST_CASE("Generated AI capability and status routes reject unexpected query parameters", "[http][generated]") {
+TEST_CASE(
+    "Generated AI capability and status routes reject unexpected query parameters",
+    "[http][generated]"
+) {
   namespace http = boost::beast::http;
   holder::platform::Db db;
   for (const std::string path : {"/ai/capabilities?unexpected=1", "/ai/status?unexpected=1"}) {
@@ -471,8 +603,10 @@ TEST_CASE("Generated AI capability and status routes reject unexpected query par
     http::response<http::string_body> res;
     REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
     CHECK(res.result() == http::status::bad_request);
-    CHECK(nlohmann::json::parse(res.body()).at("error").at("message") ==
-          "there is no query parameter unexpected");
+    CHECK(
+        nlohmann::json::parse(res.body()).at("error").at("message") ==
+        "there is no query parameter unexpected"
+    );
   }
 }
 
@@ -483,6 +617,31 @@ TEST_CASE("Generated AI search requires its project query parameter", "[http][ge
   http::response<http::string_body> res;
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   CHECK(res.result() == http::status::bad_request);
-  CHECK(nlohmann::json::parse(res.body()).at("error").at("message") ==
-        "the query parameter project_id is required");
+  CHECK(
+      nlohmann::json::parse(res.body()).at("error").at("message") ==
+      "the query parameter project_id is required"
+  );
+}
+
+TEST_CASE("The event stream rejects a malformed last revision", "[http][generated]") {
+  namespace http = boost::beast::http;
+  holder::platform::Db db;
+  http::request<http::string_body> req{http::verb::get, "/events?last_revision=not-a-commit", 11};
+  http::response<http::string_body> res;
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+  CHECK(res.result() == http::status::bad_request);
+  CHECK(nlohmann::json::parse(res.body()).at("error").at("message") == "invalid last_revision");
+}
+
+TEST_CASE("Daemon-served paths name their methods in a 405", "[http][generated]") {
+  namespace http = boost::beast::http;
+  holder::platform::Db db;
+  for (const std::string path : {"/imports/job-1", "/resources/resource/assets/asset/content"}) {
+    CAPTURE(path);
+    http::request<http::string_body> req{http::verb::delete_, path, 11};
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    CHECK(res.result() == http::status::method_not_allowed);
+    CHECK(res[http::field::allow] == "GET");
+  }
 }

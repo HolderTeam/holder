@@ -8,7 +8,8 @@ namespace holder::api {
 GoogleDriveAuthorizeResponse post_locations_location_id_oauth_google_drive_authorize(
     holder::platform::Db& db,
     const std::optional<std::string>& host,
-    std::string location_id) {
+    const std::string& location_id
+) {
   return {true, {routes::start_google_drive_authorization(db, location_id, host)}};
 }
 
@@ -17,10 +18,10 @@ api_runtime::host_value get_locations_location_id_oauth_google_drive_callback(
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,
     const std::optional<std::string>& host,
-    std::string location_id,
-    std::optional<std::string> code,
-    std::optional<std::string> state,
-    std::optional<std::string> error
+    const std::string& location_id,
+    const std::optional<std::string>& code,
+    const std::optional<std::string>& state,
+    const std::optional<std::string>& error
 ) {
   auto page = routes::finish_google_drive_authorization(
       db,

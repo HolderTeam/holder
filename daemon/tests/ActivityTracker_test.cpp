@@ -41,10 +41,11 @@ TEST_CASE("a moved scope releases exactly once", "[activity]") {
 TEST_CASE("a scope is released when an exception unwinds past it", "[activity]") {
   ActivityTracker tracker;
   try {
-    const auto scope = tracker.begin();
+    [[maybe_unused]] const auto scope = tracker.begin();
     REQUIRE(tracker.active() == 1);
     throw std::runtime_error("work failed");
   } catch (const std::runtime_error&) {
+    // Ignored: the failure only has to unwind past the scope.
   }
   REQUIRE(tracker.active() == 0);
 }
@@ -106,6 +107,7 @@ TEST_CASE(
 TEST_CASE("scopes taken on many threads always balance", "[activity]") {
   ActivityTracker tracker;
   std::vector<std::thread> threads;
+  threads.reserve(8);
   for (int i = 0; i < 8; ++i) {
     threads.emplace_back([&tracker]() {
       for (int n = 0; n < 2000; ++n) {

@@ -210,18 +210,21 @@ TEST_CASE("AiProviderCatalogRoutes direct supports minimal provider fields", "[h
   const auto& provider = payload["data"]["providers"][0];
   REQUIRE(provider["api"].is_object());
   REQUIRE(provider["auth"] == nlohmann::json::object());
-  for (const auto* field : {"cost_tier", "setup_url", "docs_url", "api_key_label", "api_key_hint"}) {
+  for (const auto* field :
+       {"cost_tier", "setup_url", "docs_url", "api_key_label", "api_key_hint"}) {
     CAPTURE(field);
     REQUIRE(provider[field].is_null());
   }
   REQUIRE(provider["configured"] == false);
-  REQUIRE(provider["models"] == nlohmann::json::array({{
-      {"id", "tiny"},
-      {"endpoint", "/v1/chat"},
-      {"role", nullptr},
-      {"cost_tier", nullptr},
-      {"default_for_low_budget", false},
-      {"limits", {{"rpm", 0}, {"tpm", 0}, {"rpd", 0}}},
-  }}));
+  REQUIRE(
+      provider["models"] == nlohmann::json::array({{
+                                {"id", "tiny"},
+                                {"endpoint", "/v1/chat"},
+                                {"role", nullptr},
+                                {"cost_tier", nullptr},
+                                {"default_for_low_budget", false},
+                                {"limits", {{"rpm", 0}, {"tpm", 0}, {"rpd", 0}}},
+                            }})
+  );
   REQUIRE(payload["data"].contains("default_provider"));
 }

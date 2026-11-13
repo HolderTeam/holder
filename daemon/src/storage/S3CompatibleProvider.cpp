@@ -224,7 +224,10 @@ unsigned int S3CompatibleProvider::request(
   const bool default_port = (endpoint.tls && endpoint.port == "443") ||
                             (!endpoint.tls && endpoint.port == "80");
   const auto host_header = host + (default_port ? "" : ":" + endpoint.port);
-  const auto [date, amz_date] = date_now();
+  // Named variables, not a structured binding: the lambda below captures amz_date.
+  const auto stamp = date_now();
+  const std::string& date = stamp.first;
+  const std::string& amz_date = stamp.second;
 
   std::map<std::string, std::string> headers = {
       {"host", host_header},
@@ -323,13 +326,13 @@ unsigned int S3CompatibleProvider::request(
         stream.handshake(ssl::stream_base::client);
         status = exchange(stream);
         beast::error_code ignored;
-        stream.shutdown(ignored);
+        (void)stream.shutdown(ignored);
       } else {
         beast::tcp_stream stream(context);
         stream.connect(resolved);
         status = exchange(stream);
         beast::error_code ignored;
-        stream.socket().shutdown(tcp::socket::shutdown_both, ignored);
+        (void)stream.socket().shutdown(tcp::socket::shutdown_both, ignored);
       }
       if ((status == 429 || status >= 500) && attempt < 2) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100 * (1 << attempt)));

@@ -30,11 +30,11 @@
   Memcheck:Leak
   match-leak-kinds: possible
   fun:calloc
-  fun:calloc
+  ...
   fun:allocate_dtv
   fun:_dl_allocate_tls
+  ...
   fun:pthread_create*
   ...
-  fun:_ZNSt6threadC1IZN6holder3llm16LocalModelRunner22start_background_probeEvEUlvE_JEvEEOT_DpOT0_
   fun:_ZN6holder3llm16LocalModelRunner22start_background_probeEv
 }

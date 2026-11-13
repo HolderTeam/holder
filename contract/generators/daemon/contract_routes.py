@@ -159,6 +159,19 @@ def scalar_value(t: TypeRef, source: str, label: str) -> str:
     raise Unsupported(f"{label}: {kind} in a path or query")
 
 
+def owns_memory(contract: ContractView, ref: TypeRef) -> bool:
+    """Whether a value of this type holds memory a move hands over: text, or anything holding text,
+    a list or a record. Numbers, booleans and choices of literals are copied as cheaply."""
+    t = contract.resolve_type(ref)[0]
+    if isinstance(t, LiteralType):
+        return False
+    if isinstance(t, ScalarType):
+        return t.kind == "string"
+    if isinstance(t, UnionType):
+        return any(owns_memory(contract, alternative) for alternative in t.alternatives)
+    return True
+
+
 def query_lines(contract: ContractView, route: HttpRoute, argument: HttpArgument) -> list[str]:
     """Statements that set the parameter's variable from the query string."""
     op = route.operation
@@ -218,7 +231,9 @@ def operation_lines(contract: ContractView, route: HttpRoute, index: int,
         decl = re.sub(r"(?<![\w:])([A-Z]\w*)", r"holder::contract::\1", decl)
         declarations.append(f"        {decl}{{}};")
         pname = argument.parameter.name
-        arguments.append(f"std::move({pname})")
+        # Moved only where that saves a copy: core takes it by value and it owns memory.
+        by_value = not argument.cpp_declaration.startswith("const ")
+        arguments.append(f"std::move({pname})" if by_value and owns_memory(contract, argument.ref) else pname)
         if argument.location == "path":
             source = f"decode_uri_component(match[{captures[pname]}].str(), false)"
             if isinstance(argument.ref, LiteralType):
@@ -248,13 +263,13 @@ def operation_lines(contract: ContractView, route: HttpRoute, index: int,
                   f'            return failure({status}, "{code}", error.what(), "{name}");',
                   "        }"]
     call = f"holder::contract::{name}(context{''.join(', ' + a for a in arguments)})"
-    lines.append("        try {")
-    if created_when := binding.created_when:
-        lines += [f"            auto result = {call};",
-                  (f'            return success(result.{created_when} ? 201 : {binding.status}, '
-                   f'contract_json::encode(result), "{name}");')]
-    else:
-        lines.append(f'            return success({binding.status}, contract_json::encode({call}), "{name}");')
+    # The result is held in a variable, not encoded straight from the call: GCC otherwise counts
+    # the temporary's cleanup on its own line once clang-format spreads the call over several,
+    # and coverage reports that line as never run.
+    status_expression = (f"result.{binding.created_when} ? 201 : {binding.status}"
+                         if binding.created_when else str(binding.status))
+    lines += ["        try {", f"            auto result = {call};",
+              f'            return success({status_expression}, contract_json::encode(result), "{name}");']
     for error in op.errors:
         lines += [f"        }} catch (const holder::contract::{error}& error) {{",
                   f'            return failure({statuses[error]}, "{snake(error)}", error.what(), "{name}");']
@@ -298,8 +313,11 @@ def generate_routes(contract: ContractView, codec_header: str) -> str:
              "#include <vector>",
              SUPPORT.rstrip(),
              "// The response for a request the contract has an operation for; nothing otherwise.",
+             "// The request's method, path and body are all strings, named as such at every call.",
+             "// NOLINTBEGIN(bugprone-easily-swappable-parameters)",
              "inline std::optional<response> dispatch(const std::string& method, const std::string& path,",
              "                                        const std::string& body, holder_context& context) {",
+             "    // NOLINTEND(bugprone-easily-swappable-parameters)",
              "    const auto query_start = path.find('?');",
              "    const auto route_path = path.substr(0, query_start);"]
     if any(route.binding.query for route in bindings):

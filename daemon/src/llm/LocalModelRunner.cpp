@@ -1,5 +1,5 @@
-#include "core/ActivityTracker.h"
 #include "llm/LocalModelRunner.h"
+#include "core/ActivityTracker.h"
 
 #include <spdlog/spdlog.h>
 

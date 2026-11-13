@@ -70,6 +70,8 @@ TEST_CASE("API key preview preserves UTF-8 characters", "[ai-credentials]") {
   REQUIRE(preview == "abc€...ij");
   REQUIRE_NOTHROW(nlohmann::json(preview).dump());
   REQUIRE(holder::api::support::mask_api_key("short") == "****");
+  // A four-byte character is kept whole too.
+  REQUIRE(holder::api::support::mask_api_key("abc\U0001F511defghij") == "abc\U0001F511...ij");
 }
 
 TEST_CASE("HTTP ai provider credentials put/get/delete", "[http]") {
@@ -109,18 +111,34 @@ TEST_CASE("HTTP ai provider credentials put/get/delete", "[http]") {
   REQUIRE(put.dump().find("cf_test_key_12345") == std::string::npos);
 
   const auto timestamped_key = http_json_request(
-      bound.bind, bound.port, token, boost::beast::http::verb::put,
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::put,
       "/ai/providers/credentials",
-      nlohmann::json{{"provider", "ChocolateFactory"}, {"api_key", "cf_test_key_12345"},
-                     {"updated_at", 123}}, boost::beast::http::status::ok);
+      nlohmann::json{
+          {"provider", "ChocolateFactory"},
+          {"api_key", "cf_test_key_12345"},
+          {"updated_at", 123}
+      },
+      boost::beast::http::status::ok
+  );
   REQUIRE(timestamped_key["data"]["created_at"] == put["data"]["created_at"]);
   REQUIRE(timestamped_key["data"]["updated_at"] == 123);
 
   const auto null_timestamp = http_json_request(
-      bound.bind, bound.port, token, boost::beast::http::verb::put,
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::put,
       "/ai/providers/credentials",
-      nlohmann::json{{"provider", "ChocolateFactory"}, {"api_key", "cf_test_key_12345"},
-                     {"updated_at", nullptr}}, boost::beast::http::status::ok);
+      nlohmann::json{
+          {"provider", "ChocolateFactory"},
+          {"api_key", "cf_test_key_12345"},
+          {"updated_at", nullptr}
+      },
+      boost::beast::http::status::ok
+  );
   REQUIRE(null_timestamp["data"]["created_at"] == put["data"]["created_at"]);
   REQUIRE(null_timestamp["data"]["updated_at"].is_number_integer());
 
@@ -166,10 +184,12 @@ TEST_CASE("HTTP ai provider credentials put/get/delete", "[http]") {
   REQUIRE(settings_put["data"]["enabled"] == false);
 
   const auto timestamped = http_json_request(
-      bound.bind, bound.port, token, boost::beast::http::verb::put,
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::put,
       "/ai/providers/settings",
-      nlohmann::json{{"provider", "ChocolateFactory"}, {"enabled", false},
-                     {"updated_at", 123}},
+      nlohmann::json{{"provider", "ChocolateFactory"}, {"enabled", false}, {"updated_at", 123}},
       boost::beast::http::status::ok
   );
   REQUIRE(timestamped["data"]["provider"] == "chocolatefactory");
@@ -218,15 +238,25 @@ TEST_CASE("HTTP ai provider credentials put/get/delete", "[http]") {
   REQUIRE(settings_after_remove["data"]["providers"][0]["enabled"] == false);
 
   const auto setting_removed = http_json_request(
-      bound.bind, bound.port, token, boost::beast::http::verb::delete_,
-      "/ai/providers/settings/ChocolateFactory", nlohmann::json{},
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::delete_,
+      "/ai/providers/settings/ChocolateFactory",
+      nlohmann::json{},
       boost::beast::http::status::ok
   );
-  REQUIRE(setting_removed == nlohmann::json{
-      {"ok", true}, {"data", {{"provider", "chocolatefactory"}}}});
+  REQUIRE(
+      setting_removed == nlohmann::json{{"ok", true}, {"data", {{"provider", "chocolatefactory"}}}}
+  );
   const auto settings_empty = http_json_request(
-      bound.bind, bound.port, token, boost::beast::http::verb::get,
-      "/ai/providers/settings", nlohmann::json{}, boost::beast::http::status::ok
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::get,
+      "/ai/providers/settings",
+      nlohmann::json{},
+      boost::beast::http::status::ok
   );
   REQUIRE(settings_empty["data"]["providers"].empty());
 
@@ -253,8 +283,10 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
     auto req = make_req(http::verb::get, "/ai/providers/settings");
     REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
     REQUIRE(res.result() == http::status::ok);
-    REQUIRE(nlohmann::json::parse(res.body()) == nlohmann::json{
-        {"ok", true}, {"data", {{"providers", nlohmann::json::array()}}}});
+    REQUIRE(
+        nlohmann::json::parse(res.body()) ==
+        nlohmann::json{{"ok", true}, {"data", {{"providers", nlohmann::json::array()}}}}
+    );
   }
 
   SECTION("settings put missing provider/enabled") {
@@ -308,8 +340,9 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
   SECTION("credentials put missing provider/api_key") {
     auto req =
         make_req(http::verb::put, "/ai/providers/credentials", nlohmann::json::object().dump());
-    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr,
-                                                   secret_store.get()));
+    REQUIRE(
+        holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, secret_store.get())
+    );
     REQUIRE(res.result() == http::status::bad_request);
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["error"]["code"] == "bad_request");
@@ -322,8 +355,9 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
         "/ai/providers/credentials",
         nlohmann::json{{"provider", "!!!"}, {"api_key", "x"}}.dump()
     );
-    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr,
-                                                   secret_store.get()));
+    REQUIRE(
+        holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, secret_store.get())
+    );
     REQUIRE(res.result() == http::status::bad_request);
   }
 
@@ -333,8 +367,9 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
         "/ai/providers/credentials",
         nlohmann::json{{"provider", "switchyard"}, {"api_key", "   "}}.dump()
     );
-    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr,
-                                                   secret_store.get()));
+    REQUIRE(
+        holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, secret_store.get())
+    );
     REQUIRE(res.result() == http::status::bad_request);
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["error"]["message"] == "api_key cannot be empty.");
@@ -342,15 +377,17 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
 
   SECTION("credentials put malformed json catches exception") {
     auto req = make_req(http::verb::put, "/ai/providers/credentials", "{");
-    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr,
-                                                   secret_store.get()));
+    REQUIRE(
+        holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, secret_store.get())
+    );
     REQUIRE(res.result() == http::status::bad_request);
   }
 
   SECTION("credentials delete invalid provider") {
     auto req = make_req(http::verb::delete_, "/ai/providers/credentials/!!!");
-    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr,
-                                                   secret_store.get()));
+    REQUIRE(
+        holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, secret_store.get())
+    );
     REQUIRE(res.result() == http::status::bad_request);
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["error"]["message"] == "Invalid provider.");
@@ -358,8 +395,10 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
 
   SECTION("credentials put without a secret store") {
     auto req = make_req(
-        http::verb::put, "/ai/providers/credentials",
-        nlohmann::json{{"provider", "switchyard"}, {"api_key", "key"}}.dump());
+        http::verb::put,
+        "/ai/providers/credentials",
+        nlohmann::json{{"provider", "switchyard"}, {"api_key", "key"}}.dump()
+    );
     REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
     REQUIRE(res.result() == http::status::service_unavailable);
     REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "secret_store_unavailable");
@@ -408,16 +447,30 @@ TEST_CASE("AiProviderCredentialRoutes report database failures as internal error
   }
   {
     auto req = make_req(
-        http::verb::put, "/ai/providers/credentials",
-        nlohmann::json{{"provider", "switchyard"}, {"api_key", "key"}}.dump());
-    REQUIRE(holder::api::dispatch_generated_routes(req, res, unopened, nullptr, nullptr,
-                                                   secret_store.get()));
+        http::verb::put,
+        "/ai/providers/credentials",
+        nlohmann::json{{"provider", "switchyard"}, {"api_key", "key"}}.dump()
+    );
+    REQUIRE(holder::api::dispatch_generated_routes(
+        req,
+        res,
+        unopened,
+        nullptr,
+        nullptr,
+        secret_store.get()
+    ));
     REQUIRE(res.result() == http::status::internal_server_error);
   }
   {
     auto req = make_req(http::verb::delete_, "/ai/providers/credentials/switchyard");
-    REQUIRE(holder::api::dispatch_generated_routes(req, res, unopened, nullptr, nullptr,
-                                                   secret_store.get()));
+    REQUIRE(holder::api::dispatch_generated_routes(
+        req,
+        res,
+        unopened,
+        nullptr,
+        nullptr,
+        secret_store.get()
+    ));
     REQUIRE(res.result() == http::status::internal_server_error);
   }
 }
@@ -434,8 +487,7 @@ TEST_CASE("AiProviderCredentialRoutes map PrivacyError to service unavailable", 
         "/ai/providers/credentials",
         nlohmann::json{{"provider", "switchyard"}, {"api_key", "key"}}.dump()
     );
-    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr,
-                                                   &secret_store));
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, &secret_store));
     REQUIRE(res.result() == http::status::service_unavailable);
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["error"]["code"] == "privacy_key_material_missing");
@@ -444,8 +496,7 @@ TEST_CASE("AiProviderCredentialRoutes map PrivacyError to service unavailable", 
 
   SECTION("credentials delete returns 503 when secret store remove fails") {
     auto req = make_req(http::verb::delete_, "/ai/providers/credentials/switchyard");
-    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr,
-                                                   &secret_store));
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, &secret_store));
     REQUIRE(res.result() == http::status::service_unavailable);
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["error"]["code"] == "privacy_key_material_missing");
@@ -478,8 +529,7 @@ TEST_CASE("Credential errors preserve stable privacy codes in HTTP responses", "
     CAPTURE(test.response_code);
     ThrowingSecretStore secret_store(test.code);
     http::response<http::string_body> res;
-    REQUIRE(holder::api::dispatch_generated_routes(
-        req, res, db, nullptr, nullptr, &secret_store));
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, &secret_store));
     CHECK(res.result() == http::status::service_unavailable);
     CHECK(nlohmann::json::parse(res.body())["error"]["code"] == test.response_code);
   }

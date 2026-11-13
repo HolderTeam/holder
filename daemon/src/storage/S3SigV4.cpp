@@ -108,7 +108,7 @@ S3SigningResult sign_s3_request_v4(const S3SigningInput& input) {
   std::string canonical_headers;
   std::string signed_headers;
   for (const auto& [name, value] : headers) {
-    canonical_headers += name + ":" + value + "\n";
+    canonical_headers.append(name).append(":").append(value).append("\n");
     if (!signed_headers.empty()) signed_headers += ";";
     signed_headers += name;
   }

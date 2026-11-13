@@ -15,7 +15,8 @@
 namespace holder::api {
 namespace {
 
-holder::resource::LocationBindingStore require_bindings(holder::privacy::SecretStore* secret_store) {
+holder::resource::LocationBindingStore require_bindings(holder::privacy::SecretStore* secret_store
+) {
   if (secret_store == nullptr) throw SecretStoreUnavailable{};
   return holder::resource::LocationBindingStore(*secret_store);
 }
@@ -27,9 +28,11 @@ holder::model::Location find_location(holder::platform::Db& db, const std::strin
 }
 
 // Writes a probe object, checks it is there and removes it, removing it on failure too.
-void probe(holder::resource::StorageProvider& provider,
-           const holder::model::Location& location,
-           const std::function<std::string()>& uuid_v4) {
+void probe(
+    holder::resource::StorageProvider& provider,
+    const holder::model::Location& location,
+    const std::function<std::string()>& uuid_v4
+) {
   const auto probe_dir = holder::core::Paths::resolve("holder").cache_dir / "asset-probes";
   std::filesystem::create_directories(probe_dir);
   const auto probe_file = probe_dir / (uuid_v4() + ".probe");
@@ -41,14 +44,17 @@ void probe(holder::resource::StorageProvider& provider,
     // attempts a best-effort removal.
     provider.put(object_key, probe_file, digest.byte_size, digest.sha256);
     if (!provider.exists(object_key)) {
-      throw holder::resource::StorageError(holder::resource::StorageErrorCode::Integrity,
-                                           "storage probe not found");
+      throw holder::resource::StorageError(
+          holder::resource::StorageErrorCode::Integrity,
+          "storage probe not found"
+      );
     }
     provider.remove(object_key);
   } catch (...) {
     try {
       provider.remove(object_key);
     } catch (...) {
+      // Ignored: the probe's own failure, rethrown below, is the one to report.
     }
     std::error_code ignored;
     std::filesystem::remove(probe_file, ignored);
@@ -60,10 +66,12 @@ void probe(holder::resource::StorageProvider& provider,
 
 } // namespace
 
-LocationActionResponse put_locations_location_id_binding(holder::platform::Db& db,
-                                                         holder::privacy::SecretStore* secret_store,
-                                                         std::string location_id,
-                                                         LocationBindingRequest request) {
+LocationActionResponse put_locations_location_id_binding(
+    holder::platform::Db& db,
+    holder::privacy::SecretStore* secret_store,
+    std::string location_id,
+    LocationBindingRequest request
+) {
   auto bindings = require_bindings(secret_store);
   const auto location = find_location(db, location_id);
   holder::resource::LocationBinding binding;
@@ -77,7 +85,8 @@ LocationActionResponse put_locations_location_id_binding(holder::platform::Db& d
 LocationActionResponse delete_locations_location_id_binding(
     holder::platform::Db& db,
     holder::privacy::SecretStore* secret_store,
-    std::string location_id) {
+    std::string location_id
+) {
   auto bindings = require_bindings(secret_store);
   const auto location = find_location(db, location_id);
   bindings.unbind(location.project_id, location_id);
@@ -86,10 +95,12 @@ LocationActionResponse delete_locations_location_id_binding(
   return {true, {std::move(location_id), std::nullopt, std::nullopt}};
 }
 
-LocationTestResponse post_locations_location_id_test(holder::platform::Db& db,
-                                                     holder::privacy::SecretStore* secret_store,
-                                                     const std::function<std::string()>& uuid_v4,
-                                                     std::string location_id) {
+LocationTestResponse post_locations_location_id_test(
+    holder::platform::Db& db,
+    holder::privacy::SecretStore* secret_store,
+    const std::function<std::string()>& uuid_v4,
+    const std::string& location_id
+) {
   auto bindings = require_bindings(secret_store);
   const auto location = find_location(db, location_id);
   const auto binding = bindings.get(location.project_id, location_id);
@@ -102,9 +113,11 @@ LocationTestResponse post_locations_location_id_test(holder::platform::Db& db,
   return {true, {true}};
 }
 
-LocationActionResponse put_locations_preferred(holder::platform::Db& db,
-                                               holder::privacy::SecretStore* secret_store,
-                                               PutLocationsPreferredRequest request) {
+LocationActionResponse put_locations_preferred(
+    holder::platform::Db& db,
+    holder::privacy::SecretStore* secret_store,
+    PutLocationsPreferredRequest request
+) {
   auto bindings = require_bindings(secret_store);
   const auto location = holder::resource::LocationRepo(db).get(request.location_id);
   if (!location || location->project_id != request.project_id)

@@ -66,18 +66,18 @@ api_runtime::host_value serve_docs_file(const std::filesystem::path& relative) {
   if (!content.has_value()) throw StaticFileNotFound("Not found.");
   return {
       200,
-      support::StreamServer([content = std::move(*content),
-                             media_type = support::content_type_for_extension(
-                                 full_path.extension().string()
-                             )](boost::asio::ip::tcp::socket&,
-                                http::response<http::string_body>& res) {
-        res = {http::status::ok, 11};
-        res.set(http::field::content_type, media_type);
-        res.keep_alive(false);
-        res.body() = content;
-        res.prepare_payload();
-        return false;
-      })
+      support::StreamServer(
+          [content = std::move(*content),
+           media_type = support::content_type_for_extension(full_path.extension().string()
+           )](boost::asio::ip::tcp::socket&, http::response<http::string_body>& res) {
+            res = {http::status::ok, 11};
+            res.set(http::field::content_type, media_type);
+            res.keep_alive(false);
+            res.body() = content;
+            res.prepare_payload();
+            return false;
+          }
+      )
   };
 }
 
@@ -108,6 +108,6 @@ nlohmann::json download_git_providers_json() {
 
 api_runtime::host_value get_docs() { return serve_docs_file("index.html"); }
 
-api_runtime::host_value get_docs_file(std::string file) { return serve_docs_file(file); }
+api_runtime::host_value get_docs_file(const std::string& file) { return serve_docs_file(file); }
 
 } // namespace holder::api

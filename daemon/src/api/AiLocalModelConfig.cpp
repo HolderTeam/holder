@@ -12,8 +12,7 @@ namespace holder::api {
 AiLocalModelConfigResponse get_local_model_config(holder::platform::Db& db) {
   const auto config = holder::ai::AiLocalModelConfigRepo(db).get();
   if (!config) return {true, {}};
-  return {true,
-          {config->fast_model, config->strong_model, config->deep_model, config->updated_at}};
+  return {true, {config->fast_model, config->strong_model, config->deep_model, config->updated_at}};
 }
 
 namespace {
@@ -27,11 +26,16 @@ std::optional<std::string> model(const std::optional<std::optional<std::string>>
 
 } // namespace
 
-AiLocalModelConfigResponse put_local_model_config(holder::platform::Db& db,
-                                                  AiLocalModelConfigUpdateRequest request) {
+AiLocalModelConfigResponse put_local_model_config(
+    holder::platform::Db& db,
+    const AiLocalModelConfigUpdateRequest& request
+) {
   holder::ai::AiLocalModelConfigRepo(db).set(
-      model(request.fast_model), model(request.strong_model), model(request.deep_model),
-      request.updated_at.value_or(std::nullopt).value_or(support::now_epoch_seconds()));
+      model(request.fast_model),
+      model(request.strong_model),
+      model(request.deep_model),
+      request.updated_at.value_or(std::nullopt).value_or(support::now_epoch_seconds())
+  );
   holder::core::persist_device_config(db);
   return get_local_model_config(db);
 }

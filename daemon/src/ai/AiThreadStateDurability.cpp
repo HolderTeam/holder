@@ -46,7 +46,7 @@ std::string encode(
       {"updated_at", state.updated_at},
   };
   // LCOV_EXCL_STOP
-  const auto plain = body.dump(2) + '\n';
+  auto plain = body.dump(2) + '\n';
   if (project.privacy_mode != "encrypted_git") return plain;
   if (!project.project_key_id.has_value() || project.project_key_id->empty()) {
     throw std::runtime_error("encrypted project has no key for AI thread state");

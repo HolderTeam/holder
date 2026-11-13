@@ -16,8 +16,10 @@
 namespace holder::api {
 namespace {
 
-holder::model::AiMessage find_message(holder::ai::AiMessageRepo& repo,
-                                      const std::string& message_id) {
+holder::model::AiMessage find_message(
+    holder::ai::AiMessageRepo& repo,
+    const std::string& message_id
+) {
   auto message = repo.get(message_id);
   if (!message) throw AiMessageNotFound{};
   return std::move(*message);
@@ -32,8 +34,10 @@ std::string message_project(holder::platform::Db& db, const holder::model::AiMes
 }
 
 // Applies a nullable patch field: absent leaves the value, null clears it.
-void patch(std::optional<std::string>& value,
-           const std::optional<std::optional<std::string>>& field) {
+void patch(
+    std::optional<std::string>& value,
+    const std::optional<std::optional<std::string>>& field
+) {
   if (field) value = *field;
 }
 
@@ -44,10 +48,12 @@ void patch(std::string& value, const std::optional<std::optional<std::string>>& 
 
 } // namespace
 
-AiMessageCreateResponse post_ai_messages(holder::platform::Db& db,
-                                         holder::index::FtsIndexer* fts,
-                                         const std::function<std::string()>& uuid_v4,
-                                         AiMessageCreateRequest request) {
+AiMessageCreateResponse post_ai_messages(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    const std::function<std::string()>& uuid_v4,
+    AiMessageCreateRequest request
+) {
   holder::model::AiMessage message;
   message.message_id = request.message_id.value_or("");
   if (message.message_id.empty()) message.message_id = uuid_v4();
@@ -64,16 +70,17 @@ AiMessageCreateResponse post_ai_messages(holder::platform::Db& db,
 
   if (!holder::ai::AiThreadRepo(db).get(message.thread_id)) throw AiMessageThreadNotFound{};
   holder::ai::AiMessageRepo repo(db, fts);
-  if (repo.get(message.message_id))
-    throw holder::model::ConflictError("ai message already exists");
+  if (repo.get(message.message_id)) throw holder::model::ConflictError("ai message already exists");
   repo.append(message);
   return {true, {std::move(message.message_id)}};
 }
 
-AiMessageUpdateResponse patch_ai_messages_message_id(holder::platform::Db& db,
-                                                     holder::index::FtsIndexer* fts,
-                                                     std::string message_id,
-                                                     AiMessageUpdateRequest request) {
+AiMessageUpdateResponse patch_ai_messages_message_id(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    std::string message_id,
+    AiMessageUpdateRequest request
+) {
   holder::ai::AiMessageRepo repo(db, fts);
   auto message = find_message(repo, message_id);
   if (message.deleted_at) throw AiMessageWrongState("AI message is deleted.");
@@ -89,9 +96,11 @@ AiMessageUpdateResponse patch_ai_messages_message_id(holder::platform::Db& db,
   return {true, {std::move(message_id)}};
 }
 
-AiMessageUpdateResponse delete_ai_messages_message_id(holder::platform::Db& db,
-                                                      holder::index::FtsIndexer* fts,
-                                                      std::string message_id) {
+AiMessageUpdateResponse delete_ai_messages_message_id(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    std::string message_id
+) {
   holder::ai::AiMessageRepo repo(db, fts);
   if (find_message(repo, message_id).deleted_at)
     throw AiMessageWrongState("AI message is already deleted.");
@@ -99,9 +108,11 @@ AiMessageUpdateResponse delete_ai_messages_message_id(holder::platform::Db& db,
   return {true, {std::move(message_id)}};
 }
 
-AiMessageUpdateResponse post_ai_messages_message_id_restore(holder::platform::Db& db,
-                                                            holder::index::FtsIndexer* fts,
-                                                            std::string message_id) {
+AiMessageUpdateResponse post_ai_messages_message_id_restore(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    std::string message_id
+) {
   holder::ai::AiMessageRepo repo(db, fts);
   if (!find_message(repo, message_id).deleted_at)
     throw AiMessageWrongState("AI message is not deleted.");
@@ -112,8 +123,9 @@ AiMessageUpdateResponse post_ai_messages_message_id_restore(holder::platform::Db
 routes::CardLinkCreateResponse post_ai_messages_message_id_links(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    std::string message_id,
-    routes::CardLinkCreateRequest request) {
+    const std::string& message_id,
+    routes::CardLinkCreateRequest request
+) {
   holder::ai::AiMessageRepo messages(db, fts);
   const auto project_id = message_project(db, find_message(messages, message_id));
 
@@ -132,20 +144,34 @@ routes::CardLinkCreateResponse post_ai_messages_message_id_links(
   if (link.created_at <= 0) link.created_at = support::now_epoch_seconds();
 
   holder::card::validate_link_target(
-      db, project_id, link.to_card_id, link.to_type, link.target_project_id);
+      db,
+      project_id,
+      link.to_card_id,
+      link.to_type,
+      link.target_project_id
+  );
   holder::card::LinkRepo(db).upsert_links(project_id, message_id, {link});
   messages.update_links(message_id);
 
-  return {true,
-          {link.from_card_id, link.to_card_id, link.target_project_id, std::nullopt, link.to_type,
-           link.kind, std::optional<std::optional<std::string>>(link.label), link.created_at}};
+  return {
+      true,
+      {link.from_card_id,
+       link.to_card_id,
+       link.target_project_id,
+       std::nullopt,
+       link.to_type,
+       link.kind,
+       std::optional<std::optional<std::string>>(link.label),
+       link.created_at}
+  };
 }
 
 AiMessageCreateResponse delete_ai_messages_message_id_links(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
     std::string message_id,
-    std::optional<CardLinkDeleteRequest> request) {
+    const std::optional<CardLinkDeleteRequest>& request
+) {
   holder::ai::AiMessageRepo messages(db, fts);
   const auto project_id = message_project(db, find_message(messages, message_id));
   const auto selector = request.value_or(CardLinkDeleteRequest{});
@@ -155,11 +181,18 @@ AiMessageCreateResponse delete_ai_messages_message_id_links(
   if (target_project_id) {
     if (!to_card_id || !to_type || !kind)
       throw std::invalid_argument(
-          "to_card_id, to_type and kind are required with target_project_id.");
+          "to_card_id, to_type and kind are required with target_project_id."
+      );
     if (target_project_id->empty())
       throw std::invalid_argument("target_project_id must not be empty.");
-    links.delete_link_exact(project_id, message_id, *to_card_id, *to_type, *kind,
-                            *target_project_id);
+    links.delete_link_exact(
+        project_id,
+        message_id,
+        *to_card_id,
+        *to_type,
+        *kind,
+        *target_project_id
+    );
   } else if (to_card_id && to_type && kind) {
     std::optional<std::string> matched_project_id;
     for (const auto& link : links.list_outgoing(project_id, message_id)) {
@@ -170,8 +203,14 @@ AiMessageCreateResponse delete_ai_messages_message_id_links(
       matched_project_id = link.target_project_id.value_or(project_id);
     }
     if (matched_project_id)
-      links.delete_link_exact(project_id, message_id, *to_card_id, *to_type, *kind,
-                              *matched_project_id);
+      links.delete_link_exact(
+          project_id,
+          message_id,
+          *to_card_id,
+          *to_type,
+          *kind,
+          *matched_project_id
+      );
   } else if (to_card_id) {
     links.delete_link(project_id, message_id, *to_card_id, to_type, kind);
   } else {
@@ -181,10 +220,12 @@ AiMessageCreateResponse delete_ai_messages_message_id_links(
   return {true, {std::move(message_id)}};
 }
 
-AiMessageCaptureResponse post_ai_messages_capture(holder::platform::Db& db,
-                                                  holder::index::FtsIndexer* fts,
-                                                  const std::function<std::string()>& uuid_v4,
-                                                  AiMessageCaptureRequest request) {
+AiMessageCaptureResponse post_ai_messages_capture(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    const std::function<std::string()>& uuid_v4,
+    AiMessageCaptureRequest request
+) {
   if (!holder::project::ProjectRepo(db).get(request.project_id))
     throw AiCaptureNotFound("Project not found.");
   const long long created_at =
@@ -236,8 +277,10 @@ AiMessageCaptureResponse post_ai_messages_capture(holder::platform::Db& db,
   if (!meta.empty()) response.meta_json = meta.dump();
   messages.append(response);
 
-  return {true, {std::move(*thread_id), std::move(prompt.message_id),
-                 std::move(response.message_id)}};
+  return {
+      true,
+      {std::move(*thread_id), std::move(prompt.message_id), std::move(response.message_id)}
+  };
 }
 
 } // namespace holder::api

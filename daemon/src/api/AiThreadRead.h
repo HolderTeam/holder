@@ -7,7 +7,9 @@
 #include <string>
 #include <vector>
 
-namespace holder::platform { class Db; }
+namespace holder::platform {
+class Db;
+}
 
 namespace holder::api {
 
@@ -22,12 +24,12 @@ struct AiThreadGetResponse {
 };
 
 struct AiThreadNotFound : std::runtime_error {
-  AiThreadNotFound() : std::runtime_error("AI thread not found.") {}
+  AiThreadNotFound()
+      : std::runtime_error("AI thread not found.") {}
 };
 
-AiThreadListResponse get_ai_threads(holder::platform::Db& db,
-                                    std::string project_id);
+AiThreadListResponse get_ai_threads(holder::platform::Db& db, const std::string& project_id);
 
-AiThreadGetResponse get_ai_thread(holder::platform::Db& db, std::string thread_id);
+AiThreadGetResponse get_ai_thread(holder::platform::Db& db, const std::string& thread_id);
 
 } // namespace holder::api

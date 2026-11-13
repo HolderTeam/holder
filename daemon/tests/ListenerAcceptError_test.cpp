@@ -16,15 +16,8 @@
 TEST_CASE("Listener accept error branch is exercised", "[listener]") {
   holder::platform::Db db;
   db.open(std::filesystem::temp_directory_path() / "holder_listener_error.db");
-  holder::api::Listener listener(
-      "127.0.0.1",
-      0,
-      db,
-      "token",
-      std::chrono::steady_clock::now(),
-      nullptr,
-      nullptr
-  );
+  holder::api::Listener
+      listener("127.0.0.1", 0, db, "token", std::chrono::steady_clock::now(), nullptr, nullptr);
   holder::api::Listener::BoundInfo bound{};
   try {
     bound = listener.start();

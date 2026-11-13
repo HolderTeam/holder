@@ -47,8 +47,7 @@ HttpServer::HttpServer(
       card_store_(card_store),
       fts_(fts),
       git_ops_(git_ops),
-      concurrency_(concurrency) {
-}
+      concurrency_(concurrency) {}
 
 HttpServer::~HttpServer() = default;
 

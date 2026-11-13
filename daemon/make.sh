@@ -275,27 +275,33 @@ if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; th
   is_git_repo=true
 fi
 
-if [ -f ".gitmodules" ] && grep -q "submodules/caste" ".gitmodules"; then
-  if [ "${is_git_repo}" = "true" ]; then
-    git submodule update --init --recursive -- submodules/caste
+# Formatting reads only the daemon's own sources, so it needs no dependencies.
+case "${MODE}" in
+format | format-check) ;;
+*)
+  if [ -f ".gitmodules" ] && grep -q "submodules/caste" ".gitmodules"; then
+    if [ "${is_git_repo}" = "true" ]; then
+      git submodule update --init --recursive -- submodules/caste
+    fi
   fi
-fi
 
-if [ ! -f "${CASTE_DIR}/CMakeLists.txt" ]; then
-  if [ "${is_git_repo}" = "true" ]; then
-    echo "Missing dependency: ${CASTE_DIR}" >&2
-    echo "Run: git submodule update --init --recursive -- submodules/caste" >&2
+  if [ ! -f "${CASTE_DIR}/CMakeLists.txt" ]; then
+    if [ "${is_git_repo}" = "true" ]; then
+      echo "Missing dependency: ${CASTE_DIR}" >&2
+      echo "Run: git submodule update --init --recursive -- submodules/caste" >&2
+      exit 1
+    fi
+
+    echo "No git metadata detected. Downloading pinned caste dependency..." >&2
+    download_caste_archive
+  fi
+
+  if [ ! -f "${CASTE_DIR}/CMakeLists.txt" ]; then
+    echo "Failed to prepare dependency at ${CASTE_DIR}" >&2
     exit 1
   fi
-
-  echo "No git metadata detected. Downloading pinned caste dependency..." >&2
-  download_caste_archive
-fi
-
-if [ ! -f "${CASTE_DIR}/CMakeLists.txt" ]; then
-  echo "Failed to prepare dependency at ${CASTE_DIR}" >&2
-  exit 1
-fi
+  ;;
+esac
 
 build_all() {
   cmake_configure -S . -B build -G Ninja -DCMAKE_BUILD_TYPE="${1}"
@@ -481,6 +487,12 @@ coverage_all() {
   JOBS="$(jobs)"
   cmake_build "${build_dir}" -- -j "${JOBS}"
 
+  # Drop objects the build no longer makes (a renamed or removed target), then their notes files:
+  # their line numbers are from old sources, and lcov rejects a function placed on two lines.
+  if [ -f "${build_dir}/build.ninja" ]; then
+    ninja -C "${build_dir}" -t cleandead >/dev/null
+  fi
+  find "${build_dir}" -type f -path '*.dir/*' -name '*.gcno' -exec sh -c '[ -e "${1%.gcno}.o" ] || rm -f "$1"' _ {} \;
   # Discard old profiles entirely: zeroing preserves stale stamps when a source
   # was rebuilt, which makes gcov reject the profile against its current notes.
   find "${build_dir}" -type f -name '*.gcda' -delete
@@ -501,6 +513,7 @@ coverage_all() {
     '*/tests/*' \
     '*/CMakeFiles/*/CompilerIdCXX/*' \
     --filter brace \
+    --ignore-errors unused \
     --output-file "${info_total}"
   genhtml "${info_total}" --output-directory "${report_dir}" --title "holder backend coverage"
   if command -v gcovr >/dev/null 2>&1; then
@@ -531,7 +544,7 @@ tidy_all() {
   local build_dir="build-tidy"
   local source_regex
   local tidy_bin="${HOLDER_CLANG_TIDY:-clang-tidy-18}"
-  local tidy_runner="${HOLDER_RUN_CLANG_TIDY:-run-clang-tidy}"
+  local tidy_runner="${HOLDER_RUN_CLANG_TIDY:-run-clang-tidy-18}"
   local gcc_version gcc_major
   local tidy_extra_args=""
 
@@ -557,6 +570,8 @@ tidy_all() {
   cmake_configure -S . -B "${build_dir}" -G Ninja \
     -DCMAKE_BUILD_TYPE="$(development_build_type)" \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+  # Headers the build generates, such as the embedded OpenAPI documents, which sources include.
+  cmake_build "${build_dir}" --target holder_openapi_documents
 
   "${tidy_runner}" \
     -clang-tidy-binary "${tidy_bin}" \

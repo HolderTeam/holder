@@ -92,6 +92,8 @@ class SseStream : public std::enable_shared_from_this<SseStream> {
 
 struct FinishSseStream {
   std::shared_ptr<SseStream> stream;
+  // Only running out of memory can throw here, and terminating then is right.
+  // NOLINTNEXTLINE(bugprone-exception-escape)
   ~FinishSseStream() {
     if (stream) stream->finish();
   }

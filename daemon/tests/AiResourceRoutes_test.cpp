@@ -59,7 +59,7 @@ struct LocationRouteFixture {
   http::response<http::string_body> call(
       http::verb method,
       const std::string& path,
-      nlohmann::json body = nlohmann::json::object(),
+      const nlohmann::json& body = nlohmann::json::object(),
       std::string project = "project",
       bool with_secrets = true,
       const std::map<std::string, std::string>& params = {},
@@ -73,15 +73,22 @@ struct LocationRouteFixture {
       if (path == "/locations" && !project.empty()) query.emplace("project_id", project);
       char separator = '?';
       for (const auto& [key, value] : query) {
-        target += separator + key + "=" + value;
+        target.append(1, separator).append(key).append("=").append(value);
         separator = '&';
       }
     }
     auto generated_request = make_request(method, target, body);
     if (holder::api::dispatch_generated_routes(
-            generated_request, response, db, nullptr, nullptr,
-            with_secrets ? secrets.get() : nullptr, git,
-            [&] { return "id-" + std::to_string(++sequence); }
+            generated_request,
+            response,
+            db,
+            nullptr,
+            nullptr,
+            with_secrets ? secrets.get() : nullptr,
+            git,
+            [&] {
+              return "id-" + std::to_string(++sequence);
+            }
         )) {
       return response;
     }
@@ -172,7 +179,9 @@ TEST_CASE("Location routes validate missing services fields and records", "[reso
     return found == bodies.end() ? nlohmann::json::object() : found->second;
   };
   for (auto method : {http::verb::get, http::verb::patch, http::verb::delete_}) {
-    CHECK(f.call(method, "/locations/missing", body_for(method)).result() == http::status::not_found);
+    CHECK(
+        f.call(method, "/locations/missing", body_for(method)).result() == http::status::not_found
+    );
   }
   CHECK(f.call(http::verb::patch, "/locations/missing").result() == http::status::not_found);
   for (auto method : {http::verb::put, http::verb::delete_}) {
@@ -372,7 +381,10 @@ TEST_CASE("Storage failures keep their categories as HTTP statuses", "[resources
   }
 }
 
-TEST_CASE("Asset and location routes report bad requests and database failures", "[resources][routes]") {
+TEST_CASE(
+    "Asset and location routes report bad requests and database failures",
+    "[resources][routes]"
+) {
   LocationRouteFixture f;
   CHECK(
       f.call(http::verb::get, "/resources/resource/assets/asset/content").result() ==
@@ -423,22 +435,26 @@ TEST_CASE(
           .result() == http::status::not_found
   );
 
-  const nlohmann::json valid = {{"project_id", "project"},
-                                {"card_id", "card"},
-                                {"location_id", "location"},
-                                {"source_path", source.string()}};
-  CHECK(f.call(http::verb::post, "/imports", valid, "project", false, {}, &git).result() ==
-        http::status::service_unavailable);
+  const nlohmann::json valid = {
+      {"project_id", "project"},
+      {"card_id", "card"},
+      {"location_id", "location"},
+      {"source_path", source.string()}
+  };
+  CHECK(
+      f.call(http::verb::post, "/imports", valid, "project", false, {}, &git).result() ==
+      http::status::service_unavailable
+  );
   CHECK(f.call(http::verb::post, "/imports", valid).result() == http::status::not_implemented);
   holder::resource::LocationRepo(f.db).put(
-      {"unbound", "project", "Unbound", "local_directory", {}, 1, 1});
+      {"unbound", "project", "Unbound", "local_directory", {}, 1, 1}
+  );
   auto unbound = valid;
   unbound["location_id"] = "unbound";
   const auto needs_binding =
       f.call(http::verb::post, "/imports", unbound, "project", true, {}, &git);
   CHECK(needs_binding.result() == http::status::conflict);
-  CHECK(nlohmann::json::parse(needs_binding.body())["error"]["code"] ==
-        "storage_binding_required");
+  CHECK(nlohmann::json::parse(needs_binding.body())["error"]["code"] == "storage_binding_required");
 
   f.put("unsupported", {}, {});
   const auto started = f.call(
@@ -518,9 +534,10 @@ TEST_CASE("Resource asset retrieval validates placement ownership", "[resources]
   bool streamed = false;
   CHECK(retrieve({{"placement_id", "other"}}, streamed).result() == http::status::not_found);
   // A location that a placement still uses cannot be deleted, with or without Git.
-  for (holder::git::GitOps* ops : {static_cast<holder::git::GitOps*>(nullptr),
-                                   static_cast<holder::git::GitOps*>(&git)}) {
-    const auto in_use = f.call(http::verb::delete_, "/locations/location", {}, "project", true, {}, ops);
+  for (holder::git::GitOps* ops :
+       {static_cast<holder::git::GitOps*>(nullptr), static_cast<holder::git::GitOps*>(&git)}) {
+    const auto in_use =
+        f.call(http::verb::delete_, "/locations/location", {}, "project", true, {}, ops);
     CHECK(in_use.result() == http::status::conflict);
     CHECK(nlohmann::json::parse(in_use.body())["error"]["code"] == "conflict");
   }
@@ -568,14 +585,22 @@ TEST_CASE("Resource routes reject malformed bindings and import requests", "[res
     const char* message;
   };
   for (const auto& item : std::vector<Case>{
-           {http::verb::put, "/locations/location/binding", {{"values", "invalid"}},
+           {http::verb::put,
+            "/locations/location/binding",
+            {{"values", "invalid"}},
             "values must be an object"},
-           {http::verb::put, "/locations/location/binding", {{"values", {{"root_path", 42}}}},
+           {http::verb::put,
+            "/locations/location/binding",
+            {{"values", {{"root_path", 42}}}},
             "binding values must be strings"},
-           {http::verb::put, "/locations/preferred", {{"project_id", "project"}, {"location_id", 42}},
+           {http::verb::put,
+            "/locations/preferred",
+            {{"project_id", "project"}, {"location_id", 42}},
             "location_id must be a string"},
            {http::verb::post, "/imports", {{"unexpected", true}}, "there is no field unexpected"},
-           {http::verb::get, "/imports/missing?unexpected=true", nlohmann::json::object(),
+           {http::verb::get,
+            "/imports/missing?unexpected=true",
+            nlohmann::json::object(),
             "unexpected"},
        }) {
     CAPTURE(item.path, item.body);
@@ -587,7 +612,10 @@ TEST_CASE("Resource routes reject malformed bindings and import requests", "[res
   }
 }
 
-TEST_CASE("Storage failure exceptions preserve the typed response and its error", "[resources][routes]") {
+TEST_CASE(
+    "Storage failure exceptions preserve the typed response and its error",
+    "[resources][routes]"
+) {
   using Code = holder::resource::StorageErrorCode;
   using namespace holder::api::support;
   const auto check = []<typename Failure>(Code code, const char* name) {
@@ -607,29 +635,46 @@ TEST_CASE("Storage failure exceptions preserve the typed response and its error"
   check.operator()<StorageUnavailable>(Code::Transient, "storage_transient_failure");
 }
 
-TEST_CASE("Asset import reports an unexpected job identifier failure as an internal error",
-          "[resources][routes]") {
+TEST_CASE(
+    "Asset import reports an unexpected job identifier failure as an internal error",
+    "[resources][routes]"
+) {
   LocationRouteFixture f;
   holder::git::RealGitOps git;
   f.put("local_directory", {}, {{"root_path", f.root.string()}});
   const auto source = f.root / "source.txt";
   std::ofstream(source) << "asset";
-  auto req = make_request(http::verb::post, "/imports", {
-      {"project_id", "project"}, {"card_id", "card"},
-      {"location_id", "location"}, {"source_path", source.string()}});
+  auto req = make_request(
+      http::verb::post,
+      "/imports",
+      {{"project_id", "project"},
+       {"card_id", "card"},
+       {"location_id", "location"},
+       {"source_path", source.string()}}
+  );
   http::response<http::string_body> res;
-  REQUIRE(holder::api::dispatch_generated_routes(req, res, f.db, nullptr, nullptr,
-      f.secrets.get(), &git, []() -> std::string {
+  REQUIRE(holder::api::dispatch_generated_routes(
+      req,
+      res,
+      f.db,
+      nullptr,
+      nullptr,
+      f.secrets.get(),
+      &git,
+      []() -> std::string {
         throw std::runtime_error("job identifier unavailable");
-      }));
+      }
+  ));
   CHECK(res.result() == http::status::internal_server_error);
   const auto error = nlohmann::json::parse(res.body()).at("error");
   CHECK(error.at("code") == "internal_error");
   CHECK(error.at("message") == "job identifier unavailable");
 }
 
-TEST_CASE("Asset downloads report storage failures and clean up after a write failure",
-          "[resources][routes]") {
+TEST_CASE(
+    "Asset downloads report storage failures and clean up after a write failure",
+    "[resources][routes]"
+) {
   LocationRouteFixture f;
   holder::git::RealGitOps git;
   const auto objects = f.root / "objects";
@@ -641,10 +686,23 @@ TEST_CASE("Asset downloads report storage failures and clean up after a write fa
 
   holder::model::ResourceBundle bundle{
       .resource = {"resource", "project", "file", "Asset", {}, 1, 1},
-      .assets = {{"asset", "resource", "asset.txt", "text/plain", digest.byte_size,
-                  digest.sha256, 1, 1,
-                  {{"placement", "asset", "location", "object", "plain",
-                    digest.byte_size, digest.sha256, 1}}}},
+      .assets =
+          {{"asset",
+            "resource",
+            "asset.txt",
+            "text/plain",
+            digest.byte_size,
+            digest.sha256,
+            1,
+            1,
+            {{"placement",
+              "asset",
+              "location",
+              "object",
+              "plain",
+              digest.byte_size,
+              digest.sha256,
+              1}}}},
   };
   const auto cache = f.root / "cache/holder/asset-cache";
 
@@ -676,10 +734,15 @@ TEST_CASE("Asset downloads report storage failures and clean up after a write fa
     server = std::make_unique<Server>([](const Server::Request&) {
       return Server::response(403);
     });
-    f.put("s3_compatible",
-          {{"endpoint", server->endpoint()}, {"region", "region"}, {"bucket", "bucket"},
-           {"allow_insecure_localhost", "true"}, {"addressing_style", "path"}},
-          {{"access_key_id", "access"}, {"secret_access_key", "secret"}});
+    f.put(
+        "s3_compatible",
+        {{"endpoint", server->endpoint()},
+         {"region", "region"},
+         {"bucket", "bucket"},
+         {"allow_insecure_localhost", "true"},
+         {"addressing_style", "path"}},
+        {{"access_key_id", "access"}, {"secret_access_key", "secret"}}
+    );
     expected_error = http::status::bad_gateway;
     expected_code = "storage_permission_denied";
   }
@@ -691,8 +754,18 @@ TEST_CASE("Asset downloads report storage failures and clean up after a write fa
   auto req = make_request(http::verb::get, "/resources/resource/assets/asset/content");
   http::response<http::string_body> res;
   const auto served = holder::test::serve_generated(
-      req, res, closed_socket, f.db, nullptr, nullptr, f.secrets.get(), &git,
-      [] { return std::string("download-test"); });
+      req,
+      res,
+      closed_socket,
+      f.db,
+      nullptr,
+      nullptr,
+      f.secrets.get(),
+      &git,
+      [] {
+        return std::string("download-test");
+      }
+  );
   INFO(res.body());
   REQUIRE(served.handled);
   CHECK(std::filesystem::is_empty(cache));
@@ -705,28 +778,35 @@ TEST_CASE("Asset downloads report storage failures and clean up after a write fa
   }
 }
 
-TEST_CASE("Resource writes preserve an attached resource when its project key is missing",
-          "[resources][routes]") {
+TEST_CASE(
+    "Resource writes preserve an attached resource when its project key is missing",
+    "[resources][routes]"
+) {
   LocationRouteFixture f;
   holder::test::EnvGuard keys("HOLDER_TEST_KEYSTORE_DIR", (f.root / "empty-keystore").string());
   holder::git::RealGitOps git;
   holder::project::ProjectRepo projects(f.db);
   projects.update_privacy_mode("project", "encrypted_git", 1);
-  const auto key_id = holder::privacy::ensure_project_key_material(
-      projects, "project", std::nullopt, 1, [] { return std::string("fixture-key"); });
+  const auto key_id =
+      holder::privacy::ensure_project_key_material(projects, "project", std::nullopt, 1, [] {
+        return std::string("fixture-key");
+      });
   holder::card::CardStore cards(f.db, nullptr);
   holder::test::create_card_fixture(cards, "card", "project", "Card", "Body", 10);
 
   const std::string list_path = "/projects/project/resources";
   const auto resource_path = list_path + "/resource";
   const nlohmann::json body{{"resource_id", "resource"}, {"type", "file"}, {"label", "Original"}};
-  const auto call = [&](http::verb method, const std::string& path,
+  const auto call = [&](http::verb method,
+                        const std::string& path,
                         const nlohmann::json& payload = nlohmann::json::object()) {
     return f.call(method, path, payload, "project", true, {}, &git);
   };
   REQUIRE(call(http::verb::post, list_path, body).result() == http::status::created);
-  REQUIRE(call(http::verb::put, "/projects/project/cards/card/resources/resource").result() ==
-          http::status::ok);
+  REQUIRE(
+      call(http::verb::put, "/projects/project/cards/card/resources/resource").result() ==
+      http::status::ok
+  );
 
   const auto check_error = [](const auto& res, http::status status, const char* code) {
     INFO(res.body());
@@ -734,10 +814,16 @@ TEST_CASE("Resource writes preserve an attached resource when its project key is
     CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == code);
   };
   check_error(call(http::verb::post, list_path, body), http::status::conflict, "conflict");
-  check_error(call(http::verb::post, "/projects/missing/resources", body),
-              http::status::not_found, "not_found");
-  check_error(call(http::verb::patch, list_path + "/missing", {{"label", "Missing"}}),
-              http::status::not_found, "not_found");
+  check_error(
+      call(http::verb::post, "/projects/missing/resources", body),
+      http::status::not_found,
+      "not_found"
+  );
+  check_error(
+      call(http::verb::patch, list_path + "/missing", {{"label", "Missing"}}),
+      http::status::not_found,
+      "not_found"
+  );
 
   holder::git::GitRepo repo;
   repo.open_or_init(f.root / "project");
@@ -747,9 +833,16 @@ TEST_CASE("Resource writes preserve an attached resource when its project key is
 
   auto new_resource = body;
   new_resource["resource_id"] = "new-resource";
-  check_error(call(http::verb::post, list_path, new_resource), http::status::conflict, "key_missing");
-  check_error(call(http::verb::patch, resource_path, {{"label", "Changed"}}),
-              http::status::conflict, "key_missing");
+  check_error(
+      call(http::verb::post, list_path, new_resource),
+      http::status::conflict,
+      "key_missing"
+  );
+  check_error(
+      call(http::verb::patch, resource_path, {{"label", "Changed"}}),
+      http::status::conflict,
+      "key_missing"
+  );
   check_error(call(http::verb::delete_, resource_path), http::status::conflict, "key_missing");
   CHECK(repo.head_oid() == head);
   holder::resource::ResourceRepo resources(f.db);
@@ -762,25 +855,36 @@ TEST_CASE("Resource writes preserve an attached resource when its project key is
   CHECK(nlohmann::json::parse(attached.body()).at("data").size() == 1);
 }
 
-TEST_CASE("Asset import reports a failed location lookup without accepting a job",
-          "[resources][routes]") {
+TEST_CASE(
+    "Asset import reports a failed location lookup without accepting a job",
+    "[resources][routes]"
+) {
   LocationRouteFixture f;
   holder::git::RealGitOps git;
   const auto source = f.root / "source.txt";
   std::ofstream(source) << "asset";
   f.db.exec("DROP TABLE storage_locations");
   const auto res = f.call(
-      http::verb::post, "/imports",
-      {{"project_id", "project"}, {"card_id", "card"}, {"location_id", "location"},
+      http::verb::post,
+      "/imports",
+      {{"project_id", "project"},
+       {"card_id", "card"},
+       {"location_id", "location"},
        {"source_path", source.string()}},
-      "project", true, {}, &git);
+      "project",
+      true,
+      {},
+      &git
+  );
   REQUIRE(res.result() == http::status::internal_server_error);
   CHECK(nlohmann::json::parse(res.body()).at("error").at("code") == "internal_error");
   CHECK(f.sequence == 0);
 }
 
-TEST_CASE("Resource routes validate metadata and leave rejected updates uncommitted",
-          "[resources][routes]") {
+TEST_CASE(
+    "Resource routes validate metadata and leave rejected updates uncommitted",
+    "[resources][routes]"
+) {
   LocationRouteFixture f;
   holder::git::RealGitOps git;
   const std::string list = "/projects/project/resources";
@@ -789,8 +893,11 @@ TEST_CASE("Resource routes validate metadata and leave rejected updates uncommit
     return f.call(method, path, body, "project", true, {}, &git);
   };
   const nlohmann::json resource{
-      {"resource_id", "resource"}, {"type", "file"}, {"label", "Original"},
-      {"metadata", {{"topic", {"work"}}, {"status", {"draft"}}}}};
+      {"resource_id", "resource"},
+      {"type", "file"},
+      {"label", "Original"},
+      {"metadata", {{"topic", {"work"}}, {"status", {"draft"}}}}
+  };
   REQUIRE(call(http::verb::post, list, resource).result() == http::status::created);
   holder::git::GitRepo repo;
   repo.open_or_init(f.root / "project");
@@ -808,8 +915,18 @@ TEST_CASE("Resource routes validate metadata and leave rejected updates uncommit
   for (const auto& item : {
            InvalidRequest{http::verb::post, list, bad_id, "resource ID"},
            InvalidRequest{http::verb::patch, target, {{"metadata", nullptr}}, "metadata"},
-           InvalidRequest{http::verb::patch, target, {{"metadata", {{"", {"x"}}}}}, "metadata name"},
-           InvalidRequest{http::verb::patch, target, {{"metadata", {{"topic", "work"}}}}, "metadata"},
+           InvalidRequest{
+               http::verb::patch,
+               target,
+               {{"metadata", {{"", {"x"}}}}},
+               "metadata name"
+           },
+           InvalidRequest{
+               http::verb::patch,
+               target,
+               {{"metadata", {{"topic", "work"}}}},
+               "metadata"
+           },
            InvalidRequest{http::verb::patch, target, {{"label", nullptr}}, "label"},
            InvalidRequest{http::verb::get, list + "/x", {}, "resource_id"},
        }) {
@@ -822,8 +939,8 @@ TEST_CASE("Resource routes validate metadata and leave rejected updates uncommit
   }
   CHECK(repo.head_oid() == original_head);
 
-  const auto updated = call(
-      http::verb::patch, target, {{"metadata", {{"status", nlohmann::json::array()}}}});
+  const auto updated =
+      call(http::verb::patch, target, {{"metadata", {{"status", nlohmann::json::array()}}}});
   REQUIRE(updated.result() == http::status::ok);
   const auto metadata = nlohmann::json::parse(updated.body()).at("data").at("metadata");
   CHECK(metadata.at("topic") == nlohmann::json::array({"work"}));

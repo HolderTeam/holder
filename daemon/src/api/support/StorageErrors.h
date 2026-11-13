@@ -4,7 +4,9 @@
 
 #include <string>
 
-namespace holder::resource { class StorageError; }
+namespace holder::resource {
+class StorageError;
+}
 
 namespace holder::api::support {
 

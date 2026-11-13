@@ -30,7 +30,8 @@ inline boost::beast::http::response<boost::beast::http::string_body> error_respo
   const holder::api::ErrorResponse payload{false, {std::move(code), std::move(message)}};
   return json_response(
       status,
-      {{"ok", payload.ok}, {"error", {{"code", payload.error.code}, {"message", payload.error.message}}}}
+      {{"ok", payload.ok},
+       {"error", {{"code", payload.error.code}, {"message", payload.error.message}}}}
   );
 }
 

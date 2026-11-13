@@ -3,7 +3,9 @@
 #include "api/AiRuntimeTypes.h"
 #include "api/Schemas.h"
 
-namespace holder::platform { class Db; }
+namespace holder::platform {
+class Db;
+}
 
 namespace holder::api {
 
@@ -16,7 +18,9 @@ struct AiLocalModelConfigUpdateRequest {
 
 AiLocalModelConfigResponse get_local_model_config(holder::platform::Db& db);
 
-AiLocalModelConfigResponse put_local_model_config(holder::platform::Db& db,
-                                                  AiLocalModelConfigUpdateRequest request);
+AiLocalModelConfigResponse put_local_model_config(
+    holder::platform::Db& db,
+    const AiLocalModelConfigUpdateRequest& request
+);
 
 } // namespace holder::api

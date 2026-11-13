@@ -6,11 +6,13 @@
 namespace holder::api::support {
 namespace {
 using namespace std::chrono_literals;
-constexpr std::size_t kMaxPendingBytes = 2 * 1024 * 1024;
+constexpr std::size_t kMaxPendingBytes = std::size_t{2} * 1024 * 1024;
 } // namespace
 
 SseRegistry::SseRegistry(std::size_t limit)
     : limit_(limit) {}
+// Only a failing mutex or thread join can throw here, and terminating then is right.
+// NOLINTNEXTLINE(bugprone-exception-escape)
 SseRegistry::~SseRegistry() {
   stop();
   poll_workers_.join();
@@ -192,9 +194,9 @@ void SseStream::close() {
   heartbeat_timer_.cancel();
   write_timer_.cancel();
   boost::system::error_code ec;
-  socket_.cancel(ec);
-  socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
-  socket_.close(ec);
+  (void)socket_.cancel(ec);
+  (void)socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+  (void)socket_.close(ec);
   // Pending async writes still own their buffers until their callbacks complete.
 }
 

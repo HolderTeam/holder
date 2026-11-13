@@ -95,10 +95,8 @@ TEST_CASE("Change feed can retry a snapshot after a required table is restored",
   CHECK(journal.read(cursor).events.empty());
 
   writer.exec("ALTER TABLE hidden_cards RENAME TO cards");
-  writer.exec(
-      "INSERT INTO cards(card_id,project_id,title,rel_path,created_at,updated_at) "
-      "VALUES('c','p','C','c.md',1,1)"
-  );
+  writer.exec("INSERT INTO cards(card_id,project_id,title,rel_path,created_at,updated_at) "
+              "VALUES('c','p','C','c.md',1,1)");
   REQUIRE_NOTHROW(feed.poll());
   const auto batch = journal.read(cursor);
   REQUIRE(batch.events.size() == 1);
@@ -119,21 +117,33 @@ TEST_CASE("Event checkpoints encode project IDs as one history URL segment", "[e
   CHECK_THROWS_AS(service.subscribe(id, "", "invalid-cursor"), std::invalid_argument);
 }
 
-TEST_CASE("Change feed rejects a suppressed data-version probe without damaging its connection", "[events][feed-boundaries]") {
+TEST_CASE(
+    "Change feed rejects a suppressed data-version probe without damaging its connection",
+    "[events][feed-boundaries]"
+) {
   const auto path = holder::test::make_temp_dir() / "holder.db";
   auto db = holder::test::open_db_with_schema(path);
   EventJournal journal;
-  REQUIRE(sqlite3_set_authorizer(db.handle(),
-      [](void*, int action, const char* name, const char*, const char*, const char*) {
-        return action == SQLITE_PRAGMA && name && std::string_view(name) == "data_version"
-            ? SQLITE_IGNORE : SQLITE_OK;
-      }, nullptr) == SQLITE_OK);
+  REQUIRE(
+      sqlite3_set_authorizer(
+          db.handle(),
+          [](void*, int action, const char* name, const char*, const char*, const char*) {
+            return action == SQLITE_PRAGMA && name && std::string_view(name) == "data_version"
+                       ? SQLITE_IGNORE
+                       : SQLITE_OK;
+          },
+          nullptr
+      ) == SQLITE_OK
+  );
   CHECK_THROWS_AS(ChangeFeed(db, journal), std::runtime_error);
   REQUIRE(sqlite3_set_authorizer(db.handle(), nullptr, nullptr) == SQLITE_OK);
   CHECK_NOTHROW(ChangeFeed(db, journal));
 }
 
-TEST_CASE("Event service replays an observer failure after recovery with subscriber-specific data", "[events][feed-boundaries]") {
+TEST_CASE(
+    "Event service replays an observer failure after recovery with subscriber-specific data",
+    "[events][feed-boundaries]"
+) {
   const auto path = holder::test::make_temp_dir() / "holder.db";
   auto db = holder::test::open_db_with_schema(path);
   holder::test::create_project(db, "p", (path.parent_path() / "project").string());

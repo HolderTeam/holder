@@ -246,9 +246,11 @@ TEST_CASE("OpenAPI describes change feed recovery and SSE cursors", "[openapi][e
   }
   CHECK(sse_event_data(paths["/ai/runs"]["post"], "fallback").IsDefined());
   CHECK(
-      sse_event_data(paths["/ai/runner/pull/{job_id}/events"]["get"], "completed")["contentSchema"]
-                    ["$ref"]
-                        .as<std::string>() == "#/components/schemas/RunnerPullJob"
+      sse_event_data(
+          paths["/ai/runner/pull/{job_id}/events"]["get"],
+          "completed"
+      )["contentSchema"]["$ref"]
+          .as<std::string>() == "#/components/schemas/RunnerPullJob"
   );
   require_json_response_ref(paths["/events/cursor"]["get"], "200", "EventCheckpointResponse");
   for (const auto* status : {"400", "401", "404", "503"})

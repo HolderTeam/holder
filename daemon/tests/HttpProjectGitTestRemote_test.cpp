@@ -57,19 +57,25 @@ class ProbeGitOps final : public holder::git::GitOps {
 
 } // namespace
 
-TEST_CASE("Remote probe statuses keep their public names including reachable and unset", "[git][remote-probe-status]") {
+TEST_CASE(
+    "Remote probe statuses keep their public names including reachable and unset",
+    "[git][remote-probe-status]"
+) {
   using Status = holder::git::RemoteProbeStatus;
-  struct Case { Status status; const char* name; };
+  struct Case {
+    Status status;
+    const char* name;
+  };
   for (const auto& item : {
-      Case{Status::Reachable, "reachable"},
-      Case{Status::AuthFailed, "auth_failed"},
-      Case{Status::NotFound, "not_found"},
-      Case{Status::NetworkError, "network_error"},
-      Case{Status::InvalidRemoteUrl, "invalid_remote_url"},
-      Case{Status::RemoteUnset, "remote_unset"},
-      Case{Status::UnknownError, "unknown_error"},
-      Case{static_cast<Status>(255), "unknown_error"},
-  }) {
+           Case{Status::Reachable, "reachable"},
+           Case{Status::AuthFailed, "auth_failed"},
+           Case{Status::NotFound, "not_found"},
+           Case{Status::NetworkError, "network_error"},
+           Case{Status::InvalidRemoteUrl, "invalid_remote_url"},
+           Case{Status::RemoteUnset, "remote_unset"},
+           Case{Status::UnknownError, "unknown_error"},
+           Case{static_cast<Status>(255), "unknown_error"},
+       }) {
     CAPTURE(item.name);
     CHECK(std::string(holder::git::remote_probe_status_name(item.status)) == item.name);
   }

@@ -58,16 +58,33 @@ TEST_CASE("Generated /health reports db_ok false when its DB is closed", "[http]
   REQUIRE(direct.data.uptime_ms >= 2000);
 
   boost::beast::http::request<boost::beast::http::string_body> req{
-      boost::beast::http::verb::get, "/health", 11};
+      boost::beast::http::verb::get,
+      "/health",
+      11
+  };
   boost::beast::http::response<boost::beast::http::string_body> res;
   REQUIRE(holder::api::dispatch_generated_routes(
-      req, res, db, nullptr, nullptr, nullptr, nullptr, {}, started_at));
+      req,
+      res,
+      db,
+      nullptr,
+      nullptr,
+      nullptr,
+      nullptr,
+      {},
+      started_at
+  ));
   REQUIRE(res.result() == boost::beast::http::status::ok);
   const auto payload = nlohmann::json::parse(res.body());
   REQUIRE(payload["ok"] == true);
   REQUIRE(payload["data"]["db_ok"] == false);
   REQUIRE(payload["data"]["uptime_ms"].get<long long>() >= 2000);
-  REQUIRE(payload["data"]["privacy"] == nlohmann::json{
-      {"backend", "libsodium_xchacha20poly1305_ietf"}, {"project_mode_supported", true}});
+  REQUIRE(
+      payload["data"]["privacy"] ==
+      nlohmann::json{
+          {"backend", "libsodium_xchacha20poly1305_ietf"},
+          {"project_mode_supported", true}
+      }
+  );
   REQUIRE_FALSE(payload["data"].contains("crypt_filter"));
 }

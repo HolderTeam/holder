@@ -5,7 +5,9 @@
 #include <chrono>
 #include <string>
 
-namespace holder::platform { class Db; }
+namespace holder::platform {
+class Db;
+}
 
 namespace holder::api {
 
@@ -28,7 +30,9 @@ struct HealthResponse {
   HealthData data;
 };
 
-HealthResponse get_health(holder::platform::Db& db,
-                          std::chrono::steady_clock::time_point started_at);
+HealthResponse get_health(
+    holder::platform::Db& db,
+    std::chrono::steady_clock::time_point started_at
+);
 
 } // namespace holder::api

@@ -32,6 +32,7 @@ api_runtime::host_value get_ai_runs_run_id_events_stream(
   try {
     run = holder::ai::AiRunRepo(db).get(run_id);
   } catch (const std::exception&) {
+    // Ignored: a run that cannot be read is reported as not found, below.
   }
   if (!run || run_id.empty()) throw AiRunNotFound();
   // A completed run survives daemon restart even when its transient chunk history

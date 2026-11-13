@@ -16,8 +16,8 @@
 #include "platform/DatabaseRecovery.h"
 #include "platform/DeviceConfigStore.h"
 #include "platform/Migrations.h"
-#include "project/ProjectRegistry.h"
 #include "privacy/SecretStore.h"
+#include "project/ProjectRegistry.h"
 #include "project/ProjectRepo.h"
 #include "project/ProjectStore.h"
 

@@ -37,7 +37,6 @@ std::string oauth_redirect_uri(
          "/locations/" + location_id + "/oauth/google-drive/callback";
 }
 
-
 struct PendingOAuthAttempt {
   std::string code_verifier;
   std::string state;
@@ -57,7 +56,6 @@ std::unordered_map<std::string, PendingOAuthAttempt> pending_oauth_attempts;
 constexpr long long kPendingOAuthTtlSeconds = 600;
 
 constexpr const char* kDriveFileScope = "https://www.googleapis.com/auth/drive.file";
-
 
 http::response<http::string_body> html_response(
     http::status status,

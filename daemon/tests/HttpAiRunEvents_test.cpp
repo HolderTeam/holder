@@ -1,8 +1,8 @@
-#include "ai/AiRunRepo.h"
 #include "ai/AiProviderCredentialRepo.h"
+#include "ai/AiRunRepo.h"
 #include "api/AiRuns.h"
-#include "api/routes/ai/runs/AiRunPostRoute.h"
 #include "api/generated/AiJson.h"
+#include "api/routes/ai/runs/AiRunPostRoute.h"
 #include "api/routes/ai/runs/AiRunQueryRoutes.h"
 #include "api/support/RunEventStore.h"
 #include "api/support/StreamServer.h"
@@ -20,7 +20,10 @@ using holder::test::http_request_raw;
 using holder::test::make_temp_dir;
 using holder::test::open_db_with_schema;
 
-TEST_CASE("Generated AI stream dispatch contains a missing response consumer", "[http][generated]") {
+TEST_CASE(
+    "Generated AI stream dispatch contains a missing response consumer",
+    "[http][generated]"
+) {
   const auto dir = make_temp_dir();
   auto db = open_db_with_schema(dir / "holder.db");
   holder::test::create_project(db, "project", (dir / "project").string());
@@ -35,8 +38,7 @@ TEST_CASE("Generated AI stream dispatch contains a missing response consumer", "
   run.status = "completed";
   run.created_at = run.updated_at = 1;
   holder::ai::AiRunRepo(db).create(run);
-  http::request<http::string_body> req{http::verb::get,
-      "/ai/runs/missing-consumer-run/events", 11};
+  http::request<http::string_body> req{http::verb::get, "/ai/runs/missing-consumer-run/events", 11};
   http::response<http::string_body> res;
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   CHECK(res.result() == http::status::internal_server_error);
@@ -440,10 +442,14 @@ TEST_CASE("HTTP AI run failures use the response path appropriate to their timin
   status.models = {{.name = "fixture-model", .size = 1}};
   model.set_status_override_for_tests(status);
   model.set_stream_generate_override_for_tests(
-      [](const std::string&, const std::string&, const std::string&,
-         const std::function<void(const std::string&)>&, std::string*) -> bool {
+      [](const std::string&,
+         const std::string&,
+         const std::string&,
+         const std::function<void(const std::string&)>&,
+         std::string*) -> bool {
         throw std::runtime_error("fixture model failed");
-      });
+      }
+  );
   holder::llm::LocalRunnerClient client(&model);
   holder::llm::RunnerRegistry registry(&db, &client);
   const std::string token = "testtoken";
@@ -454,8 +460,13 @@ TEST_CASE("HTTP AI run failures use the response path appropriate to their timin
   REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, token));
 
   const auto response = http_request_raw(
-      bound.bind, bound.port, token, http::verb::post, "/ai/runs",
-      {{"project_id", "proj-1"}, {"thread_id", "thread-1"}, {"prompt", "Run a test"}});
+      bound.bind,
+      bound.port,
+      token,
+      http::verb::post,
+      "/ai/runs",
+      {{"project_id", "proj-1"}, {"thread_id", "thread-1"}, {"prompt", "Run a test"}}
+  );
   guard.stop();
   const auto runs = holder::ai::AiRunRepo(db).list_by_thread("thread-1");
   if (insert_fails) {
@@ -484,7 +495,10 @@ TEST_CASE("HTTP AI run failures use the response path appropriate to their timin
   }
 }
 
-TEST_CASE("AI run admission rejects full streams and releases sockets after failed inserts", "[http][ai-run-boundaries]") {
+TEST_CASE(
+    "AI run admission rejects full streams and releases sockets after failed inserts",
+    "[http][ai-run-boundaries]"
+) {
   using namespace holder::api;
   for (const bool cloud : {false, true}) {
     for (const bool full : {false, true}) {
@@ -494,8 +508,9 @@ TEST_CASE("AI run admission rejects full streams and releases sockets after fail
       holder::test::create_project(db, "project", (root / "project").string());
       db.exec("INSERT INTO ai_threads(thread_id, project_id, title, created_at, updated_at) "
               "VALUES('thread', 'project', 'Thread', 1, 1)");
-      if (!full) db.exec("CREATE TRIGGER reject_run BEFORE INSERT ON ai_runs "
-                        "BEGIN SELECT RAISE(ABORT, 'fixture rejects run insert'); END");
+      if (!full)
+        db.exec("CREATE TRIGGER reject_run BEFORE INSERT ON ai_runs "
+                "BEGIN SELECT RAISE(ABORT, 'fixture rejects run insert'); END");
       const auto catalog = root / "ai_catalog.yaml";
       std::ofstream(catalog) << R"(models:
   Models:
@@ -532,11 +547,25 @@ TEST_CASE("AI run admission rejects full streams and releases sockets after fail
       tcp::socket peer(io);
       peer.connect(acceptor.local_endpoint());
       auto socket = acceptor.accept();
-      nlohmann::json body{{"project_id", "project"}, {"thread_id", "thread"}, {"prompt", "Test admission"}};
+      nlohmann::json body{
+          {"project_id", "project"},
+          {"thread_id", "thread"},
+          {"prompt", "Test admission"}
+      };
       if (cloud) body["provider"] = "switchyard";
       try {
-        routes::ai::runs::execute_ai_run(body.dump(), socket, db, nullptr, secrets.get(), &runners,
-            [] { return std::string("admission-run"); }, streams);
+        routes::ai::runs::execute_ai_run(
+            body.dump(),
+            socket,
+            db,
+            nullptr,
+            secrets.get(),
+            &runners,
+            [] {
+              return std::string("admission-run");
+            },
+            streams
+        );
         FAIL("a rejected run must throw before streaming");
       } catch (const AiRunUnavailable& error) {
         CHECK(full);
@@ -552,19 +581,37 @@ TEST_CASE("AI run admission rejects full streams and releases sockets after fail
   }
 }
 
-TEST_CASE("AI run direct entry rejects invalid JSON and a missing prompt", "[http][ai-run-boundaries]") {
+TEST_CASE(
+    "AI run direct entry rejects invalid JSON and a missing prompt",
+    "[http][ai-run-boundaries]"
+) {
   const auto root = make_temp_dir();
   auto db = open_db_with_schema(root / "holder.db");
   boost::asio::io_context io;
   boost::asio::ip::tcp::socket socket(io);
   for (const std::string body : {"not-json", "{}"}) {
     CAPTURE(body);
-    CHECK_THROWS_AS(holder::api::routes::ai::runs::execute_ai_run(body, socket, db,
-        nullptr, nullptr, nullptr, [] { return std::string("unused"); }), std::invalid_argument);
+    CHECK_THROWS_AS(
+        holder::api::routes::ai::runs::execute_ai_run(
+            body,
+            socket,
+            db,
+            nullptr,
+            nullptr,
+            nullptr,
+            [] {
+              return std::string("unused");
+            }
+        ),
+        std::invalid_argument
+    );
   }
 }
 
-TEST_CASE("AI run event subscriptions handle an active run without transient history", "[http][ai-run-boundaries]") {
+TEST_CASE(
+    "AI run event subscriptions handle an active run without transient history",
+    "[http][ai-run-boundaries]"
+) {
   using namespace holder::api;
   const auto root = make_temp_dir();
   auto db = open_db_with_schema(root / "holder.db");
@@ -580,8 +627,10 @@ TEST_CASE("AI run event subscriptions handle an active run without transient his
   bool reconnect = false;
   SECTION("a fresh subscription waits for the first event") {}
   SECTION("a reconnect requests resync when its history is absent") { reconnect = true; }
-  const auto cursor = reconnect ? support::append_run_event(
-      "cursor-" + run.run_id, ai_events::progress, {}, false).id : "";
+  const auto cursor =
+      reconnect
+          ? support::append_run_event("cursor-" + run.run_id, ai_events::progress, {}, false).id
+          : "";
   REQUIRE_FALSE(support::get_run_event_stream(run.run_id));
   auto streams = std::make_shared<support::SseRegistry>(1);
   auto result = routes::ai::runs::get_ai_runs_run_id_events_stream(db, streams, cursor, run.run_id);

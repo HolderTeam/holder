@@ -58,8 +58,10 @@ AiRunnerRuntime runtime(const std::string& runner_id, holder::llm::RunnerClient*
 
 } // namespace
 
-AiRunner runner_with_runtime(const holder::model::AiRunner& runner,
-                             holder::llm::RunnerRegistry* registry) {
+AiRunner runner_with_runtime(
+    const holder::model::AiRunner& runner,
+    holder::llm::RunnerRegistry* registry
+) {
   return {
       runner.runner_id,
       runner.name,
@@ -86,7 +88,10 @@ AiRunnerListResponse get_ai_runners(holder::llm::RunnerRegistry* registry) {
   return {true, {runners_with_runtime(registry)}};
 }
 
-AiRunnerResponse get_ai_runner(holder::llm::RunnerRegistry* registry, std::string runner_id) {
+AiRunnerResponse get_ai_runner(
+    holder::llm::RunnerRegistry* registry,
+    const std::string& runner_id
+) {
   if (registry == nullptr) throw AiRunnerNotFound{};
   const auto runner = registry->get_runner(runner_id);
   if (!runner) throw AiRunnerNotFound{};

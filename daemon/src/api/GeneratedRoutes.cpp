@@ -1,9 +1,9 @@
 #include "api/GeneratedRoutes.h"
 
+#include "api/Alive.h"
 #include "api/AssetContent.h"
 #include "api/AssetImportRead.h"
 #include "api/AssetImportWrite.h"
-#include "api/Alive.h"
 #include "api/Bye.h"
 #include "api/EventCursor.h"
 #include "api/GoogleDriveOAuth.h"
@@ -15,13 +15,13 @@
 #include "api/Streams.h"
 
 #include "api/AiRuntime.h"
-#include "api/generated/ContractRoutes.h"
 #include "api/generated/AiRoutes.h"
+#include "api/generated/ContractRoutes.h"
+#include "api/support/HttpResponses.h"
+#include "api/support/StreamServer.h"
 #include "capi/Context.h"
 #include "index/FtsIndexer.h"
 #include "platform/Paths.h"
-#include "api/support/HttpResponses.h"
-#include "api/support/StreamServer.h"
 #include "privacy/SecretStore.h"
 
 #include <boost/beast/http.hpp>
@@ -59,35 +59,50 @@ struct Context {
 
 std::string error_code(int status) {
   switch (status) {
-  case 400: return "bad_request";
-  case 404: return "not_found";
-  case 405: return "method_not_allowed";
-  case 409: return "conflict";
-  default: return "error";
+  case 400:
+    return "bad_request";
+  case 404:
+    return "not_found";
+  case 405:
+    return "method_not_allowed";
+  case 409:
+    return "conflict";
+  default:
+    return "error";
   }
 }
 
 // A failure's message, as UTF-8 a JSON body can carry: a message can quote a request's bytes, such
 // as the parser's for a body that is not JSON.
 std::string utf8_message(const char* what) {
-  return nlohmann::json::parse(nlohmann::json(what).dump(-1, ' ', false, nlohmann::json::error_handler_t::replace))
+  return nlohmann::json::parse(
+             nlohmann::json(what).dump(-1, ' ', false, nlohmann::json::error_handler_t::replace)
+  )
       .get<std::string>();
 }
 
 } // namespace
 
-ErrorResponse api_error_body(std::type_identity<ErrorResponse>, int status,
-                             const std::exception& error) {
+ErrorResponse api_error_body(
+    std::type_identity<ErrorResponse>,
+    int status,
+    const std::exception& error
+) {
   return {false, {error_code(status), utf8_message(error.what())}};
 }
 
-ErrorResponse api_error_body(std::type_identity<ErrorResponse>, int,
-                             const holder::privacy::PrivacyError& error) {
-  return {false, {holder::privacy::privacy_error_code_name(error.code()), utf8_message(error.what())}};
+ErrorResponse api_error_body(
+    std::type_identity<ErrorResponse>,
+    int,
+    const holder::privacy::PrivacyError& error
+) {
+  return {
+      false,
+      {holder::privacy::privacy_error_code_name(error.code()), utf8_message(error.what())}
+  };
 }
 
-ErrorResponse api_error_body(std::type_identity<ErrorResponse>, int,
-                             const CodedError& error) {
+ErrorResponse api_error_body(std::type_identity<ErrorResponse>, int, const CodedError& error) {
   return {false, {error.code, utf8_message(error.what())}};
 }
 
@@ -102,29 +117,45 @@ nlohmann::json import_job_data(const AssetImportJob& job) {
   const auto optional_string = [](const std::optional<std::string>& value) -> nlohmann::json {
     return value ? nlohmann::json(*value) : nlohmann::json(nullptr);
   };
-  return {{"job_id", job.job_id}, {"status", job.status},
-          {"resource_id", optional_string(job.resource_id)},
-          {"asset_id", optional_string(job.asset_id)},
-          {"duplicate_reused", job.duplicate_reused}, {"link_created", job.link_created},
-          {"error", optional_string(job.error)}};
+  return {
+      {"job_id", job.job_id},
+      {"status", job.status},
+      {"resource_id", optional_string(job.resource_id)},
+      {"asset_id", optional_string(job.asset_id)},
+      {"duplicate_reused", job.duplicate_reused},
+      {"link_created", job.link_created},
+      {"error", optional_string(job.error)}
+  };
 }
 
 nlohmann::json daemon_json(const AliveResponse& value) { return {{"ok", value.ok}}; }
 nlohmann::json daemon_json(const ByeResponse& value) { return {{"ok", value.ok}}; }
 nlohmann::json daemon_json(const HealthResponse& value) {
   const auto& data = value.data;
-  return {{"ok", value.ok}, {"data", {{"db_ok", data.db_ok}, {"uptime_ms", data.uptime_ms},
-          {"api_version", data.api_version}, {"server_version", data.server_version}, {"pid", data.pid},
-          {"privacy", {{"backend", data.privacy.backend},
-                       {"project_mode_supported", data.privacy.project_mode_supported}}}}}};
+  return {
+      {"ok", value.ok},
+      {"data",
+       {{"db_ok", data.db_ok},
+        {"uptime_ms", data.uptime_ms},
+        {"api_version", data.api_version},
+        {"server_version", data.server_version},
+        {"pid", data.pid},
+        {"privacy",
+         {{"backend", data.privacy.backend},
+          {"project_mode_supported", data.privacy.project_mode_supported}}}}}
+  };
 }
 nlohmann::json daemon_json(const StorageLocationListResponse& value) {
   nlohmann::json data = nlohmann::json::array();
-  for (const auto& item : value.data) data.push_back(contract_json::encode(item));
-  return {{"ok", value.ok}, {"data", std::move(data)},
-          {"preferred_location_id", value.preferred_location_id
-                                        ? nlohmann::json(*value.preferred_location_id)
-                                        : nlohmann::json(nullptr)}};
+  for (const auto& item : value.data)
+    data.push_back(contract_json::encode(item));
+  return {
+      {"ok", value.ok},
+      {"data", std::move(data)},
+      {"preferred_location_id",
+       value.preferred_location_id ? nlohmann::json(*value.preferred_location_id)
+                                   : nlohmann::json(nullptr)}
+  };
 }
 nlohmann::json daemon_json(const LocationActionResponse& value) {
   nlohmann::json data = {{"location_id", value.data.location_id}};
@@ -146,8 +177,13 @@ nlohmann::json daemon_json(const EventCheckpointResponse& value) {
   nlohmann::json revisions = nlohmann::json::object();
   for (const auto& [project, revision] : value.data.git_revisions)
     revisions[project] = revision ? nlohmann::json(*revision) : nlohmann::json(nullptr);
-  return {{"ok", value.ok}, {"data", {{"cursor", value.data.cursor},
-          {"git_revisions", std::move(revisions)}, {"history_urls", value.data.history_urls}}}};
+  return {
+      {"ok", value.ok},
+      {"data",
+       {{"cursor", value.data.cursor},
+        {"git_revisions", std::move(revisions)},
+        {"history_urls", value.data.history_urls}}}
+  };
 }
 
 std::string import_field(const nlohmann::json& body, const char* name);
@@ -155,7 +191,8 @@ std::string import_field(const nlohmann::json& body, const char* name);
 LocationBindingRequest decode_location_binding(const nlohmann::json& body) {
   if (!body.is_object()) throw std::invalid_argument("the request body must be an object");
   for (const auto& [name, value] : body.items())
-    if (name != "values" && name != "preview") throw std::invalid_argument("there is no field " + name);
+    if (name != "values" && name != "preview")
+      throw std::invalid_argument("there is no field " + name);
   if (!body.contains("values") || !body["values"].is_object())
     throw std::invalid_argument("values must be an object");
   LocationBindingRequest request;
@@ -177,28 +214,40 @@ PutLocationsPreferredRequest decode_preferred_location(const nlohmann::json& bod
 
 void resource_error(GeneratedResponse& res, int status, const std::exception& error) {
   const auto* coded = dynamic_cast<const CodedError*>(&error);
-  const std::string code = coded ? coded->code :
-      dynamic_cast<const std::invalid_argument*>(&error) ? "invalid_argument" :
-      status == 500 ? "internal_error" : error_code(status);
-  res = support::json_response(static_cast<http::status>(status),
-                               {{"ok", false}, {"error", {{"code", code},
-                                                            {"message", utf8_message(error.what())}}}});
+  const std::string code = coded                                                ? coded->code
+                           : dynamic_cast<const std::invalid_argument*>(&error) ? "invalid_argument"
+                           : status == 500                                      ? "internal_error"
+                                           : error_code(status);
+  res = support::json_response(
+      static_cast<http::status>(status),
+      {{"ok", false}, {"error", {{"code", code}, {"message", utf8_message(error.what())}}}}
+  );
 }
 
 std::string import_field(const nlohmann::json& body, const char* name) {
   if (!body.contains(name) || !body[name].is_string())
     throw std::invalid_argument(std::string(name) + " must be a string");
-  return contract_json::check_text(body[name].get<std::string>(), name, 0,
-                                   std::numeric_limits<std::size_t>::max());
+  return contract_json::check_text(
+      body[name].get<std::string>(),
+      name,
+      0,
+      std::numeric_limits<std::size_t>::max()
+  );
 }
 
-bool dispatch_resource_contract_route(const std::string& method, const std::string& path,
-                                      const GeneratedRequest& req, GeneratedResponse& res,
-                                      Context& context, support::StreamServer* stream) {
+bool dispatch_resource_contract_route(
+    const std::string& method,
+    const std::string& path,
+    const GeneratedRequest& req,
+    GeneratedResponse& res,
+    Context& context,
+    support::StreamServer* stream
+) {
   const auto query_start = path.find('?');
   const auto route_path = path.substr(0, query_start);
-  const auto query = query_start == std::string::npos ? std::string_view{} :
-      std::string_view(path).substr(query_start + 1);
+  const auto query = query_start == std::string::npos
+                         ? std::string_view{}
+                         : std::string_view(path).substr(query_start + 1);
   std::smatch match;
   if (method == "POST" && route_path == "/imports") {
     try {
@@ -206,15 +255,27 @@ bool dispatch_resource_contract_route(const std::string& method, const std::stri
       const auto body = contract_http::decode_body(req.body());
       if (!body.is_object()) throw std::invalid_argument("the request body must be an object");
       for (const auto& [name, value] : body.items()) {
-        if (name != "project_id" && name != "card_id" && name != "location_id" && name != "source_path")
+        if (name != "project_id" && name != "card_id" && name != "location_id" &&
+            name != "source_path")
           throw std::invalid_argument("there is no field " + name);
       }
-      AssetImportRequest request{import_field(body, "project_id"), import_field(body, "card_id"),
-                                 import_field(body, "location_id"), import_field(body, "source_path")};
-      const auto result = post_imports(context.db, context.secret_store, context.git_ops,
-                                       context.uuid_v4, std::move(request));
-      res = support::json_response(http::status::accepted,
-                                   {{"ok", true}, {"data", import_job_data(result.data)}});
+      AssetImportRequest request{
+          import_field(body, "project_id"),
+          import_field(body, "card_id"),
+          import_field(body, "location_id"),
+          import_field(body, "source_path")
+      };
+      const auto result = post_imports(
+          context.db,
+          context.secret_store,
+          context.git_ops,
+          context.uuid_v4,
+          std::move(request)
+      );
+      res = support::json_response(
+          http::status::accepted,
+          {{"ok", true}, {"data", import_job_data(result.data)}}
+      );
     } catch (const AssetImportLocationNotFound& error) {
       resource_error(res, 404, error);
     } catch (const support::StorageBindingRequired& error) {
@@ -234,16 +295,22 @@ bool dispatch_resource_contract_route(const std::string& method, const std::stri
     try {
       contract_http::check_query_names(contract_http::decode_query(query), {});
       const auto job_id = contract_http::decode_uri_component(match[1].str(), false);
-      const auto result = get_import_job(contract_json::check_text(job_id, "job_id", 0,
-          std::numeric_limits<std::size_t>::max()));
-      res = support::json_response(http::status::ok,
-                                   {{"ok", true}, {"data", import_job_data(result.data)}});
+      const auto result = get_import_job(
+          contract_json::check_text(job_id, "job_id", 0, std::numeric_limits<std::size_t>::max())
+      );
+      res = support::json_response(
+          http::status::ok,
+          {{"ok", true}, {"data", import_job_data(result.data)}}
+      );
     } catch (const AssetImportJobNotFound& error) {
       resource_error(res, 404, error);
     } catch (const std::invalid_argument& error) {
       resource_error(res, 400, error);
     } catch (const std::exception& error) {
-      resource_error(res, 500, error); // LCOV_EXCL_LINE: job lookup only throws the handled not-found error; other failures require allocation failure.
+      // LCOV_EXCL_START - job lookup only throws the handled not-found error; other failures
+      // require allocation failure.
+      resource_error(res, 500, error);
+      // LCOV_EXCL_STOP
     }
     return true;
   }
@@ -253,19 +320,35 @@ bool dispatch_resource_contract_route(const std::string& method, const std::stri
       contract_http::check_query_names(values, {"placement_id"});
       const auto resource_id = contract_http::decode_uri_component(match[1].str(), false);
       const auto asset_id = contract_http::decode_uri_component(match[2].str(), false);
-      contract_json::check_text(resource_id, "resource_id", 0, std::numeric_limits<std::size_t>::max());
+      contract_json::check_text(
+          resource_id,
+          "resource_id",
+          0,
+          std::numeric_limits<std::size_t>::max()
+      );
       contract_json::check_text(asset_id, "asset_id", 0, std::numeric_limits<std::size_t>::max());
       std::optional<std::string> placement_id;
       if (const auto found = values.find("placement_id"); found != values.end())
-        placement_id = contract_json::check_text(found->second, "placement_id", 0,
-                                                  std::numeric_limits<std::size_t>::max());
+        placement_id = contract_json::check_text(
+            found->second,
+            "placement_id",
+            0,
+            std::numeric_limits<std::size_t>::max()
+        );
       auto outcome = get_resources_resource_id_assets_asset_id_content(
-          context.db, context.secret_store, context.git_ops, context.uuid_v4,
-          resource_id, asset_id, placement_id);
+          context.db,
+          context.secret_store,
+          context.git_ops,
+          context.uuid_v4,
+          resource_id,
+          asset_id,
+          placement_id
+      );
       if (stream == nullptr) throw std::logic_error("no one to serve a host-written response");
       *stream = std::move(outcome.second);
     } catch (const support::StorageConflict& error) {
-      resource_error(res, 409, error); // LCOV_EXCL_LINE: current providers report conflicts on writes, not retrieval; retain the defensive mapping.
+      resource_error(res, 409, error); // LCOV_EXCL_LINE: current providers report conflicts on
+                                       // writes, not retrieval; retain the defensive mapping.
     } catch (const support::StorageBindingRequired& error) {
       resource_error(res, 409, error);
     } catch (const support::StorageIntegrityFailed& error) {
@@ -275,7 +358,9 @@ bool dispatch_resource_contract_route(const std::string& method, const std::stri
     } catch (const support::StorageUnavailable& error) {
       resource_error(res, 503, error);
     } catch (const support::StorageCapacityExceeded& error) {
-      resource_error(res, 507, error); // LCOV_EXCL_LINE: retrieval capacity errors require a mid-copy device failure.
+      // LCOV_EXCL_START - retrieval capacity errors require a mid-copy device failure.
+      resource_error(res, 507, error);
+      // LCOV_EXCL_STOP
     } catch (const AssetContentNotFound& error) {
       resource_error(res, 404, error);
     } catch (const support::StorageBadRequest& error) {
@@ -288,13 +373,18 @@ bool dispatch_resource_contract_route(const std::string& method, const std::stri
   return false;
 }
 
-bool dispatch_misc_contract_route(const std::string& method, const std::string& path,
-                                  const GeneratedRequest& req, GeneratedResponse& res,
-                                  Context& context, support::StreamServer* stream) {
+bool dispatch_misc_contract_route(
+    const std::string& method,
+    const std::string& path,
+    const GeneratedRequest& req,
+    GeneratedResponse& res,
+    Context& context,
+    support::StreamServer* stream
+) {
   const auto split = path.find('?');
   const auto route_path = path.substr(0, split);
-  const auto query_text = split == std::string::npos ? std::string_view{} :
-      std::string_view(path).substr(split + 1);
+  const auto query_text = split == std::string::npos ? std::string_view{}
+                                                     : std::string_view(path).substr(split + 1);
   static const std::regex location_binding("^/locations/([^/]+)/binding$");
   static const std::regex location_test("^/locations/([^/]+)/test$");
   static const std::regex google_authorize("^/locations/([^/]+)/oauth/google-drive/authorize$");
@@ -303,8 +393,12 @@ bool dispatch_misc_contract_route(const std::string& method, const std::string& 
   std::smatch match;
   bool matched = false;
   bool authorize = false;
-  const auto no_query = [&] { contract_http::check_query_names(contract_http::decode_query(query_text), {}); };
-  const auto path_text = [&](std::size_t index) { return contract_http::decode_uri_component(match[index].str(), false); };
+  const auto no_query = [&] {
+    contract_http::check_query_names(contract_http::decode_query(query_text), {});
+  };
+  const auto path_text = [&](std::size_t index) {
+    return contract_http::decode_uri_component(match[index].str(), false);
+  };
   const auto respond = [&](const auto& value) {
     res = support::json_response(http::status::ok, daemon_json(value));
   };
@@ -342,20 +436,30 @@ bool dispatch_misc_contract_route(const std::string& method, const std::string& 
       contract_http::check_query_names(values, {"project_id"});
       const auto found = values.find("project_id");
       if (found == values.end()) throw std::invalid_argument("missing query parameter: project_id");
-      contract_json::check_text(found->second, "project_id", 1, std::numeric_limits<std::size_t>::max());
+      contract_json::check_text(
+          found->second,
+          "project_id",
+          1,
+          std::numeric_limits<std::size_t>::max()
+      );
       respond(get_locations(context.db, context.secret_store, found->second));
     } else if (method == "PUT" && route_path == "/locations/preferred") {
       matched = true;
       no_query();
       const auto body = contract_http::decode_body(req.body());
-      respond(put_locations_preferred(context.db, context.secret_store,
-          decode_preferred_location(body)));
+      respond(
+          put_locations_preferred(context.db, context.secret_store, decode_preferred_location(body))
+      );
     } else if (method == "PUT" && std::regex_match(route_path, match, location_binding)) {
       matched = true;
       no_query();
       const auto body = contract_http::decode_body(req.body());
-      respond(put_locations_location_id_binding(context.db, context.secret_store, path_text(1),
-          decode_location_binding(body)));
+      respond(put_locations_location_id_binding(
+          context.db,
+          context.secret_store,
+          path_text(1),
+          decode_location_binding(body)
+      ));
     } else if (method == "DELETE" && std::regex_match(route_path, match, location_binding)) {
       matched = true;
       no_query();
@@ -363,14 +467,21 @@ bool dispatch_misc_contract_route(const std::string& method, const std::string& 
     } else if (method == "POST" && std::regex_match(route_path, match, location_test)) {
       matched = true;
       no_query();
-      respond(post_locations_location_id_test(context.db, context.secret_store,
-                                               context.uuid_v4, path_text(1)));
+      respond(post_locations_location_id_test(
+          context.db,
+          context.secret_store,
+          context.uuid_v4,
+          path_text(1)
+      ));
     } else if (method == "POST" && std::regex_match(route_path, match, google_authorize)) {
       matched = true;
       authorize = true;
       no_query();
-      respond(post_locations_location_id_oauth_google_drive_authorize(context.db, context.host,
-                                                                       path_text(1)));
+      respond(post_locations_location_id_oauth_google_drive_authorize(
+          context.db,
+          context.host,
+          path_text(1)
+      ));
     } else if (method == "GET" && std::regex_match(route_path, match, google_callback)) {
       matched = true;
       const auto values = contract_http::decode_query(query_text);
@@ -380,15 +491,27 @@ bool dispatch_misc_contract_route(const std::string& method, const std::string& 
         return found == values.end() ? std::nullopt : std::optional<std::string>(found->second);
       };
       hosted(get_locations_location_id_oauth_google_drive_callback(
-          context.db, context.secret_store, context.git_ops, context.host, path_text(1),
-          optional("code"), optional("state"), optional("error")));
+          context.db,
+          context.secret_store,
+          context.git_ops,
+          context.host,
+          path_text(1),
+          optional("code"),
+          optional("state"),
+          optional("error")
+      ));
     } else if (method == "GET" && route_path == "/events/cursor") {
       matched = true;
       const auto values = contract_http::decode_query(query_text);
       contract_http::check_query_names(values, {"project_id"});
       std::optional<std::string> project_id;
       if (const auto found = values.find("project_id"); found != values.end()) {
-        contract_json::check_text(found->second, "project_id", 1, std::numeric_limits<std::size_t>::max());
+        contract_json::check_text(
+            found->second,
+            "project_id",
+            1,
+            std::numeric_limits<std::size_t>::max()
+        );
         project_id = found->second;
       }
       respond(get_events_cursor(context.db, context.events, project_id));
@@ -403,12 +526,14 @@ bool dispatch_misc_contract_route(const std::string& method, const std::string& 
       }
       if (const auto found = values.find("last_revision"); found != values.end()) {
         static const std::regex revision("^[0-9a-f]{40}$");
-        if (!std::regex_match(found->second, revision)) throw std::invalid_argument("invalid last_revision");
+        if (!std::regex_match(found->second, revision))
+          throw std::invalid_argument("invalid last_revision");
         last_revision = found->second;
       }
       const auto header = req.find("Last-Event-ID");
-      const std::optional<std::string> last_event_id = header == req.end() ? std::nullopt :
-          std::optional<std::string>(std::string(header->value()));
+      const std::optional<std::string> last_event_id =
+          header == req.end() ? std::nullopt
+                              : std::optional<std::string>(std::string(header->value()));
       hosted(get_events(context.db, context.events, project_id, last_revision, last_event_id));
     } else if (method == "GET" && route_path == "/openapi.yaml") {
       matched = true;
@@ -449,19 +574,28 @@ bool dispatch_misc_contract_route(const std::string& method, const std::string& 
     int status = 500;
     if (dynamic_cast<const LocationNotFound*>(&error) ||
         dynamic_cast<const EventCursorProjectNotFound*>(&error) ||
-        dynamic_cast<const StaticFileNotFound*>(&error)) status = 404;
+        dynamic_cast<const StaticFileNotFound*>(&error))
+      status = 404;
     else if (dynamic_cast<const support::StorageConflict*>(&error) ||
-             dynamic_cast<const support::StorageBindingRequired*>(&error)) status = 409;
-    else if (dynamic_cast<const support::StorageIntegrityFailed*>(&error)) status = 422;
-    else if (dynamic_cast<const support::StorageGatewayFailure*>(&error)) status = 502;
-    else if (dynamic_cast<const support::StorageBadRequest*>(&error)) status = 400;
-    else if (dynamic_cast<const support::StorageCapacityExceeded*>(&error)) status = 507;
+             dynamic_cast<const support::StorageBindingRequired*>(&error))
+      status = 409;
+    else if (dynamic_cast<const support::StorageIntegrityFailed*>(&error))
+      status = 422;
+    else if (dynamic_cast<const support::StorageGatewayFailure*>(&error))
+      status = 502;
+    else if (dynamic_cast<const support::StorageCapacityExceeded*>(&error))
+      // LCOV_EXCL_START - only a local directory reports capacity, on a mid-copy device failure.
+      status = 507;
+    // LCOV_EXCL_STOP
     else if (dynamic_cast<const support::StorageUnavailable*>(&error) ||
              dynamic_cast<const SecretStoreUnavailable*>(&error) ||
              dynamic_cast<const ChangeFeedUnavailable*>(&error) ||
-             dynamic_cast<const ProjectUnavailable*>(&error)) status = 503;
-    else if (authorize || dynamic_cast<const std::invalid_argument*>(&error) ||
-             dynamic_cast<const std::out_of_range*>(&error)) status = 400;
+             dynamic_cast<const ProjectUnavailable*>(&error))
+      status = 503;
+    else if (authorize || dynamic_cast<const support::StorageBadRequest*>(&error) ||
+             dynamic_cast<const std::invalid_argument*>(&error) ||
+             dynamic_cast<const std::out_of_range*>(&error))
+      status = 400;
     resource_error(res, status, error);
   }
   return matched;
@@ -470,14 +604,17 @@ bool dispatch_misc_contract_route(const std::string& method, const std::string& 
 // Methods declared by the contract or served directly by the daemon, for a 405's Allow header.
 std::string allowed_methods(const std::string& path) {
   std::set<std::string> methods;
-  for (const auto method : contract_http::allowed_methods(path)) methods.emplace(method);
+  for (const auto method : contract_http::allowed_methods(path))
+    methods.emplace(method);
   const auto route_path = path.substr(0, path.find('?'));
   if (route_path == "/imports") methods.emplace("POST");
   std::smatch match;
   if (std::regex_match(route_path, match, import_job_path) ||
-      std::regex_match(route_path, match, asset_content_path)) methods.emplace("GET");
+      std::regex_match(route_path, match, asset_content_path))
+    methods.emplace("GET");
   std::string allow;
-  for (const auto& method : methods) allow += (allow.empty() ? "" : ", ") + method;
+  for (const auto& method : methods)
+    allow += (allow.empty() ? "" : ", ") + method;
   return allow;
 }
 
@@ -527,15 +664,21 @@ bool dispatch_generated_routes(
   const std::string path(target.data(), target.size());
   try {
     if (dispatch_resource_contract_route(method, path, req, res, context, stream) ||
-        dispatch_misc_contract_route(method, path, req, res, context, stream)) return true;
+        dispatch_misc_contract_route(method, path, req, res, context, stream))
+      return true;
     // AI handlers use the Python contract's generated daemon dispatcher and codec. Core backed
     // operations use the generated core dispatcher.
     auto generated = ai_http::dispatch(
-        method, path, req.body(), context, [&req](std::string_view name) -> std::optional<std::string> {
+        method,
+        path,
+        req.body(),
+        context,
+        [&req](std::string_view name) -> std::optional<std::string> {
           const auto field = req.find(boost::beast::string_view(name.data(), name.size()));
           if (field == req.end()) return std::nullopt;
           return std::string(field->value());
-        });
+        }
+    );
     if (!generated) {
       // The contract's operations run in core with this worker's services. An indexer only
       // refers to its database, so a caller without one gets one on the same database.
@@ -554,8 +697,14 @@ bool dispatch_generated_routes(
       // A path only the contract serves, with another method.
       const auto allow = allowed_methods(path);
       if (allow.empty()) return false;
-      res = support::json_response(http::status::method_not_allowed, ai_json::encode(api_error_body(
-          std::type_identity<ErrorResponse>{}, 405, std::runtime_error("method not allowed"))));
+      res = support::json_response(
+          http::status::method_not_allowed,
+          ai_json::encode(api_error_body(
+              std::type_identity<ErrorResponse>{},
+              405,
+              std::runtime_error("method not allowed")
+          ))
+      );
       res.set(http::field::allow, allow);
       return true;
     }
@@ -574,8 +723,10 @@ bool dispatch_generated_routes(
   } catch (const std::exception& error) {
     // Operations' own failures are already 500s from the generated dispatcher.
     // This only keeps a failure outside them from escaping to the worker.
-    res = support::json_response(http::status::internal_server_error, ai_json::encode(
-        api_error_body(std::type_identity<ErrorResponse>{}, 500, error)));
+    res = support::json_response(
+        http::status::internal_server_error,
+        ai_json::encode(api_error_body(std::type_identity<ErrorResponse>{}, 500, error))
+    );
   }
   return true;
 }

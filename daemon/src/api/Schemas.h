@@ -1,10 +1,10 @@
 #pragma once
 
-#include "api/HttpError.h"
 #include "api/AiRuntimeTypes.h"
-#include "api/RunnerPull.h"
-#include "api/ProviderCredentials.h"
 #include "api/CardLinks.h"
+#include "api/HttpError.h"
+#include "api/ProviderCredentials.h"
+#include "api/RunnerPull.h"
 
 #include <nlohmann/json.hpp>
 
@@ -78,22 +78,20 @@ struct AiLocalModelConfigResponse {
 struct AiRunEventData {
   // support::append_run_event fills run_id, so producers name only their own fields.
   std::string run_id = {};
-  std::optional<std::string> status {};
-  std::optional<long long> created_at {};
-  std::optional<std::string> delta {};
-  std::optional<std::string> message {};
-  std::optional<std::string> error {};
-  std::optional<std::string> runner_id {};
-  std::optional<std::string> model_ref {};
-  std::optional<std::string> model {};
-  std::optional<std::string> provider {};
-  std::optional<bool> context_compacted  {};
-  std::optional<long long> cooldown_until  {};
-  std::optional<std::string> router_model
-      {};
-  std::optional<std::vector<std::string>> ranked
-      {};
-  std::optional<bool> partial  {};
+  std::optional<std::string> status{};
+  std::optional<long long> created_at{};
+  std::optional<std::string> delta{};
+  std::optional<std::string> message{};
+  std::optional<std::string> error{};
+  std::optional<std::string> runner_id{};
+  std::optional<std::string> model_ref{};
+  std::optional<std::string> model{};
+  std::optional<std::string> provider{};
+  std::optional<bool> context_compacted{};
+  std::optional<long long> cooldown_until{};
+  std::optional<std::string> router_model{};
+  std::optional<std::vector<std::string>> ranked{};
+  std::optional<bool> partial{};
 };
 
 struct AiRunCreateRequest {

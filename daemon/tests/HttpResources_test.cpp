@@ -150,7 +150,8 @@ TEST_CASE(
         running.bound.port,
         token,
         boost::beast::http::verb::put,
-        "/projects/proj-1/cards/" + extra_id + "/resources/" + job["resource_id"].get<std::string>(),
+        "/projects/proj-1/cards/" + extra_id + "/resources/" +
+            job["resource_id"].get<std::string>(),
         nlohmann::json::object(),
         boost::beast::http::status::ok
     );
@@ -179,7 +180,8 @@ TEST_CASE(
       boost::beast::http::status::ok
   );
   REQUIRE(backlinks["data"].size() == 3);
-  for (const auto& link : backlinks["data"]) REQUIRE(link["kind"] == "attachment");
+  for (const auto& link : backlinks["data"])
+    REQUIRE(link["kind"] == "attachment");
 
   const auto cache = holder::core::Paths::resolve("holder").cache_dir / "asset-cache";
   std::filesystem::create_directories(cache / "directory-entry");
@@ -206,7 +208,10 @@ TEST_CASE(
   CHECK(std::filesystem::is_directory(cache / "directory-entry"));
 }
 
-TEST_CASE("HTTP location creation issues unique UUIDs with a configured seed", "[http][resources]") {
+TEST_CASE(
+    "HTTP location creation issues unique UUIDs with a configured seed",
+    "[http][resources]"
+) {
   const char* seed = "1234";
   SECTION("numeric seed") {}
   SECTION("invalid seed falls back to random UUIDs") { seed = "invalid"; }
@@ -230,7 +235,8 @@ TEST_CASE("HTTP location creation issues unique UUIDs with a configured seed", "
          {"name", name},
          {"provider", "local_directory"},
          {"configuration", nlohmann::json::object()}},
-        http::status::created);
+        http::status::created
+    );
     return response.at("data").at("location_id").get<std::string>();
   };
   const auto first = create_location("First");

@@ -3,9 +3,9 @@
 #include "api/support/RunEventStore.h"
 #include "api/support/SseStream.h"
 #include "api/support/StreamServer.h"
+#include <array>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <array>
 #include <future>
 #include <thread>
 
@@ -68,7 +68,9 @@ TEST_CASE("SSE admission restores rejected sockets and bounds producer output", 
   REQUIRE(stream);
   REQUIRE_FALSE(SseStream::reserve(two, registry));
   REQUIRE(stream->send({"queued", {"chunk", {{"delta", "queued before cancellation"}}}}));
-  REQUIRE_FALSE(stream->send({"id", {"chunk", {{"delta", std::string(2 * 1024 * 1024, 'x')}}}}));
+  REQUIRE_FALSE(
+      stream->send({"id", {"chunk", {{"delta", std::string(std::size_t{2} * 1024 * 1024, 'x')}}}})
+  );
   REQUIRE_FALSE(stream->open());
   stream->activate();
   ioc.run();
@@ -110,6 +112,7 @@ TEST_CASE(
     try {
       released.set_value();
     } catch (const std::future_error&) {
+      // Ignored: the test already released it.
     }
     io_worker.join();
     registry->poll_workers().join();
@@ -145,7 +148,9 @@ TEST_CASE("Event stream admission reports a full registry as server busy", "[eve
   boost::asio::io_context ioc;
   boost::asio::ip::tcp::socket socket(ioc);
   auto registry = std::make_shared<SseRegistry>(0);
-  auto serve = serve_events(registry, [] { return EventBatch{}; });
+  auto serve = serve_events(registry, [] {
+    return EventBatch{};
+  });
   boost::beast::http::response<boost::beast::http::string_body> response;
 
   REQUIRE_FALSE(serve(socket, response));
@@ -193,7 +198,10 @@ TEST_CASE("SSE closes a socket when writing response headers fails", "[events][s
   CHECK(registry->open_count() == 0);
 }
 
-TEST_CASE("SSE closes a blocked event write when its peer resets the connection", "[events][sse-boundaries]") {
+TEST_CASE(
+    "SSE closes a blocked event write when its peer resets the connection",
+    "[events][sse-boundaries]"
+) {
   using tcp = boost::asio::ip::tcp;
   boost::asio::io_context io;
   tcp::acceptor acceptor(io, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
@@ -205,7 +213,8 @@ TEST_CASE("SSE closes a blocked event write when its peer resets the connection"
   auto registry = std::make_shared<SseRegistry>();
   auto stream = SseStream::start(socket, registry);
   REQUIRE(stream);
-  REQUIRE(stream->send({"large", {"chunk", {{"delta", std::string(1024 * 1024, 'x')}}}}));
+  REQUIRE(stream->send({"large", {"chunk", {{"delta", std::string(std::size_t{1024} * 1024, 'x')}}}}
+  ));
   io.run_for(std::chrono::milliseconds(50));
   REQUIRE(stream->open());
   peer.set_option(boost::asio::socket_base::linger(true, 0));

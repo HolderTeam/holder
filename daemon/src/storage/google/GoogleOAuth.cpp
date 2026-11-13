@@ -116,6 +116,8 @@ std::vector<unsigned char> sha256_bytes(const std::string& value) {
 // storage-provider code in this codebase is independently written per provider by
 // design, and this needs a different content type
 // and body serialization than that helper provides anyway.
+// Host, target and body are all strings, named as such at every call.
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
 bool https_post_form(
     const std::string& host,
     const std::string& target,
@@ -124,6 +126,7 @@ bool https_post_form(
     std::string* out_body,
     std::string* error
 ) {
+  // NOLINTEND(bugprone-easily-swappable-parameters)
   namespace http = boost::beast::http;
   namespace ssl = boost::asio::ssl;
   using tcp = boost::asio::ip::tcp;
@@ -163,7 +166,7 @@ bool https_post_form(
     http::read(stream, buffer, res);
 
     boost::system::error_code ec;
-    stream.shutdown(ec);
+    (void)stream.shutdown(ec);
     if (ec == boost::asio::error::eof || ec == boost::asio::ssl::error::stream_truncated) {
       ec = {}; // LCOV_EXCL_LINE: platform TLS shutdown may report either benign condition.
     }

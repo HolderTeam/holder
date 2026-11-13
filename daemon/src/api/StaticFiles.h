@@ -1,8 +1,8 @@
 #pragma once
 
+#include "api/AiRuntimeTypes.h"
 #include "api/ApiService.h"
 #include "api/HttpError.h"
-#include "api/AiRuntimeTypes.h"
 
 #include <nlohmann/json.hpp>
 
@@ -35,6 +35,6 @@ nlohmann::json download_git_providers_json();
 // type, so the route's support::StreamServer writes the response.
 api_runtime::host_value get_docs();
 
-api_runtime::host_value get_docs_file(std::string file);
+api_runtime::host_value get_docs_file(const std::string& file);
 
 } // namespace holder::api

@@ -43,9 +43,11 @@ routes::CardLink link_item(const holder::model::CardLink& link) {
 }
 
 // The project that owns a message's links: its thread's project.
-std::string message_project(holder::platform::Db& db,
-                            holder::index::FtsIndexer* fts,
-                            const std::string& message_id) {
+std::string message_project(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    const std::string& message_id
+) {
   const auto message = holder::ai::AiMessageRepo(db, fts).get(message_id);
   if (!message) throw AiMessageNotFound{};
   // Messages cascade with their thread, so a missing thread is a storage fault.
@@ -56,10 +58,12 @@ std::string message_project(holder::platform::Db& db,
 
 } // namespace
 
-AiMessageListResponse get_ai_messages(holder::platform::Db& db,
-                                      holder::index::FtsIndexer* fts,
-                                      std::string thread_id,
-                                      std::optional<int> include_deleted) {
+AiMessageListResponse get_ai_messages(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    const std::string& thread_id,
+    std::optional<int> include_deleted
+) {
   AiMessageListResponse response{true, {}};
   for (const auto& message : holder::ai::AiMessageRepo(db, fts).list_by_thread(thread_id)) {
     if (include_deleted.value_or(0) != 1 && message.deleted_at) continue;
@@ -68,18 +72,22 @@ AiMessageListResponse get_ai_messages(holder::platform::Db& db,
   return response;
 }
 
-AiMessageGetResponse get_ai_message(holder::platform::Db& db,
-                                    holder::index::FtsIndexer* fts,
-                                    std::string message_id) {
+AiMessageGetResponse get_ai_message(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    const std::string& message_id
+) {
   const auto message = holder::ai::AiMessageRepo(db, fts).get(message_id);
   if (!message || message->deleted_at) throw AiMessageNotFound{};
   return {true, message_item(*message)};
 }
 
-routes::CardLinkListResponse get_ai_message_links(holder::platform::Db& db,
-                                                  holder::index::FtsIndexer* fts,
-                                                  std::string message_id,
-                                                  std::optional<int> include_deleted) {
+routes::CardLinkListResponse get_ai_message_links(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    const std::string& message_id,
+    std::optional<int> include_deleted
+) {
   const auto project_id = message_project(db, fts, message_id);
   routes::CardLinkListResponse response{true, {}};
   for (const auto& link : holder::card::LinkRepo(db).list_outgoing(project_id, message_id)) {
@@ -89,10 +97,12 @@ routes::CardLinkListResponse get_ai_message_links(holder::platform::Db& db,
   return response;
 }
 
-routes::CardLinkListResponse get_ai_message_backlinks(holder::platform::Db& db,
-                                                      holder::index::FtsIndexer* fts,
-                                                      std::string message_id,
-                                                      std::optional<int> include_deleted) {
+routes::CardLinkListResponse get_ai_message_backlinks(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    const std::string& message_id,
+    std::optional<int> include_deleted
+) {
   const auto project_id = message_project(db, fts, message_id);
   routes::CardLinkListResponse response{true, {}};
   for (const auto& link :

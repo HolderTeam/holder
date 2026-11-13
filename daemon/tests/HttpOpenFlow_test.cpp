@@ -49,10 +49,7 @@ TEST_CASE("HTTP open flow lists projects then cards", "[http]") {
   );
   const std::string project_id = created_project["data"]["project_id"].get<std::string>();
 
-  nlohmann::json card_body = {
-      {"title", "Card A"},
-      {"content", "hello"}
-  };
+  nlohmann::json card_body = {{"title", "Card A"}, {"content", "hello"}};
 
   const auto created_card = http_json_request(
       bound.bind,

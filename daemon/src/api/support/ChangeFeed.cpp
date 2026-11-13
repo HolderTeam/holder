@@ -16,16 +16,24 @@ namespace {
 
 // Every change-feed entity has the same invalidation data.
 api_runtime::event<nlohmann::json> change_event(const holder::api::ChangeEventData& data) {
-  static const std::set<std::string> kinds = {"project", "card", "resource", "location",
-                                               "thread", "message", "run"};
-  if (!kinds.contains(data.entity)) throw std::logic_error("unknown change event entity: " + data.entity);
+  static const std::set<std::string> kinds =
+      {"project", "card", "resource", "location", "thread", "message", "run"};
+  if (!kinds.contains(data.entity))
+    // LCOV_EXCL_START - every publisher names one of the kinds above; this guards against a new
+    // entity published before it is added here.
+    throw std::logic_error("unknown change event entity: " + data.entity);
+  // LCOV_EXCL_STOP
   const auto nullable = [](const std::optional<std::string>& value) -> nlohmann::json {
     return value ? nlohmann::json(*value) : nlohmann::json(nullptr);
   };
-  return {data.entity + ".changed",
-          {{"entity", data.entity}, {"entity_id", data.entity_id},
-           {"project_id", nullable(data.project_id)}, {"deleted", data.deleted},
-           {"git_revision", nullable(data.git_revision)}}};
+  return {
+      data.entity + ".changed",
+      {{"entity", data.entity},
+       {"entity_id", data.entity_id},
+       {"project_id", nullable(data.project_id)},
+       {"deleted", data.deleted},
+       {"git_revision", nullable(data.git_revision)}}
+  };
 }
 
 using Statement = std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)>;
@@ -117,7 +125,7 @@ nlohmann::json ChangeFeed::read_revisions() {
       const auto revision = repo.head_oid();
       if (revision) result[project] = *revision;
     } catch (const std::exception&) {
-      // Missing/unborn/unavailable Git is reported as a null revision, never
+      // Ignored: missing/unborn/unavailable Git is reported as a null revision, never
       // initialized or repaired by this read-only observer.
     }
   }
@@ -159,7 +167,10 @@ ChangeFeed::Snapshot ChangeFeed::snapshot() {
         if (it == digests.end()) {
           Digest digest(EVP_MD_CTX_new(), EVP_MD_CTX_free);
           if (!digest || EVP_DigestInit_ex(digest.get(), EVP_sha256(), nullptr) != 1)
-            throw std::runtime_error("Cannot initialize change-feed fingerprint"); // LCOV_EXCL_LINE: requires OpenSSL allocation/provider failure; normal SHA-256 initialization is tested.
+            // LCOV_EXCL_START - requires an OpenSSL allocation or provider failure; normal
+            // SHA-256 initialization is tested.
+            throw std::runtime_error("Cannot initialize change-feed fingerprint");
+          // LCOV_EXCL_STOP
           it = digests.emplace(key, std::move(digest)).first;
         }
         auto row = nlohmann::json::array({query.sql});
@@ -167,7 +178,10 @@ ChangeFeed::Snapshot ChangeFeed::snapshot() {
           row.push_back(value(stmt.get(), column));
         const auto encoded = row.dump();
         if (EVP_DigestUpdate(it->second.get(), encoded.data(), encoded.size()) != 1)
-          throw std::runtime_error("Cannot fingerprint change-feed row"); // LCOV_EXCL_LINE: valid initialized SHA-256 state and input; requires an OpenSSL failure.
+          // LCOV_EXCL_START - valid initialized SHA-256 state and input; requires an OpenSSL
+          // failure.
+          throw std::runtime_error("Cannot fingerprint change-feed row");
+        // LCOV_EXCL_STOP
       }
       if (rc != SQLITE_DONE) throw std::runtime_error(sqlite3_errmsg(db_.handle()));
     }
@@ -180,7 +194,10 @@ ChangeFeed::Snapshot ChangeFeed::snapshot() {
     std::array<unsigned char, EVP_MAX_MD_SIZE> bytes{};
     unsigned int size = 0;
     if (EVP_DigestFinal_ex(digest.get(), bytes.data(), &size) != 1)
-      throw std::runtime_error("Cannot finalize change-feed fingerprint"); // LCOV_EXCL_LINE: valid SHA-256 state and correctly sized output; requires an OpenSSL failure.
+      // LCOV_EXCL_START - valid SHA-256 state and correctly sized output; requires an OpenSSL
+      // failure.
+      throw std::runtime_error("Cannot finalize change-feed fingerprint");
+    // LCOV_EXCL_STOP
     result.emplace(key, std::string(reinterpret_cast<const char*>(bytes.data()), size));
   }
   return result;

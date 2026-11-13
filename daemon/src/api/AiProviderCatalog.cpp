@@ -56,11 +56,14 @@ AiProviderCatalogResponse get_ai_provider_catalog(holder::platform::Db& db) {
         unless_empty(provider.api_key_label),
         unless_empty(provider.api_key_hint),
         {unless_empty(provider.base_url), unless_empty(provider.kind)},
-        {unless_empty(provider.auth_type), unless_empty(provider.key_param),
-         unless_empty(provider.header_name), unless_empty(provider.bearer_prefix)},
+        {unless_empty(provider.auth_type),
+         unless_empty(provider.key_param),
+         unless_empty(provider.header_name),
+         unless_empty(provider.bearer_prefix)},
         {},
     };
-    for (const auto& model : provider.models) item.models.push_back(catalog_model(model));
+    for (const auto& model : provider.models)
+      item.models.push_back(catalog_model(model));
     response.data.providers.push_back(std::move(item));
   }
   return response;

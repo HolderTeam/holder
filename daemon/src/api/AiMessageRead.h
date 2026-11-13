@@ -1,7 +1,7 @@
 #pragma once
 
-#include "api/CardLinks.h"
 #include "api/AiRuntimeTypes.h"
+#include "api/CardLinks.h"
 #include "api/Schemas.h"
 
 #include <optional>
@@ -9,8 +9,12 @@
 #include <string>
 #include <vector>
 
-namespace holder::platform { class Db; }
-namespace holder::index { class FtsIndexer; }
+namespace holder::platform {
+class Db;
+}
+namespace holder::index {
+class FtsIndexer;
+}
 
 namespace holder::api {
 
@@ -39,29 +43,35 @@ struct AiMessageGetResponse {
 };
 
 struct AiMessageNotFound : std::runtime_error {
-  AiMessageNotFound() : std::runtime_error("AI message not found.") {}
+  AiMessageNotFound()
+      : std::runtime_error("AI message not found.") {}
 };
 
 AiMessageListResponse get_ai_messages(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    std::string thread_id,
-    std::optional<int> include_deleted);
+    const std::string& thread_id,
+    std::optional<int> include_deleted
+);
 
-AiMessageGetResponse get_ai_message(holder::platform::Db& db,
-                                    holder::index::FtsIndexer* fts,
-                                    std::string message_id);
+AiMessageGetResponse get_ai_message(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    const std::string& message_id
+);
 
 holder::api::routes::CardLinkListResponse get_ai_message_links(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    std::string message_id,
-    std::optional<int> include_deleted);
+    const std::string& message_id,
+    std::optional<int> include_deleted
+);
 
 holder::api::routes::CardLinkListResponse get_ai_message_backlinks(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    std::string message_id,
-    std::optional<int> include_deleted);
+    const std::string& message_id,
+    std::optional<int> include_deleted
+);
 
 } // namespace holder::api

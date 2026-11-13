@@ -22,9 +22,9 @@
 #include <cctype>
 #include <filesystem>
 #include <fstream>
-#include <regex>
 #include <functional>
 #include <iterator>
+#include <regex>
 #include <tuple>
 #include <unordered_map>
 
@@ -52,7 +52,6 @@ std::function<std::string(const std::string&)> map_param_getter(
   };
 }
 
-
 // Routes a request through the generated routes, as the daemon does.
 // The query comes from the parameter function (an empty value is left out).
 template <typename Param>
@@ -70,8 +69,15 @@ bool route_card(
     std::string target = path;
     char separator = '?';
     for (const char* key :
-         {"project_id", "tag", "view", "parent_card_id", "order", "count", "limit",
-          "include_deleted", "children"}) {
+         {"project_id",
+          "tag",
+          "view",
+          "parent_card_id",
+          "order",
+          "count",
+          "limit",
+          "include_deleted",
+          "children"}) {
       const std::string value = param_get(key);
       if (value.empty()) continue;
       target += separator;
@@ -92,7 +98,16 @@ bool route_card(
     http::request<http::string_body> generated{req.method(), target, 11};
     generated.body() = req.body();
     if (holder::api::dispatch_generated_routes(
-            generated, res, db, nullptr, fts, nullptr, nullptr, uuid_v4, {}, card_store
+            generated,
+            res,
+            db,
+            nullptr,
+            fts,
+            nullptr,
+            nullptr,
+            uuid_v4,
+            {},
+            card_store
         )) {
       return true;
     }
@@ -115,16 +130,7 @@ TEST_CASE("CardRoutes returns false for non-card paths", "[card-routes]") {
     return std::string();
   };
 
-  const bool handled = route_card(
-      "/not-cards",
-      req,
-      res,
-      db,
-      nullptr,
-      nullptr,
-      uuid_v4,
-      param_get
-  );
+  const bool handled = route_card("/not-cards", req, res, db, nullptr, nullptr, uuid_v4, param_get);
   REQUIRE_FALSE(handled);
 }
 
@@ -158,40 +164,25 @@ TEST_CASE("CardRoutes post generates card ids from persisted project schemes", "
     const auto path = "/projects/" + project_id + "/cards";
     auto req = make_request(http::verb::post, path, body.dump());
     http::response<http::string_body> res;
-    REQUIRE(route_card(
-        path,
-        req,
-        res,
-        db,
-        &card_store,
-        &fts,
-        legacy_generator,
-        param_get
-    ));
+    REQUIRE(route_card(path, req, res, db, &card_store, &fts, legacy_generator, param_get));
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };
 
-  const auto [v4_status, v4_payload] = post(
-      "project-v4", {{"title", "Version 4"}, {"content", "content"}}
-  );
+  const auto [v4_status, v4_payload] =
+      post("project-v4", {{"title", "Version 4"}, {"content", "content"}});
   REQUIRE(v4_status == http::status::created);
   REQUIRE(v4_payload["ok"] == true);
   const auto v4_id = v4_payload["data"]["card_id"].get<std::string>();
   REQUIRE(holder::identity::is_valid_uuid(v4_id));
   REQUIRE(v4_id.at(14) == '4');
 
-  const auto [child_status, child_payload] = post(
-      "project-v4",
-      {{"title", "Child"},
-       {"content", "content"},
-       {"parent_card_id", v4_id}}
-  );
+  const auto [child_status, child_payload] =
+      post("project-v4", {{"title", "Child"}, {"content", "content"}, {"parent_card_id", v4_id}});
   REQUIRE(child_status == http::status::created);
   REQUIRE(card_store.get(child_payload["data"]["card_id"])->parent_card_id == v4_id);
 
-  const auto [v7_status, v7_payload] = post(
-      "project-v7", {{"title", "Version 7"}, {"content", "content"}}
-  );
+  const auto [v7_status, v7_payload] =
+      post("project-v7", {{"title", "Version 7"}, {"content", "content"}});
   REQUIRE(v7_status == http::status::created);
   REQUIRE(v7_payload["ok"] == true);
   const auto v7_id = v7_payload["data"]["card_id"].get<std::string>();
@@ -199,9 +190,8 @@ TEST_CASE("CardRoutes post generates card ids from persisted project schemes", "
   REQUIRE(v7_id.at(14) == '7');
   REQUIRE_FALSE(legacy_generator_called);
 
-  const auto [missing_status, missing_payload] = post(
-      "missing-project", {{"title", "Missing"}, {"content", "content"}}
-  );
+  const auto [missing_status, missing_payload] =
+      post("missing-project", {{"title", "Missing"}, {"content", "content"}});
   REQUIRE(missing_status == http::status::not_found);
   REQUIRE(missing_payload["error"]["code"] == "not_found");
   REQUIRE(missing_payload["error"]["message"] == "project not found: missing-project");
@@ -213,9 +203,7 @@ TEST_CASE("CardRoutes post generates card ids from persisted project schemes", "
   const std::string supplied_id = "11111111-1111-4111-8111-111111111111";
   const auto [rejected_status, rejected_payload] = post(
       "project-v4",
-      {{"card_id", supplied_id},
-       {"title", "Caller selected"},
-       {"content", "content"}}
+      {{"card_id", supplied_id}, {"title", "Caller selected"}, {"content", "content"}}
   );
   REQUIRE(rejected_status == http::status::bad_request);
   REQUIRE(rejected_payload["error"]["code"] == "invalid_argument");
@@ -261,16 +249,7 @@ TEST_CASE("CardRoutes item get and patch validation branches", "[card-routes]") 
   auto call = [&](http::verb method, const std::string& path, const nlohmann::json& body) {
     auto req = make_request(method, path, body.dump());
     http::response<http::string_body> res;
-    const bool handled = route_card(
-        path,
-        req,
-        res,
-        db,
-        &card_store,
-        &fts,
-        uuid_v4,
-        param_get
-    );
+    const bool handled = route_card(path, req, res, db, &card_store, &fts, uuid_v4, param_get);
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };

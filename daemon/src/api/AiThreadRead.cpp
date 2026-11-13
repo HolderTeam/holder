@@ -21,7 +21,7 @@ AiThread thread_item(const holder::model::AiThread& thread) {
 
 } // namespace
 
-AiThreadListResponse get_ai_threads(holder::platform::Db& db, std::string project_id) {
+AiThreadListResponse get_ai_threads(holder::platform::Db& db, const std::string& project_id) {
   AiThreadListResponse response{true, {}};
   for (const auto& thread : holder::ai::AiThreadRepo(db).list(project_id)) {
     response.data.push_back(thread_item(thread));
@@ -29,7 +29,7 @@ AiThreadListResponse get_ai_threads(holder::platform::Db& db, std::string projec
   return response;
 }
 
-AiThreadGetResponse get_ai_thread(holder::platform::Db& db, std::string thread_id) {
+AiThreadGetResponse get_ai_thread(holder::platform::Db& db, const std::string& thread_id) {
   const auto thread = holder::ai::AiThreadRepo(db).get(thread_id);
   if (!thread) throw AiThreadNotFound{};
   return {true, thread_item(*thread)};

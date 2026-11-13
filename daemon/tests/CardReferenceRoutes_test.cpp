@@ -209,8 +209,10 @@ TEST_CASE(
   REQUIRE(nlohmann::json::parse(res.body())["data"]["status"] == "not_found");
 }
 
-TEST_CASE("HTTP card reference resolution uses the generated route",
-          "[http][card-reference-routes]") {
+TEST_CASE(
+    "HTTP card reference resolution uses the generated route",
+    "[http][card-reference-routes]"
+) {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::test::create_project(db, "proj-1", (dir / "project").string());
@@ -227,23 +229,41 @@ TEST_CASE("HTTP card reference resolution uses the generated route",
   holder::test::HttpServerThreadGuard running(server, signals);
   REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, token));
 
-  const auto body = nlohmann::json{
-      {"project_id", "proj-1"}, {"reference", "Missing"}, {"scope", "live"}};
+  const auto body =
+      nlohmann::json{{"project_id", "proj-1"}, {"reference", "Missing"}, {"scope", "live"}};
   const auto result = holder::test::http_request_raw(
-      bound.bind, bound.port, token, http::verb::post, "/card-references/resolve", body);
+      bound.bind,
+      bound.port,
+      token,
+      http::verb::post,
+      "/card-references/resolve",
+      body
+  );
   REQUIRE(result.status == http::status::ok);
-  REQUIRE(nlohmann::json::parse(result.body) == nlohmann::json{
-      {"ok", true}, {"data", {{"status", "not_found"}}}});
+  REQUIRE(
+      nlohmann::json::parse(result.body) ==
+      nlohmann::json{{"ok", true}, {"data", {{"status", "not_found"}}}}
+  );
 
   const auto invalid = holder::test::http_request_raw(
-      bound.bind, bound.port, token, http::verb::post, "/card-references/resolve",
-      {{"project_id", "proj-1"}, {"reference", "Missing"}, {"scope", "all"}});
+      bound.bind,
+      bound.port,
+      token,
+      http::verb::post,
+      "/card-references/resolve",
+      {{"project_id", "proj-1"}, {"reference", "Missing"}, {"scope", "all"}}
+  );
   REQUIRE(invalid.status == http::status::bad_request);
   REQUIRE(nlohmann::json::parse(invalid.body)["error"]["code"] == "invalid_argument");
 
   const auto denied = holder::test::http_request_raw(
-      bound.bind, bound.port, "wrong-token", http::verb::post,
-      "/card-references/resolve", body);
+      bound.bind,
+      bound.port,
+      "wrong-token",
+      http::verb::post,
+      "/card-references/resolve",
+      body
+  );
   REQUIRE(denied.status == http::status::unauthorized);
 }
 

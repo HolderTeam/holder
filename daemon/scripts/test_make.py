@@ -57,7 +57,7 @@ class MakeTest(unittest.TestCase):
         self.command_file = self.root / "command.py"
         self.command_file.write_text(command)
         for name in ("git", "uname", "cmake", "ctest", "valgrind", "lcov",
-                     "genhtml", "gcovr", "clang-tidy-18", "run-clang-tidy"):
+                     "genhtml", "gcovr", "clang-tidy-18", "run-clang-tidy-18"):
             path = commands / name
             path.write_text(command)
             path.chmod(0o755)

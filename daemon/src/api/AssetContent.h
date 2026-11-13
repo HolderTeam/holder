@@ -11,9 +11,15 @@
 #include <string>
 #include <utility>
 
-namespace holder::git { class GitOps; }
-namespace holder::platform { class Db; }
-namespace holder::privacy { class SecretStore; }
+namespace holder::git {
+class GitOps;
+}
+namespace holder::platform {
+class Db;
+}
+namespace holder::privacy {
+class SecretStore;
+}
 
 namespace holder::api {
 
@@ -27,8 +33,9 @@ std::pair<int, support::StreamServer> get_resources_resource_id_assets_asset_id_
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,
     const std::function<std::string()>& uuid_v4,
-    std::string resource_id,
+    const std::string& resource_id,
     std::string asset_id,
-    std::optional<std::string> placement_id);
+    const std::optional<std::string>& placement_id
+);
 
 } // namespace holder::api

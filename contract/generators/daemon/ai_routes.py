@@ -62,6 +62,11 @@ def _cpp_type(ref: TypeRef) -> str:
     raise Unsupported(f"AI request parameter type {ref.kind}")
 
 
+def _moved(cpp: str, variable: str) -> str:
+    """The variable, moved when that saves a copy: an int, optional or not, is copied as cheaply."""
+    return variable if cpp in ("int", "std::optional<int>") else f"std::move({variable})"
+
+
 def _field_lines(parameter: ParameterView, source: str) -> list[str]:
     """Decode a path or query value and apply its scalar contract constraints."""
     name, ref = parameter.name, parameter.type
@@ -112,7 +117,7 @@ def _argument_lines(op: OperationView, binding: HttpBindingView, captures: dict[
                 decoded = _field_lines(parameter, f"query_{name}->second")
                 # The decoded local has a distinct name so it does not shadow the optional.
                 lines += [f"    {line.replace(f'arg_{name}', f'decoded_{name}')}" for line in decoded]
-                lines += [f"    arg_{name} = std::move(decoded_{name});", "}"]
+                lines += [f"    arg_{name} = {_moved(cpp, f'decoded_{name}')};", "}"]
         elif name in paths:
             source = f"contract_http::decode_uri_component(match[{captures[name]}].str(), false)"
             lines += _field_lines(parameter, source)
@@ -130,7 +135,7 @@ def _argument_lines(op: OperationView, binding: HttpBindingView, captures: dict[
     call_order = runtime.argument_order or order
     if set(call_order) != set(order):
         raise Unsupported(f"{op.name}: handler argument inventory differs from contract")
-    return lines, [f"std::move(arg_{name})" for name in call_order]
+    return lines, [_moved(_cpp_type(parameters[name].type), f"arg_{name}") for name in call_order]
 
 
 def generate_ai_routes(contract: ContractView) -> str:
@@ -171,9 +176,15 @@ def generate_ai_routes(contract: ContractView) -> str:
               "        return {status, ai_json::encode(holder::api::api_error_body(type, status, *coded)), operation};",
               "    return {status, ai_json::encode(holder::api::api_error_body(type, status, error)), operation};",
               "}",
+              "// The request's method, path and body are all strings, named as such at every call.",
+              "// NOLINTBEGIN(bugprone-easily-swappable-parameters)",
               "template <typename Context>",
               "inline std::optional<response> dispatch(const std::string& method, const std::string& path,",
               "    const std::string& body, Context& context, const header_lookup& header = {}) {",
+              "    // NOLINTEND(bugprone-easily-swappable-parameters)",
+              "    // Each argument is moved at its last use. The handlers are written by hand, and one that",
+              "    // only reads an argument takes it by const reference, where the move does nothing.",
+              "    // NOLINTBEGIN(performance-move-const-arg)",
               "    const auto separator = path.find('?');",
               "    const auto route_path = path.substr(0, separator);",
               "    const auto query_string = separator == std::string::npos ? std::string_view{} :",
@@ -193,14 +204,16 @@ def generate_ai_routes(contract: ContractView) -> str:
         lines += [f"            {line}" for line in decodes]
         if op.returns.kind == "stream":
             lines += [f"            auto outcome = {call};",
+                      "            // LCOV_EXCL_START - runtime stream implementations return only 200 or 204;",
+                      "            // a defensive contract guard.",
                       "            if (outcome.status != 200 && outcome.status != 204)",
-                      (f'                throw std::logic_error("{name} chose an undeclared success status"); '
-                       '// LCOV_EXCL_LINE: runtime stream implementations return only 200 or 204; defensive contract guard.'),
+                      f'                throw std::logic_error("{name} chose an undeclared success status");',
+                      "            // LCOV_EXCL_STOP",
                       f'            return response{{outcome.status, json(), "{name}", std::move(outcome.value)}};']
         else:
             lines += [f'            return response{{{binding.status}, ai_json::encode({call}), "{name}"}};']
         lines += ["        } catch (const std::exception& error) {",
                   f'            return failure(error_status(error), error, "{name}");',
                   "        }", "    }"]
-    lines += ["    return std::nullopt;", "}", "} // namespace ai_http", ""]
+    lines += ["    return std::nullopt;", "    // NOLINTEND(performance-move-const-arg)", "}", "} // namespace ai_http", ""]
     return "\n".join(lines)

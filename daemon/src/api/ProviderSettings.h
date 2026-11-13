@@ -1,14 +1,16 @@
 #pragma once
 
-#include "api/HttpError.h"
 #include "api/AiRuntimeTypes.h"
+#include "api/HttpError.h"
 
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-namespace holder::platform { class Db; }
+namespace holder::platform {
+class Db;
+}
 
 namespace holder::api {
 
@@ -49,10 +51,14 @@ struct AiProviderSettingDeleteResponse {
 
 AiProviderSettingsResponse list_provider_settings(holder::platform::Db& db);
 
-AiProviderSettingResponse set_provider_setting(holder::platform::Db& db,
-                                               AiProviderSettingUpdateRequest request);
+AiProviderSettingResponse set_provider_setting(
+    holder::platform::Db& db,
+    AiProviderSettingUpdateRequest request
+);
 
-AiProviderSettingDeleteResponse delete_provider_setting(holder::platform::Db& db,
-                                                         std::string provider);
+AiProviderSettingDeleteResponse delete_provider_setting(
+    holder::platform::Db& db,
+    std::string provider
+);
 
 } // namespace holder::api

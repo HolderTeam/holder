@@ -1,7 +1,7 @@
 #pragma once
 
-#include "api/HttpError.h"
 #include "api/AiRuntimeTypes.h"
+#include "api/HttpError.h"
 #include "api/Schemas.h"
 
 #include <nlohmann/json.hpp>
@@ -11,7 +11,9 @@
 #include <string>
 #include <vector>
 
-namespace holder::platform { class Db; }
+namespace holder::platform {
+class Db;
+}
 
 namespace holder::api {
 
@@ -47,11 +49,13 @@ struct AiRunGetResponse {
 };
 
 struct AiRunsMissingScope : std::invalid_argument {
-  AiRunsMissingScope() : std::invalid_argument("Missing project_id or thread_id.") {}
+  AiRunsMissingScope()
+      : std::invalid_argument("Missing project_id or thread_id.") {}
 };
 
 struct AiRunNotFound : std::runtime_error {
-  AiRunNotFound() : std::runtime_error("Run not found.") {}
+  AiRunNotFound()
+      : std::runtime_error("Run not found.") {}
 };
 
 // A run cannot start: no runner or cloud provider is available for it, or the daemon has
@@ -60,10 +64,12 @@ struct AiRunUnavailable : CodedError {
   using CodedError::CodedError;
 };
 
-AiRunListResponse get_ai_runs(holder::platform::Db& db,
-                              std::optional<std::string> project_id,
-                              std::optional<std::string> thread_id);
+AiRunListResponse get_ai_runs(
+    holder::platform::Db& db,
+    std::optional<std::string> project_id,
+    std::optional<std::string> thread_id
+);
 
-AiRunGetResponse get_ai_run(holder::platform::Db& db, std::string run_id);
+AiRunGetResponse get_ai_run(holder::platform::Db& db, const std::string& run_id);
 
 } // namespace holder::api

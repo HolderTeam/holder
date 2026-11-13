@@ -1,15 +1,19 @@
 #pragma once
 
-#include "api/ProviderCredentials.h"
 #include "api/AiRuntimeTypes.h"
+#include "api/ProviderCredentials.h"
 #include "api/Schemas.h"
 
 #include <optional>
 #include <string>
 #include <vector>
 
-namespace holder::llm { class RunnerRegistry; }
-namespace holder::platform { class Db; }
+namespace holder::llm {
+class RunnerRegistry;
+}
+namespace holder::platform {
+class Db;
+}
 
 namespace holder::api {
 
@@ -57,9 +61,9 @@ struct AiStatusResponse {
 RunnerCapabilitiesResponse get_ai_capabilities(
     holder::platform::Db& db,
     holder::llm::RunnerRegistry* registry,
-    std::optional<std::string> runner_id);
+    std::optional<std::string> runner_id
+);
 
-AiStatusResponse get_ai_status(holder::platform::Db& db,
-                               holder::llm::RunnerRegistry* registry);
+AiStatusResponse get_ai_status(holder::platform::Db& db, holder::llm::RunnerRegistry* registry);
 
 } // namespace holder::api

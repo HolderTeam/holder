@@ -5,6 +5,8 @@
 #include "card/CardRepo.h"
 #include "model/AiThread.h"
 
+#include <format>
+
 using holder::test::create_project;
 using holder::test::http_json_request;
 using holder::test::make_temp_dir;
@@ -128,33 +130,58 @@ TEST_CASE("HTTP trash list/empty/hard delete", "[http]") {
   // The contract gives every item the same nullable fields.
   auto keys = [](const nlohmann::json& item) {
     std::vector<std::string> names;
-    for (const auto& [name, value] : item.items()) names.push_back(name);
+    for (const auto& [name, value] : item.items())
+      names.push_back(name);
     return names;
   };
   const auto& trashed_card = trash_cards["data"][0];
-  REQUIRE(keys(trashed_card) ==
-          std::vector<std::string>{
-              "card_id", "created_at", "deleted_at", "message_id", "project_id", "rel_path", "role",
-              "thread_id", "title", "type"});
+  REQUIRE(
+      keys(trashed_card) ==
+      std::vector<std::string>{
+          "card_id",
+          "created_at",
+          "deleted_at",
+          "message_id",
+          "project_id",
+          "rel_path",
+          "role",
+          "thread_id",
+          "title",
+          "type"
+      }
+  );
   REQUIRE(trashed_card["card_id"] == "card-1");
   REQUIRE(trashed_card["project_id"] == "proj-1");
   REQUIRE(trashed_card["title"] == "Card");
   REQUIRE(trashed_card["deleted_at"].is_number_integer());
   REQUIRE(trashed_card["rel_path"].is_string());
   const auto& trashed_message = trash_msgs["data"][0];
-  REQUIRE(keys(trashed_message) ==
-          std::vector<std::string>{
-              "card_id", "created_at", "deleted_at", "message_id", "project_id", "rel_path", "role",
-              "thread_id", "title", "type"});
+  REQUIRE(
+      keys(trashed_message) ==
+      std::vector<std::string>{
+          "card_id",
+          "created_at",
+          "deleted_at",
+          "message_id",
+          "project_id",
+          "rel_path",
+          "role",
+          "thread_id",
+          "title",
+          "type"
+      }
+  );
   REQUIRE(trashed_message["message_id"] == "msg-1");
   REQUIRE(trashed_message["thread_id"] == "thread-1");
   REQUIRE(trashed_message["project_id"] == "proj-1");
   REQUIRE(trashed_message["role"] == "user");
   REQUIRE(trashed_message["created_at"] == 11);
 
-  for (const auto& [query, count] :
-       std::vector<std::pair<std::string, std::size_t>>{
-           {"&type=all", 2}, {"&type=", 2}, {"&type=unknown", 0}}) {
+  for (const auto& [query, count] : std::vector<std::pair<std::string, std::size_t>>{
+           {"&type=all", 2},
+           {"&type=", 2},
+           {"&type=unknown", 0}
+       }) {
     CAPTURE(query);
     const auto listed = http_json_request(
         bound.bind,
@@ -421,14 +448,14 @@ TEST_CASE("HTTP trash routes validate parameters and hard-delete variants", "[ht
   );
 
   for (const auto& [type, id] :
-       {std::pair<std::string, std::string>{"card", "other-card"},
-        {"ai_message", "other-message"}}) {
+       {std::pair<std::string, std::string>{"card", "other-card"}, {"ai_message", "other-message"}
+       }) {
     auto foreign = http_json_request(
         bound.bind,
         bound.port,
         token,
         boost::beast::http::verb::delete_,
-        "/projects/proj-1/trash/" + type + "/" + id,
+        std::format("/projects/proj-1/trash/{}/{}", type, id),
         nlohmann::json::object(),
         boost::beast::http::status::not_found
     );
@@ -444,7 +471,7 @@ TEST_CASE("HTTP trash routes validate parameters and hard-delete variants", "[ht
         bound.port,
         token,
         boost::beast::http::verb::delete_,
-        "/projects/proj-1/trash/" + type + "/" + id,
+        std::format("/projects/proj-1/trash/{}/{}", type, id),
         nlohmann::json::object(),
         boost::beast::http::status::conflict
     );
@@ -464,14 +491,14 @@ TEST_CASE("HTTP trash routes validate parameters and hard-delete variants", "[ht
   REQUIRE(holder::ai::AiMessageRepo(db, &fts).get("live-message")->deleted_at == std::nullopt);
 
   for (const auto& [type, id] :
-       {std::pair<std::string, std::string>{"card", "other-card"},
-        {"ai_message", "other-message"}}) {
+       {std::pair<std::string, std::string>{"card", "other-card"}, {"ai_message", "other-message"}
+       }) {
     auto removed = http_json_request(
         bound.bind,
         bound.port,
         token,
         boost::beast::http::verb::delete_,
-        "/projects/proj-2/trash/" + type + "/" + id,
+        std::format("/projects/proj-2/trash/{}/{}", type, id),
         nlohmann::json::object(),
         boost::beast::http::status::ok
     );

@@ -38,10 +38,12 @@ http::request<http::string_body> make_route_request(
 }
 
 // Routes a request through the generated routes, as the daemon does.
-bool route_message(const http::request<http::string_body>& req,
-                   http::response<http::string_body>& res,
-                   holder::platform::Db& db,
-                   holder::index::FtsIndexer* fts) {
+bool route_message(
+    const http::request<http::string_body>& req,
+    http::response<http::string_body>& res,
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts
+) {
   return holder::api::dispatch_generated_routes(req, res, db, nullptr, fts);
 }
 
@@ -72,8 +74,11 @@ TEST_CASE("AI message links preserve qualified card targets", "[http]") {
 
   const auto created = request(
       http::verb::post,
-      {{"to_card_id", "remote-card"}, {"to_type", "card"}, {"kind", "ref"},
-       {"target_project_id", "not-loaded"}, {"label", "Source label"}}
+      {{"to_card_id", "remote-card"},
+       {"to_type", "card"},
+       {"kind", "ref"},
+       {"target_project_id", "not-loaded"},
+       {"label", "Source label"}}
   );
   REQUIRE(res.result() == http::status::created);
   REQUIRE(created["data"]["target_project_id"] == "not-loaded");
@@ -102,8 +107,12 @@ TEST_CASE("AI message links preserve qualified card targets", "[http]") {
 
   for (const auto& selector : {
            nlohmann::json{{"target_project_id", "not-loaded"}},
-           nlohmann::json{{"to_card_id", "remote-card"}, {"to_type", "card"}, {"kind", "ref"},
-                          {"target_project_id", ""}},
+           nlohmann::json{
+               {"to_card_id", "remote-card"},
+               {"to_type", "card"},
+               {"kind", "ref"},
+               {"target_project_id", ""}
+           },
        }) {
     CAPTURE(selector);
     const auto error = request(http::verb::delete_, selector).at("error");
@@ -114,7 +123,9 @@ TEST_CASE("AI message links preserve qualified card targets", "[http]") {
 
   request(
       http::verb::delete_,
-      {{"to_card_id", "remote-card"}, {"to_type", "card"}, {"kind", "ref"},
+      {{"to_card_id", "remote-card"},
+       {"to_type", "card"},
+       {"kind", "ref"},
        {"target_project_id", "not-loaded"}}
   );
   REQUIRE(res.result() == http::status::ok);
@@ -500,6 +511,18 @@ TEST_CASE("AiMessageLinkRoutes direct route filters links and validates target t
     REQUIRE(res.result() == http::status::ok);
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["data"].size() == 4);
+  }
+
+  // include_deleted is 0 or 1; any other number is a bad request on both routes.
+  for (const auto* target : {
+           "/ai/messages/msg-1/links?include_deleted=2",
+           "/ai/messages/msg-1/backlinks?include_deleted=2",
+       }) {
+    CAPTURE(target);
+    auto req = make_route_request(http::verb::get, target);
+    const bool handled = holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts);
+    REQUIRE(handled);
+    CHECK(res.result() == http::status::bad_request);
   }
 
   auto expect_bad_request_message = [&](const nlohmann::json& body,

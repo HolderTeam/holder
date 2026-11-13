@@ -35,9 +35,7 @@ RouteDispatchResult execute_ai_run(
     holder::privacy::SecretStore* secret_store,
     holder::llm::RunnerRegistry* runner_registry,
     const std::function<std::string()>& uuid_v4,
-    std::shared_ptr<holder::api::support::SseRegistry> streams = {}
+    const std::shared_ptr<holder::api::support::SseRegistry>& streams = {}
 );
-
-
 
 } // namespace holder::api::routes::ai::runs

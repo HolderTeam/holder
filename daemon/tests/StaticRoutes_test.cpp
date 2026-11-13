@@ -111,8 +111,10 @@ TEST_CASE("StaticRoutes ai_catalog json handles not-found and parse errors", "[s
   REQUIRE(serve(req, missing_res));
   REQUIRE(missing_res.result() == http::status::not_found);
   // The declared ErrorResponse, not plain text.
-  REQUIRE(nlohmann::json::parse(missing_res.body())["error"] ==
-          nlohmann::json{{"code", "not_found"}, {"message", "ai_catalog.yaml not found."}});
+  REQUIRE(
+      nlohmann::json::parse(missing_res.body())["error"] ==
+      nlohmann::json{{"code", "not_found"}, {"message", "ai_catalog.yaml not found."}}
+  );
 
 #ifndef _WIN32
   const auto ai_unreadable = dir / "ai-unreadable.yaml";
