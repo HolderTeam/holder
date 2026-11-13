@@ -147,6 +147,20 @@ Coverage outputs:
 - `build-coverage/coverage/coverage.json`
 - `build-coverage/coverage/index.html`
 
+Two pre-release checks, each in its own build directory:
+
+```bash
+./make.sh warnings   # valac and the hand-written C with warnings as errors (build-warnings)
+./make.sh san        # the tests under AddressSanitizer, UBSan and leak detection (build-san)
+```
+
+`san` reports a leak only when nothing can reach the memory any more. Fontconfig, Pango, HarfBuzz,
+Mesa, libxml2 and VTE keep caches until exit, so `tools/lsan/gtk-stack.supp` suppresses those
+libraries, and never GTK, GLib or GObject: an object our code creates and loses is still reported.
+In Vala that is usually a reference cycle, such as a closure that captures `this` stored by an
+object `this` owns. A widget's draw function, for one, should be static and take the widget from its
+`area` argument.
+
 ## Shared integration tests
 
 From `integration`:
