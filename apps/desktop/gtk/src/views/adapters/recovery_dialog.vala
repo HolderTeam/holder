@@ -27,6 +27,7 @@ internal class RecoveryDialogAdapter : Object {
         dialog.set_response_appearance("continue", Adw.ResponseAppearance.SUGGESTED);
         dialog.set_default_response("continue");
         dialog.set_close_response("cancel");
+        var handlers = SignalScope.until_closed(dialog);
 
         var pin_entry = new Gtk.Entry();
         pin_entry.set_placeholder_text("PIN");
@@ -40,11 +41,11 @@ internal class RecoveryDialogAdapter : Object {
         content.append(pin_entry);
         dialog.set_extra_child(content);
         dialog.set_response_enabled("continue", false);
-        pin_entry.changed.connect(() => {
+        handlers.add(pin_entry, pin_entry.changed.connect(() => {
             dialog.set_response_enabled("continue", RecoveryDialogPin.is_submittable(pin_entry.get_text()));
-        });
+        }));
 
-        dialog.response.connect((response) => {
+        handlers.add(dialog, dialog.response.connect((response) => {
             if (response != "continue") {
                 return;
             }
@@ -53,7 +54,7 @@ internal class RecoveryDialogAdapter : Object {
                 return;
             }
             on_pin(pin);
-        });
+        }));
         dialog.present(parent);
     }
 

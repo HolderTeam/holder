@@ -224,6 +224,7 @@ sources = [
   'src/views/adapters/card_action_dialog.vala',
   'src/views/adapters/project_create_dialog.vala',
   'src/views/adapters/recovery_dialog.vala',
+  'src/views/components/signal_scope.vala',
   'src/views/adapters/window_sidebar_events.vala',
   'src/views/adapters/window_selection_editor_events.vala',
   'src/views/adapters/window_lifecycle_events.vala',
@@ -1003,6 +1004,7 @@ connections_tool_view_test_exe = executable(
     'src/controllers/tool_scope_presenter.vala',
     'src/views/toolbox/tool_adapter.vala',
     'src/views/toolbox/connections_tool_view.vala',
+    'src/views/components/signal_scope.vala',
     'tests/support/connections_view_support.vala',
     'tests/connections_tool_view_relations_test.vala',
     'tests/connections_tool_view_addlink_test.vala',
@@ -3779,6 +3781,7 @@ dialog_adapters_test_exe = executable(
     'src/views/adapters/card_action_dialog.vala',
     'src/views/adapters/project_create_dialog.vala',
     'src/views/adapters/recovery_dialog.vala',
+    'src/views/components/signal_scope.vala',
     'src/views/adapters/print_ui.vala',
     'tests/dialog_adapters_test.vala',
   ],
@@ -3985,6 +3988,7 @@ app_views_test_sources = [
   'tests/app_views/toolbox_test.vala',
   'tests/app_views/workspace_pane_test.vala',
   'tests/app_views/window_test.vala',
+  'tests/app_views/lifetime_test.vala',
   'tests/app_views/main.vala',
 ]
 app_views_test_vala_args = []
@@ -4124,6 +4128,7 @@ resources_tool_view_test_exe = executable(
     'src/views/adapters/windows_monospace.vala',
     'src/views/adapters/file_picker.vala',
     'src/views/toolbox/resources_tool_view.vala',
+    'src/views/components/signal_scope.vala',
     'tests/support/storage_api_fakes.vala',
     'tests/support/resources_view_support.vala',
     'tests/resources_tool_view_dialogs_test.vala',
@@ -4171,6 +4176,7 @@ milestones_tool_view_test_exe = executable(
     'src/controllers/milestones.vala',
     'src/views/toolbox/tool_adapter.vala',
     'src/views/toolbox/milestones_tool_view.vala',
+    'src/views/components/signal_scope.vala',
     'tests/milestones_tool_view_test.vala',
   ],
   dependencies: [
@@ -5143,6 +5149,7 @@ ai_config_panel_view_test_exe = executable(
     'src/controllers/ai_config_presenter.vala',
     'src/controllers/ai_config_drafts.vala',
     'src/views/ai_panel/config.vala',
+    'src/views/components/signal_scope.vala',
     'tests/ai_config_panel_view_test.vala',
   ],
   dependencies: [
@@ -5182,6 +5189,7 @@ ai_panel_view_test_exe = executable(
     'src/controllers/ai_config_presenter.vala',
     'src/controllers/ai_config_drafts.vala',
     'src/views/ai_panel/config.vala',
+    'src/views/components/signal_scope.vala',
     'src/views/ai_panel.vala',
     'tests/ai_panel_view_test.vala',
   ],

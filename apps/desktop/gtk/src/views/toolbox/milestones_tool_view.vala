@@ -461,6 +461,9 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         }
 
         clear_details();
+        var form_clamp = new Adw.Clamp();
+        // The form's handlers go when it is taken off the details pane.
+        var handlers = SignalScope.until_removed(form_clamp);
         var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
         content.set_hexpand(true);
         content.set_margin_top(8);
@@ -530,12 +533,12 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         time_box.append(end_hour); time_box.append(new Gtk.Label(":")); time_box.append(end_minute);
         time_box.set_sensitive(!all_day.get_active());
         content.append(time_box);
-        all_day.notify["active"].connect(() => { time_box.set_sensitive(!all_day.get_active()); });
-        include_end.toggled.connect(() => {
+        handlers.add(all_day, all_day.notify["active"].connect(() => { time_box.set_sensitive(!all_day.get_active()); }));
+        handlers.add(include_end, include_end.toggled.connect(() => {
             end_calendar.set_sensitive(include_end.get_active());
             end_hour.set_sensitive(include_end.get_active());
             end_minute.set_sensitive(include_end.get_active());
-        });
+        }));
 
         content.append(form_label("Kind"));
         var kind_box = new Gtk.FlowBox();
@@ -549,7 +552,7 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         foreach (var kind in MilestoneDraft.kind_presets()) {
             var button = new Gtk.Button.with_label(kind);
             button.add_css_class("pill");
-            button.clicked.connect(() => { kind_entry.set_text(kind); });
+            handlers.add(button, button.clicked.connect(() => { kind_entry.set_text(kind); }));
             kind_box.insert(button, -1);
         }
         content.append(kind_box);
@@ -567,14 +570,14 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         form_spacer.set_hexpand(true);
         form_actions.append(form_spacer);
         var cancel = new Gtk.Button.with_label("Cancel");
-        cancel.clicked.connect(() => {
+        handlers.add(cancel, cancel.clicked.connect(() => {
             if (upcoming_button.get_active()) render_upcoming();
             else render_selected_day();
-        });
+        }));
         form_actions.append(cancel);
         var submit = new Gtk.Button.with_label(MilestoneDraft.submit_label(editing != null));
         submit.add_css_class("suggested-action");
-        submit.clicked.connect(() => {
+        handlers.add(submit, submit.clicked.connect(() => {
             var card_id = MilestoneDraft.resolve_card_id(
                 card_ids,
                 card_dropdown != null ? ((!) card_dropdown).get_selected() : 0,
@@ -616,10 +619,9 @@ public class MilestonesToolView : Object, IToolShellAdapter {
                     }
                 );
             }
-        });
+        }));
         form_actions.append(submit);
         content.append(form_actions);
-        var form_clamp = new Adw.Clamp();
         form_clamp.set_maximum_size(960);
         form_clamp.set_tightening_threshold(700);
         form_clamp.set_child(content);

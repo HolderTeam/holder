@@ -398,12 +398,17 @@ private void test_the_default_relations_split_waits_for_a_width_and_is_applied_o
     var pane = cv_find_paned(h.content());
     assert(pane != null);
     var paned = (!) pane;
-    // Building the view queued exactly one repeating layout check.
-    assert(h.scheduler.pending_repeating() == 1);
+    // Nothing polls while the tool is not on screen.
+    assert(h.scheduler.pending_repeating() == 0);
     var initial = paned.get_position();
 
-    // No width yet (the harness window is never shown): the check stays queued and changes nothing.
-    assert(paned.get_width() == 0);
+    // Shown, the pane queues exactly one repeating layout check.
+    h.window.present();
+    assert(wait_for_condition(() => paned.get_mapped()));
+    assert(h.scheduler.pending_repeating() == 1);
+
+    // No width yet: the check stays queued and changes nothing.
+    paned.allocate(0, 600, -1, null);
     assert(h.scheduler.tick_repeating() == 1);
     assert(h.scheduler.pending_repeating() == 1);
     assert(paned.get_position() == initial);
@@ -416,10 +421,14 @@ private void test_the_default_relations_split_waits_for_a_width_and_is_applied_o
     assert(paned.get_position() == HolderLinux.ConnectionsBoardPresenter.default_relations_split_position(1200));
     assert(h.scheduler.pending_repeating() == 0);
 
-    // Applied once: nothing is left queued, so a later divider position is never overwritten.
+    // Applied once: nothing is left queued, so a later divider position is never overwritten, even
+    // when the tool is shown again.
     paned.set_position(100);
+    paned.unmap();
+    paned.map();
     assert(h.scheduler.tick_repeating() == 0);
     assert(paned.get_position() == 100);
+    h.window.destroy();
 }
 
 public static int main(string[] args) {

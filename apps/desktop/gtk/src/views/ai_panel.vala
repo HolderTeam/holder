@@ -377,10 +377,12 @@ public class AiPanel : Object {
         title.add_css_class("heading");
         title.set_hexpand(true);
         var dismiss_btn = new Gtk.Button.with_label("Dismiss");
-        dismiss_btn.clicked.connect(() => {
+        // The handler takes the button from the signal: capturing it, the button would keep itself.
+        dismiss_btn.clicked.connect((clicked) => {
             // One request per click: the button comes back only if the dismissal fails.
-            dismiss_btn.set_sensitive(false);
-            dismiss_nudge.begin(nudge.nudge_id, dismiss_btn);
+            var button = (Gtk.Button) clicked;
+            button.set_sensitive(false);
+            dismiss_nudge.begin(nudge.nudge_id, button);
         });
         header.append(title);
         header.append(dismiss_btn);

@@ -447,6 +447,8 @@ public class AiConfigPanelView : Object {
     private void append_runner_row(AiRunnerInfo runner) {
         var presentation = AiConfigPresenter.runner_row(runner, runners_cache);
         var row = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        // The row is rebuilt on every refresh; its handlers go when it is taken off the list.
+        var handlers = SignalScope.until_removed(row);
         row.set_margin_top(8);
         row.set_margin_bottom(8);
         row.set_margin_start(8);
@@ -501,18 +503,18 @@ public class AiConfigPanelView : Object {
             var controls = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
             var enabled_switch = new Gtk.Switch();
             enabled_switch.set_active(runner.enabled);
-            enabled_switch.notify["active"].connect(() => {
+            handlers.add(enabled_switch, enabled_switch.notify["active"].connect(() => {
                 update_manual_runner.begin(runner.runner_id, name_entry.get_text(), base_url_entry.get_text(), enabled_switch.get_active());
-            });
+            }));
             var enabled_label = new Gtk.Label("Enabled");
             var save_btn = new Gtk.Button.with_label("Save");
-            save_btn.clicked.connect(() => {
+            handlers.add(save_btn, save_btn.clicked.connect(() => {
                 update_manual_runner.begin(runner.runner_id, name_entry.get_text(), base_url_entry.get_text(), enabled_switch.get_active());
-            });
+            }));
             var delete_btn = new Gtk.Button.with_label("Delete");
-            delete_btn.clicked.connect(() => {
+            handlers.add(delete_btn, delete_btn.clicked.connect(() => {
                 delete_manual_runner.begin(runner.runner_id);
-            });
+            }));
             controls.append(enabled_label);
             controls.append(enabled_switch);
             controls.append(save_btn);
@@ -553,7 +555,7 @@ public class AiConfigPanelView : Object {
                                             string base_url,
                                             bool enabled) {
         if (api_client == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: only a row's handlers call this, and rows are removed, their handlers with them, when the API goes
         }
         var draft = new AiRunnerDraft(name, base_url);
         if (!draft.valid) {
@@ -572,7 +574,7 @@ public class AiConfigPanelView : Object {
 
     private async void delete_manual_runner(string runner_id) {
         if (api_client == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: only a row's handlers call this, and rows are removed, their handlers with them, when the API goes
         }
         try {
             yield api_client.delete_ai_runner(runner_id);
@@ -593,6 +595,8 @@ public class AiConfigPanelView : Object {
         );
 
         var row = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        // The row is rebuilt on every refresh; its handlers go when it is taken off the list.
+        var handlers = SignalScope.until_removed(row);
         row.set_margin_top(8);
         row.set_margin_bottom(8);
         row.set_margin_start(8);
@@ -614,14 +618,14 @@ public class AiConfigPanelView : Object {
         key_entry.set_hexpand(true);
         key_entry.set_placeholder_text(presentation.key_placeholder);
         var save_btn = new Gtk.Button.with_label("Save Key");
-        save_btn.clicked.connect(() => {
+        handlers.add(save_btn, save_btn.clicked.connect(() => {
             save_provider_key.begin(provider_id, key_entry);
-        });
+        }));
         var remove_btn = new Gtk.Button.with_label("Remove Key");
         remove_btn.set_sensitive(presentation.can_remove_key);
-        remove_btn.clicked.connect(() => {
+        handlers.add(remove_btn, remove_btn.clicked.connect(() => {
             remove_provider_key.begin(provider_id);
-        });
+        }));
         key_row.append(key_entry);
         key_row.append(save_btn);
         key_row.append(remove_btn);
@@ -632,19 +636,19 @@ public class AiConfigPanelView : Object {
         enabled_label.set_halign(Gtk.Align.START);
         var enabled_switch = new Gtk.Switch();
         enabled_switch.set_active(presentation.enabled);
-        enabled_switch.notify["active"].connect(() => {
+        handlers.add(enabled_switch, enabled_switch.notify["active"].connect(() => {
             set_provider_enabled.begin(provider_id, enabled_switch.get_active());
-        });
+        }));
         var setup_btn = new Gtk.Button.with_label("Setup");
         setup_btn.set_sensitive(presentation.setup_available);
-        setup_btn.clicked.connect(() => {
+        handlers.add(setup_btn, setup_btn.clicked.connect(() => {
             open_provider_link(provider.setup_url);
-        });
+        }));
         var docs_btn = new Gtk.Button.with_label("Docs");
         docs_btn.set_sensitive(presentation.docs_available);
-        docs_btn.clicked.connect(() => {
+        handlers.add(docs_btn, docs_btn.clicked.connect(() => {
             open_provider_link(provider.docs_url);
-        });
+        }));
         controls_row.append(enabled_label);
         controls_row.append(enabled_switch);
         controls_row.append(setup_btn);
@@ -656,7 +660,7 @@ public class AiConfigPanelView : Object {
 
     private async void save_provider_key(string provider_id, Gtk.Entry key_entry) {
         if (api_client == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: only a row's handlers call this, and rows are removed, their handlers with them, when the API goes
         }
         var draft = new AiProviderKeyDraft(key_entry.get_text());
         if (!draft.valid) {
@@ -675,7 +679,7 @@ public class AiConfigPanelView : Object {
 
     private async void remove_provider_key(string provider_id) {
         if (api_client == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: only a row's handlers call this, and rows are removed, their handlers with them, when the API goes
         }
         try {
             yield api_client.delete_ai_provider_credential(provider_id);
@@ -688,7 +692,7 @@ public class AiConfigPanelView : Object {
 
     private async void set_provider_enabled(string provider_id, bool enabled) {
         if (api_client == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: only a row's handlers call this, and rows are removed, their handlers with them, when the API goes
         }
         try {
             yield api_client.set_ai_provider_enabled(provider_id, enabled);

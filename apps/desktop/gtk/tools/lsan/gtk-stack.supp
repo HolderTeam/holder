@@ -24,3 +24,11 @@ leak:libvte-2.91-gtk4.so
 # (gtkapplication.c, inlining gdk.c). GTK's own frames carry no symbols LeakSanitizer can match, so
 # this names the app-view fixture that registers the one shared application.
 leak:holder_linux_tests_window_fixture_app
+
+# GtkSourceView's gutter keeps a small list for each renderer it inserts, such as the line-number
+# one, past the view's own finalization.
+leak:gtk_source_gutter_insert
+
+# GTK's popover presentation sometimes loses the GdkPopupLayout it creates, depending on when the
+# popover is shown and hidden; the app never creates one itself.
+leak:gdk_popup_layout_new

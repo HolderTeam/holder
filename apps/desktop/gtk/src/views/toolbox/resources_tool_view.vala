@@ -141,12 +141,12 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             resources_selection.set_selected(position);
             open_selected_resource();
         });
-        view.append_column(build_resource_text_column("Label", "label"));
-        view.append_column(build_resource_text_column("Type", "kind"));
-        view.append_column(build_resource_text_column("Assets", "assets"));
+        view.append_column(build_resource_text_column(this, "Label", "label"));
+        view.append_column(build_resource_text_column(this, "Type", "kind"));
+        view.append_column(build_resource_text_column(this, "Assets", "assets"));
         view.append_column(build_resource_usage_column());
-        view.append_column(build_resource_text_column("Description", "desc"));
-        view.append_column(build_resource_text_column("Updated", "updated"));
+        view.append_column(build_resource_text_column(this, "Description", "desc"));
+        view.append_column(build_resource_text_column(this, "Updated", "updated"));
 
         var scroller = new Gtk.ScrolledWindow();
         scroller.set_vexpand(true);
@@ -219,7 +219,12 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         return root;
     }
 
-    private Gtk.ColumnViewColumn build_resource_text_column(string title, string field) {
+    // Static: its closures capture the field, and a closure made in an instance method also holds the
+    // view, which owns the factory that keeps the closure, so neither would be freed.
+    private static Gtk.ColumnViewColumn build_resource_text_column(ResourcesToolView owner,
+                                                                  string title,
+                                                                  string field) {
+        unowned ResourcesToolView view = owner;
         var factory = new Gtk.SignalListItemFactory();
         factory.setup.connect((item_obj) => {
             var item = item_obj as Gtk.ListItem;
@@ -241,7 +246,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             if (resource == null || label == null) {
                 return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: defensive; GTK hands these callbacks the ListItem, item and child set up here
             }
-            var cell = ResourcesPresenter.cell(controller, resource, field);
+            var cell = ResourcesPresenter.cell(view.controller, resource, field);
             label.set_text(cell.text);
             if (cell.tooltip != null) {
                 label.set_tooltip_text(cell.tooltip);
@@ -523,6 +528,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         dialog.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED);
         dialog.set_default_response("save");
         dialog.set_close_response("cancel");
+        var handlers = SignalScope.until_closed(dialog);
 
         var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
         var project_notice = new Gtk.Label("Project: %s".printf(project.name)) { xalign = 0.0f };
@@ -550,9 +556,9 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             path.set_placeholder_text("/path/to/assets");
             path_row.append(path);
             var choose = new Gtk.Button.with_label("Choose…");
-            choose.clicked.connect(() => {
+            handlers.add(choose, choose.clicked.connect(() => {
                 choose_storage_folder.begin(root_window, path);
-            });
+            }));
             path_row.append(choose);
             content.append(new Gtk.Label("Folder") { xalign = 0.0f });
             content.append(path_row);
@@ -581,14 +587,14 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             name, path, endpoint, region, bucket, access_key, secret_key
         };
         foreach (var validation_entry in validation_entries) {
-            validation_entry.changed.connect(() => {
+            handlers.add(validation_entry, validation_entry.changed.connect(() => {
                 dialog.set_response_enabled("save", location_draft_from_entries(
                     s3_compatible, name, path, endpoint, region, bucket, prefix,
                     access_key, secret_key, session_token
                 ).can_save());
-            });
+            }));
         }
-        dialog.response.connect((response) => {
+        handlers.add(dialog, dialog.response.connect((response) => {
             if (response != "save") {
                 return;
             }
@@ -602,7 +608,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
                 return;
             }
             create_and_bind_location.begin(project.project_id, draft.location_name, draft.build_spec());
-        });
+        }));
         dialog.present(root_window);
     }
 
@@ -685,12 +691,13 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         dialog.add_response("cancel", "Cancel");
         dialog.set_close_response("cancel");
         dialog.set_extra_child(status_row);
+        var handlers = SignalScope.until_closed(dialog);
 
         var flow = new GoogleDriveConnectFlow(
             storage_api, uri_launcher, scheduler, () => preferred_location_id
         );
-        flow.status_changed.connect((text) => { status_label.set_text(text); });
-        dialog.response.connect(() => { flow.cancel(); });
+        handlers.add(flow, flow.status_changed.connect((text) => { status_label.set_text(text); }));
+        handlers.add(dialog, dialog.response.connect(() => { flow.cancel(); }));
         dialog.present(root_window);
 
         var result = yield flow.run(project_id);
@@ -752,6 +759,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         dialog.set_default_response("save");
         dialog.set_close_response("cancel");
 
+        var handlers = SignalScope.until_closed(dialog);
         var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
         var project_notice = new Gtk.Label("Project: %s".printf(project.name)) { xalign = 0.0f };
         project_notice.add_css_class("heading");
@@ -763,13 +771,13 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         var custom_kind_entry = new Gtk.Entry();
         custom_kind_entry.set_placeholder_text("custom kind");
         custom_kind_entry.set_visible(false);
-        kind_dropdown.notify["selected"].connect(() => {
+        handlers.add(kind_dropdown, kind_dropdown.notify["selected"].connect(() => {
             var idx = kind_dropdown.get_selected();
             custom_kind_entry.set_visible(idx == kind_options.get_n_items() - 1);
             if (!custom_kind_entry.get_visible()) {
                 custom_kind_entry.set_text("");
             }
-        });
+        }));
         content.append(kind_label);
         content.append(kind_dropdown);
         content.append(custom_kind_entry);
@@ -787,14 +795,14 @@ public class ResourcesToolView : Object, IToolShellAdapter {
 
         var local_picker_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         var pick_file_btn = new Gtk.Button.with_label("Pick File...");
-        pick_file_btn.clicked.connect(() => {
+        handlers.add(pick_file_btn, pick_file_btn.clicked.connect(() => {
             open_local_resource_picker.begin(root_window, uri_entry, label_entry, false);
-        });
+        }));
         local_picker_row.append(pick_file_btn);
         var pick_image_btn = new Gtk.Button.with_label("Pick Image...");
-        pick_image_btn.clicked.connect(() => {
+        handlers.add(pick_image_btn, pick_image_btn.clicked.connect(() => {
             open_local_resource_picker.begin(root_window, uri_entry, label_entry, true);
-        });
+        }));
         local_picker_row.append(pick_image_btn);
         content.append(local_picker_row);
 
@@ -835,13 +843,13 @@ public class ResourcesToolView : Object, IToolShellAdapter {
 
         dialog.set_extra_child(content);
         update_resource_dialog_save_state(dialog, label_entry, details_view, details_error);
-        label_entry.changed.connect(() => {
+        handlers.add(label_entry, label_entry.changed.connect(() => {
             update_resource_dialog_save_state(dialog, label_entry, details_view, details_error);
-        });
-        details_view.get_buffer().changed.connect(() => {
+        }));
+        handlers.add(details_view.get_buffer(), details_view.get_buffer().changed.connect(() => {
             update_resource_dialog_save_state(dialog, label_entry, details_view, details_error);
-        });
-        dialog.response.connect((response) => {
+        }));
+        handlers.add(dialog, dialog.response.connect((response) => {
             if (response != "save") {
                 return;
             }
@@ -872,7 +880,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
                     project.project_id, draft.kind, draft.uri, draft.label, draft.desc, draft.extra_metadata
                 );
             }
-        });
+        }));
         dialog.present(root_window);
     }
 

@@ -157,9 +157,22 @@ Two pre-release checks, each in its own build directory:
 `san` reports a leak only when nothing can reach the memory any more. Fontconfig, Pango, HarfBuzz,
 Mesa, libxml2 and VTE keep caches until exit, so `tools/lsan/gtk-stack.supp` suppresses those
 libraries, and never GTK, GLib or GObject: an object our code creates and loses is still reported.
-In Vala that is usually a reference cycle, such as a closure that captures `this` stored by an
-object `this` owns. A widget's draw function, for one, should be static and take the widget from its
-`area` argument.
+In Vala that is usually a reference cycle:
+
+- A lambda that uses only `this` is connected without holding it, but any closure that also captures
+  a local gets a block, shared by every closure in that method, which holds `this` and each local any
+  of them captures. Stored by something `this` owns (a draw function, a list factory, a delegate
+  handed to a member), it keeps both alive: build it in a static method holding the owner `unowned`,
+  as `HistoryLaneGutter` and `TrashToolView` do.
+- A handler that captures the object it is connected on keeps that object alive. Take it from the
+  signal instead: a lambda with one parameter more than the signal gets the sender first, as in
+  `notify["active"].connect((row, pspec) => ...)`.
+- A dialog or form built in one method, whose handlers capture its own widgets, registers them
+  with `SignalScope`: `until_closed(dialog)` or `until_removed(widget)` disconnects them when it is
+  done with.
+
+`tests/app_views/lifetime_test.vala` checks that the tool views, the preferences dialog and a scoped
+dialog and form are freed once their last reference goes.
 
 ## Shared integration tests
 

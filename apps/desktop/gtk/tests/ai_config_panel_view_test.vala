@@ -822,7 +822,7 @@ private void test_actions_left_over_from_a_removed_api_do_nothing() {
     string? reported = null;
     view.error_reported.connect((title, details) => { reported = details; });
 
-    // The API goes away; the rows are gone, but a click that was already on its way still arrives.
+    // The API goes away, and the rows with it: a click on a row already removed reaches nothing.
     view.set_api_client(null);
     ((!) add_runner).clicked();
     ((!) save_runner).clicked();

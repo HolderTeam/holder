@@ -28,6 +28,7 @@ public static int main(string[] args) {
     register_toolbox_tests();
     register_workspace_pane_tests();
     register_window_tests();
+    register_lifetime_tests();
 #if HOLDER_TERMINAL_VTE
     register_terminal_tool_view_tests();
 #endif
