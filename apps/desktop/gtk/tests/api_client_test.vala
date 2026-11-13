@@ -2350,7 +2350,8 @@ private void test_response_wrapper_objects_construct() {
     var bytes = new Bytes((uint8[]) "ok".data);
     var bytes_resp = new HolderLinux.ApiHttpBytesResponse(201, bytes);
     assert(bytes_resp.status == 201);
-    assert(((string) bytes_resp.body.get_data()).has_prefix("ok"));
+    // Bytes carry no terminating NUL; copy exactly their length before reading them as text.
+    assert(((string) bytes_resp.body.get_data()).substring(0, (long) bytes_resp.body.get_size()) == "ok");
 
     var stream = new MemoryInputStream.from_bytes(new Bytes((uint8[]) "x".data));
     var stream_resp = new HolderLinux.ApiHttpStreamResponse(202, stream);
@@ -2424,7 +2425,7 @@ private void test_soup_api_http_transport_send_and_read_uses_status_and_bytes() 
     }
     assert(response != null);
     assert(response.status == 202);
-    string response_text = (string) response.body.get_data();
+    string response_text = ((string) response.body.get_data()).substring(0, (long) response.body.get_size());
     assert(response_text.has_prefix("{\"ok\":true}"));
     server.disconnect();
 }

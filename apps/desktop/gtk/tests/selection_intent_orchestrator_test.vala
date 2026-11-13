@@ -255,7 +255,7 @@ private void test_project_selection_changed_delegates_selected_id() {
 
     bool done = false;
     orchestrator.on_project_selection_changed.begin((obj, res) => {
-        orchestrator.on_project_selection_changed.end(res);
+        ((HolderLinux.SelectionIntentOrchestrator) obj).on_project_selection_changed.end(res);
         done = true;
     });
 
@@ -281,7 +281,7 @@ private void test_project_selection_changed_ignores_null_selection() {
 
     bool done = false;
     orchestrator.on_project_selection_changed.begin((obj, res) => {
-        orchestrator.on_project_selection_changed.end(res);
+        ((HolderLinux.SelectionIntentOrchestrator) obj).on_project_selection_changed.end(res);
         done = true;
     });
 
@@ -310,7 +310,7 @@ private void test_card_selection_changed_uses_selected_card_ids() {
 
     bool done = false;
     orchestrator.on_card_selection_changed.begin((obj, res) => {
-        orchestrator.on_card_selection_changed.end(res);
+        ((HolderLinux.SelectionIntentOrchestrator) obj).on_card_selection_changed.end(res);
         done = true;
     });
 
@@ -341,7 +341,7 @@ private void test_card_selection_changed_uses_controller_project_fallback() {
 
     bool done = false;
     orchestrator.on_card_selection_changed.begin((obj, res) => {
-        orchestrator.on_card_selection_changed.end(res);
+        ((HolderLinux.SelectionIntentOrchestrator) obj).on_card_selection_changed.end(res);
         done = true;
     });
 
@@ -445,7 +445,7 @@ private void test_search_result_activation_uses_card_resolver() {
 
     bool done = false;
     orchestrator.on_search_result_activation.begin(3, (obj, res) => {
-        orchestrator.on_search_result_activation.end(res);
+        ((HolderLinux.SelectionIntentOrchestrator) obj).on_search_result_activation.end(res);
         done = true;
     });
 
@@ -473,7 +473,7 @@ private void test_search_result_activation_handles_missing_resolved_card() {
 
     bool done = false;
     orchestrator.on_search_result_activation.begin(7, (obj, res) => {
-        orchestrator.on_search_result_activation.end(res);
+        ((HolderLinux.SelectionIntentOrchestrator) obj).on_search_result_activation.end(res);
         done = true;
     });
 
@@ -612,7 +612,7 @@ private void test_project_selection_changed_emits_activity_logger() {
 
     bool done = false;
     orchestrator.on_project_selection_changed.begin((obj, res) => {
-        orchestrator.on_project_selection_changed.end(res);
+        ((HolderLinux.SelectionIntentOrchestrator) obj).on_project_selection_changed.end(res);
         done = true;
     });
 

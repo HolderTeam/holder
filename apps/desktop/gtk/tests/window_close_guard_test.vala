@@ -57,6 +57,13 @@ private class FakeCloseHost : Object, HolderLinux.IWindowCloseHost {
         return save_result;
     }
 
+    // Ends a save the test left deferred, so its coroutine, and what it holds, are freed.
+    public void finish_pending_save() {
+        if (resume != null) {
+            complete_save(false);
+        }
+    }
+
     public void complete_save(bool result) {
         deferred_result = result;
         var callback = (owned) resume;
@@ -260,7 +267,10 @@ private string run_close_scenario(bool legacy, CloseScript script) {
     script(subject, host, scheduler);
     scheduler.run_all_once();
     trace.add("saves=%d recoveries=%d".printf(host.save_calls, host.recovery_calls));
-    return join_parts("|", trace);
+    var result = join_parts("|", trace);
+    host.finish_pending_save();
+    scheduler.drop_pending();
+    return result;
 }
 
 // Runs the script against the original code and the extracted guard, requires identical

@@ -594,6 +594,8 @@ private void test_a_nudge_load_for_a_replaced_api_is_not_rendered() {
     settle();
 
     assert(!collect_widget_text(panel.widget).contains("Suggest a title"));
+    // The hook captures the panel and both APIs, and old_api keeps the hook.
+    old_api.list_ai_nudges_hook = null;
 }
 
 private void test_a_failed_dismissal_is_reported_and_can_be_retried() {

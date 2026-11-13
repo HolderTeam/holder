@@ -11,9 +11,13 @@ internal class HistoryLaneGutter : Gtk.DrawingArea {
         set_hexpand(false);
         set_vexpand(true);
         add_css_class("history-lane-gutter");
-        set_draw_func((area, cr, width, height) => {
-            draw_lane(area, cr, width, height);
-        });
+        // A static function: a closure would hold this gutter, and the gutter holds its draw
+        // function, so neither would ever be freed.
+        set_draw_func(draw);
+    }
+
+    private static void draw(Gtk.DrawingArea area, Cairo.Context cr, int width, int height) {
+        ((HistoryLaneGutter) area).draw_lane(area, cr, width, height);
     }
 
     public void set_layout(HistoryLaneLayout layout, int lane_count, bool is_merge) {
