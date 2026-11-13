@@ -622,8 +622,10 @@ private void test_the_window_shows_what_the_controller_reports() {
     assert(wait_for_condition(() => restored));
     assert(f.api.list_cards_calls > lists);
 
+    // Toasts show one at a time and the terminal's "Copied" toast above lasts five seconds, so the
+    // error's toast waits behind it.
     w.on_project_create_error_reported("Could not create project", "Name taken");
-    assert(wait_for_condition(() => f.shows_label("Could not create project")));
+    assert(wait_for_condition(() => f.shows_label("Could not create project"), 15000));
     f.destroy();
 }
 

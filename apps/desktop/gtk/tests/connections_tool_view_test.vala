@@ -402,13 +402,12 @@ private void test_the_default_relations_split_waits_for_a_width_and_is_applied_o
     assert(h.scheduler.pending_repeating() == 0);
     var initial = paned.get_position();
 
-    // Shown, the pane queues exactly one repeating layout check.
-    h.window.present();
-    assert(wait_for_condition(() => paned.get_mapped()));
+    // Shown, the tool queues exactly one repeating layout check.
+    h.view.set_tool_visible(true);
     assert(h.scheduler.pending_repeating() == 1);
 
     // No width yet: the check stays queued and changes nothing.
-    paned.allocate(0, 600, -1, null);
+    assert(paned.get_width() == 0);
     assert(h.scheduler.tick_repeating() == 1);
     assert(h.scheduler.pending_repeating() == 1);
     assert(paned.get_position() == initial);
@@ -424,11 +423,10 @@ private void test_the_default_relations_split_waits_for_a_width_and_is_applied_o
     // Applied once: nothing is left queued, so a later divider position is never overwritten, even
     // when the tool is shown again.
     paned.set_position(100);
-    paned.unmap();
-    paned.map();
+    h.view.set_tool_visible(false);
+    h.view.set_tool_visible(true);
     assert(h.scheduler.tick_repeating() == 0);
     assert(paned.get_position() == 100);
-    h.window.destroy();
 }
 
 public static int main(string[] args) {

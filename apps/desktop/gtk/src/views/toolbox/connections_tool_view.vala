@@ -131,6 +131,11 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
     public void set_tool_visible(bool visible) {
         refresh_planner.set_tool_visible(visible);
+        // The split needs the pane's width, which it has only once the tool is shown. Polling from
+        // construction would wake the app every 30 ms for as long as the tool stays unopened.
+        if (visible) {
+            queue_apply_default_relations_split();
+        }
     }
 
     public void set_settings(Settings? settings) {
@@ -346,9 +351,6 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         connections_relations_scroller.update_property(Gtk.AccessibleProperty.LABEL, "Relations panel", -1);
         connections_relations_scroller.set_child(connections_relations_column);
         connections_main_pane.set_end_child(connections_relations_scroller);
-        // The split needs the pane's width, which it has only once shown. Polling from here would
-        // wake the app every 30 ms, for as long as the tool stays unopened.
-        connections_main_pane.map.connect(queue_apply_default_relations_split);
 
         refresh_connections_structure();
         set_graph_empty_state("Select a card to view graph links.");
