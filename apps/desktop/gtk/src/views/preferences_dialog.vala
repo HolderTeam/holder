@@ -33,6 +33,10 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         build_appearance_page();
     }
 
+    // Handlers take their row from the signal rather than capturing it: a closure capturing a local
+    // holds the dialog as well, and the row that keeps the closure belongs to the dialog, so a
+    // dialog opened and closed would never be freed. Handlers that use only the dialog's own
+    // members are connected without holding it.
     private void build_appearance_page() {
         var page = new Adw.PreferencesPage();
         page.set_name("appearance");
@@ -53,8 +57,8 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         Gtk.Expression variant_expression = new Gtk.PropertyExpression(typeof(Gtk.StringObject), null, "string");
         variant_row.set_expression(variant_expression);
         variant_row.set_selected(current_variant_index());
-        variant_row.notify["selected"].connect(() => {
-            var scheme = index_to_color_scheme(variant_row.get_selected());
+        variant_row.notify["selected"].connect((row, pspec) => {
+            var scheme = index_to_color_scheme(((Adw.ComboRow) row).get_selected());
             Adw.StyleManager.get_default().set_color_scheme(scheme);
             if (settings != null) {
                 settings.set_string(AppSettings.KEY_STYLE_VARIANT, AppSettings.color_scheme_to_key(scheme));
@@ -100,8 +104,8 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         } else {
             line_numbers_row.set_active(editor_view.get_show_line_numbers());
         }
-        line_numbers_row.notify["active"].connect(() => {
-            var enabled = line_numbers_row.get_active();
+        line_numbers_row.notify["active"].connect((row, pspec) => {
+            var enabled = ((Adw.SwitchRow) row).get_active();
             editor_view.set_show_line_numbers(enabled);
             if (settings != null) {
                 settings.set_boolean(AppSettings.KEY_SHOW_LINE_NUMBERS, enabled);
@@ -144,8 +148,8 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         } else if (!editor_spellcheck.buffer_safe) {
             spell_row.set_subtitle("Spell checking is paused while inline images are displayed.");
         }
-        spell_row.notify["active"].connect(() => {
-            var enabled = spell_row.get_active();
+        spell_row.notify["active"].connect((row, pspec) => {
+            var enabled = ((Adw.SwitchRow) row).get_active();
             if (editor_spellcheck != null) {
                 editor_spellcheck.set_enabled_preference(enabled);
             }
@@ -173,7 +177,6 @@ public class PreferencesDialog : Adw.PreferencesDialog {
                 settings.get_boolean(AppSettings.KEY_TRIM_TWO_SPACE_HARD_BREAKS)
             );
         }
-        trim_hard_breaks_row.set_visible(!preserve_whitespace_row.get_active());
         editor_group.add(trim_hard_breaks_row);
 
         var trim_code_whitespace_row = new Adw.SwitchRow();
@@ -184,32 +187,34 @@ public class PreferencesDialog : Adw.PreferencesDialog {
                 settings.get_boolean(AppSettings.KEY_TRIM_WHITESPACE_IN_CODE_BLOCKS)
             );
         }
-        trim_code_whitespace_row.set_visible(!preserve_whitespace_row.get_active());
         editor_group.add(trim_code_whitespace_row);
 
         // Preserve is the escape hatch: the other two have no effect while it's on, so hide
         // them rather than leave two moot switches visible.
-        preserve_whitespace_row.notify["active"].connect(() => {
-            var preserve = preserve_whitespace_row.get_active();
-            if (settings != null) {
-                settings.set_boolean(AppSettings.KEY_PRESERVE_TRAILING_WHITESPACE, preserve);
-            }
-            trim_hard_breaks_row.set_visible(!preserve);
-            trim_code_whitespace_row.set_visible(!preserve);
-        });
-        trim_hard_breaks_row.notify["active"].connect(() => {
+        var hide_while_preserving = BindingFlags.SYNC_CREATE | BindingFlags.INVERT_BOOLEAN;
+        preserve_whitespace_row.bind_property("active", trim_hard_breaks_row, "visible", hide_while_preserving);
+        preserve_whitespace_row.bind_property("active", trim_code_whitespace_row, "visible", hide_while_preserving);
+        preserve_whitespace_row.notify["active"].connect((row, pspec) => {
             if (settings != null) {
                 settings.set_boolean(
-                    AppSettings.KEY_TRIM_TWO_SPACE_HARD_BREAKS,
-                    trim_hard_breaks_row.get_active()
+                    AppSettings.KEY_PRESERVE_TRAILING_WHITESPACE,
+                    ((Adw.SwitchRow) row).get_active()
                 );
             }
         });
-        trim_code_whitespace_row.notify["active"].connect(() => {
+        trim_hard_breaks_row.notify["active"].connect((row, pspec) => {
+            if (settings != null) {
+                settings.set_boolean(
+                    AppSettings.KEY_TRIM_TWO_SPACE_HARD_BREAKS,
+                    ((Adw.SwitchRow) row).get_active()
+                );
+            }
+        });
+        trim_code_whitespace_row.notify["active"].connect((row, pspec) => {
             if (settings != null) {
                 settings.set_boolean(
                     AppSettings.KEY_TRIM_WHITESPACE_IN_CODE_BLOCKS,
-                    trim_code_whitespace_row.get_active()
+                    ((Adw.SwitchRow) row).get_active()
                 );
             }
         });
@@ -229,11 +234,11 @@ public class PreferencesDialog : Adw.PreferencesDialog {
                 ? settings.get_boolean(AppSettings.KEY_NO_PLAINTEXT_RECOVERY_FILES)
                 : false
         );
-        no_plaintext_recovery_row.notify["active"].connect(() => {
+        no_plaintext_recovery_row.notify["active"].connect((row, pspec) => {
             if (settings != null) {
                 settings.set_boolean(
                     AppSettings.KEY_NO_PLAINTEXT_RECOVERY_FILES,
-                    no_plaintext_recovery_row.get_active()
+                    ((Adw.SwitchRow) row).get_active()
                 );
             }
         });
@@ -330,8 +335,8 @@ public class PreferencesDialog : Adw.PreferencesDialog {
             preview.set_margin_bottom(2);
             preview.set_margin_start(2);
             preview.set_margin_end(2);
-            preview.activate.connect(() => {
-                apply_style_scheme(scheme_id);
+            preview.activate.connect((activated) => {
+                apply_style_scheme(((!) activated.get_scheme()).get_id());
             });
 
             scheme_previews.set(scheme_id, preview);

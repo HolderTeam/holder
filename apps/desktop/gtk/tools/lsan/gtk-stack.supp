@@ -1,0 +1,34 @@
+# LeakSanitizer suppressions for caches the GTK stack keeps for the life of the process.
+# Each names a library that holds what it allocates until exit, by design, never GTK, GLib or
+# GObject themselves: a Vala object that is never freed is allocated through g_object_new from
+# our code, and must still be reported.
+
+# Font discovery and matching, and the layouts and shaping that use it.
+leak:libfontconfig.so
+leak:libpango-1.0.so
+leak:libpangoft2-1.0.so
+leak:libpangocairo-1.0.so
+leak:libharfbuzz.so
+
+# GL setup when GTK opens the display, in Mesa and in GDK.
+leak:libEGL_mesa.so
+leak:gdk_display_prepare_gl
+
+# GtkSourceView's language definitions, parsed with libxml2 once.
+leak:libxml2.so
+
+# VTE's clipboard formats for a selection or a copy.
+leak:libvte-2.91-gtk4.so
+
+# GtkApplication's startup copies the application ID for GDK's program class, kept until exit
+# (gtkapplication.c, inlining gdk.c). GTK's own frames carry no symbols LeakSanitizer can match, so
+# this names the app-view fixture that registers the one shared application.
+leak:holder_linux_tests_window_fixture_app
+
+# GtkSourceView's gutter keeps a small list for each renderer it inserts, such as the line-number
+# one, past the view's own finalization.
+leak:gtk_source_gutter_insert
+
+# GTK's popover presentation sometimes loses the GdkPopupLayout it creates, depending on when the
+# popover is shown and hidden; the app never creates one itself.
+leak:gdk_popup_layout_new

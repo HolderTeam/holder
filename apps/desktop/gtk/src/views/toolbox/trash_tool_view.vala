@@ -112,10 +112,10 @@ public class TrashToolView : Object, IToolShellAdapter {
         var selection = new Gtk.NoSelection(controller.items_store);
         var view = new Gtk.ColumnView(selection);
         view.set_vexpand(true);
-        view.append_column(build_text_column("Type", "type"));
-        view.append_column(build_text_column("Title", "title"));
-        view.append_column(build_text_column("Deleted", "deleted"));
-        view.append_column(build_actions_column());
+        view.append_column(build_text_column(this, "Type", "type"));
+        view.append_column(build_text_column(this, "Title", "title"));
+        view.append_column(build_text_column(this, "Deleted", "deleted"));
+        view.append_column(build_actions_column(this));
 
         var scroller = new Gtk.ScrolledWindow();
         scroller.set_vexpand(true);
@@ -130,7 +130,11 @@ public class TrashToolView : Object, IToolShellAdapter {
         return root;
     }
 
-    private Gtk.ColumnViewColumn build_text_column(string title, string field) {
+    // Static, as is build_actions_column: a closure made in an instance method holds the view, and
+    // the view owns the factory that keeps the closure, so neither would be freed. These hold it
+    // unowned instead.
+    private static Gtk.ColumnViewColumn build_text_column(TrashToolView owner, string title, string field) {
+        unowned TrashToolView view = owner;
         var factory = new Gtk.SignalListItemFactory();
         factory.setup.connect((item_obj) => {
             var item = item_obj as Gtk.ListItem;
@@ -153,14 +157,14 @@ public class TrashToolView : Object, IToolShellAdapter {
             }
             switch (field) {
                 case "type":
-                    label.set_text(controller.pretty_type(trash_item.item_type));
+                    label.set_text(view.controller.pretty_type(trash_item.item_type));
                     break;
                 case "title":
                     label.set_text(trash_item.title);
                     label.set_tooltip_text(trash_item.title);
                     break;
                 case "deleted":
-                    var ts = controller.format_epoch(trash_item.deleted_at);
+                    var ts = view.controller.format_epoch(trash_item.deleted_at);
                     label.set_text(ts);
                     label.set_tooltip_text(trash_item.deleted_at.to_string());
                     break;
@@ -173,7 +177,9 @@ public class TrashToolView : Object, IToolShellAdapter {
         return new Gtk.ColumnViewColumn(title, factory);
     }
 
-    private Gtk.ColumnViewColumn build_actions_column() {
+    private static Gtk.ColumnViewColumn build_actions_column(TrashToolView owner) {
+        // The row's buttons also belong to the row, so their closures hold it unowned too.
+        unowned TrashToolView view = owner;
         var factory = new Gtk.SignalListItemFactory();
         factory.setup.connect((item_obj) => {
             var item = item_obj as Gtk.ListItem;
@@ -181,13 +187,14 @@ public class TrashToolView : Object, IToolShellAdapter {
                 return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: GTK always hands the factory a Gtk.ListItem
             }
 
+            unowned Gtk.ListItem row = (!) item;
             var box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
 
             var restore_btn = new Gtk.Button.with_label("Restore");
             restore_btn.clicked.connect(() => {
-                var current = item.get_item() as TrashItem;
+                var current = row.get_item() as TrashItem;
                 if (current != null) {
-                    restore_item.begin(current);
+                    view.restore_item.begin(current);
                 }
             });
             box.append(restore_btn);
@@ -195,9 +202,9 @@ public class TrashToolView : Object, IToolShellAdapter {
             var delete_btn = new Gtk.Button.with_label("Delete");
             delete_btn.add_css_class("destructive-action");
             delete_btn.clicked.connect(() => {
-                var current = item.get_item() as TrashItem;
+                var current = row.get_item() as TrashItem;
                 if (current != null) {
-                    confirm_hard_delete(current);
+                    view.confirm_hard_delete(current);
                 }
             });
             box.append(delete_btn);

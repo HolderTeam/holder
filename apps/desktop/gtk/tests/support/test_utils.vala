@@ -126,6 +126,14 @@ public class TestScheduler : Object, HolderLinux.IScheduler {
         return tasks.size;
     }
 
+    // Drops every pending task without running it, as destroying a main context would. A task's
+    // callback can hold what scheduled it, which holds this scheduler; dropping the tasks lets both
+    // be freed once a test is done with them.
+    public void drop_pending() {
+        one_shots.clear();
+        repeating.clear();
+    }
+
     public void run_all_once() {
         var tasks = new Gee.ArrayList<OneShotTask>();
         foreach (var task in one_shots) {

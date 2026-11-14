@@ -54,6 +54,13 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         refresh_planner.note_content_changed();
     }
 
+    // Static: the planner keeps this factory, and the view keeps the planner, so a factory holding
+    // the view would keep both alive. This one holds it unowned.
+    private static ConnectionsRefreshTargetFactory refresh_target_factory(ConnectionsToolView owner) {
+        unowned ConnectionsToolView view = owner;
+        return (content_generation) => view.current_graph_refresh_target(content_generation);
+    }
+
     private ConnectionsGraphRefreshTarget current_graph_refresh_target(uint content_generation) {
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project
@@ -91,10 +98,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         relations_presenter = new ConnectionsRelationsPresenter(controller);
         board_presenter = new ConnectionsBoardPresenter(controller);
         board_builder = new ConnectionsBoardBuilder(controller);
-        refresh_planner = new ConnectionsRefreshPlanner(
-            this.scheduler,
-            (content_generation) => current_graph_refresh_target(content_generation)
-        );
+        refresh_planner = new ConnectionsRefreshPlanner(this.scheduler, refresh_target_factory(this));
         refresh_planner.debug_event.connect((event_name, target) => {
             debug_log_requested(controller.format_graph_refresh_debug_event(event_name, target));
         });
@@ -127,6 +131,11 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
     public void set_tool_visible(bool visible) {
         refresh_planner.set_tool_visible(visible);
+        // The split needs the pane's width, which it has only once the tool is shown. Polling from
+        // construction would wake the app every 30 ms for as long as the tool stays unopened.
+        if (visible) {
+            queue_apply_default_relations_split();
+        }
     }
 
     public void set_settings(Settings? settings) {
@@ -252,9 +261,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         connections_board_canvas.set_vexpand(true);
         connections_board_canvas.set_content_width(BOARD_MIN_WIDTH);
         connections_board_canvas.set_content_height(BOARD_MIN_HEIGHT);
-        connections_board_canvas.set_draw_func((area, cr, width, height) => {
-            draw_connections_board(cr);
-        });
+        install_board_draw_func(connections_board_canvas, this);
         Adw.StyleManager.get_for_display(connections_board_canvas.get_display()).notify["dark"].connect(() => {
             connections_board_canvas.queue_draw();
         });
@@ -344,7 +351,6 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         connections_relations_scroller.update_property(Gtk.AccessibleProperty.LABEL, "Relations panel", -1);
         connections_relations_scroller.set_child(connections_relations_column);
         connections_main_pane.set_end_child(connections_relations_scroller);
-        queue_apply_default_relations_split();
 
         refresh_connections_structure();
         set_graph_empty_state("Select a card to view graph links.");
@@ -367,7 +373,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
     private void queue_apply_default_relations_split() {
         if (relations_default_split_applied || relations_default_split_idle_id != 0) {
-            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: queued once, from the constructor, before anything is applied
+            return;
         }
         relations_default_split_idle_id = scheduler.schedule_repeating(30, () => {
             return apply_default_relations_split();
@@ -500,14 +506,15 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         custom_kind_entry.set_placeholder_text("custom kind");
         custom_kind_entry.update_property(Gtk.AccessibleProperty.LABEL, "Custom kind", -1);
         custom_kind_entry.set_visible(false);
-        kind_dropdown.notify["selected"].connect(() => {
+        var handlers = SignalScope.until_closed(dialog);
+        handlers.add(kind_dropdown, kind_dropdown.notify["selected"].connect(() => {
             var selected = kind_dropdown.get_selected();
             var is_custom = (selected == kind_options.get_n_items() - 1);
             custom_kind_entry.set_visible(is_custom);
             if (!is_custom) {
                 custom_kind_entry.set_text("");
             }
-        });
+        }));
         var kind_row = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         kind_row.append(kind_dropdown);
         kind_row.append(custom_kind_entry);
@@ -522,7 +529,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         content.append(label_entry);
 
         dialog.set_extra_child(content);
-        dialog.response.connect((response) => {
+        handlers.add(dialog, dialog.response.connect((response) => {
             if (response == "add") {
                 var request = ConnectionsAddLinkPresenter.resolve(
                     target_ids,
@@ -544,7 +551,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                     request.remember_kind
                 );
             }
-        });
+        }));
         dialog.present(root);
     }
 
@@ -833,6 +840,9 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         inner.append(meta);
 
         button.set_child(inner);
+        // The node is rebuilt with every render, and its handlers hold its button unowned: held, the
+        // button that keeps the handlers would keep itself alive, and every node ever drawn.
+        unowned Gtk.Button node_button = button;
         button.clicked.connect(() => {
             if (node.card_id.has_prefix("project:")) {
                 var project_id = node.card_id.substring("project:".length);
@@ -847,7 +857,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             if (n_press != 1 || node.card_id.has_prefix("project:")) {
                 return;
             }
-            show_board_node_menu_at(button, node, x, y);
+            show_board_node_menu_at(node_button, node, x, y);
         });
         button.add_controller(context_click);
         return button;
@@ -862,11 +872,13 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         popover.set_parent(node_widget);
 
         var menu_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+        // The menu's buttons belong to the popover, so their handlers hold it unowned.
+        unowned Gtk.Popover menu = popover;
 
         var open_btn = new Gtk.Button.with_label("Open");
         open_btn.add_css_class("flat");
         open_btn.clicked.connect(() => {
-            popover.popdown();
+            menu.popdown();
             card_open_requested(node.card_id);
         });
         menu_box.append(open_btn);
@@ -874,7 +886,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         var create_child_btn = new Gtk.Button.with_label("Create Child Card");
         create_child_btn.add_css_class("flat");
         create_child_btn.clicked.connect(() => {
-            popover.popdown();
+            menu.popdown();
             card_create_child_requested(node.card_id);
         });
         menu_box.append(create_child_btn);
@@ -888,6 +900,15 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         rect.height = 1;
         popover.set_pointing_to(rect);
         popover.popup();
+    }
+
+    // Static: a closure made in an instance method holds the view, and the view owns the canvas that
+    // keeps its draw function, so neither would be freed. This one holds the view unowned.
+    private static void install_board_draw_func(Gtk.DrawingArea canvas, ConnectionsToolView owner) {
+        unowned ConnectionsToolView view = owner;
+        canvas.set_draw_func((area, cr, width, height) => {
+            view.draw_connections_board(cr);
+        });
     }
 
     private void draw_connections_board(Cairo.Context cr) {

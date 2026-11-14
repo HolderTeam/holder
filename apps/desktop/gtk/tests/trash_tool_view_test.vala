@@ -263,29 +263,44 @@ private Gee.ArrayList<string> tv_label_texts(Gtk.Widget root) {
 
 // list_trash_items that can be held back so a test can act while a project's list is still loading.
 private class TrashStallApi : MainControllerFakeApi {
+    private class HeldList {
+        public SourceFunc resume;
+
+        public HeldList(owned SourceFunc resume) {
+            this.resume = (owned) resume;
+        }
+    }
+
     public string? stall_project = null;
-    private SourceFunc? stalled = null;
+    // Lists held back, and those that have since run to the end. Every held list is kept: a list
+    // dropped while held never ends, and its coroutine holds the controller that asked for it.
+    public int held_lists = 0;
+    public int resumed_lists = 0;
+    private Gee.ArrayList<HeldList> held = new Gee.ArrayList<HeldList>();
 
     public override async Gee.ArrayList<HolderLinux.TrashItem> list_trash_items(string project_id,
                                                                                  string type = "all") throws Error {
-        if (stall_project != null && stall_project == project_id) {
-            stalled = list_trash_items.callback;
+        bool hold = stall_project != null && stall_project == project_id;
+        if (hold) {
+            held.add(new HeldList(list_trash_items.callback));
+            held_lists++;
             yield;
         }
-        return yield base.list_trash_items(project_id, type);
+        var items = yield base.list_trash_items(project_id, type);
+        if (hold) resumed_lists++;
+        return items;
     }
 
     public bool has_stalled_list() {
-        return stalled != null;
+        return held.size > 0;
     }
 
     public void release_stalled_list() {
         stall_project = null;
-        SourceFunc? callback = (owned) stalled;
-        stalled = null;
-        if (callback != null) {
-            Idle.add((owned) callback);
+        foreach (var list in held) {
+            Idle.add((owned) list.resume);
         }
+        held.clear();
     }
 }
 
@@ -744,7 +759,9 @@ private void test_restoring_after_the_selection_moved_is_filed_under_the_project
     // It used to be logged against Project 2, which was merely selected by then.
     assert(h.activities[0] == "result.trash.restore|Restored card: Card 1|p1|c1");
     h.api.release_stalled_list();
-    assert(wait_for_condition(() => !h.api.has_stalled_list()));
+    // Let the held-back list finish, or its coroutine, and the view it holds, outlive the test.
+    assert(wait_for_condition(() => h.api.resumed_lists == h.api.held_lists));
+    h.settle();
 }
 
 public static int main(string[] args) {

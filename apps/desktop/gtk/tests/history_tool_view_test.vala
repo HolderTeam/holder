@@ -141,9 +141,21 @@ private class DelayedHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi
     public int compare_history_calls = 0;
     public string? delayed_list_card_id;
     public string? delayed_compare_card_id;
-    public uint delay_ms = 50;
     public bool delayed_list_completed = false;
     public bool delayed_compare_completed = false;
+    // The delayed response waits for the test to release it, not for a timer: a timer can fire
+    // before a slow machine, or Windows' coarse clock, gets the test to its next selection.
+    private SourceFunc? held = null;
+
+    public bool holding() {
+        return held != null;
+    }
+
+    public void release() {
+        var resume = (owned) held;
+        held = null;
+        ((!) resume)();
+    }
 
     public async HolderLinux.CardHistoryPage list_card_history(string project_id,
                                                                string card_id,
@@ -151,13 +163,9 @@ private class DelayedHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi
                                                                string? cursor = null) throws Error {
         list_history_calls++;
         if (card_id == delayed_list_card_id) {
-            SourceFunc resume = list_card_history.callback;
-            Timeout.add(delay_ms, () => {
-                delayed_list_completed = true;
-                resume();
-                return Source.REMOVE;
-            });
+            held = list_card_history.callback;
             yield;
+            delayed_list_completed = true;
         }
         var oid = "%s-oid".printf(card_id);
         string[] parents = { "%s-parent".printf(card_id) };
@@ -178,13 +186,9 @@ private class DelayedHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi
                                                                          string mode = "since") throws Error {
         compare_history_calls++;
         if (card_id == delayed_compare_card_id) {
-            SourceFunc resume = compare_card_history.callback;
-            Timeout.add(delay_ms, () => {
-                delayed_compare_completed = true;
-                resume();
-                return Source.REMOVE;
-            });
+            held = compare_card_history.callback;
             yield;
+            delayed_compare_completed = true;
         }
         HolderLinux.CardHistoryDiffLine[] lines = {
             new HolderLinux.CardHistoryDiffLine(
@@ -403,10 +407,11 @@ private void test_history_late_list_response_keeps_newer_card() {
     view.bind_context(project_selection, card_selection);
     view.set_tool_visible(true);
 
-    assert(wait_for_condition(() => api.list_history_calls == 1));
+    assert(wait_for_condition(() => api.holding()));
     card_selection.set_selected(1);
     assert(wait_for_condition(() => api.list_history_calls == 2));
     assert(wait_for_condition(() => api.compare_history_calls == 1));
+    api.release();
     assert(wait_for_condition(() => api.delayed_list_completed));
 
     var text_view = history_find_text_view(view.widget);
@@ -428,10 +433,11 @@ private void test_history_late_comparison_response_keeps_newer_card() {
     view.set_tool_visible(true);
 
     assert(wait_for_condition(() => api.list_history_calls == 1));
-    assert(wait_for_condition(() => api.compare_history_calls == 1));
+    assert(wait_for_condition(() => api.holding()));
     card_selection.set_selected(1);
     assert(wait_for_condition(() => api.list_history_calls == 2));
     assert(wait_for_condition(() => api.compare_history_calls == 2));
+    api.release();
     assert(wait_for_condition(() => api.delayed_compare_completed));
 
     var text_view = history_find_text_view(view.widget);

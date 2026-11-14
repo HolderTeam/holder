@@ -3,6 +3,8 @@ set -euo pipefail
 
 BUILD_DIR="${BUILD_DIR:-build}"
 COVERAGE_BUILD_DIR="${COVERAGE_BUILD_DIR:-build-coverage}"
+WARNINGS_BUILD_DIR="${WARNINGS_BUILD_DIR:-build-warnings}"
+SAN_BUILD_DIR="${SAN_BUILD_DIR:-build-san}"
 MODE="${1:-run}"
 
 is_windows_shell() {
@@ -118,6 +120,7 @@ build() {
 
 run_gui_tests() {
   local dir="$1"
+  shift
   if [[ "${SYSTEM}" == Darwin ]]; then
     ACCESSIBLE_RUNTIME="$(python3 scripts/accessible_runtime.py prepare)" || {
       local status=$?
@@ -125,7 +128,7 @@ run_gui_tests() {
       return "${status}"
     }
     HOLDER_DESKTOP_TEST_ACCESSIBLE_RUNTIME="${ACCESSIBLE_RUNTIME}" \
-      meson test -C "${dir}" --print-errorlogs
+      meson test -C "${dir}" --print-errorlogs "$@"
   elif command -v xvfb-run >/dev/null 2>&1; then
     # GTK popovers need a display with a stable monitor layout. Use an isolated
     # display so tests do not depend on the developer's desktop arrangement.
@@ -137,9 +140,9 @@ run_gui_tests() {
     ADW_DISABLE_PORTAL=1 GIO_USE_VFS=local \
     GDK_BACKEND=x11 GTK_A11Y=atspi NO_AT_BRIDGE=0 GSK_RENDERER=cairo GSETTINGS_BACKEND=memory \
       xvfb-run -a dbus-run-session -- python3 integration/run.py --headless-child \
-        meson test -C "${dir}" --print-errorlogs
+        meson test -C "${dir}" --print-errorlogs "$@"
   else
-    GSETTINGS_BACKEND=memory meson test -C "${dir}" --print-errorlogs
+    GSETTINGS_BACKEND=memory meson test -C "${dir}" --print-errorlogs "$@"
   fi
 }
 
@@ -189,6 +192,27 @@ run_app() {
     echo 'To launch with Homebrew GTK, run ./make.sh noaccess.' >&2
   fi
   return "${launch_status}"
+}
+
+# The Vala compiler's warnings and those of the hand-written C, as errors. Vala's generated C is
+# compiled with -w (see meson.build), since its warnings are valac's to avoid, not ours.
+warnings() {
+  setup_build "${WARNINGS_BUILD_DIR}" --werror
+  refresh_compiled_schemas "${WARNINGS_BUILD_DIR}"
+  meson compile -C "${WARNINGS_BUILD_DIR}"
+}
+
+# The tests under AddressSanitizer and UndefinedBehaviorSanitizer, with leak detection. The GTK
+# stack's libraries keep caches until exit; tools/lsan/gtk-stack.supp names those libraries and
+# only those, so an object our code creates and loses is still reported.
+san() {
+  setup_build "${SAN_BUILD_DIR}" -Db_sanitize=address,undefined -Db_lundef=false
+  refresh_compiled_schemas "${SAN_BUILD_DIR}"
+  meson compile -C "${SAN_BUILD_DIR}"
+  ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=1:halt_on_error=1}" \
+  LSAN_OPTIONS="${LSAN_OPTIONS:-suppressions=${PWD}/tools/lsan/gtk-stack.supp:print_suppressions=0}" \
+  UBSAN_OPTIONS="${UBSAN_OPTIONS:-print_stacktrace=1:halt_on_error=1}" \
+    run_gui_tests "${SAN_BUILD_DIR}" --timeout-multiplier 4
 }
 
 coverage() {
@@ -261,8 +285,14 @@ case "${MODE}" in
   coverage)
     coverage
     ;;
+  warnings)
+    warnings
+    ;;
+  san)
+    san
+    ;;
   *)
-    echo "Usage: $0 [build|test|run|access|noaccess|coverage]"
+    echo "Usage: $0 [build|test|run|access|noaccess|coverage|warnings|san]"
     exit 2
     ;;
 esac
