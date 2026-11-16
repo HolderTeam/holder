@@ -3,6 +3,9 @@
 
 #include <sqlite3.h>
 
+#include <cinttypes>
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -13,6 +16,23 @@ namespace {
 void throw_sqlite(sqlite3* db, const std::string& what) {
   const char* msg = db ? sqlite3_errmsg(db) : "unknown sqlite error";
   throw std::runtime_error(what + ": " + msg);
+}
+
+[[noreturn]] void throw_card_step_error(sqlite3_stmt* stmt, const char* operation, int rc) {
+  const std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> statement(stmt, sqlite3_finalize);
+  auto* db = sqlite3_db_handle(stmt);
+  const int extended = sqlite3_extended_errcode(db);
+  const std::string message = sqlite3_errmsg(db);
+  if (std::getenv("HOLDER_KIT_SQLITE_EVIDENCE")) {
+    std::fprintf(stderr, "Holder SQLite db=%" PRIxPTR " stmt=%p %s: step=%d primary=%d extended=%d: %s\n",
+                 reinterpret_cast<std::uintptr_t>(db), static_cast<void*>(stmt), operation,
+                 rc, rc & 0xff, extended, message.c_str());
+    std::fprintf(stderr, "Holder SQLite version=%s source=%s\n", sqlite3_libversion(), sqlite3_sourceid());
+    for (int i = 0; const char* option = sqlite3_compileoption_get(i); ++i) {
+      std::fprintf(stderr, "Holder SQLite compile option: %s\n", option);
+    }
+  }
+  throw std::runtime_error(std::string(operation) + ": " + message);
 }
 
 void bind_text(sqlite3_stmt* stmt, int idx, const std::string& value) {
@@ -340,8 +360,7 @@ std::vector<holder::model::Card> CardRepo::list_all(const std::string& project_i
       continue;
     }
     if (rc == SQLITE_DONE) break;
-    sqlite3_finalize(stmt); // LCOV_EXCL_LINE
-    throw_sqlite(db_.handle(), "list all cards failed"); // LCOV_EXCL_LINE
+    throw_card_step_error(stmt, "list all cards failed", rc); // LCOV_EXCL_LINE
   }
   sqlite3_finalize(stmt); // LCOV_EXCL_LINE
   return out;
@@ -583,10 +602,10 @@ void CardRepo::touch_updated(const std::string& card_id, long long updated_at) {
   bind_text(stmt, 2, card_id);
 
   const int rc = sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
   if (rc != SQLITE_DONE) {
-    throw_sqlite(db_.handle(), "touch card failed");
+    throw_card_step_error(stmt, "touch card failed", rc);
   }
+  sqlite3_finalize(stmt);
 }
 
 void CardRepo::soft_delete(const std::string& card_id, long long deleted_at, long long updated_at) {
@@ -646,10 +665,10 @@ void CardRepo::restore_snapshot(const holder::model::Card& card) {
   bind_text(stmt, 7, card.card_id);
 
   const int rc = sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
   if (rc != SQLITE_DONE) {
-    throw_sqlite(db_.handle(), "restore card snapshot failed");
+    throw_card_step_error(stmt, "restore card snapshot failed", rc);
   }
+  sqlite3_finalize(stmt);
 }
 
 void CardRepo::remove(const std::string& card_id) {

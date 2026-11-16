@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 import pytest
@@ -168,7 +169,9 @@ def test_empty_combined_exports_preserve_all_schemas(
     assert all(frame.empty for frame in (tables["projects"], tables["cards"], tables["connections"]))
 
 
-def test_combined_exports_match_collection_tables_and_join_after_close(tmp_path: Path) -> None:
+def test_combined_exports_match_collection_tables_and_join_after_close(
+    tmp_path: Path, sqlite_failure_capture: Callable[[Path], AbstractContextManager[None]],
+) -> None:
     data = tmp_path / "data"
     with holderkit.open(data) as context:
         first = context.create_project("First")
@@ -190,7 +193,7 @@ def test_combined_exports_match_collection_tables_and_join_after_close(tmp_path:
     tables["cards"].loc[tables["cards"]["card_id"] == source.card_id, "content"] = "local edit"
     tables["connections"].loc[:, "kind"] = "local kind"
     tables["projects"].loc[:, "name"] = "local name"
-    with holderkit.open(data) as reopened:
+    with holderkit.open(data) as reopened, sqlite_failure_capture(data):
         assert reopened.get_card_content(source.project_id, source.card_id) == "body"
         assert reopened.connections.to_records()[0]["kind"] == "references"
         assert {project.name for project in reopened.list_projects()} == {"First", "Second"}
