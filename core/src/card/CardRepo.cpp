@@ -19,15 +19,31 @@ void throw_sqlite(sqlite3* db, const std::string& what) {
 }
 
 [[noreturn]] void throw_card_step_error(sqlite3_stmt* stmt, const char* operation, int rc) {
-  const std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> statement(stmt, sqlite3_finalize);
+  const std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> statement(
+      stmt,
+      sqlite3_finalize
+  );
   auto* db = sqlite3_db_handle(stmt);
   const int extended = sqlite3_extended_errcode(db);
   const std::string message = sqlite3_errmsg(db);
   if (std::getenv("HOLDER_KIT_SQLITE_EVIDENCE")) {
-    std::fprintf(stderr, "Holder SQLite db=%" PRIxPTR " stmt=%p %s: step=%d primary=%d extended=%d: %s\n",
-                 reinterpret_cast<std::uintptr_t>(db), static_cast<void*>(stmt), operation,
-                 rc, rc & 0xff, extended, message.c_str());
-    std::fprintf(stderr, "Holder SQLite version=%s source=%s\n", sqlite3_libversion(), sqlite3_sourceid());
+    std::fprintf(
+        stderr,
+        "Holder SQLite db=%" PRIxPTR " stmt=%p %s: step=%d primary=%d extended=%d: %s\n",
+        reinterpret_cast<std::uintptr_t>(db),
+        static_cast<void*>(stmt),
+        operation,
+        rc,
+        rc & 0xff,
+        extended,
+        message.c_str()
+    );
+    std::fprintf(
+        stderr,
+        "Holder SQLite version=%s source=%s\n",
+        sqlite3_libversion(),
+        sqlite3_sourceid()
+    );
     for (int i = 0; const char* option = sqlite3_compileoption_get(i); ++i) {
       std::fprintf(stderr, "Holder SQLite compile option: %s\n", option);
     }

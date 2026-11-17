@@ -102,8 +102,11 @@ void Db::open(const std::filesystem::path& path) {
   exec_open_pragma(db_, "PRAGMA journal_mode = WAL;");
   exec_open_pragma(db_, "PRAGMA synchronous = NORMAL;");
   if (std::getenv("HOLDER_KIT_SQLITE_EVIDENCE")) {
-    std::fprintf(stderr, "Holder SQLite db=%" PRIxPTR " opened\n",
-                 reinterpret_cast<std::uintptr_t>(db_));
+    std::fprintf(
+        stderr,
+        "Holder SQLite db=%" PRIxPTR " opened\n",
+        reinterpret_cast<std::uintptr_t>(db_)
+    );
   }
 }
 
@@ -113,14 +116,20 @@ void Db::close() {
     const auto identity = reinterpret_cast<std::uintptr_t>(db_);
     int outstanding = 0;
     if (trace) {
-      for (auto* stmt = sqlite3_next_stmt(db_, nullptr); stmt; stmt = sqlite3_next_stmt(db_, stmt)) {
+      for (auto* stmt = sqlite3_next_stmt(db_, nullptr); stmt;
+           stmt = sqlite3_next_stmt(db_, stmt)) {
         ++outstanding;
       }
     }
     const int rc = sqlite3_close(db_);
     if (trace) {
-      std::fprintf(stderr, "Holder SQLite db=%" PRIxPTR " close=%d outstanding_statements=%d\n",
-                   identity, rc, outstanding);
+      std::fprintf(
+          stderr,
+          "Holder SQLite db=%" PRIxPTR " close=%d outstanding_statements=%d\n",
+          identity,
+          rc,
+          outstanding
+      );
     }
     db_ = nullptr;
   }
