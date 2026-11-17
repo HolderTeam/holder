@@ -40,7 +40,7 @@ on:
         type: boolean
         default: false
 
-run-name: Promote Windows dev build from staging run ${{ inputs.staging_run_id }} ${{ inputs.release_request }}
+run-name: ${{ inputs.release_request || format('Promote Windows dev build from staging run {0}', inputs.staging_run_id) }}
 
 permissions:
   actions: read
