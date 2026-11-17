@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 
@@ -137,12 +138,14 @@ def test_context_cards_borrow_project_and_follow_context_lifetime(tmp_path: Path
         _ = card.title
 
 
-def test_find_and_restore_trash_after_reopen(tmp_path: Path) -> None:
+def test_find_and_restore_trash_after_reopen(
+    tmp_path: Path, sqlite_failure_capture: Callable[[Path], AbstractContextManager[None]],
+) -> None:
     path = tmp_path / 'project'
     with holderkit.create('Reopen', workspace=path) as project:
         card = project.create_card('Saved', 'Retained body')
         card.trash()
-    with holderkit.reopen(path) as project:
+    with holderkit.reopen(path) as project, sqlite_failure_capture(path / 'data'):
         cards = project.cards.trashed()
         assert len(cards) == 1 and cards[0].project is project
         restored = project.restore(cards[0])
