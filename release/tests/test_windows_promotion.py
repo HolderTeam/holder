@@ -270,8 +270,11 @@ class WindowsDeliveryTests(unittest.TestCase):
     def test_real_download_entry_point_produces_the_expected_four_assets(self):
         self.github.payloads.runs.update(copy.deepcopy(self.github.runs))
         output = Path(self.directory.name) / 'download-output'
-        with patch.object(windows.manifest, 'GitHub', return_value=self.github.payloads), patch.object(sys, 'argv', [
-            'windows-candidate.py', 'fetch', '--repository', REPOSITORY, '--run-id', '40', '--directory', str(output)]):
+        with patch.object(windows.manifest, 'GitHub', return_value=self.github.payloads), \
+                patch.object(windows, 'datetime', wraps=datetime) as clock, patch.object(sys, 'argv', [
+                    'windows-candidate.py', 'fetch', '--repository', REPOSITORY, '--run-id', '40',
+                    '--directory', str(output)]):
+            clock.now.return_value = NOW
             windows.main()
         self.assertEqual({path.name: path.read_bytes() for path in output.iterdir()},
                          {path.name: path.read_bytes() for path in self.payload.iterdir()})

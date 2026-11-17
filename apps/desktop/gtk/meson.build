@@ -1339,7 +1339,13 @@ windows_terminal_tool_view_test_exe = executable(
   install: false,
 )
 
-test('holder-gtk-windows-terminal-tool-view-tests', windows_terminal_tool_view_test_exe)
+# GLib's TAP output names a case only after it finishes. Include start records
+# on Windows so Meson's timeout log can identify the case that was running.
+test(
+  'holder-gtk-windows-terminal-tool-view-tests',
+  windows_terminal_tool_view_test_exe,
+  args: host_machine.system() == 'windows' ? ['--debug-log'] : [],
+)
 
 git_sync_service_test_exe = executable(
   'holder-gtk-git-sync-service-tests',
