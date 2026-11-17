@@ -62,7 +62,7 @@ jobs:
 
       - id: cached
         if: env.CORE_PACKAGES == 'source'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: out/daemon-debs
           key: ${{ needs.resolve.outputs.key }}
@@ -186,7 +186,7 @@ jobs:
 
       - name: Save tested packages
         if: steps.cached.outputs.cache-hit != 'true' && env.CORE_PACKAGES == 'source'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: out/daemon-debs
           key: ${{ needs.resolve.outputs.key }}
