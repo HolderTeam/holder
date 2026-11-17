@@ -188,6 +188,7 @@ jobs:
         shell: bash
         run: python -m twine check --strict dist/*.whl
       - name: Install wheel in a new virtualenv
+        id: installed-wheel
         shell: bash
         env:
           KIT_VERSION: ${{ needs.prepare.outputs.version }}
@@ -202,9 +203,30 @@ jobs:
           env -u HOLDER_CORE_SDK -u CMAKE_ARGS -u LD_LIBRARY_PATH -u DYLD_LIBRARY_PATH \
             "$test_python" -I scripts/test-installed-wheel.py --core-commit "$CORE_COMMIT" --version "$KIT_VERSION"
           "$test_python" -m pip install 'pytest>=8' pandas networkx
-          "$test_python" -I -m pytest -v -x -o faulthandler_timeout=60 --import-mode=importlib tests/test_holder.py \
+          tests=(tests/test_holder.py \
             tests/test_connections.py tests/test_graph.py tests/test_pandas.py \
-            tests/test_projects.py tests/test_card_batches.py tests/test_live_cards.py tests/test_card_collections.py tests/test_card_movement.py tests/test_card_navigation.py
+            tests/test_projects.py tests/test_card_batches.py tests/test_live_cards.py tests/test_card_collections.py tests/test_card_movement.py tests/test_card_navigation.py)
+          test_command=(env -u HOLDER_CORE_SDK -u CMAKE_ARGS -u LD_LIBRARY_PATH -u DYLD_LIBRARY_PATH
+            "$test_python" -I -m pytest -v -x -o faulthandler_timeout=60 --import-mode=importlib "${tests[@]}")
+          if [ "$RUNNER_OS" = Windows ]; then
+            export HOLDER_KIT_SQLITE_EVIDENCE=out/sqlite-evidence
+            mkdir -p "$HOLDER_KIT_SQLITE_EVIDENCE"
+            "$test_python" -m pip freeze > "$HOLDER_KIT_SQLITE_EVIDENCE/packages.txt"
+            sha256sum dist/*.whl > "$HOLDER_KIT_SQLITE_EVIDENCE/wheel-sha256.txt"
+            "${test_command[@]}" 2>&1 | tee "$HOLDER_KIT_SQLITE_EVIDENCE/pytest.log"
+          else
+            "${test_command[@]}"
+          fi
+      - name: Upload failed Windows installed-wheel evidence
+        if: failure() && runner.os == 'Windows' && steps.installed-wheel.outcome == 'failure'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kit-sqlite-evidence-${{ matrix.runner }}-${{ matrix.python }}
+          path: |
+            python/kit/out/sqlite-evidence/
+            python/kit/dist/*.whl
+          include-hidden-files: true
+          if-no-files-found: ignore
       - name: Linux wheel in a clean Debian runtime
         if: runner.os == 'Linux'
         env:

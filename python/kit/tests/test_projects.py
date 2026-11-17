@@ -10,6 +10,7 @@ import stat
 import subprocess
 import sys
 import time
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator
@@ -544,7 +545,9 @@ def test_windows_cleanup_retry_is_limited_to_owned_readonly_files(
             assert file.exists()
 
 
-def test_create_reopen_retains_edits_and_context_lifecycle(tmp_path: Path) -> None:
+def test_create_reopen_retains_edits_and_context_lifecycle(
+    tmp_path: Path, sqlite_failure_capture: Callable[[Path], AbstractContextManager[None]],
+) -> None:
     path = tmp_path / "private"
     with holderkit.create("Research", workspace=path) as workspace:
         assert workspace.path == path
@@ -554,7 +557,7 @@ def test_create_reopen_retains_edits_and_context_lifecycle(tmp_path: Path) -> No
         initial_revision = workspace.revision
     assert workspace.closed
     assert (path / "data/server/holder.db").is_file()
-    with holderkit.reopen(path) as reopened:
+    with holderkit.reopen(path) as reopened, sqlite_failure_capture(path / "data"):
         assert reopened.project_id == workspace.project_id
         assert reopened.get_card_content(card.card_id) == "Body"
         assert reopened.revision == initial_revision

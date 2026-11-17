@@ -186,6 +186,10 @@ private class WindowFixture : Object {
     public HolderLinux.MainWindow window;
 
     public WindowFixture() {
+        // The editor writes recovery drafts under the user state directory a moment after an
+        // edit. Give each window its own, so a draft one test leaves behind (the snapshot can
+        // land before a slow test destroys its window) never offers itself to a later test.
+        Environment.set_variable("XDG_STATE_HOME", av_temp_dir(), true);
         settings = new Settings.with_backend(
             HolderLinux.AppSettings.SCHEMA_ID,
             SettingsBackend.memory_settings_backend_new()
@@ -1134,6 +1138,8 @@ private void test_closing_waits_for_the_save_and_then_closes() {
     var f = new WindowFixture();
     f.open_loaded();
     f.open_card("c1");
+    // An open dialog, such as an offered recovery draft, would keep the window from closing.
+    assert(f.window.get_visible_dialog() == null);
     f.window.workspace_for_tests.editor_buffer.set_text("# Card 1\n\nLast words", -1);
 
     // The card is saved first; the window closes once it is.
