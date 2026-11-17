@@ -75,7 +75,7 @@ jobs:
         run: bundle exec jekyll build --baseurl "$BASE_PATH"
       - name: Test download detection
         run: node scripts/test-downloads.js
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: release/website/_site
 
