@@ -1,0 +1,115 @@
+{
+  "candidate": {
+    "repository": "HolderTeam/holder",
+    "commit": "b1d7991653c258cd2b15dcf2eb3fb23947c88e3d",
+    "version": "0.2.6"
+  },
+  "runs": {
+    "desktop": {
+      "id": 44097426406,
+      "attempt": 1,
+      "commit": "b1d7991653c258cd2b15dcf2eb3fb23947c88e3d",
+      "workflow": ".github/workflows/desktop-ci.yml"
+    },
+    "backend": {
+      "id": 44097421899,
+      "attempt": 1,
+      "commit": "b1d7991653c258cd2b15dcf2eb3fb23947c88e3d",
+      "workflow": ".github/workflows/daemon-ci.yml"
+    }
+  },
+  "artifacts": [
+    {
+      "id": 14334856253,
+      "name": "core-selection",
+      "run_id": 44097421899,
+      "expires_at": "2026-11-24T13:55:23Z",
+      "github_digest": "sha256:aef10a1c8e6232aec4ec7524ced90189391932362eb66d740015cf9d0c72b69d",
+      "archive_sha256": "aef10a1c8e6232aec4ec7524ced90189391932362eb66d740015cf9d0c72b69d"
+    },
+    {
+      "id": 14335282050,
+      "name": "holder-desktop-linux-x86_64-release",
+      "run_id": 44097426406,
+      "expires_at": "2026-11-24T14:04:37Z",
+      "github_digest": "sha256:38c1fe9e6ef8f43f90e6fcf2a66e5677bf00da8885440722d00dae8278b5c84e",
+      "archive_sha256": "38c1fe9e6ef8f43f90e6fcf2a66e5677bf00da8885440722d00dae8278b5c84e"
+    },
+    {
+      "id": 14334234360,
+      "name": "holder-daemon-linux-x86_64-release",
+      "run_id": 44097421899,
+      "expires_at": "2026-11-24T14:10:20Z",
+      "github_digest": "sha256:cb85ffd9e76c5d8f1fb1fd603e1732f1a9d02dd6307d0a87fdf2fd41e926bf0f",
+      "archive_sha256": "cb85ffd9e76c5d8f1fb1fd603e1732f1a9d02dd6307d0a87fdf2fd41e926bf0f"
+    },
+    {
+      "id": 14335396960,
+      "name": "holder-desktop-windows-release",
+      "run_id": 44097426406,
+      "expires_at": "2026-11-24T14:08:25Z",
+      "github_digest": "sha256:291922bdfcc1d9312da86c92839496345b82455fc26a01ba2ef2a7483ddf1339",
+      "archive_sha256": "291922bdfcc1d9312da86c92839496345b82455fc26a01ba2ef2a7483ddf1339"
+    },
+    {
+      "id": 14336728404,
+      "name": "holder-daemon-windows-backend-release",
+      "run_id": 44097421899,
+      "expires_at": "2026-11-24T14:27:10Z",
+      "github_digest": "sha256:6732f78ea7e9ac129a42a20a377611283e569766abff3c89a9e6f115bcb96893",
+      "archive_sha256": "6732f78ea7e9ac129a42a20a377611283e569766abff3c89a9e6f115bcb96893"
+    },
+    {
+      "id": 14335860898,
+      "name": "holder-desktop-macos-release",
+      "run_id": 44097426406,
+      "expires_at": "2026-11-24T14:05:54Z",
+      "github_digest": "sha256:4c0e9849c8ad122102d9236b4bdf845f0967ae8181b370429dd5386ec8add830",
+      "archive_sha256": "4c0e9849c8ad122102d9236b4bdf845f0967ae8181b370429dd5386ec8add830"
+    },
+    {
+      "id": 14335671369,
+      "name": "holder-daemon-macos-backend-release",
+      "run_id": 44097421899,
+      "expires_at": "2026-11-24T14:06:42Z",
+      "github_digest": "sha256:e69e18999af821336ee345c7b0b0351a4edb4594ab75cbe51987f20c4c94a737",
+      "archive_sha256": "e69e18999af821336ee345c7b0b0351a4edb4594ab75cbe51987f20c4c94a737"
+    }
+  ],
+  "core_selection": {
+    "source": "artifact",
+    "commit": "b1d7991653c258cd2b15dcf2eb3fb23947c88e3d",
+    "version": "0.2.6",
+    "assets": [
+      {
+        "name": "libholder-0.2.6-linux-x86_64-release.tar.gz",
+        "platform": "linux",
+        "architecture": "x86_64",
+        "build_type": "Release",
+        "commit": "55fe6ac1f9cfada4391ad8db4920674ce133b3c1",
+        "size": 3799622,
+        "sha256": "4271d9de6cf6580adb05de3474b0ae3cfab3e211837b408451c757ed256a1422"
+      },
+      {
+        "name": "libholder-0.2.6-macos-arm64-release.tar.gz",
+        "platform": "macos",
+        "architecture": "arm64",
+        "build_type": "Release",
+        "commit": "55fe6ac1f9cfada4391ad8db4920674ce133b3c1",
+        "size": 2538478,
+        "sha256": "eea839d939e620e223e83578f86c702210833731defcaa4ce21332e37d4fb10c"
+      },
+      {
+        "name": "libholder-0.2.6-windows-x86_64-release.zip",
+        "platform": "windows",
+        "architecture": "x86_64",
+        "build_type": "Release",
+        "commit": "55fe6ac1f9cfada4391ad8db4920674ce133b3c1",
+        "size": 130195611,
+        "sha256": "2fd39a6c5555404add2860f37ea097a2123e7060f00c4b2d32e065708ffdebe0"
+      }
+    ],
+    "core_tree": "145fc81e87c33453f6915fcfae76e5b1275dfd34"
+  },
+  "inputs_expire_at": "2026-11-24T13:55:23Z"
+}
