@@ -99,5 +99,5 @@ Development snapshot publication, including its Ubuntu SDK-package payload,
 continues through the existing Core CI publisher.
 [Windows delivery](windows-promotion.md) and
 [Launchpad availability](launchpad-availability.md) use the same record.
-Validate this handoff through the next actual release; an extra SDK build
-matrix or publication rehearsal is not required.
+The [0.2.6 release record](releases/0.2.6.md) documents verified SDK publication
+through this handoff. An extra SDK build matrix or publication rehearsal is not required.

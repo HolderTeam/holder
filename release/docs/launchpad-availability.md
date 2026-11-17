@@ -78,4 +78,5 @@ source tree equals the Git commit, that downloaded packages passed APT signature
 verification, or that installs and upgrades work. Keep the source-upload run
 links and installation results with the release record. Use the existing
 fresh-install and upgrade checks before changing the reviewed website PPA
-availability declaration. Validate this handoff through the next actual release.
+availability declaration. The [0.2.6 release record](releases/0.2.6.md) tracks
+execution of this handoff and its outstanding checks.

@@ -1,0 +1,28 @@
+{
+  "files": [
+    {
+      "name": "Holder-macos-0.2.6.dmg",
+      "sha256": "6778bfcb8cb8ea7515b38e09676184d13480cc31aacd8e0372a1924001645cd9",
+      "size": 99777513
+    },
+    {
+      "name": "Holder-macos-0.2.6.dmg.sha256",
+      "sha256": "9182f96f512ee98be332a248f56bdfc31d4cc29fd6fde10c7c42407905703ed5",
+      "size": 89
+    }
+  ],
+  "checks": {
+    "disk_image": "passed",
+    "candidate_metadata": "passed",
+    "app_signature": "passed",
+    "gatekeeper": "passed"
+  },
+  "source": {
+    "staging_run_id": "44106292181",
+    "artifact_id": 14338463155,
+    "archive_sha256": "a320d6842b4bfeb4602f358b04f8a646c67f6fb68050d64a63c941efe25b708a"
+  },
+  "candidate": "b1d7991653c258cd2b15dcf2eb3fb23947c88e3d",
+  "version": "0.2.6",
+  "verified_at": "2026-11-17T19:33:23+00:00"
+}

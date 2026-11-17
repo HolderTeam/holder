@@ -55,8 +55,8 @@ publication decision. The coordinator publishes those recorded bytes; direct
 manual PyPI dispatches still build their own distributions unless supplied with
 the prepared-release inputs. Do not treat that default manual path as promotion
 of this prepared set.
-Use the next actual release to validate the complete path; no extra rehearsal or
-TestPyPI upload is required.
+Preparation and promotion of the recorded files were exercised for
+[0.2.6](releases/0.2.6.md), without an extra rehearsal or TestPyPI upload.
 
 For a manual build-only Kit dispatch, supply both `release_manifest` and
 `release_manifest_ref`, run on the matching candidate SHA, and leave
