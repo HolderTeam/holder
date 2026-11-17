@@ -522,19 +522,23 @@ private void test_decorations_take_the_views_width_and_follow_it_when_it_changes
     int height;
     h.buttons()[0].get_size_request(out width, out height);
     assert(width == HolderLinux.InlineImageDecorationPlan.decoration_width(h.view.get_width()));
-    // A real view width can produce the same value as FALLBACK_WIDTH (e.g.
-    // 640 - 80 == 560). The resize below verifies that the width follows the view.
     var wide = h.view.get_width();
 
-    ((!) h.window).set_default_size(500, 700);
-    assert(ir_wait_for(() => h.view.get_width() < wide));
+    // Change the scroller's allocation inside the mapped window. Changing the
+    // window's default size can leave the allocation unchanged on Windows.
+    var scroller = (!) ((!) h.window).get_child();
+    scroller.set_margin_end(wide / 3);
+    var narrowed = ir_wait_for(() => h.view.get_width() < wide);
+    Test.message("Text view width before and after layout: %d -> %d", wide, h.view.get_width());
+    assert(narrowed);
 
     // A narrower view used to leave every image at the width it was first given.
     assert(ir_wait_for(() => {
         int current;
         int unused;
         h.buttons()[0].get_size_request(out current, out unused);
-        return current == HolderLinux.InlineImageDecorationPlan.decoration_width(h.view.get_width());
+        return current < width &&
+            current == HolderLinux.InlineImageDecorationPlan.decoration_width(h.view.get_width());
     }));
     h.destroy();
 }
