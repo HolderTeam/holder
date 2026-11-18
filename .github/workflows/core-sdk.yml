@@ -18,6 +18,10 @@ on:
         description: Force an SDK build and measure cold/warm compilation without saving caches
         type: boolean
         default: false
+      selection_name:
+        description: Unique aggregate selection artifact name within the calling run
+        type: string
+        default: core-selection
       platforms:
         description: JSON list of platforms to build, from linux, macos and windows
         type: string
@@ -244,6 +248,19 @@ jobs:
           prefix: ${{ steps.compiler-cache.outputs.prefix }}
           measure: ${{ inputs.measure_cache && 'true' || 'false' }}
 
+      - name: Describe this platform's verified SDK
+        shell: bash
+        run: >-
+          python scripts/core-sdk.py index --assets out/sdk-assets --output out/core-selection.json
+          --commit "$(git rev-parse HEAD)" --tree "$(git rev-parse HEAD:core)"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: core-selection-${{ matrix.platform }}
+          path: core/out/core-selection.json
+          if-no-files-found: error
+          retention-days: 7
+
       - uses: actions/upload-artifact@v7
         with:
           name: core-sdk-${{ matrix.platform }}-${{ inputs.build_type }}
@@ -272,7 +289,7 @@ jobs:
           --commit "$(git rev-parse HEAD)" --tree "$(git rev-parse HEAD:core)"
       - uses: actions/upload-artifact@v7
         with:
-          name: core-selection
+          name: ${{ inputs.selection_name }}
           path: core/out/core-selection.json
           if-no-files-found: error
           retention-days: 7

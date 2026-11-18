@@ -2,35 +2,6 @@ name: Daemon / CI
 run-name: ${{ inputs.release_request || github.event.pull_request.title || github.event.head_commit.message || github.workflow }}
 
 on:
-  # Pull requests always start this workflow so that its required result check is reported;
-  # the changes job decides whether the daemon jobs run. Keep its pattern in step with these paths.
-  pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
-  push:
-    branches: [main]
-    paths:
-      - 'daemon/**'
-      - 'VERSION'
-      - '.gitmodules'
-      - '.github/workflows/daemon-*.yml'
-      - '.github/actions/linux-daemon-*/**'
-      - '.github/scripts/linux-daemon-cache-key.sh'
-      - '.github/scripts/*daemon-debs.sh'
-      - '.github/scripts/ubuntu-daemon-package-key.sh'
-      - '.github/scripts/tests/test_ubuntu_daemon_packages.py'
-      - 'cli/**'
-      - 'common/**'
-      - 'api/**'
-      - 'core/**'
-      - '!core/src/capi/holder.cpp'
-      - '!core/src/capi/version.cpp'
-      - '!core/tests/**'
-      - 'contract/**'
-      - '.github/workflows/core-sdk.yml'
-      - '.github/actions/core-sdk/**'
-      - '.github/actions/core-ubuntu-packages/**'
-      - '.github/scripts/fetch-core-debs.sh'
-      - '.github/scripts/check-core-boundary.py'
   workflow_dispatch:
     inputs:
       release_request:
@@ -57,7 +28,9 @@ jobs:
     outputs:
       daemon: ${{ steps.select.outputs.daemon }}
     env:
-      SCOPED: ${{ github.event_name == 'pull_request' }}
+      SCOPED: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+      EVENT: ${{ github.event_name }}
+      BEFORE: ${{ github.event.before }}
     steps:
       - if: env.SCOPED == 'true'
         uses: actions/checkout@v7
@@ -72,7 +45,17 @@ jobs:
             exit 0
           fi
           # The pull request merge commit's parents are the base and the pull request head.
-          changed=$(git diff --name-only HEAD^1...HEAD^2)
+          if [[ "$EVENT" == pull_request ]]; then
+            changed=$(git diff --name-only HEAD^1...HEAD^2)
+          elif [[ "$BEFORE" =~ ^0+$ || -z "$BEFORE" ]]; then
+            changed=$(git ls-files)
+          else
+            changed=$(git diff --name-only "$BEFORE" HEAD)
+          fi
+          # Changes to the orchestration graph exercise all its consumers.
+          if grep -qE '^.github/(workflows/(shared-ci|core-ci|daemon-ci|kit-ci|python-check|core-sdk|core-sanitizers)\.yml$|scripts/(generate-shared-ci\.py|tests/test_shared_ci\.py)$)' <<< "$changed"; then
+            changed+=$'\nVERSION'
+          fi
           printf '%s\n' "$changed"
           # The daemon uses core's C++ classes, never its C API (apart from capi/Context.h, which
           # its contract routes run in), and core's tests run in Core / CI, so changes only to those

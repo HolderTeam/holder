@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Select successful, unexpired component artifacts and their source revisions.
 
-The backend comes from a Daemon CI run. The desktop comes from a Desktop / CI run in the same
+The backend comes from automatic Shared / CI or a manual Daemon / CI Release run. The desktop comes from a Desktop / CI run in the same
 repository, built from the same apps/desktop/ source as the backend's commit: the two commits
 may differ (Desktop / CI runs on main only when the desktop changes), but the desktop's Git tree
 must not; the root product version must match too. Without a desktop run ID, the newest such run is chosen."""
@@ -64,9 +64,11 @@ def subtree(repository, commit, path, request=api):
     return tree
 
 
-def backend_workflow(repository):
-    """Core publishes backends from its integration run; HolderTeam/holder from its own CI."""
-    return "daemon-integration.yml" if repository == "HolderTeam/holder-core" else "daemon-ci.yml"
+def backend_workflow(repository, build_type="RelWithDebInfo"):
+    """Automatic development backends share CI; Release keeps its standalone producer."""
+    if repository == "HolderTeam/holder-core":
+        return "daemon-integration.yml"
+    return "daemon-ci.yml" if build_type == "Release" else "shared-ci.yml"
 
 
 def version_blob(repository, commit, request=api):
@@ -82,7 +84,7 @@ def version_blob(repository, commit, request=api):
 def select(platform, build_type, repository, branch, desktop_run="", backend_run="", request=api):
     suffix = "-release" if build_type == "Release" else ""
     desktop_artifact, backend_artifact = (name + suffix for name in ARTIFACTS[platform])
-    backend_id, backend_sha = resolve(repository, backend_workflow(repository), branch, backend_artifact,
+    backend_id, backend_sha = resolve(repository, backend_workflow(repository, build_type), branch, backend_artifact,
                                       backend_run, request)
     tree = subtree(repository, backend_sha, DESKTOP_PATH, request)
     version = version_blob(repository, backend_sha, request)

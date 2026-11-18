@@ -32,7 +32,8 @@ class RunSelectionTests(unittest.TestCase):
 
     def test_backend_workflow_follows_repository(self):
         self.assertEqual(tool.backend_workflow("HolderTeam/holder-core"), "daemon-integration.yml")
-        self.assertEqual(tool.backend_workflow("HolderTeam/holder"), "daemon-ci.yml")
+        self.assertEqual(tool.backend_workflow("HolderTeam/holder"), "shared-ci.yml")
+        self.assertEqual(tool.backend_workflow("HolderTeam/holder", "Release"), "daemon-ci.yml")
 
     def test_explicit_failed_run_is_rejected(self):
         def request(path, **query):
@@ -47,7 +48,7 @@ class FakeRepository:
     def __init__(self, desktop_trees, daemon_runs, desktop_runs, versions=None):
         self.desktop_trees = desktop_trees
         self.versions = versions or {}
-        self.runs = {"daemon-ci.yml": daemon_runs, "desktop-ci.yml": desktop_runs}
+        self.runs = {"shared-ci.yml": daemon_runs, "daemon-ci.yml": daemon_runs, "desktop-ci.yml": desktop_runs}
 
     def __call__(self, path, **query):
         parts = path.split("/")

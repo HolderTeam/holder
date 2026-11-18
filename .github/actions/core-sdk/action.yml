@@ -25,7 +25,7 @@ runs:
     - uses: actions/download-artifact@v4
       if: inputs.release-manifest == ''
       with:
-        name: core-selection
+        name: core-selection-${{ runner.os == 'Linux' && 'linux' || runner.os == 'macOS' && 'macos' || 'windows' }}
         path: out
     - uses: actions/download-artifact@v4
       if: inputs.release-manifest == ''
@@ -45,6 +45,20 @@ runs:
         test "$BUILD_TYPE" = Release
         python release/scripts/fetch-candidate-sdk.py --manifest "$CANDIDATE_MANIFEST" \
           --ref "$CANDIDATE_MANIFEST_REF" --repository "$GITHUB_REPOSITORY" --candidate "$CORE_COMMIT"
+    - name: Verify the run selection's core tree
+      if: inputs.release-manifest == ''
+      shell: bash
+      run: |
+        python - <<'PYTHON'
+        import json
+        import subprocess
+        from pathlib import Path
+
+        selection = json.loads(Path('out/core-selection.json').read_text())
+        expected = subprocess.check_output(['git', 'rev-parse', 'HEAD:core'], text=True).strip()
+        if selection.get('core_tree') != expected:
+            raise SystemExit('SDK selection differs from the checked-out core tree')
+        PYTHON
     - id: fetch
       shell: bash
       env:

@@ -1,20 +1,6 @@
 name: Core / CI
 
 on:
-  # Pull requests always start this workflow so that its required result check is reported;
-  # the changes job decides whether the core jobs run. Keep its pattern in step with these paths.
-  pull_request:
-  push:
-    branches:
-      - main
-    paths:
-      - VERSION
-      - core/**
-      # The contract's conformance tests run against core here.
-      - contract/**
-      - .github/workflows/core-ci.yml
-      - .github/workflows/core-sdk.yml
-      - .github/actions/core-sdk/**
   workflow_dispatch:
     inputs:
       measure_cache:
@@ -38,7 +24,7 @@ jobs:
     outputs:
       core: ${{ steps.select.outputs.core }}
     steps:
-      - if: github.event_name == 'pull_request'
+      - if: github.event_name == 'pull_request' || github.event_name == 'push'
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -47,13 +33,24 @@ jobs:
         name: Select jobs from the changed paths
         env:
           EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          if [[ "$EVENT" != pull_request ]]; then
+          if [[ "$EVENT" != pull_request && "$EVENT" != push ]]; then
             echo "core=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           # The pull request merge commit's parents are the base and the pull request head.
-          changed=$(git diff --name-only HEAD^1...HEAD^2)
+          if [[ "$EVENT" == pull_request ]]; then
+            changed=$(git diff --name-only HEAD^1...HEAD^2)
+          elif [[ "$BEFORE" =~ ^0+$ || -z "$BEFORE" ]]; then
+            changed=$(git ls-files)
+          else
+            changed=$(git diff --name-only "$BEFORE" HEAD)
+          fi
+          # Changes to the orchestration graph exercise all its consumers.
+          if grep -qE '^.github/(workflows/(shared-ci|core-ci|daemon-ci|kit-ci|python-check|core-sdk|core-sanitizers)\.yml$|scripts/(generate-shared-ci\.py|tests/test_shared_ci\.py)$)' <<< "$changed"; then
+            changed+=$'\nVERSION'
+          fi
           printf '%s\n' "$changed"
           if grep -qE '^(VERSION$|core/|contract/|\.github/workflows/core-(ci|sdk)\.yml$|\.github/actions/core-sdk/)' <<< "$changed"; then
             echo "core=true" >> "$GITHUB_OUTPUT"
