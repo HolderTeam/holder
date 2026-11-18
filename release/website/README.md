@@ -67,7 +67,7 @@ Generated feed/catalog/checksum files are ignored by Git. The existing
 new releases do not require committing another checksum copy.
 
 `_data/ubuntu.json` is maintained separately. Its `available` status and version
-carry forward the site's declared PPA availability (currently 0.2.5). Change that
+carry forward the site's declared PPA availability. Change that
 record after checking the intended PPA packages; GitHub publication never updates
 it automatically. Use `{"status":"unconfirmed","version":null}` when availability
 has not been established. The site can show an older PPA version alongside newer

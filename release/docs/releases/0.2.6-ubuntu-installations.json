@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "release_tag": "holder-v0.2.6",
+  "architecture": "amd64",
+  "checks": {
+    "signed_apt_installation": "passed",
+    "exact_package_versions": "passed",
+    "shared_library_resolution": "passed",
+    "kit_create_trash_reopen_restore": "passed"
+  },
+  "environments": [
+    {
+      "ubuntu": "24.04",
+      "series": "noble",
+      "verified_at": "2026-11-18T09:25:12Z",
+      "ppa_key_fingerprint": "10560FF013CCB9D672B345B6128AA24BF15EC3B0",
+      "inrelease_sha256": "8e5fefa7956fc2f8fd9608286710fdf18b990f5a0ddb8f11dd1cee7e7037a380",
+      "packages": [
+        {
+          "name": "holder",
+          "version": "0.2.6-1~noble1",
+          "architecture": "all"
+        },
+        {
+          "name": "holder-daemon",
+          "version": "0.2.6-1~noble1",
+          "architecture": "amd64"
+        },
+        {
+          "name": "holder-desktop",
+          "version": "0.2.6-1~noble1",
+          "architecture": "amd64"
+        },
+        {
+          "name": "libholder-dev",
+          "version": "0.2.6-1~noble1",
+          "architecture": "amd64"
+        },
+        {
+          "name": "libholder0",
+          "version": "0.2.6-1~noble1",
+          "architecture": "amd64"
+        },
+        {
+          "name": "python3-holder-kit",
+          "version": "0.2.6-1~noble1",
+          "architecture": "amd64"
+        }
+      ]
+    },
+    {
+      "ubuntu": "26.04",
+      "series": "resolute",
+      "verified_at": "2026-11-18T09:25:05Z",
+      "ppa_key_fingerprint": "10560FF013CCB9D672B345B6128AA24BF15EC3B0",
+      "inrelease_sha256": "3b336045b758848b00f48828d129edbee7d454a485dac83d6696c7796a0558c3",
+      "packages": [
+        {
+          "name": "holder",
+          "version": "0.2.6-1~resolute1",
+          "architecture": "all"
+        },
+        {
+          "name": "holder-daemon",
+          "version": "0.2.6-1~resolute1",
+          "architecture": "amd64"
+        },
+        {
+          "name": "holder-desktop",
+          "version": "0.2.6-1~resolute1",
+          "architecture": "amd64"
+        },
+        {
+          "name": "libholder-dev",
+          "version": "0.2.6-1~resolute1",
+          "architecture": "amd64"
+        },
+        {
+          "name": "libholder0",
+          "version": "0.2.6-1~resolute1",
+          "architecture": "amd64"
+        },
+        {
+          "name": "python3-holder-kit",
+          "version": "0.2.6-1~resolute1",
+          "architecture": "amd64"
+        }
+      ]
+    }
+  ]
+}

@@ -5,7 +5,7 @@ Candidate staging, signing, promotion and publishing of Holder release assets.
 Start with the [release runbook](docs/runbook.md) for the current end-to-end
 candidate, validation, publication and recovery procedure. It identifies the
 remaining manual handoffs. The [0.2.6 release record](docs/releases/0.2.6.md)
-tracks actual execution and the outstanding Ubuntu checks.
+tracks actual execution, including the Ubuntu package checks.
 
 The workflows are in `.github/workflows/` (`sign-*` and `promote-*`), as GitHub requires. This directory holds what they use:
 

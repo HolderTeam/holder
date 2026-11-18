@@ -6,10 +6,10 @@ point; publication handoffs still use the individual workflows below. Run comman
 root; workflow names and inputs below refer to `HolderTeam/holder`.
 
 The [0.2.6 release record](releases/0.2.6.md) documents execution of this procedure
-on 17 November 2026: coordinated Release builds, three-platform staging, signed
+on 17–18 November 2026: coordinated Release builds, three-platform staging, signed
 artifact handoffs, SDK and Python publication, desktop delivery and the live
-website/update feed. Ubuntu availability and installation checks are still being
-collected in that record. A separate full rehearsal, TestPyPI upload or
+website/update feed, plus Ubuntu package availability and signed-PPA fresh
+installation checks on Ubuntu 24.04 and 26.04. A separate full rehearsal, TestPyPI upload or
 deliberately failed release is not a prerequisite.
 
 The maintainer makes the release decision. Preparation does not authorize a

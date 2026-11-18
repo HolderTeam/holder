@@ -79,4 +79,4 @@ verification, or that installs and upgrades work. Keep the source-upload run
 links and installation results with the release record. Use the existing
 fresh-install and upgrade checks before changing the reviewed website PPA
 availability declaration. The [0.2.6 release record](releases/0.2.6.md) tracks
-execution of this handoff and its outstanding checks.
+execution of this handoff and the separate signed-PPA installation checks.
