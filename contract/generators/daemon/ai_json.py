@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 
-from authoring.routes import Contract
 from compiler.ir import (
     ContractView,
     FieldView,
@@ -57,7 +56,7 @@ def _validation(ref: TypeRef, expression: str, name: str) -> str:
     return expression
 
 
-def ai_records(contract: ContractView, authoring: Contract) -> list[RecordView]:
+def ai_records(contract: ContractView) -> list[RecordView]:
     """The records reachable from the operations with daemon runtime bindings, in IR order."""
     bound = load_bindings().keys()
     aliases = {alias.name: alias.type for alias in contract.aliases}
@@ -92,11 +91,10 @@ def ai_records(contract: ContractView, authoring: Contract) -> list[RecordView]:
             for parameter in operation.parameters:
                 reach(parameter.type)
             reach(operation.returns)
-    # Stream events are not in the IR yet; the authoring Contract still holds them.
-    for operation in authoring.operations:
-        if operation.function.__name__ in bound and operation.sse_events:
-            for record in operation.sse_events.values():
-                reach(NamedType(name=record.__name__))
+    for binding in contract.http:
+        if binding.operation in bound:
+            for record in binding.sse_events.values():
+                reach(record)
     return [record for record in contract.records if record.name in reached]
 
 
@@ -130,8 +128,8 @@ def _decode_lines(qualified: str, field: FieldView) -> list[str]:
     return lines
 
 
-def generate_ai_codec(contract: ContractView, authoring: Contract) -> str:
-    records = ai_records(contract, authoring)
+def generate_ai_codec(contract: ContractView) -> str:
+    records = ai_records(contract)
     names = {record.name for record in records}
     if len(names) != len(records):
         raise Unsupported("duplicate AI record names")
@@ -206,11 +204,13 @@ def generate_ai_codec(contract: ContractView, authoring: Contract) -> str:
     lines += ["template <typename T> json encode(const T& value) { return codec<T>::encode(value); }",
               "template <typename T> T decode(const json& value) { return codec<T>::decode(value); }",
               "} // namespace ai_json", "", "namespace ai_events {"]
-    events = {(name, record.__name__) for op in authoring.operations if op.sse_events
-              for name, record in op.sse_events.items()}
+    events = {(name, record.name) for binding in contract.http
+              for name, record in binding.sse_events.items()}
     for name, record in sorted(events):
         if record not in names:
             continue
+        if not name.isidentifier():
+            raise Unsupported(f"SSE event {name!r} cannot name a C++ event helper")
         qualified = cpp_name(record)
         lines += [f"inline api_runtime::event<nlohmann::json> {name}(const {qualified}& data) {{",
                   f'    return {{"{name}", ai_json::encode(data)}};', "}"]

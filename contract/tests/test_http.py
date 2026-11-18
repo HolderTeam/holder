@@ -18,7 +18,7 @@ from generators.daemon.contract_routes import generate_routes
 from generators.daemon.http import plan_http
 from generators.daemon.openapi import ERROR_SCHEMAS, document, dumps, exact_bounds, merge, named_by_title
 from generators.daemon.paths import route_pattern, validate_routes
-from test_support.contract import extract, generate, generate_daemon, load_contract
+from test_support.contract import extract, generate, generate_daemon
 
 CONTRACT = Path(__file__).resolve().parents[1]
 TESTS = CONTRACT / "tests"
@@ -32,8 +32,7 @@ def holder_ir():
 
 
 def loaded_contract():
-    holder_ir()  # checks the contract first
-    return load_contract(CONTRACT, "interface")
+    return ContractView.model_validate(holder_ir())
 
 
 def binding(method, path):
@@ -101,7 +100,7 @@ def test_a_literal_segment_is_tried_before_a_parameter():
 
 
 def test_every_generated_file_names_its_source():
-    for name, text in generate_daemon(holder_ir(), loaded_contract()).items():
+    for name, text in generate_daemon(holder_ir()).items():
         if name.endswith(".h"):
             header = text.splitlines()[0]
             assert "Generated from contract/interface (" in header, name
@@ -110,7 +109,7 @@ def test_every_generated_file_names_its_source():
 
 def test_unsupported_parts_of_the_contract_stop_generation():
     with pytest.raises(Unsupported):
-        generate_daemon(extract(TESTS / "fixtures", "sample"), load_contract(TESTS / "fixtures", "sample"))
+        generate_daemon(extract(TESTS / "fixtures", "sample"))
 
 
 def test_a_body_that_is_not_a_record_stops_generation():
@@ -254,7 +253,7 @@ def test_generated_routes_compile_and_answer_requests(tmp_path):
     # Laid out as the daemon includes them, with core's C++ declarations from generate.py.
     (tmp_path / "api" / "generated").mkdir(parents=True)
     (tmp_path / "api" / "Contract.h").write_text(generate(holder_ir())["Contract.h"], encoding="utf-8")
-    for name, text in generate_daemon(holder_ir(), loaded_contract()).items():
+    for name, text in generate_daemon(holder_ir()).items():
         (tmp_path / "api" / "generated" / name).write_text(text, encoding="utf-8")
 
     def run(*command):

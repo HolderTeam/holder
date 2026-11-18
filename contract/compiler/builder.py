@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import enum
 import inspect
 import re
@@ -11,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from fastapi import params
+from fastapi.datastructures import DefaultPlaceholder
 from fastapi.routing import APIRoute
 
 try:
@@ -18,11 +20,11 @@ try:
 except ImportError:
     from pydantic import JsonValue, SecretStr
     from pydantic_core import MISSING
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
-from authoring.routes import Contract
+from authoring.routes import Contract, Operation
 from authoring.vocabulary import Bytes, HolderError, Native, OpenRecord, Record, Stream
 
 from .errors import ContractError
@@ -44,24 +46,15 @@ from .ir import (
     ParameterView,
     RecordView,
     ScalarType,
+    StreamType,
     TypeRef,
 )
 from .rules import Declarations, Problem
 from .source import APP_FILE, LoadedSource
+from .status import BASE_ERROR_CODES
 
 IR_VERSION = 1
 
-class BaseErrorCode(typing.NamedTuple):
-    name: str
-    description: str
-
-
-# The C API's base status codes. Contract error kinds may not reuse them.
-BASE_ERROR_CODES = {
-    4000: BaseErrorCode("INVALID_ARGUMENT", "an invalid argument"),
-    5000: BaseErrorCode("RUNTIME", "an unexpected failure"),
-    5001: BaseErrorCode("ALLOCATION", "an allocation failure"),
-}
 CONSTRAINTS = ("min_length", "max_length", "pattern", "ge", "le", "gt", "lt")
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
 PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
@@ -118,6 +111,7 @@ class _Builder:
         self.where = ("", 0)
         self.names: dict[str, tuple[str, int]] = {}
         self.error_codes: dict[int, str] = {}
+        self.contract: Contract | None = None
 
     # ---- top level -------------------------------------------------------------------------
 
@@ -133,7 +127,16 @@ class _Builder:
         self.assign_error_codes()
         if self.problems:
             raise ContractError(self.problems)
-        return self.draft.finish()
+        result = self.draft.finish()
+        if self.contract is not None:
+            # FastAPI owns schema production. Capture a detached JSON artifact once,
+            # after declaration validation, for backends to adapt to their conventions.
+            try:
+                document = copy.deepcopy(self.contract.app.openapi())
+                result = ContractView(**result.model_dump(exclude_unset=True), openapi=document)
+            except (ValueError, TypeError) as error:
+                raise ContractError([Problem(self.app_source, 1, f"cannot produce OpenAPI: {error}")]) from error
+        return result
 
     def problem(self, message: str) -> None:
         self.problems.append(Problem(self.where[0], self.where[1], message))
@@ -259,6 +262,7 @@ class _Builder:
             self.problem(f"{APP_FILE} must make exactly one Contract, not {len(contracts)}")
             return
         contract = contracts[0]
+        self.contract = contract
         routes = {r.endpoint: r for r in contract.router.routes if isinstance(r, APIRoute)}
         for operation in contract.operations:
             function = operation.function
@@ -292,7 +296,7 @@ class _Builder:
             self.check_error(function.__name__, operation.error, signature)
             if operation.route:
                 self.bind(function, routes[function], operation.created_when, operation.public,
-                          operation.core)
+                          operation.core, operation)
         self.where = (self.app_source, 1)
         for error, entry in contract.errors.items():
             self.bind_error(error, entry)
@@ -349,7 +353,7 @@ class _Builder:
                           description.strip() or None, parameters, returns)
 
     def bind(self, function: Any, route: APIRoute, created_when: str | None = None,
-             public: bool = False, core: bool = True) -> None:
+             public: bool = False, core: bool = True, declaration: Operation | None = None) -> None:
         name = function.__name__
         method = next(iter(route.methods))
         if method not in METHODS:
@@ -398,7 +402,46 @@ class _Builder:
             entry["created_when"] = created_when
         if body:
             entry["body"] = body[0]
-        self.draft.http.append(HttpBindingView(**entry))
+        if declaration is not None:
+            if declaration.operation_id is not None:
+                entry["operation_id"] = declaration.operation_id
+            response_class = route.response_class
+            if isinstance(response_class, DefaultPlaceholder):
+                response_class = response_class.value
+            media_type = response_class.media_type
+            if media_type is not None:
+                entry["response_media_type"] = media_type
+            result = self.draft.operations[-1].returns
+            if declaration.raw_media_type is not None or result.kind == "bytes":
+                entry["response_mode"] = "raw"
+            elif isinstance(result, StreamType):
+                entry["response_mode"] = "stream"
+            if declaration.raw_schema is not None:
+                if entry.get("response_mode") != "raw":
+                    self.problem(f"{name}: raw_schema requires a raw response")
+                # Validation below rejects non-JSON schema values at the compiler boundary.
+                entry["raw_schema"] = copy.deepcopy(declaration.raw_schema)
+            if declaration.sse_events is not None:
+                if not isinstance(result, StreamType):
+                    self.problem(f"{name}: named SSE events require a Stream result")
+                if declaration.raw_media_type is not None:
+                    self.problem(f"{name}: named SSE events cannot use raw_media_type")
+                events = {}
+                for event, model in declaration.sse_events.items():
+                    if not isinstance(event, str) or not event or any(char in event for char in "\r\n\0"):
+                        self.problem(f"{name}: SSE event names must be nonempty single-line strings, not {event!r}")
+                        continue
+                    if not (inspect.isclass(model) and issubclass(model, Record) and self.in_contract(model)
+                            and not model.__pydantic_generic_metadata__.get("parameters")
+                            and not model.__pydantic_generic_metadata__.get("origin")):
+                        self.problem(f"{name}: SSE event {event} must name a declared, non-generic Record")
+                        continue
+                    events[event] = NamedType(name=model.__name__)
+                entry["sse_events"] = events
+        try:
+            self.draft.http.append(HttpBindingView(**entry))
+        except ValidationError as error:
+            self.problem(f"{name}: invalid HTTP response metadata: {error}")
 
     def bind_error(self, error: Any, entry: Any) -> None:
         """An error kind's (status, code): its HTTP status, and its C error code, which is the status

@@ -24,4 +24,4 @@ Regenerate the repository outputs with `make -C contract update` and review them
 - [`daemon/`](daemon/): HTTP dispatch, JSON codecs and OpenAPI. [`bindings.py`](daemon/bindings.py) connects daemon operations to runtime services; [`openapi.py`](daemon/openapi.py) adapts FastAPI's document to Holder's HTTP conventions.
 - [`android/`](android/): the Kotlin client and JNI bridge to core's C API.
 
-The typed compiler representation is described in [IR.md](../IR.md). OpenAPI generation also consumes FastAPI's document, and some HTTP generation reads authoring metadata directly. The architectural aim is a complete compiler result for generators to consume, so interpretation of declarations stays in one place.
+Every generator consumes the typed compiler result described in [IR.md](../IR.md). The result includes a detached FastAPI document with additional response declarations, alongside typed HTTP metadata and named SSE event payload references. Backends do not import declarations or load a contract package. The daemon backend owns OpenAPI normalization, security merging, runtime service bindings and C++ event helper conventions.

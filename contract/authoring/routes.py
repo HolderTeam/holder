@@ -91,6 +91,7 @@ class Operation:
     operation_id: str | None = None
     sse_events: dict[str, type] | None = None
     raw_schema: dict[str, Any] | None = None
+    raw_media_type: str | None = None
     # How the operation uses a context: "required" for the ordinary case, "none" for one that runs
     # without one (such as an offline rebuild), "opens" for one that makes a context and "closes" for
     # the one that releases it.
@@ -173,7 +174,7 @@ class Contract:
                                       operation_id=operation_id or function.__name__, **options)
             self.operations.append(Operation(function, list(errors), core=core, created_when=created_when,
                                              public=public, operation_id=operation_id, sse_events=sse_events,
-                                             raw_schema=raw_schema))
+                                             raw_schema=raw_schema, raw_media_type=raw_media_type))
             return function
 
         return register

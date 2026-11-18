@@ -18,7 +18,7 @@ import copy
 import json
 from typing import Any
 
-from authoring.routes import Contract
+from compiler.ir import ContractView
 
 from .paths import _more_specific, _segments_overlap, route_segments
 
@@ -47,15 +47,15 @@ BOUNDS = ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum")
 FORMAT_RANGES = {"int32": (-(2**31), 2**31 - 1), "int64": (-(2**63), 2**63 - 1)}
 
 
-def document(contract: Contract) -> dict[str, Any]:
+def document(contract: ContractView) -> dict[str, Any]:
     """The OpenAPI paths and schemas of the contract's routes."""
-    result = copy.deepcopy(contract.app.openapi())
-    public_endpoints = {operation.function for operation in contract.operations if operation.public}
-    explicit_ids = {operation.function for operation in contract.operations if operation.operation_id}
-    for route in contract.router.routes:
-        if route.endpoint in public_endpoints:
-            for method in route.methods:
-                result["paths"][route.path][method.lower()]["security"] = []
+    if contract.openapi is None:
+        raise ValueError("OpenAPI generation requires a compiler-produced FastAPI document")
+    result = copy.deepcopy(contract.openapi)
+    bindings = {(binding.path, binding.method.lower()): binding for binding in contract.http}
+    for binding in contract.http:
+        if binding.public:
+            result["paths"][binding.path][binding.method.lower()]["security"] = []
     for path, methods in result["paths"].items():
         for method, operation in methods.items():
             validation = operation["responses"].get("422", {}).get("content", {}).get("application/json", {})
@@ -80,36 +80,31 @@ def document(contract: Contract) -> dict[str, Any]:
                 else:
                     # FastAPI inherits the success response class for declared errors.
                     response["content"]["application/json"] = response["content"].pop("application/octet-stream")
-            if not any(route.endpoint in explicit_ids and route.path == path and method.upper() in route.methods
-                       for route in contract.router.routes):
+            if not bindings[(path, method)].operation_id:
                 operation.pop("operationId", None)
     schemas = result["components"]["schemas"]
-    for route in contract.router.routes:
-        declared = next((op for op in contract.operations if op.function is route.endpoint), None)
-        if declared is None:
+    for binding in contract.http:
+        operation = result["paths"][binding.path][binding.method.lower()]
+        response = operation["responses"][str(binding.status)]
+        if binding.raw_schema is not None:
+            for media in response.get("content", {}).values():
+                media["schema"] = copy.deepcopy(binding.raw_schema)
+        if not binding.sse_events:
             continue
-        for method in route.methods:
-            if declared.raw_schema is not None:
-                response = result["paths"][route.path][method.lower()]["responses"][str(route.status_code)]
-                for media in response.get("content", {}).values():
-                    media["schema"] = copy.deepcopy(declared.raw_schema)
-            if not declared.sse_events:
-                continue
-            response = result["paths"][route.path][method.lower()]["responses"]["200"]
-            item_schema = {"oneOf": []}
-            for name, model in declared.sse_events.items():
-                item_schema["oneOf"].append({
-                    "type": "object",
-                    "properties": {
-                        "event": {"const": name},
-                        "data": {"type": "string", "contentMediaType": "application/json",
-                                 "contentSchema": {"$ref": f"#/components/schemas/{model.__name__}"}},
-                        "id": {"type": "string"},
-                        "retry": {"type": "integer", "minimum": 0},
-                    },
-                    "required": ["event", "data"],
-                })
-            response["content"] = {"text/event-stream": {"itemSchema": item_schema}}
+        item_schema = {"oneOf": []}
+        for name, model in binding.sse_events.items():
+            item_schema["oneOf"].append({
+                "type": "object",
+                "properties": {
+                    "event": {"const": name},
+                    "data": {"type": "string", "contentMediaType": "application/json",
+                             "contentSchema": {"$ref": f"#/components/schemas/{model.name}"}},
+                    "id": {"type": "string"},
+                    "retry": {"type": "integer", "minimum": 0},
+                },
+                "required": ["event", "data"],
+            })
+        response["content"] = {"text/event-stream": {"itemSchema": item_schema}}
     for methods in result["paths"].values():
         for operation in methods.values():
             for parameter in operation.get("parameters", []):

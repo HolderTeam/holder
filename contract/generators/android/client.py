@@ -16,7 +16,6 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from compiler.builder import BASE_ERROR_CODES
 from compiler.ir import (
     ConstantView,
     ContractView,
@@ -29,6 +28,7 @@ from compiler.ir import (
     ParameterType,
     UnionType,
 )
+from compiler.status import BASE_ERROR_CODES
 
 from ..common import Unsupported
 from ..core.abi import SCALARS_C, CAbiError, literal_member

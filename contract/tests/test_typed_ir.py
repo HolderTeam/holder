@@ -12,7 +12,7 @@ from generators.android.client import JNI_PATH as CLIENT_JNI_PATH
 from generators.android.client import KOTLIN_DIR, generate_android_client
 from generators.core.abi import CAbi
 from generators.daemon.bindings import RuntimeBinding, bindings
-from test_support.contract import extract, generate, generate_daemon, load_contract
+from test_support.contract import extract, generate, generate_daemon
 
 CONTRACT = Path(__file__).resolve().parents[1]
 CARDS_KOTLIN = f"{KOTLIN_DIR}/Cards.kt"
@@ -45,7 +45,7 @@ def test_one_card_field_reaches_c_daemon_and_android_outputs():
     typed = ContractView.model_validate(raw)
     common = typed.model_dump(exclude_unset=True)
     c = generate(common)
-    daemon = generate_daemon(common, load_contract(CONTRACT, "interface"))
+    daemon = generate_daemon(common)
     android = generate_android(common)
     assert "proof_count" in c["holder_api.h"]
     assert "proof_count" in c["Contract.h"]
@@ -62,7 +62,7 @@ def test_new_response_option_reaches_all_three_targets():
     binding["query"].append("include_proof")
     common = ContractView.model_validate(raw).model_dump(exclude_unset=True)
     c = generate(common)
-    daemon = generate_daemon(common, load_contract(CONTRACT, "interface"))
+    daemon = generate_daemon(common)
     android = generate_android(common)
     assert "bool include_proof" in c["holder_api.h"]
     assert '"include_proof"' in daemon["ContractRoutes.h"]
@@ -99,7 +99,7 @@ def test_daemon_only_record_flows_through_same_ir():
     status = next(record for record in raw["records"] if record["name"] == "AiStatusData")
     status["fields"].append({"name": "proof_text", "type": {"kind": "string"}})
     common = ContractView.model_validate(raw).model_dump(exclude_unset=True)
-    daemon = generate_daemon(common, load_contract(CONTRACT, "interface"))
+    daemon = generate_daemon(common)
     assert "proof_text" in daemon["AiJson.h"]
 
 

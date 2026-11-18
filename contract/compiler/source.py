@@ -109,7 +109,10 @@ def load_source(source: ContractSource) -> LoadedSource:
 
 
 def load_contract(root: Path, package: str) -> Contract | None:
-    """Return the checked package's FastAPI contract for OpenAPI generation."""
+    """Return a checked package's authoring contract for runtime conformance tests.
+
+    Generators consume Compiler.compile's result, including its OpenAPI artifact.
+    """
     root = Path(root).resolve()
     if not (root / package / APP_FILE).exists():
         return None

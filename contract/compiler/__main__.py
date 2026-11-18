@@ -17,7 +17,6 @@ from generators.daemon import DAEMON_PATHS, OPENAPI_PATHS, api_documents, genera
 
 from .ir import ContractView
 from .pipeline import Compiler, ContractSource
-from .source import load_contract
 
 CONTRACT = Path(__file__).resolve().parents[1]
 REPOSITORY = CONTRACT.parent
@@ -31,13 +30,13 @@ COMMANDS = {
 }
 
 
-def repository_files(ir: ContractView, contract, files: dict[str, str]) -> dict[str, str]:
+def repository_files(ir: ContractView, files: dict[str, str]) -> dict[str, str]:
     """Every generated file the repository holds, by its path in the repository."""
-    daemon = generate_daemon(ir, contract)
+    daemon = generate_daemon(ir)
     return {**{CORE_PATHS[name]: text for name, text in files.items()},
             **generate_android_client(ir),
             **{DAEMON_PATHS[name]: daemon[name] for name in DAEMON_PATHS},
-            **{OPENAPI_PATHS[name]: text for name, text in api_documents(contract, REPOSITORY).items()}}
+            **{OPENAPI_PATHS[name]: text for name, text in api_documents(ir, REPOSITORY).items()}}
 
 
 def stale_files(files: dict[str, str]) -> list[str]:
@@ -84,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if args.command in ("check", "update"):
         try:
-            files = repository_files(ir, load_contract(args.root, args.package), files)
+            files = repository_files(ir, files)
         except (Unsupported, ValueError) as error:
             print(f"A generated file cannot be written: {error}", file=sys.stderr)
             return 1
@@ -97,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.output:
             parser.error("generate needs --output, a directory")
         try:
-            files = {**files, **generate_daemon(ir, load_contract(args.root, args.package)),
+            files = {**files, **generate_daemon(ir),
                      **{path.rsplit('/', 1)[-1]: text
                         for path, text in generate_android_client(ir).items()}}
         except (Unsupported, ValueError) as error:

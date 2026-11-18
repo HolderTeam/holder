@@ -21,6 +21,10 @@ The compiler's intermediate representation (IR) describes types and operations i
 
 `constants` is left out when the contract declares none.
 
+When the package has an `app.py`, the result also includes `openapi`: a detached JSON document produced by FastAPI during compilation. It retains FastAPI's paths, schemas, response descriptions, headers, content and additional statuses, including bodyless responses. It contains no Python models or callables. A package without an app leaves this artifact out; native generation does not need it. The daemon's OpenAPI backend requires it and applies Holder's HTTP conventions before merging API metadata and security. FastAPI remains responsible for schema production; native and Android interfaces use the typed declarations.
+
+Persist a result with `model_dump_json(exclude_unset=True)` (as the `ir` command does), and restore it with `ContractView.model_validate_json`. Leaving unset fields out preserves the distinction between an absent default and an explicit default of `None`.
+
 Model declarations follow `DECLARATION_ORDER` in the declaration package, then source order within each module. Every declared name is unique across the contract. Each declaration has a `name`, a `source` (its file, relative to `contract/`, for the "generated from" line of generated files) and a `doc`.
 
 ## Declarations
@@ -43,6 +47,22 @@ Model declarations follow `DECLARATION_ORDER` in the declaration package, then s
 - **Signature**: `name`, `summary`, `description`, `parameters` and `returns`. Each parameter has a `name` and `type`, and may have a `doc` and a `default`.
 - **HTTP binding**: `operation`, `method`, `path`, `path_parameters`, `query` and `status` (the success status), plus `body` when one parameter is left for the request body, `headers` when header parameters are declared, and `public: true` for an unauthenticated route. `created_when` names a boolean result field that selects 201 when true, leaving `status` (200) for false. Each comes from FastAPI's analysis of a route declared in a domain module.
 - **HTTP error status** (in `http_errors`): an error kind's `error` name and its `status`.
+
+HTTP bindings also retain `operation_id` when explicitly supplied, `response_media_type`, and `response_mode`: `envelope` (the default), `raw` or `stream`. Raw responses may have `raw_schema`; an empty object is distinct from no override. `sse_events` maps each wire event name to a named record reference. Event-only payload records are therefore reachable without interpreting the Python declaration again. Named events require a stream result and declared, non-generic record payloads. Raw schemas require a raw response (an explicit raw media type or a binary result) and JSON-compatible values. Target backends reject any further shapes their conventions cannot express.
+
+The compiler/backend metadata inventory is:
+
+| Authoring input | Compilation result | Backend use |
+|---|---|---|
+| Models, aliases, enums, constants, constraints and defaults | Typed declarations and type references | Native declarations, codecs and Android/JNI |
+| Signatures, errors, core availability, context/error lifetimes and host interfaces | Operations, errors and interfaces | Native ABI and runtime adapters |
+| Method, path, status, parameter locations and body | HTTP bindings | HTTP dispatch and clients |
+| `created_when`, public access and explicit operation ID | HTTP binding metadata; FastAPI artifact includes additional success status | Status selection and OpenAPI conventions |
+| Raw media type, binary return and raw schema override | Response mode, media type, raw schema and FastAPI artifact | Raw/binary OpenAPI responses |
+| Named SSE events | HTTP event-name-to-record map and FastAPI payload schemas | Event codecs/helpers and OpenAPI SSE item schemas |
+| Additional response models, statuses, descriptions, headers and content | Resolved paths and component schemas in `openapi` | OpenAPI response declarations |
+
+The compiler owns the interpretation of every input in this table. Naming, transport conventions, runtime service wiring, formatting, file layout and API metadata/security merging remain backend responsibilities.
 
 ## Types
 
