@@ -63,3 +63,15 @@ To exercise real implementations, set `HOLDER_LIBRARY` to a shared `libholder` a
 - [Compiler representation](IR.md) and [generator responsibilities](generators/README.md): working on the tooling.
 
 The directory follows those responsibilities: `interface/` holds Holder's declarations, `authoring/` supplies their vocabulary, `compiler/` checks and extracts them, and `generators/` produces target code. `tests/` and `test_support/` verify the tooling and the implementations.
+
+Generate the [operation coverage report](test_support/coverage_report.py) from the contract directory:
+
+```sh
+python -m test_support.coverage_report
+python -m pytest tests/conformance --junitxml=build/conformance.xml
+python -m test_support.coverage_report --junit build/conformance.xml
+```
+
+The report lists C and HTTP availability from the compiler and gives schema and behavioral dispositions separately. The [reviewed catalog](test_support/coverage_catalog.py) records independent behavioral evidence and explicit gaps. Update it when adding, renaming, or removing an operation. The report covers the C and HTTP interfaces, including host registrations and streams. The Android-specific audit lives in [#344](https://github.com/HolderTeam/holder/issues/344).
+
+Supply one or more JUnit reports to see passed, failed, skipped, and unreported tests. The live CI jobs publish the table in their job summaries. State machine result checks and Schemathesis requests that actually finish validation are recorded as observations. A passing state machine can leave individual operations unobserved. Links to native tests indicate existing evidence for the stated scenario, with native execution unreported by the Python suite. Gaps mean evidence is missing from this inventory or a scenario is still needed.
