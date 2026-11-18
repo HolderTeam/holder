@@ -129,3 +129,5 @@ TrashDeleteResult delete_project_trash_item(
 }
 
 } // namespace holder::contract
+
+// CI scheduling validation: force a new core tree.
