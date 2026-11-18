@@ -32,7 +32,8 @@ class RunSelectionTests(unittest.TestCase):
 
     def test_backend_workflow_follows_repository(self):
         self.assertEqual(tool.backend_workflow("HolderTeam/holder-core"), "daemon-integration.yml")
-        self.assertEqual(tool.backend_workflow("HolderTeam/holder"), "daemon-ci.yml")
+        self.assertEqual(tool.backend_workflow("HolderTeam/holder"), "shared-ci.yml")
+        self.assertEqual(tool.backend_workflow("HolderTeam/holder", "Release"), "daemon-ci.yml")
 
     def test_explicit_failed_run_is_rejected(self):
         def request(path, **query):
@@ -47,7 +48,7 @@ class FakeRepository:
     def __init__(self, desktop_trees, daemon_runs, desktop_runs, versions=None):
         self.desktop_trees = desktop_trees
         self.versions = versions or {}
-        self.runs = {"daemon-ci.yml": daemon_runs, "desktop-ci.yml": desktop_runs}
+        self.runs = {"shared-ci.yml": daemon_runs, "daemon-ci.yml": daemon_runs, "desktop-ci.yml": desktop_runs}
 
     def __call__(self, path, **query):
         parts = path.split("/")
@@ -100,6 +101,23 @@ class DesktopSelectionTests(unittest.TestCase):
         repo = FakeRepository({B: "t1"}, daemon_runs=[(10, B)], desktop_runs=[(20, B)])
         selected = tool.select("linux", "RelWithDebInfo", "HolderTeam/holder", "main", "20", "10", request=repo)
         self.assertEqual(selected["desktop_commit"], B)
+
+    def test_release_selection_still_uses_the_standalone_daemon_workflow(self):
+        repo = FakeRepository({B: "t1"}, daemon_runs=[(10, B)], desktop_runs=[(20, B)])
+        requested = []
+
+        def request(path, **query):
+            requested.append(path)
+            value = repo(path, **query)
+            if path.endswith('/artifacts'):
+                for artifact in value['artifacts']:
+                    artifact['name'] += '-release'
+            return value
+
+        selected = tool.select('linux', 'Release', 'HolderTeam/holder', 'main', request=request)
+        self.assertEqual(selected['backend_artifact'], 'holder-daemon-linux-x86_64-release')
+        self.assertTrue(any('/workflows/daemon-ci.yml/runs' in path for path in requested))
+        self.assertFalse(any('/workflows/shared-ci.yml/runs' in path for path in requested))
 
     def test_release_artifact_names(self):
         self.assertEqual(tool.ARTIFACTS["windows"], ("holder-desktop-windows", "holder-daemon-windows-backend"))

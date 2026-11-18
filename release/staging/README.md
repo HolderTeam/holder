@@ -71,7 +71,7 @@ both an AppImage and its assembled AppDir:
 https://github.com/HolderTeam/holder/actions/workflows/staging-linux-appimage-stage.yml
 
 All workflow inputs are optional. Development staging selects the newest
-successful Daemon CI (`daemon-ci.yml`) artifact on main that is still
+successful Shared / CI (`shared-ci.yml`) development artifact on main (manual Release builds still use `daemon-ci.yml`) that is still
 downloadable, and the newest Desktop / CI (`desktop-ci.yml`) artifact built from
 the same desktop source, as for Windows. The Daemon CI run built the daemon against
 core from the same commit, and staging takes the core selection from that run.

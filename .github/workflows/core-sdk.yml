@@ -4,7 +4,8 @@ name: Core / SDK
 # uses core through its installed interface: from the Actions cache, else from holder-sdk's
 # core-<tree>-<version> release (main's green builds), else by building it. Built SDKs are cached by core/'s
 # Git tree and product version, so unrelated changes reuse them. The archives are uploaded as core-sdk-<platform>-<build type>, and the
-# core-selection artifact describes them for the core-sdk action, which fetches and verifies them.
+# per-platform core-selection-<platform> artifacts describe them for the fetch action.
+# The aggregate core-selection artifact remains available to release and staging tooling.
 # Nothing is published: SDKs reach users only with a Holder release.
 
 on:
@@ -18,6 +19,10 @@ on:
         description: Force an SDK build and measure cold/warm compilation without saving caches
         type: boolean
         default: false
+      aggregate:
+        description: Upload the aggregate core-selection artifact (standalone/release callers)
+        type: boolean
+        default: true
       platforms:
         description: JSON list of platforms to build, from linux, macos and windows
         type: string
@@ -25,7 +30,7 @@ on:
     outputs:
       commit:
         description: The calling commit, which the core selection records (each SDK records the commit that built it)
-        value: ${{ jobs.index.outputs.commit }}
+        value: ${{ jobs.index.outputs.commit || jobs.sdk.outputs.commit }}
 
 permissions:
   contents: read
@@ -36,6 +41,8 @@ defaults:
 
 jobs:
   sdk:
+    outputs:
+      commit: ${{ steps.tree.outputs.commit }}
     # actions: write deletes this branch's older vcpkg binary caches; callers must grant it.
     permissions:
       actions: write
@@ -64,6 +71,7 @@ jobs:
         name: Identify core/'s tree
         shell: bash
         run: |
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "tree=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
           echo "version=$(cat ../VERSION)" >> "$GITHUB_OUTPUT"
 
@@ -244,6 +252,19 @@ jobs:
           prefix: ${{ steps.compiler-cache.outputs.prefix }}
           measure: ${{ inputs.measure_cache && 'true' || 'false' }}
 
+      - name: Describe this platform's verified SDK
+        shell: bash
+        run: >-
+          python scripts/core-sdk.py index --assets out/sdk-assets --output out/core-selection.json
+          --commit "$(git rev-parse HEAD)" --tree "$(git rev-parse HEAD:core)"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: core-selection-${{ matrix.platform }}
+          path: core/out/core-selection.json
+          if-no-files-found: error
+          retention-days: 7
+
       - uses: actions/upload-artifact@v7
         with:
           name: core-sdk-${{ matrix.platform }}-${{ inputs.build_type }}
@@ -252,6 +273,7 @@ jobs:
           retention-days: 7
 
   index:
+    if: inputs.aggregate
     needs: sdk
     runs-on: ubuntu-24.04
     outputs:

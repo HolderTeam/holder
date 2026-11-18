@@ -26,7 +26,11 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install Python build backends for distribution checks
-        run: python3 -m pip install 'build>=1.2,<2' 'hatchling>=1.27' 'scikit-build-core>=0.11'
+        run: python3 -m pip install 'build>=1.2,<2' 'hatchling>=1.27' 'scikit-build-core>=0.11' 'PyYAML==6.0.3'
+      - name: Validate the shared CI graph and scheduling policies
+        run: |
+          python3 .github/scripts/generate-shared-ci.py --check
+          python3 -m unittest discover -s .github/scripts/tests -v
       - name: Test version derivation and source distributions
         run: python3 -m unittest discover -s release/tests -v
       - name: Test release manifest generation and staging contracts

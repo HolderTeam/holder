@@ -1,24 +1,7 @@
 name: Kit / CI
 
+# Manual entry point and job source for generated shared-ci.yml. Regenerate after editing jobs.
 on:
-  # Pull requests always start this workflow so that its required result check is reported;
-  # the changes job decides whether the Kit jobs run. Keep its pattern in step with these paths.
-  pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
-  push:
-    branches:
-      - main
-    paths:
-      - VERSION
-      - python/_build_support.py
-      - python/kit/**
-      - core/**
-      - .github/workflows/kit-ci.yml
-      - .github/workflows/core-sdk.yml
-      - .github/actions/core-sdk/**
-      - .github/actions/core-ubuntu-packages/**
-      - .github/scripts/fetch-core-debs.sh
-      - .github/scripts/check-core-boundary.py
   workflow_dispatch:
 
 permissions:
@@ -37,7 +20,7 @@ jobs:
     outputs:
       kit: ${{ steps.select.outputs.kit }}
     steps:
-      - if: github.event_name == 'pull_request'
+      - if: github.event_name == 'pull_request' || github.event_name == 'push'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -46,13 +29,24 @@ jobs:
         name: Select jobs from the changed paths
         env:
           EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          if [[ "$EVENT" != pull_request ]]; then
+          if [[ "$EVENT" != pull_request && "$EVENT" != push ]]; then
             echo "kit=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           # The pull request merge commit's parents are the base and the pull request head.
-          changed=$(git diff --name-only HEAD^1...HEAD^2)
+          if [[ "$EVENT" == pull_request ]]; then
+            changed=$(git diff --name-only HEAD^1...HEAD^2)
+          elif [[ "$BEFORE" =~ ^0+$ || -z "$BEFORE" ]]; then
+            changed=$(git ls-files)
+          else
+            changed=$(git diff --name-only "$BEFORE" HEAD)
+          fi
+          # Changes to the orchestration graph exercise all its consumers.
+          if grep -qE '^.github/(workflows/(shared-ci|core-ci|daemon-ci|kit-ci|python-check|core-sdk|core-sanitizers)\.yml$|scripts/(generate-shared-ci\.py|tests/test_shared_ci\.py)$)' <<< "$changed"; then
+            changed+=$'\nVERSION'
+          fi
           printf '%s\n' "$changed"
           if grep -qE '^(VERSION$|python/_build_support\.py$|python/kit/|core/|\.github/workflows/(kit-ci|core-sdk)\.yml$|\.github/actions/core-ubuntu-packages/|\.github/scripts/fetch-core-debs\.sh$|\.github/actions/core-sdk/|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
             echo "kit=true" >> "$GITHUB_OUTPUT"
