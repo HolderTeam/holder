@@ -111,11 +111,17 @@ class SharedCITests(unittest.TestCase):
         self.assertEqual(set(producers), {'sdk-linux', 'sdk-macos', 'sdk-windows'})
         for platform in ('linux', 'macos', 'windows'):
             self.assertEqual(json.loads(producers[f'sdk-{platform}']['with']['platforms']), [platform])
-            self.assertEqual(producers[f'sdk-{platform}']['with']['selection_name'], f'core-selection-{platform}-index')
+            self.assertFalse(producers[f'sdk-{platform}']['with']['aggregate'])
             if platform != 'linux':
                 self.assertIn('sdk-linux', producers[f'sdk-{platform}']['needs'])
         self.assertNotIn('sdk-macos', JOBS['sdk-windows']['needs'])
         self.assertNotIn('sdk-windows', JOBS['sdk-macos']['needs'])
+
+    def test_daemon_only_runs_keep_the_aggregate_staging_selection(self):
+        self.assertIn("needs.daemon-changes.outputs.daemon == 'true'", JOBS['sdk-index']['if'])
+        self.assertIn('sdk-index', JOBS['daemon-sdk-ready']['needs'])
+        self.assertIn('core-sdk-ready', JOBS['core-result']['needs'])
+        self.assertNotIn('sdk-index', JOBS['core-result']['needs'])
 
     def test_consumers_wait_only_for_their_platform(self):
         for suite in ('daemon', 'kit'):
@@ -138,7 +144,7 @@ class SharedCITests(unittest.TestCase):
         downloads = [step for step in action['runs']['steps'] if 'download-artifact' in step.get('uses', '')]
         self.assertIn('core-selection-${{ runner.os', downloads[0]['with']['name'])
         producer = yaml.safe_load((CI.WORKFLOWS / 'core-sdk.yml').read_text())
-        self.assertEqual(producer[True]['workflow_call']['inputs']['selection_name']['default'], 'core-selection')
+        self.assertTrue(producer[True]['workflow_call']['inputs']['aggregate']['default'])
         self.assertEqual(producer['jobs']['sdk']['strategy']['fail-fast'], False)
         guard = next(step['run'] for step in action['runs']['steps'] if step.get('name') == "Verify the run selection's core tree")
         with tempfile.TemporaryDirectory() as temporary:

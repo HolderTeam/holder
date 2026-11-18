@@ -52,7 +52,7 @@ def generate():
         source_jobs = document['jobs']
         producer = 'sdk' if suite == 'core' else 'core-sdk'
         mapping = {key: f'{suite}-{key}' for key in source_jobs}
-        mapping[producer] = 'sdk-index' if suite == 'core' else f'{suite}-sdk-ready'
+        mapping[producer] = f'{suite}-sdk-ready'
         for key, original in source_jobs.items():
             if key == producer:
                 continue
@@ -113,13 +113,13 @@ def generate():
             'if': selected if platform == 'linux' else platform_selected,
             'permissions': {'actions': 'write', 'contents': 'read'},
             'uses': './.github/workflows/core-sdk.yml',
-            'with': {'platforms': f'["{platform}"]', 'selection_name': f'core-selection-{platform}-index'},
+            'with': {'platforms': f'["{platform}"]', 'aggregate': False},
         }
     # Core publication still uses the aggregate selection. SDK consumers use the per-platform
     # selections so Linux never waits for another platform's SDK or its failure.
     index = copy.deepcopy(read('core-sdk')['jobs']['index'])
-    index['needs'] = ['core-changes', 'sdk-linux', 'sdk-macos', 'sdk-windows']
-    index['if'] = "needs.core-changes.outputs.core == 'true'"
+    index['needs'] = [*changes, 'sdk-linux', 'sdk-macos', 'sdk-windows']
+    index['if'] = platform_selected
     index['defaults'] = {'run': {'working-directory': 'core'}}
     index['steps'][1]['with']['pattern'] = 'core-sdk-*-RelWithDebInfo'
     index['steps'][-1]['with']['name'] = 'core-selection'
@@ -129,9 +129,9 @@ def generate():
         'if': "needs.core-changes.outputs.core == 'true'",
         'uses': './.github/workflows/core-sanitizers.yml',
     }
-    for suite in ('daemon', 'kit', 'python'):
+    for suite in SOURCES:
         jobs[f'{suite}-sdk-ready'] = {
-            'needs': [f'{suite}-changes', 'sdk-linux'] + ([] if suite == 'python' else ['sdk-macos', 'sdk-windows']),
+            'needs': [f'{suite}-changes', 'sdk-linux'] + ([] if suite == 'python' else ['sdk-macos', 'sdk-windows', 'sdk-index']),
             'if': f"needs.{suite}-changes.outputs.{suite} == 'true'",
             'runs-on': 'ubuntu-24.04',
             'steps': [{'run': 'echo "Required SDK producers passed; platform consumers verify their artifacts."'}],
@@ -143,7 +143,7 @@ def generate():
     for step in result['steps']:
         if 'run' in step:
             step['run'] = step['run'].replace('.coverage,', '.["core-sanitizers"], .coverage,')
-    # Automatic main publication needs environment secrets, just as the standalone source jobs.
+    # Keep embedded shell scripts readable in the checked-in generated workflow.
     class Dumper(yaml.SafeDumper):
         pass
 

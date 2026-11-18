@@ -1,5 +1,6 @@
 name: Python / Check
 
+# Manual entry point and job source for generated shared-ci.yml. Regenerate after editing jobs.
 on:
   workflow_dispatch:
 

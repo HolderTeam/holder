@@ -32,7 +32,8 @@ size and SHA-256. The fetch action checks the selected tree against checkout and
 retains its commit, checksum and manifest checks. These immutable run artifacts
 are the consumer handoff; concurrent caches are not used for synchronization.
 The aggregate `core-selection` remains available to main's SDK publication and
-standalone Release tooling. Producer calls use unique aggregate index names.
+standalone Release tooling. Automatic producers upload only their platform selection; a single aggregate job
+combines them for staging/publication without adding index jobs to the Linux gate.
 
 The four standalone suite workflows retain their manual entry points, including
 Daemon's Release/configuration inputs and backend provenance. Their job recipes

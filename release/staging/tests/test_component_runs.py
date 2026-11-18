@@ -102,6 +102,23 @@ class DesktopSelectionTests(unittest.TestCase):
         selected = tool.select("linux", "RelWithDebInfo", "HolderTeam/holder", "main", "20", "10", request=repo)
         self.assertEqual(selected["desktop_commit"], B)
 
+    def test_release_selection_still_uses_the_standalone_daemon_workflow(self):
+        repo = FakeRepository({B: "t1"}, daemon_runs=[(10, B)], desktop_runs=[(20, B)])
+        requested = []
+
+        def request(path, **query):
+            requested.append(path)
+            value = repo(path, **query)
+            if path.endswith('/artifacts'):
+                for artifact in value['artifacts']:
+                    artifact['name'] += '-release'
+            return value
+
+        selected = tool.select('linux', 'Release', 'HolderTeam/holder', 'main', request=request)
+        self.assertEqual(selected['backend_artifact'], 'holder-daemon-linux-x86_64-release')
+        self.assertTrue(any('/workflows/daemon-ci.yml/runs' in path for path in requested))
+        self.assertFalse(any('/workflows/shared-ci.yml/runs' in path for path in requested))
+
     def test_release_artifact_names(self):
         self.assertEqual(tool.ARTIFACTS["windows"], ("holder-desktop-windows", "holder-daemon-windows-backend"))
 

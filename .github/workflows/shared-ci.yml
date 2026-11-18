@@ -457,7 +457,7 @@ jobs:
     - core-macos
     - core-windows
     - core-ubuntu-packages
-    - sdk-index
+    - core-sdk-ready
     - core-sanitizers
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
@@ -520,7 +520,7 @@ jobs:
     - core-coverage
     - core-macos
     - core-windows
-    - sdk-index
+    - core-sdk-ready
     - core-sanitizers
     runs-on: ubuntu-24.04
     defaults:
@@ -532,7 +532,7 @@ jobs:
         SELECTED: ${{ needs.core-changes.outputs.core }}
         RESULTS: ${{ toJSON(needs) }}
       run: |
-        RESULTS=$(jq 'with_entries(.key = ({"core-changes": "changes", "core-conformance": "conformance", "core-coverage": "coverage", "core-format": "format", "core-linux": "linux", "core-macos": "macos", "core-windows": "windows", "sdk-index": "sdk"}[.key] // .key))' <<< "$RESULTS")
+        RESULTS=$(jq 'with_entries(.key = ({"core-changes": "changes", "core-conformance": "conformance", "core-coverage": "coverage", "core-format": "format", "core-linux": "linux", "core-macos": "macos", "core-sdk-ready": "sdk", "core-windows": "windows"}[.key] // .key))' <<< "$RESULTS")
         jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
         jq -e --arg selected "$SELECTED" '
           .changes.result == "success" and
@@ -578,7 +578,7 @@ jobs:
         # The daemon uses core's C++ classes, never its C API (apart from capi/Context.h, which
         # its contract routes run in), and core's tests run in Core / CI, so changes only to those
         # don't select the daemon jobs. The contract's conformance tests run here over HTTP.
-        # Keep in step with the paths.
+        # These exclusions also apply in the generated automatic graph.
         changed=$(grep -vE '^core/(include/holder/holder\.h$|src/capi/(holder|version)\.cpp$|tests/)' <<< "$changed" || true)
         if grep -qE '^(daemon/|cli/|common/|api/|core/|contract/|VERSION$|\.gitmodules$|\.github/workflows/daemon-|\.github/workflows/core-sdk\.yml$|\.github/actions/core-ubuntu-packages/|\.github/scripts/fetch-core-debs\.sh$|\.github/actions/core-sdk/|\.github/actions/linux-daemon-|\.github/scripts/(linux-daemon-cache-key|ubuntu-daemon-package-key|fetch-daemon-debs|publish-daemon-debs)\.sh$|\.github/scripts/tests/test_ubuntu_daemon_packages\.py$|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
           echo "daemon=true" >> "$GITHUB_OUTPUT"
@@ -1403,7 +1403,7 @@ jobs:
     uses: ./.github/workflows/core-sdk.yml
     with:
       platforms: '["linux"]'
-      selection_name: core-selection-linux-index
+      aggregate: false
   sdk-macos:
     name: macos / SDK
     needs:
@@ -1420,7 +1420,7 @@ jobs:
     uses: ./.github/workflows/core-sdk.yml
     with:
       platforms: '["macos"]'
-      selection_name: core-selection-macos-index
+      aggregate: false
   sdk-windows:
     name: windows / SDK
     needs:
@@ -1437,10 +1437,15 @@ jobs:
     uses: ./.github/workflows/core-sdk.yml
     with:
       platforms: '["windows"]'
-      selection_name: core-selection-windows-index
+      aggregate: false
   sdk-index:
+    if: needs.core-changes.outputs.core == 'true' || needs.daemon-changes.outputs.daemon == 'true' || needs.kit-changes.outputs.kit
+      == 'true'
     needs:
     - core-changes
+    - daemon-changes
+    - kit-changes
+    - python-changes
     - sdk-linux
     - sdk-macos
     - sdk-windows
@@ -1466,7 +1471,6 @@ jobs:
         path: core/out/core-selection.json
         if-no-files-found: error
         retention-days: 7
-    if: needs.core-changes.outputs.core == 'true'
     defaults:
       run:
         working-directory: core
@@ -1476,12 +1480,24 @@ jobs:
     - sdk-linux
     if: needs.core-changes.outputs.core == 'true'
     uses: ./.github/workflows/core-sanitizers.yml
+  core-sdk-ready:
+    needs:
+    - core-changes
+    - sdk-linux
+    - sdk-macos
+    - sdk-windows
+    - sdk-index
+    if: needs.core-changes.outputs.core == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+    - run: echo "Required SDK producers passed; platform consumers verify their artifacts."
   daemon-sdk-ready:
     needs:
     - daemon-changes
     - sdk-linux
     - sdk-macos
     - sdk-windows
+    - sdk-index
     if: needs.daemon-changes.outputs.daemon == 'true'
     runs-on: ubuntu-24.04
     steps:
@@ -1492,6 +1508,7 @@ jobs:
     - sdk-linux
     - sdk-macos
     - sdk-windows
+    - sdk-index
     if: needs.kit-changes.outputs.kit == 'true'
     runs-on: ubuntu-24.04
     steps:

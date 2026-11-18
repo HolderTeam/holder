@@ -1,6 +1,7 @@
 name: Daemon / CI
 run-name: ${{ inputs.release_request || github.event.pull_request.title || github.event.head_commit.message || github.workflow }}
 
+# Manual entry point and job source for generated shared-ci.yml. Regenerate after editing jobs.
 on:
   workflow_dispatch:
     inputs:
@@ -60,7 +61,7 @@ jobs:
           # The daemon uses core's C++ classes, never its C API (apart from capi/Context.h, which
           # its contract routes run in), and core's tests run in Core / CI, so changes only to those
           # don't select the daemon jobs. The contract's conformance tests run here over HTTP.
-          # Keep in step with the paths.
+          # These exclusions also apply in the generated automatic graph.
           changed=$(grep -vE '^core/(include/holder/holder\.h$|src/capi/(holder|version)\.cpp$|tests/)' <<< "$changed" || true)
           if grep -qE '^(daemon/|cli/|common/|api/|core/|contract/|VERSION$|\.gitmodules$|\.github/workflows/daemon-|\.github/workflows/core-sdk\.yml$|\.github/actions/core-ubuntu-packages/|\.github/scripts/fetch-core-debs\.sh$|\.github/actions/core-sdk/|\.github/actions/linux-daemon-|\.github/scripts/(linux-daemon-cache-key|ubuntu-daemon-package-key|fetch-daemon-debs|publish-daemon-debs)\.sh$|\.github/scripts/tests/test_ubuntu_daemon_packages\.py$|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
             echo "daemon=true" >> "$GITHUB_OUTPUT"
