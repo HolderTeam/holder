@@ -39,6 +39,7 @@ from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, ru
 from holder_capi import Core, OperationError, Unrepresentable
 from holder_http import Http, Nonconforming, shared_daemon
 from test_support.contract import extract, load_contract
+from test_support.coverage_evidence import observe
 from test_support.values import CHARACTERS, Values
 
 CONTRACT = Path(__file__).resolve().parents[2]
@@ -240,6 +241,7 @@ class Cards(RuleBasedStateMachine):
     def conforms(self, operation: str, result) -> None:
         returns = next(op for op in IR["operations"] if op["name"] == operation)["returns"]
         assert Values(IR).problems(returns, result) == []
+        observe("model-result", operation)
 
     # ---- rules --------------------------------------------------------------------------------
 

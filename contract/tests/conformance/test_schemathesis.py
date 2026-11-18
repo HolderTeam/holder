@@ -30,49 +30,30 @@ from schemathesis.specs.openapi.checks import negative_data_rejection, positive_
 
 from holder_http import MAX_TARGET, shared_daemon
 from test_support.contract import extract
+from test_support.coverage_evidence import observe
+from test_support.schema_scope import SSE_SERVICE_ERRORS, positive_acceptance_limits, schema_routes
 
 ROOT = Path(__file__).resolve().parents[3]
 IR = extract(ROOT / "contract", "interface")
 # No string holds U+0000, a rule of every string in the contract (IR.md) that the document does not state.
 CONFIG = SchemathesisConfig.from_dict({"generation": {"allow-x00": False}})
+ROUTES = {(b["method"], b["path"]): b["operation"] for b in schema_routes(IR["http"])}
 SCHEMA = schemathesis.openapi.from_path(ROOT / "api/openapi.json", config=CONFIG).include(
-    # A successful change feed stays open; request/response generation would wait forever.
-    # daemon/tests/HttpEvents_test.cpp exercises both its stream and its error responses.
-    name=[f"{b['method']} {b['path']}" for b in IR["http"] if b["path"] != "/events"])
+    name=[f"{method} {path}" for method, path in ROUTES])
 DAEMON = os.environ.get("HOLDER_DAEMON")
 
 
 def stated_in_words(case) -> bool:
-    """Whether the request uses a rule the contract states in words rather than in its schema.
-
-    The daemon may reject such a request although the document allows it: a cursor is valid only
-    when the daemon handed it out, a tag has a form (see Tag in interface/cards/models.py), whether in the
-    query or the path, a page with content holds at most 1000 cards, and a day and an instant have
-    forms, and a milestone's date holds exactly one of them (see interface/milestones/models.py), and a
-    resource's ID, in the path or the body, and metadata names have forms (see interface/resources/models.py).
-    Search q must also be valid SQLite FTS5 syntax (see interface/operations/search.py). An asset import's
-    source_path must name a readable regular file on the daemon's host. History revision references
-    must resolve in the project's Git repository. Google Drive OAuth state
-    must be issued by the daemon. AI operations also depend on configured providers, runners,
-    projects, threads and IDs; generated isolated requests cannot create those prerequisites.
-    """
-    query = case.query or {}
-    path = case.path_parameters or {}
-    limit = str(query.get("limit", 200))
-    body = case.body if isinstance(case.body, dict) else {}
-    # AI writes and reads depend on runner, provider, database, or reference state that a generated
-    # request cannot establish. Their documented semantic failures are still checked by the
-    # response schema and the HTTP integration tests.
-    return case.operation.path.startswith("/ai/") or "cursor" in query or "tag" in query or (
-        "tag" in path or "resource_id" in path) or (
-        query.get("include_content") in (True, "true", "1") and limit.isdigit() and int(limit) > 1000) or (
-        "first_day" in query or "last_day" in query or any(name in query for name in (
-            "oid", "to_oid", "from_oid")) or "dates" in body or "resource_id" in body
-        or "metadata" in body or "recovery_token" in body) or (
-        case.operation.path in ("/search/cards", "/search/ai") and "q" in query) or (
-        case.operation.path == "/imports" and case.method.upper() == "POST") or (
-        case.operation.path in ("/locations/{location_id}/oauth/google-drive/authorize",
-                                "/locations/{location_id}/oauth/google-drive/callback"))
+    """Whether this request has prerequisites or rules beyond its schema."""
+    query = set(case.query or {})
+    limit = str((case.query or {}).get("limit", 200))
+    if not ((case.query or {}).get("include_content") in (True, "true", "1")
+            and limit.isdigit() and int(limit) > 1000):
+        query.discard("include_content")
+    method, path = case.operation.method.upper(), case.operation.path
+    return any(positive_acceptance_limits(ROUTES[method, path], path, query,
+                                          set(case.path_parameters or {}),
+                                          set(case.body) if isinstance(case.body, dict) else set()))
 
 
 def invalid_mutation_not_observed(case) -> bool:
@@ -126,6 +107,12 @@ def test_negative_query_mutation_that_becomes_a_valid_string_is_not_observable()
     assert not invalid_mutation_not_observed(case)
 
 
+def test_unsupported_method_uses_the_declared_operation_for_scope():
+    case = SimpleNamespace(method="TRACE", operation=SCHEMA["/imports"]["POST"], query={},
+                           path_parameters={}, body={})
+    assert stated_in_words(case)
+
+
 @pytest.mark.skipif(not DAEMON, reason="set HOLDER_DAEMON to a holderd to run these")
 @SCHEMA.parametrize()
 @settings(max_examples=int(os.environ.get("HOLDER_CONFORMANCE_EXAMPLES", "25")), deadline=None,
@@ -139,12 +126,14 @@ def test_the_daemon_answers_as_its_document_says(case):
     if isinstance(case.body, dict) and "root_path" in case.body:
         return
     excluded = [positive_data_acceptance] if stated_in_words(case) else []
-    if case.operation.path.startswith("/ai/") and case.operation.path in (
-            "/ai/runner/pull", "/ai/runs", "/ai/runs/{run_id}/events",
-            "/ai/runner/pull/{job_id}/events"):
+    method = case.operation.method.upper()
+    operation = ROUTES[method, case.operation.path]
+    if operation in SSE_SERVICE_ERRORS:
         # These routes document 503 for an unavailable runner, provider or observer.
         excluded.append(not_a_server_error)
     if invalid_mutation_not_observed(case):
         excluded.append(negative_data_rejection)
     case.call_and_validate(base_url=daemon.url, headers={"Authorization": f"Bearer {daemon.token}"},
                            excluded_checks=excluded)
+    if case.method.upper() == method:
+        observe("http-schema", operation)
