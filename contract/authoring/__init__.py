@@ -6,6 +6,7 @@ except ImportError:
     from pydantic import Field, JsonValue, SecretStr
     from pydantic_core import MISSING
 
+from .resources import Input, Parameter, Resource, ResourceField
 from .routes import Contract
 from .vocabulary import (
     Bytes,
@@ -21,6 +22,23 @@ from .vocabulary import (
 )
 
 __all__ = [
-    "MISSING", "Bytes", "Contract", "Field", "Float64", "HolderError", "Int32", "Int64",
-    "JsonValue", "OpenRecord", "Record", "SecretStr", "Stream", "Timestamp", "host_interface",
+    "MISSING",
+    "Bytes",
+    "Contract",
+    "Field",
+    "Float64",
+    "HolderError",
+    "Input",
+    "Int32",
+    "Int64",
+    "JsonValue",
+    "OpenRecord",
+    "Parameter",
+    "Record",
+    "Resource",
+    "ResourceField",
+    "SecretStr",
+    "Stream",
+    "Timestamp",
+    "host_interface",
 ]

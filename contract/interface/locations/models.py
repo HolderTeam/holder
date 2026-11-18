@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from authoring import MISSING, Field, Record, Timestamp
+from authoring import MISSING, Field, Input, Record, Resource, ResourceField, Timestamp
 
 from ..projects.ids import ProjectId
 
@@ -14,64 +14,72 @@ type LocationConfiguration = dict[str, str]
 """Portable non-secret provider options."""
 
 
-class ProjectStorageLocation(Record):
+class ProjectStorageLocation(
+    Resource, collection="/locations", identity="location_id", identity_type=Annotated[str, Field(min_length=1)]
+):
     """A portable declaration with this device's binding status."""
 
-    location_id: LocationId
+    location_id: Annotated[
+        LocationId,
+        ResourceField(
+            input_type=str,
+            create=Input(default=MISSING, doc="Optional imported ID; Holder makes one when omitted or empty."),
+        ),
+    ]
     """The location's ID."""
-    project_id: ProjectId
+    project_id: Annotated[ProjectId, ResourceField(create=Input())]
     """The owning project."""
-    name: Annotated[str, Field(min_length=1)]
+    name: Annotated[
+        Annotated[str, Field(min_length=1)],
+        ResourceField(create=Input(), update=Input(doc="Replacement display name.")),
+    ]
     """Display name."""
-    provider: LocationProvider
+    provider: Annotated[LocationProvider, ResourceField(create=Input())]
     """Storage provider kind."""
-    configuration: LocationConfiguration
+    configuration: Annotated[
+        LocationConfiguration,
+        ResourceField(
+            create=Input(default=MISSING, doc="Portable non-secret provider configuration; empty when omitted."),
+            update=Input(doc="Replacement configuration map."),
+        ),
+    ]
     """Portable non-secret provider configuration."""
     bound: bool
     """Whether this device has a private binding."""
     binding_preview: str | None
     """Safe binding display text, or null; credentials are never returned."""
-    created_at: Timestamp
+    created_at: Annotated[
+        Timestamp,
+        ResourceField(create=Input(default=MISSING, doc="Imported creation time; current time when omitted.")),
+    ]
     """When the declaration was created."""
-    updated_at: Timestamp
+    updated_at: Annotated[
+        Timestamp,
+        ResourceField(
+            create=Input(default=MISSING, doc="Imported update time; creation time when omitted."),
+            update=Input(doc="Update time; current time when omitted."),
+        ),
+    ]
     """When the declaration was last updated."""
 
 
-class NewStorageLocation(Record):
-    """A portable location declaration to create."""
-
-    location_id: str | MISSING = MISSING
-    """Optional imported ID; Holder makes one when omitted or empty."""
-    project_id: ProjectId
-    """The owning project."""
-    name: Annotated[str, Field(min_length=1)]
-    """Display name."""
-    provider: LocationProvider
-    """Storage provider kind."""
-    configuration: LocationConfiguration | MISSING = MISSING
-    """Portable non-secret provider configuration; empty when omitted."""
-    created_at: Timestamp | MISSING = MISSING
-    """Imported creation time; current time when omitted."""
-    updated_at: Timestamp | MISSING = MISSING
-    """Imported update time; creation time when omitted."""
+NewStorageLocation = ProjectStorageLocation.create_record(
+    "NewStorageLocation",
+    doc="A portable location declaration to create.",
+)
 
 
-class StorageLocationUpdate(Record):
-    """Changes to a portable location declaration."""
-
-    name: Annotated[str, Field(min_length=1)] | MISSING = MISSING
-    """Replacement display name."""
-    configuration: LocationConfiguration | MISSING = MISSING
-    """Replacement configuration map."""
-    updated_at: Timestamp | MISSING = MISSING
-    """Update time; current time when omitted."""
+StorageLocationUpdate = ProjectStorageLocation.update_record(
+    "StorageLocationUpdate",
+    doc="Changes to a portable location declaration.",
+)
 
 
-class LocationDeleteResult(Record):
-    """The location affected by an action."""
-
-    location_id: LocationId
-    """The affected location ID."""
+LocationDeleteResult = ProjectStorageLocation.identity_record(
+    "LocationDeleteResult",
+    doc="The location affected by an action.",
+    field_doc="The affected location ID.",
+)
 
 
 class StorageLocationListResponse(Record):
@@ -155,11 +163,15 @@ class GoogleDriveAuthorizeResponse(Record):
     """The authorization URL."""
 
 
-class StorageLocationList(Record):
-    """A project's storage locations, with this device's binding status, and this device's preferred one."""
-
-    data: list[ProjectStorageLocation]
-    """The project's locations, most recently updated first; none for a project with none, or one this device does
-    not have."""
-    preferred_location_id: LocationId | None
-    """This device's preferred location for the project; null when it has none."""
+StorageLocationList = ProjectStorageLocation.list_record(
+    "StorageLocationList",
+    doc="A project's storage locations, with this device's binding status, and this device's preferred one.",
+    items="data",
+    items_doc="The project's locations, most recently updated first; none for a project with none, or one this device does\nnot have.",
+    extra={
+        "preferred_location_id": (
+            LocationId | None,
+            Field(description="This device's preferred location for the project; null when it has none."),
+        )
+    },
+)

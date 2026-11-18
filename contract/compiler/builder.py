@@ -24,6 +24,7 @@ from pydantic import TypeAdapter, ValidationError
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
+from authoring.resources import Resource
 from authoring.routes import Contract, Operation
 from authoring.vocabulary import Bytes, HolderError, Native, OpenRecord, Record, Stream
 
@@ -183,7 +184,7 @@ class _Builder:
     def record(self, cls: type[Record], source: str) -> None:
         if not _doc(cls):
             self.problem(f"{cls.__name__} has no docstring")
-        bases = [b for b in cls.__bases__ if issubclass(b, Record) and b not in (Record, OpenRecord)
+        bases = [b for b in cls.__bases__ if issubclass(b, Record) and b not in (Record, OpenRecord, Resource)
                  and not _is_generic_base(b)]
         if len(bases) > 1:
             self.problem(f"{cls.__name__} extends more than one record")

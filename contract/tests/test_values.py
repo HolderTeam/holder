@@ -26,11 +26,11 @@ def pydantic_type(name: str):
 
     if name == "Page":
         return interface.pagination.models.Page[interface.cards.CardListItem]
-    for module_name in interface.DECLARATION_ORDER:
-        module = importlib.import_module(f"interface.{module_name}")
-        if hasattr(module, name):
-            return getattr(module, name)
-    raise AttributeError(name)
+    # Imported vocabulary and other domain records can share a public name.
+    # Resolve the declaration itself rather than the first module exporting it.
+    record = next(record for record in HOLDER["records"] if record["name"] == name)
+    module_name = record["source"].removesuffix(".py").replace("/", ".")
+    return getattr(importlib.import_module(module_name), name)
 
 
 def record_type(ir, record):
