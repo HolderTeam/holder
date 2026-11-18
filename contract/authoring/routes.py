@@ -218,3 +218,14 @@ class Contract:
             return function
 
         return register
+
+    def resource(self, resource, action: str, **options) -> None:
+        """Declare a standard resource operation, expanded before compiler extraction."""
+        from .resources import register_resource_operation
+
+        caller = inspect.currentframe().f_back
+        try:
+            register_resource_operation(self, resource, action, source_module=caller.f_globals["__name__"],
+                                        source_file=caller.f_code.co_filename, source_line=caller.f_lineno, **options)
+        finally:
+            del caller

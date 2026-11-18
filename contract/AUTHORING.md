@@ -97,13 +97,14 @@ A model module may contain only:
 
 - imports from `typing`, `enum`, `pydantic`, `authoring` and other contract modules;
 - **records**: subclasses of `Record`, whose fields are documented by the string under each one. A record rejects fields it does not have, in requests and results alike (clients should still read results leniently), and a generic record's use is named for its arguments: `Page[CardListItem]` is `CardListItemPage`;
+- **resources**: read records derived from `Resource`, with field input roles, derived input/result records and standard operation declarations as described below;
 - **enums**: subclasses of `StrEnum`;
 - **error kinds**: direct subclasses of `HolderError`, optionally with fields;
 - **host interfaces**: `typing.Protocol` classes marked `@host_interface`, for callbacks core makes into the host, such as a keyring provider;
 - **named types**: `type` statements, never plain assignments, so generators keep the name.
 - **constants**: documented capitalised strings, `NAME: Final = "..."`, for text every platform must take from one place, such as Home's name and welcome card. They reach core's `Contract.h` and the Android client.
 
-Anything else, such as a validator, a `model_config`, a function or any other assignment, is rejected before the file is imported, so a file that breaks the rules never runs.
+Assignments naming derived resource records are also allowed: `NewThing = Thing.create_record("NewThing", doc="...")`, and the corresponding `update_record`, `identity_record` and `list_record` calls. The assigned name must match the name passed to the method. Anything else, such as a validator, a `model_config`, a function or any other assignment, is rejected before the file is imported, so a file that breaks the rules never runs.
 
 `app.py` makes one `Contract` (`authoring.routes`) and calls each domain's `register(contract)` in public operation order. An operation module may import FastAPI's declaration helpers and define only route functions inside `register`; their bodies never run. `DECLARATION_ORDER` names every model module in the required IR order, so moving a module does not silently reorder declarations:
 
@@ -124,3 +125,52 @@ The rest of the vocabulary:
 - **Constraints:** `Field(min_length=, max_length=, pattern=, ge=, le=, gt=, lt=)` in `Annotated`; a route's parameter takes them in its `Path()` or `Query()` too.
 
 Every record, field, enum, error kind, interface method and operation must have documentation. An operation's docstring is its summary, then a blank line, then its description; nothing else is read from it.
+
+## Resources and derived standard operations
+
+`Resource` is a read record that can derive its input records and standard operation signatures. Storage locations and cards use this vocabulary. It expands to ordinary Pydantic records and FastAPI/Contract operations before extraction; generators consume the same IR as for handwritten declarations. It does not supply storage, domain behavior or generic trait implementations.
+
+```python
+from typing import Annotated
+from authoring import MISSING, Field, Input, Resource, ResourceField
+
+class Thing(Resource, collection="/projects/{project_id}/things", identity="thing_id"):
+    """A thing in a project."""
+
+    thing_id: str
+    """Its identity."""
+    project_id: str
+    """Its owning project."""
+    title: Annotated[str, ResourceField(
+        input_type=Annotated[str, Field(min_length=1)],
+        create=Input(), update=Input(doc="Replacement title."),
+    )]
+    """Its title."""
+    note: Annotated[str | None, ResourceField(create=Input(default=None), update=Input())]
+    """Its note; null clears it."""
+
+NewThing = Thing.create_record("NewThing", doc="A thing to create.")
+ThingUpdate = Thing.update_record("ThingUpdate", doc="Changes to a thing.")
+```
+
+Fields without a `ResourceField` input role are output-only. `create=Input()` includes a required create field; `Input(default=...)` supplies a create default. `Input(default=MISSING)` makes it omittable without substituting a value. Every `update=Input()` field becomes omittable with `MISSING`, keeping the input type's nullability: omission keeps the existing value, while explicit null is accepted only by nullable fields. Update defaults are rejected. A replacement configuration map remains a replacement map; this vocabulary does not implement nested merge behavior.
+
+Input fields reuse the read type and documentation unless `input_type` or `Input(doc=...)` overrides them. These overrides preserve existing differences, such as a read title without a minimum length but create/update titles requiring text, and an imported location ID accepting empty text. Fields inherit their roles through ordinary record inheritance. Input fields follow declaration order unless `fields=(...)` supplies an explicit order containing every selected field exactly once. Card uses this to preserve its existing ABI field order.
+
+`identity_record(name, doc=..., field_doc=...)` derives an identity-only result, using the read identity's type. `list_record(name, doc=..., items="data", items_doc=..., extra={...})` derives a collection result with a list of the resource followed by any explicit metadata fields. Each `extra` value is a `(type, Field(...))` pair. Resource-specific projections and HTTP envelopes can still be ordinary records: Card's listing extends `CardMetadata` with the optional fields selected by list flags, while storage locations retain their existing daemon response envelope.
+
+Inside `register(contract)`, standard operations are declared at their existing positions:
+
+```python
+contract.resource(Thing, "read", name="get_thing", doc="Fetch a thing.", errors=[NotFound])
+contract.resource(Thing, "create", name="create_thing", doc="Create a thing.", body="request")
+contract.resource(Thing, "update", name="update_thing", doc="Change a thing.")
+contract.resource(Thing, "delete", name="delete_thing", doc="Delete a thing.")
+contract.resource(Thing, "list", name="list_things", doc="List things.")
+```
+
+The resource's collection supplies the create/list path; read/update/delete append its identity. Collection placeholders supply scope parameters in path order, using their read-field types. `identity_type` is an optional resource class keyword overriding the identity's parameter type, preserving storage locations' existing plain-string path parameter. HTTP uses GET/POST/PATCH/DELETE, with status 201 for create and 200 otherwise. Ordinary route options such as `errors`, `status`, `core=False`, `public`, `raw_media_type` and `responses` are forwarded to `Contract.route`.
+
+Create/update use the resource's derived input records as the body. `body` preserves an existing parameter name (defaults: `request` for create and `update` for update). `returns` overrides a standard result: the resource for read/create/update/delete, or `list[Resource]` for list. `parameters=(Parameter(name, type, default=...), ...)` appends explicit filters or policies, retaining their FastAPI annotations and order. `core_only=True` registers a core operation, using plain scope/identity/input parameters instead of HTTP markers. Storage locations use it for their distinct core list operation.
+
+Names, errors, documentation, transport availability and custom semantics remain explicit. Card's delete declaration names `trash_card` and retains its `children` policy; its update input still accepts parent and sort-order changes. Move, restore, binding, preference and other custom operations remain ordinary declarations with their existing implementations. No resource or trait metadata is added to the IR by this authoring expansion.

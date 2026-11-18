@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from authoring import MISSING, Field, Float64, Int32, Int64, Record, Timestamp
+from authoring import MISSING, Field, Float64, Input, Int32, Int64, Record, Resource, ResourceField, Timestamp
 
 from ..projects.ids import ProjectId
 
@@ -36,24 +36,50 @@ class CardBreadcrumb(Record):
     """The project or card title."""
 
 
-class CardMetadata(Record):
+class CardMetadata(Resource):
     """Everything about a card except its content."""
 
     card_id: CardId
     """The card's ID."""
     project_id: ProjectId
     """The project the card belongs to."""
-    title: str
+    title: Annotated[
+        str,
+        ResourceField(
+            input_type=Annotated[str, Field(min_length=1)], create=Input(), update=Input(doc="The card's new title.")
+        ),
+    ]
     """The card's title."""
     rel_path: str
     """The card's file, relative to the project's root."""
-    parent_card_id: CardId | None
+    parent_card_id: Annotated[
+        CardId | None,
+        ResourceField(
+            create=Input(default=None, doc="The card's parent; null or omitted for a root card."),
+            update=Input(doc="The card's new parent; null makes it a root card."),
+        ),
+    ]
     """The card's parent; null for a root card."""
-    sort_key: Float64
+    sort_key: Annotated[
+        Float64,
+        ResourceField(
+            create=Input(default=MISSING, doc="The card's place among its siblings; omit to let Holder choose."),
+            update=Input(doc="The card's new place among its siblings."),
+        ),
+    ]
     """The card's place among its siblings; lower comes first."""
-    created_at: Timestamp
+    created_at: Annotated[
+        Timestamp,
+        ResourceField(create=Input(default=MISSING, doc="When the card was created, for imports; omit for now.")),
+    ]
     """When the card was created."""
-    updated_at: Timestamp
+    updated_at: Annotated[
+        Timestamp,
+        ResourceField(
+            create=Input(default=MISSING, doc="When the card was last changed, for imports; omit to use created_at."),
+            update=Input(doc="When the card was changed, for imports; omit for now."),
+        ),
+    ]
     """When the card was last changed."""
     deleted_at: Timestamp | None
     """When the card was moved to the trash; null when it is not in the trash."""
@@ -79,10 +105,10 @@ class TagOccurrence(Record):
     """Exclusive byte offset after the tag's name."""
 
 
-class Card(CardMetadata):
+class Card(CardMetadata, collection="/projects/{project_id}/cards", identity="card_id"):
     """A card, with its content and tags."""
 
-    content: str
+    content: Annotated[str, ResourceField(create=Input(default=""), update=Input(doc="The card's new body."))]
     """The card's body."""
     tags: list[str]
     """The card's normalized tags."""
@@ -93,36 +119,18 @@ class Card(CardMetadata):
     content. A tag also written in prose stays until the content is edited."""
 
 
-class NewCard(Record):
-    """A card to create."""
-
-    title: Annotated[str, Field(min_length=1)]
-    """The card's title."""
-    content: str = ""
-    """The card's body."""
-    parent_card_id: CardId | None = None
-    """The card's parent; null or omitted for a root card."""
-    sort_key: Float64 | MISSING = MISSING
-    """The card's place among its siblings; omit to let Holder choose."""
-    created_at: Timestamp | MISSING = MISSING
-    """When the card was created, for imports; omit for now."""
-    updated_at: Timestamp | MISSING = MISSING
-    """When the card was last changed, for imports; omit to use created_at."""
+NewCard = Card.create_record(
+    "NewCard",
+    doc="A card to create.",
+    fields=("title", "content", "parent_card_id", "sort_key", "created_at", "updated_at"),
+)
 
 
-class CardUpdate(Record):
-    """Changes to a card. Each field left out keeps its value."""
-
-    title: Annotated[str, Field(min_length=1)] | MISSING = MISSING
-    """The card's new title."""
-    content: str | MISSING = MISSING
-    """The card's new body."""
-    parent_card_id: CardId | None | MISSING = MISSING
-    """The card's new parent; null makes it a root card."""
-    sort_key: Float64 | MISSING = MISSING
-    """The card's new place among its siblings."""
-    updated_at: Timestamp | MISSING = MISSING
-    """When the card was changed, for imports; omit for now."""
+CardUpdate = Card.update_record(
+    "CardUpdate",
+    doc="Changes to a card. Each field left out keeps its value.",
+    fields=("title", "content", "parent_card_id", "sort_key", "updated_at"),
+)
 
 
 class CardMove(Record):

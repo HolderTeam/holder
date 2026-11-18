@@ -2,8 +2,9 @@
 
 A model module holds declarations only: imports of the vocabulary, records, enums, error kinds,
 host interfaces, `type` statements and string constants (`NAME: Final = "..."`). Anything that could run logic, such as a validator, an
-assignment or a function, is rejected with the line it is on. A domain's operations.py may
-contain one register function holding only route declarations.
+assignment or a function, is rejected with the line it is on. Named resource record
+expansions are also declarations. A domain's operations.py may contain one register
+function holding route declarations and standard resource operation registrations.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from pathlib import Path
 
 ALLOWED_IMPORTS = {"__future__", "authoring", "enum", "typing", "pydantic"}
 ENUM_BASES = {"StrEnum"}
+RESOURCE_RECORDS = {"create_record", "update_record", "identity_record", "list_record"}
 
 
 @dataclass(frozen=True)
@@ -101,6 +103,7 @@ def check_file(path: Path, display: str, package: str) -> tuple[list[Problem], D
         return _check_operation_file(tree, display, package), found
 
     found.alias_docs = _following_docs(tree.body)
+    resource_bases = {"Resource"}
     for node in tree.body:
         if _is_docstring(node):
             continue
@@ -129,12 +132,23 @@ def check_file(path: Path, display: str, package: str) -> tuple[list[Problem], D
                 found.module_order = tuple(value.value for value in node.value.elts)
         elif isinstance(node, ast.ClassDef):
             found.names.append((node.name, node.lineno))
-            _check_class(node, found, problem)
+            resource = any(_base_name(base) in resource_bases for base in node.bases)
+            if resource:
+                resource_bases.add(node.name)
+            _check_class(node, found, problem, resource=resource)
         elif isinstance(node, ast.FunctionDef):
             problem(node, f"{node.name}: operations are routes in a domain's operations.py, not functions in a model module")
         elif _is_constant(node):
             found.names.append((node.target.id, node.lineno))
             found.constants.add(node.target.id)
+        elif (isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
+              and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute)
+              and isinstance(node.value.func.value, ast.Name) and node.value.func.attr in RESOURCE_RECORDS):
+            name = node.targets[0].id
+            if (not node.value.args or not isinstance(node.value.args[0], ast.Constant)
+                    or node.value.args[0].value != name):
+                problem(node, f"{name}: a derived resource record must declare its exported name")
+            found.names.append((name, node.lineno))
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
             problem(node, "contract files hold no assignments but string constants (`NAME: Final = \"...\"`); "
                           "name a type with a `type` statement")
@@ -167,6 +181,11 @@ def _check_operation_file(tree: ast.Module, display: str, package: str) -> list[
             for operation in node.body:
                 if _is_docstring(operation):
                     continue
+                if (isinstance(operation, ast.Expr) and isinstance(operation.value, ast.Call)
+                        and isinstance(operation.value.func, ast.Attribute)
+                        and isinstance(operation.value.func.value, ast.Name)
+                        and operation.value.func.value.id == "contract" and operation.value.func.attr == "resource"):
+                    continue
                 if not isinstance(operation, ast.FunctionDef) or len(operation.decorator_list) != 1 or not (
                         isinstance(operation.decorator_list[0], ast.Call) and
                         isinstance(operation.decorator_list[0].func, ast.Attribute) and
@@ -174,7 +193,7 @@ def _check_operation_file(tree: ast.Module, display: str, package: str) -> list[
                         operation.decorator_list[0].func.value.id == "contract" and
                         operation.decorator_list[0].func.attr in {"route", "core_operation", "runtime_operation"}):
                     problem(operation, "register holds only @contract.route, @contract.core_operation or "
-                                       "@contract.runtime_operation declarations")
+                                       "@contract.runtime_operation declarations and contract.resource calls")
                 elif not _declaration_body(operation.body):
                     problem(operation, f"{operation.name}: an operation body may hold only its docstring")
         else:
@@ -182,12 +201,13 @@ def _check_operation_file(tree: ast.Module, display: str, package: str) -> list[
     return problems
 
 
-def _check_class(node: ast.ClassDef, found: Declarations, problem) -> None:
+def _check_class(node: ast.ClassDef, found: Declarations, problem, *, resource: bool = False) -> None:
     decorators = [_decorator_name(d) for d in node.decorator_list]
     interface = decorators == ["host_interface"]
     if decorators and not interface:
         problem(node, f"{node.name}: the only class decorator allowed is @host_interface")
-    if node.keywords:
+    if node.keywords and (not resource or any(keyword.arg not in {"collection", "identity", "identity_type"}
+                                            for keyword in node.keywords)):
         problem(node, f"{node.name}: class keywords such as settings are not allowed; Record sets them")
     enum = any(_base_name(base) in ENUM_BASES for base in node.bases)
     found.attribute_docs[node.name] = _following_docs(node.body)
