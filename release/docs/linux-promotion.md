@@ -93,5 +93,5 @@ require a new candidate/version rather than treating a replacement as a retry.
 
 [Core SDK publication](sdk-publication.md), [Windows delivery](windows-promotion.md)
 and [Launchpad availability](launchpad-availability.md) use the same record.
-Validate this promotion path through the next actual release; no additional
-publication rehearsal is required.
+The [0.2.6 release record](releases/0.2.6.md) documents verified promotion
+and publication through this path. No additional publication rehearsal is required.

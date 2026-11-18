@@ -77,7 +77,7 @@ conflicting draft files. It cannot replace published files and cannot accompany
 `candidate_commit`; the coordinator always disables it. Review intentional
 replacement separately from retrying an interrupted upload.
 
-Validate the complete remote path through the next actual release using this
-procedure. No additional publication rehearsal is needed. The remaining platform
-handoff and website completion remain later #120 work.
+The [0.2.6 release record](releases/0.2.6.md) documents verified development
+installer delivery through this path and website completion. No additional
+publication rehearsal is needed.
 [Launchpad availability](launchpad-availability.md) uses the same record.

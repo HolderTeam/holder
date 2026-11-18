@@ -102,8 +102,9 @@ Select the intended destinations with `scope --include <destinations>` and the
 same `--record` argument. The `status` completion table lists saved destination
 outcomes, last checks and commands to continue or refresh them. The detailed
 artifact and verification evidence follows the table.
-The first end-to-end validation is the next actual release using this entry
-point; a separate rehearsal or extra build matrix is not required.
+The [0.2.6 release record](releases/0.2.6.md) documents execution of this entry
+point through all three staging outputs and publication. No separate rehearsal
+or extra build matrix is required.
 
 Existing manual component and staging entry points remain supported. For manual
 staging, leave `release_manifest_ref` blank to use a checked-in manifest as before,

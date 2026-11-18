@@ -89,7 +89,6 @@ on the matching release tag, set `destination`, and supply the recorded
 SDK-manifest inputs empty and holder-python's `preview_number=0`.
 
 Linux signing/promotion and [core SDK publication](sdk-publication.md) also use
-the same record. Remaining platform delivery, Launchpad build/availability checks
-and website completion remain subsequent work. Exercise the
-full remote path through the next actual release; a separate rehearsal or
+the same record. The [0.2.6 release record](releases/0.2.6.md) documents verified
+publication of both prepared Python sets to PyPI. A separate rehearsal or
 TestPyPI upload is not required.

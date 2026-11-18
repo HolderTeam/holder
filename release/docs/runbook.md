@@ -5,11 +5,12 @@ release from this monorepo. Candidate preparation has a single resumable entry
 point; publication handoffs still use the individual workflows below. Run commands from the repository
 root; workflow names and inputs below refer to `HolderTeam/holder`.
 
-Last source check: 2026-11-09. Workflow inputs and manifest preparation have been
-checked against the repository. Use the next release using this procedure to validate the
-complete sequence and record corrections. A separate full rehearsal, TestPyPI
-upload or deliberately failed release is not a prerequisite. Until that release,
-this is a source-checked procedure, not a claim of end-to-end execution.
+The [0.2.6 release record](releases/0.2.6.md) documents execution of this procedure
+on 17–18 November 2026: coordinated Release builds, three-platform staging, signed
+artifact handoffs, SDK and Python publication, desktop delivery and the live
+website/update feed, plus Ubuntu package availability and signed-PPA fresh
+installation checks on Ubuntu 24.04 and 26.04. A separate full rehearsal, TestPyPI upload or
+deliberately failed release is not a prerequisite.
 
 The maintainer makes the release decision. Preparation does not authorize a
 production upload. Signing and notarization are treated here as artifact
@@ -181,7 +182,7 @@ merge it to `main` before staging. The manifest commit can differ from the
 candidate source commit: it records already-built inputs, rather than changing
 them. Record the staging workflow revision as well as those component revisions.
 The coordinator generates and retains this metadata automatically; these are
-the independent manual steps. #121 retains the next actual release's staging
+the independent manual steps. #121 retains each release's staging
 validation evidence.
 
 Dispatch the three staging workflows on `main`, using the same manifest input:
@@ -266,8 +267,8 @@ upload to a separate index, and the workflows currently differ:
   in that namespace just to reach TestPyPI, because of the Launchpad trigger.
 
 Choose the relevant checks below and record results on disposable profiles or
-machines. The next release using this procedure supplies end-to-end publication evidence;
-do not invent a parallel release ceremony to obtain it:
+machines. The [0.2.6 record](releases/0.2.6.md) supplies actual publication evidence;
+use the current release to collect any remaining checks:
 
 - Linux: normal desktop AppImage launch, selected backend, close/reopen/idle
   behaviour, and coexistence with an installed daemon. Track PPA install/upgrade
@@ -473,10 +474,10 @@ verified, or after an explicit decision documents an incomplete/withdrawn releas
 ## Keeping this runbook current
 
 Update this document in the same PR that changes an operational input, artifact,
-gate or retry rule. During the next release using this procedure, record which steps worked,
+gate or retry rule. During each release, record which steps worked,
 correct the procedure where needed, and retain evidence for any recovery that
 was necessary. Do not manufacture failures or require a separate rehearsal to
 finish the documentation work. The [roadmap](https://github.com/HolderTeam/holder/issues/122)
 tracks manifest generation (#121), version derivation (#130), website generation
 (#110) and the resumable release coordinator (#120). Record operational evidence
-from the next actual release as these handoffs are exercised; monthly scheduling (#192) remains a separate decision.
+from each release as these handoffs are exercised; monthly scheduling (#192) remains a separate decision.

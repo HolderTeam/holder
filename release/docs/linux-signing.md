@@ -71,9 +71,9 @@ expiry without downloading accepted bundles again.
 This command can run before the release tag exists. It requests no publication
 and creates no tag or release. Continue the runbook's platform checks and
 publication decision, then [promotion of the accepted signed output](linux-promotion.md).
-[Core SDK publication](sdk-publication.md) also uses that record; final destination reporting remains subsequent #120 work. Validate
-this remote handoff through the next actual release; no extra signing rehearsal
-is required.
+[Core SDK publication](sdk-publication.md) also uses that record. The
+[0.2.6 release](releases/0.2.6.md) exercised signing and final destination
+verification. No extra signing rehearsal is required.
 
 Manual signing remains available with the existing version/run inputs. To pin a
 manual dispatch, provide both `staging_artifact_id` and

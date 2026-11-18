@@ -82,5 +82,5 @@ require a new candidate record. If detach fails, inspect `hdiutil info` and deta
 the remaining temporary mount before resuming. The helper removes only empty
 mount directories during cleanup.
 
-Validate the native verification and complete remote delivery through the next
-actual release using this procedure.
+The [0.2.6 release record](releases/0.2.6.md) records native verification of
+the final image and verified delivery to the shared product release.
