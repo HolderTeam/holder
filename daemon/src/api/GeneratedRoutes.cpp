@@ -17,6 +17,7 @@
 #include "api/AiRuntime.h"
 #include "api/generated/AiRoutes.h"
 #include "api/generated/ContractRoutes.h"
+#include "api/generated/DaemonRoutes.h"
 #include "api/support/HttpResponses.h"
 #include "api/support/StreamServer.h"
 #include "capi/Context.h"
@@ -158,14 +159,7 @@ nlohmann::json daemon_json(const StorageLocationListResponse& value) {
   };
 }
 nlohmann::json daemon_json(const LocationActionResponse& value) {
-  nlohmann::json data = {{"location_id", value.data.location_id}};
-  if (value.data.bound) data["bound"] = *value.data.bound;
-  if (value.data.binding_preview) {
-    data["binding_preview"] = *value.data.binding_preview
-                                  ? nlohmann::json(**value.data.binding_preview)
-                                  : nlohmann::json(nullptr);
-  }
-  return {{"ok", value.ok}, {"data", std::move(data)}};
+  return ::daemon_json::encode(value);
 }
 nlohmann::json daemon_json(const LocationTestResponse& value) {
   return {{"ok", value.ok}, {"data", {{"available", value.data.available}}}};
@@ -187,22 +181,6 @@ nlohmann::json daemon_json(const EventCheckpointResponse& value) {
 }
 
 std::string import_field(const nlohmann::json& body, const char* name);
-
-LocationBindingRequest decode_location_binding(const nlohmann::json& body) {
-  if (!body.is_object()) throw std::invalid_argument("the request body must be an object");
-  for (const auto& [name, value] : body.items())
-    if (name != "values" && name != "preview")
-      throw std::invalid_argument("there is no field " + name);
-  if (!body.contains("values") || !body["values"].is_object())
-    throw std::invalid_argument("values must be an object");
-  LocationBindingRequest request;
-  for (const auto& [name, value] : body["values"].items()) {
-    if (!value.is_string()) throw std::invalid_argument("binding values must be strings");
-    request.values[name] = value.get<std::string>();
-  }
-  if (body.contains("preview")) request.preview = import_field(body, "preview");
-  return request;
-}
 
 PutLocationsPreferredRequest decode_preferred_location(const nlohmann::json& body) {
   if (!body.is_object()) throw std::invalid_argument("the request body must be an object");
@@ -450,16 +428,6 @@ bool dispatch_misc_contract_route(
       respond(
           put_locations_preferred(context.db, context.secret_store, decode_preferred_location(body))
       );
-    } else if (method == "PUT" && std::regex_match(route_path, match, location_binding)) {
-      matched = true;
-      no_query();
-      const auto body = contract_http::decode_body(req.body());
-      respond(put_locations_location_id_binding(
-          context.db,
-          context.secret_store,
-          path_text(1),
-          decode_location_binding(body)
-      ));
     } else if (method == "DELETE" && std::regex_match(route_path, match, location_binding)) {
       matched = true;
       no_query();
@@ -663,6 +631,10 @@ bool dispatch_generated_routes(
   const std::string method(req.method_string());
   const std::string path(target.data(), target.size());
   try {
+    if (const auto answered = ::daemon_http::dispatch(method, path, req.body(), context)) {
+      res = support::json_response(static_cast<http::status>(answered->status), answered->body);
+      return true;
+    }
     if (dispatch_resource_contract_route(method, path, req, res, context, stream) ||
         dispatch_misc_contract_route(method, path, req, res, context, stream))
       return true;

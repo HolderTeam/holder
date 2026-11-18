@@ -11,8 +11,12 @@ from ..clang_format import clang_format
 from ..core.types import CoreTypes
 from .ai_json import generate_ai_codec
 from .ai_routes import generate_ai_routes
+from .boundary import BoundaryPlan
 from .contract_json import generate_codec
 from .contract_routes import generate_routes
+from .daemon_json import generate_json, generate_types
+from .daemon_routes import generate_routes as generate_daemon_routes
+from .inventory import generate_inventory
 from .openapi import document, dumps, merge
 
 # Included as the daemon includes them: core's C++ declarations from its SDK, the codec beside the routes.
@@ -22,7 +26,11 @@ CODEC_HEADER = "api/generated/ContractJson.h"
 DAEMON_PATHS = {"ContractJson.h": "daemon/src/api/generated/ContractJson.h",
                 "ContractRoutes.h": "daemon/src/api/generated/ContractRoutes.h",
                 "AiJson.h": "daemon/src/api/generated/AiJson.h",
-                "AiRoutes.h": "daemon/src/api/generated/AiRoutes.h"}
+                "AiRoutes.h": "daemon/src/api/generated/AiRoutes.h",
+                "DaemonTypes.h": "daemon/src/api/generated/DaemonTypes.h",
+                "DaemonJson.h": "daemon/src/api/generated/DaemonJson.h",
+                "DaemonRoutes.h": "daemon/src/api/generated/DaemonRoutes.h",
+                "DaemonBoundaries.md": "daemon/src/api/generated/DaemonBoundaries.md"}
 # The API's metadata and security, shared by every route in the contract.
 OPENAPI_BASE = "api/openapi-base.json"
 OPENAPI_PATHS = {"openapi.yaml": "api/openapi.yaml", "openapi.json": "api/openapi.json"}
@@ -34,17 +42,22 @@ def render_daemon(contract: ContractView) -> dict[str, str]:
     """The generated files, by name, as the generators write them, before clang-format lays out the
     C++ headers, with the contract's OpenAPI paths on their own. Tests of what the generators emit
     look at these."""
+    plan = BoundaryPlan(contract)
     return {"ContractJson.h": generate_codec(CoreTypes(contract), API_HEADER),
             "ContractRoutes.h": generate_routes(contract, CODEC_HEADER),
             "AiJson.h": generate_ai_codec(contract),
             "AiRoutes.h": generate_ai_routes(contract),
+            "DaemonTypes.h": generate_types(plan),
+            "DaemonJson.h": generate_json(plan),
+            "DaemonRoutes.h": generate_daemon_routes(plan),
+            "DaemonBoundaries.md": generate_inventory(contract),
             "openapi.json": dumps(document(contract))}
 
 
 def generate_daemon(contract: ContractView) -> dict[str, str]:
     """The generated files, by name, with the C++ headers laid out by clang-format-18 with the
     daemon's style, as the daemon holds them."""
-    return {name: clang_format(text, DAEMON_PATHS[name]) if name in DAEMON_PATHS else text
+    return {name: clang_format(text, DAEMON_PATHS[name]) if name in DAEMON_PATHS and name.endswith(".h") else text
             for name, text in render_daemon(contract).items()}
 
 

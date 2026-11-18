@@ -22,6 +22,8 @@ Regenerate the repository outputs with `make -C contract update` and review them
 
 - [`core/`](core/): the native interface, C++ implementation declarations and C glue. [`abi.py`](core/abi.py) derives the C signatures used by native consumers.
 - [`daemon/`](daemon/): HTTP dispatch, JSON codecs and OpenAPI. [`bindings.py`](daemon/bindings.py) connects daemon operations to runtime services; [`openapi.py`](daemon/openapi.py) adapts FastAPI's document to Holder's HTTP conventions.
+
+  [`boundary.py`](daemon/boundary.py) validates the first complete daemon-only binding, including its generated types, handler signature and request/response boundary. [`inventory.py`](daemon/inventory.py) keeps remaining handwritten and partially generated boundaries explicit. See [HTTP.md](../HTTP.md#complete-daemon-only-boundary-proof) for the scope and validation evidence.
 - [`android/`](android/): the Kotlin client and JNI bridge to core's C API.
 
 Every generator consumes the typed compiler result described in [IR.md](../IR.md). The result includes a detached FastAPI document with additional response declarations, alongside typed HTTP metadata and named SSE event payload references. Backends do not import declarations or load a contract package. The daemon backend owns OpenAPI normalization, security merging, runtime service bindings and C++ event helper conventions.
