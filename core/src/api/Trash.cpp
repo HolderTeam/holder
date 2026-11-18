@@ -129,3 +129,5 @@ TrashDeleteResult delete_project_trash_item(
 }
 
 } // namespace holder::contract
+
+#error Issue_114_expected_Linux_gate_failure
