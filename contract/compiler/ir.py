@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
 class View(BaseModel):
@@ -198,6 +198,11 @@ class HttpBindingView(View):
     public: bool = False
     created_when: str | None = None
     body: str | None = None
+    operation_id: str | None = None
+    response_mode: Literal["envelope", "raw", "stream"] = "envelope"
+    response_media_type: str | None = None
+    raw_schema: dict[str, JsonValue] | None = None
+    sse_events: dict[str, NamedType] = Field(default_factory=dict)
 
 
 class HttpErrorView(View):
@@ -216,6 +221,9 @@ class ContractView(View):
     http: list[HttpBindingView]
     http_errors: list[HttpErrorView]
     constants: list[ConstantView] = []
+    # FastAPI-produced paths and schemas, including additional response declarations.
+    # No Python classes, callables or authoring objects cross the compiler boundary.
+    openapi: dict[str, JsonValue] | None = None
 
     def record(self, name: str) -> RecordView:
         try:

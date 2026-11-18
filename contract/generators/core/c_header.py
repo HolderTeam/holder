@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from compiler.builder import BASE_ERROR_CODES
 from compiler.ir import ListType, LiteralType, MapType, NamedType, NullableType
+from compiler.status import BASE_ERROR_CODES
 
 from ..common import Unsupported, contract_sources, header_lines
 from .abi import SCALARS_C, format_default, literal_member, snake

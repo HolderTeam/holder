@@ -280,7 +280,7 @@ def test_base_error_codes_match_holder_api_h():
     import re
     from pathlib import Path
 
-    from compiler.builder import BASE_ERROR_CODES
+    from compiler.status import BASE_ERROR_CODES
 
     header = (Path(__file__).resolve().parents[2] / "core" / "include" / "holder" / "holder_api.h").read_text()
     declared = dict(re.findall(r"^#define (HOLDER_ERROR_\w+) (\d+)$", header, flags=re.MULTILINE))

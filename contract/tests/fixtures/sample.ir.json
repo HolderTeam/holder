@@ -555,7 +555,8 @@
         "card_id"
       ],
       "query": [],
-      "status": 200
+      "status": 200,
+      "response_media_type": "application/json"
     },
     {
       "operation": "list_cards",
@@ -569,7 +570,8 @@
         "limit",
         "cursor"
       ],
-      "status": 200
+      "status": 200,
+      "response_media_type": "application/json"
     },
     {
       "operation": "update_message",
@@ -580,7 +582,8 @@
       ],
       "query": [],
       "status": 200,
-      "body": "patch"
+      "body": "patch",
+      "response_media_type": "application/json"
     },
     {
       "operation": "get_asset_content",
@@ -590,7 +593,9 @@
         "asset_id"
       ],
       "query": [],
-      "status": 200
+      "status": 200,
+      "response_mode": "raw",
+      "response_media_type": "application/octet-stream"
     },
     {
       "operation": "run_ai",
@@ -599,7 +604,9 @@
       "path_parameters": [],
       "query": [],
       "status": 201,
-      "body": "prompt"
+      "body": "prompt",
+      "response_mode": "stream",
+      "response_media_type": "text/event-stream"
     }
   ],
   "http_errors": [
@@ -611,5 +618,829 @@
       "error": "Conflict",
       "status": 409
     }
-  ]
+  ],
+  "openapi": {
+    "openapi": "3.1.0",
+    "info": {
+      "title": "Holder API",
+      "version": "0.1.0"
+    },
+    "paths": {
+      "/cards/{card_id}": {
+        "get": {
+          "summary": "Fetch a card.",
+          "description": "A card in the trash is not found.",
+          "operationId": "get_card",
+          "parameters": [
+            {
+              "name": "card_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "$ref": "#/components/schemas/CardId"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Envelope_Card_"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Invalid argument.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "The thing asked for does not exist, or is in the trash.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Unexpected failure.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/projects/{project_id}/cards": {
+        "get": {
+          "summary": "List a project's cards, one page at a time.",
+          "description": "List a project's cards, one page at a time.",
+          "operationId": "list_cards",
+          "parameters": [
+            {
+              "name": "project_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The project to list.",
+                "title": "Project Id"
+              },
+              "description": "The project to list."
+            },
+            {
+              "name": "parent",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "const": "roots",
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CardId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Parent"
+              }
+            },
+            {
+              "name": "limit",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "integer",
+                "maximum": 5000,
+                "minimum": 1,
+                "format": "int32",
+                "default": 200,
+                "title": "Limit"
+              }
+            },
+            {
+              "name": "cursor",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Cursor"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Envelope_CardListItemPage_"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Invalid argument.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Unexpected failure.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/ai/messages/{message_id}": {
+        "patch": {
+          "summary": "Change an AI message.",
+          "description": "Change an AI message.",
+          "operationId": "update_message",
+          "parameters": [
+            {
+              "name": "message_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "title": "Message Id"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagePatch"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Envelope_NoneType_"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Invalid argument.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "The thing asked for does not exist, or is in the trash.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The thing changed since the caller last read it.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Unexpected failure.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/assets/{asset_id}/content": {
+        "get": {
+          "summary": "Read an asset's bytes.",
+          "description": "Read an asset's bytes.",
+          "operationId": "get_asset_content",
+          "parameters": [
+            {
+              "name": "asset_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "title": "Asset Id"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/octet-stream": {
+                  "schema": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Invalid argument.",
+              "content": {
+                "application/octet-stream": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "The thing asked for does not exist, or is in the trash.",
+              "content": {
+                "application/octet-stream": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Unexpected failure.",
+              "content": {
+                "application/octet-stream": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/ai/runs": {
+        "post": {
+          "summary": "Start an AI run and stream its events.",
+          "description": "Start an AI run and stream its events.",
+          "operationId": "run_ai",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Body_run_ai"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "201": {
+              "description": "Successful Response",
+              "content": {
+                "text/event-stream": {
+                  "schema": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Invalid argument.",
+              "content": {
+                "text/event-stream": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Unexpected failure.",
+              "content": {
+                "text/event-stream": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "schemas": {
+        "Body_run_ai": {
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Prompt"
+            }
+          },
+          "type": "object",
+          "required": [
+            "prompt"
+          ],
+          "title": "Body_run_ai"
+        },
+        "Card": {
+          "properties": {
+            "card_id": {
+              "$ref": "#/components/schemas/CardId",
+              "description": "The card's ID."
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Title",
+              "description": "The card's title."
+            },
+            "parent_card_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/CardId"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Null for a root card."
+            },
+            "deleted_at": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9.223372036854776e+18,
+                  "minimum": -9.223372036854776e+18,
+                  "format": "int64"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Deleted At",
+              "description": "When the card was moved to the trash; null when it is not in the trash."
+            },
+            "tags": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "title": "Tags",
+              "description": "The card's normalized tags."
+            },
+            "tag_occurrences": {
+              "items": {
+                "$ref": "#/components/schemas/TagOccurrence"
+              },
+              "type": "array",
+              "title": "Tag Occurrences",
+              "description": "Each tag written in content, in order."
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "card_id",
+            "title",
+            "parent_card_id",
+            "deleted_at",
+            "tags",
+            "tag_occurrences"
+          ],
+          "title": "Card",
+          "description": "A card in a project."
+        },
+        "CardId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "CardListItem": {
+          "properties": {
+            "card_id": {
+              "$ref": "#/components/schemas/CardId",
+              "description": "The card's ID."
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Title",
+              "description": "The card's title."
+            },
+            "parent_card_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/CardId"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Null for a root card."
+            },
+            "deleted_at": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9.223372036854776e+18,
+                  "minimum": -9.223372036854776e+18,
+                  "format": "int64"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Deleted At",
+              "description": "When the card was moved to the trash; null when it is not in the trash."
+            },
+            "tags": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "title": "Tags",
+              "description": "The card's normalized tags."
+            },
+            "tag_occurrences": {
+              "items": {
+                "$ref": "#/components/schemas/TagOccurrence"
+              },
+              "type": "array",
+              "title": "Tag Occurrences",
+              "description": "Each tag written in content, in order."
+            },
+            "child_count": {
+              "type": "integer",
+              "maximum": 2147483647.0,
+              "minimum": -2147483648.0,
+              "format": "int32",
+              "title": "Child Count",
+              "description": "Live children, present when requested."
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "card_id",
+            "title",
+            "parent_card_id",
+            "deleted_at",
+            "tags",
+            "tag_occurrences"
+          ],
+          "title": "CardListItem",
+          "description": "A card in a listing."
+        },
+        "Envelope_CardListItemPage_": {
+          "properties": {
+            "ok": {
+              "type": "boolean",
+              "const": true,
+              "title": "Ok"
+            },
+            "data": {
+              "$ref": "#/components/schemas/Page_CardListItem_"
+            }
+          },
+          "type": "object",
+          "required": [
+            "ok",
+            "data"
+          ],
+          "title": "CardListItemPageResponse"
+        },
+        "Envelope_Card_": {
+          "properties": {
+            "ok": {
+              "type": "boolean",
+              "const": true,
+              "title": "Ok"
+            },
+            "data": {
+              "$ref": "#/components/schemas/Card"
+            }
+          },
+          "type": "object",
+          "required": [
+            "ok",
+            "data"
+          ],
+          "title": "CardResponse"
+        },
+        "Envelope_NoneType_": {
+          "properties": {
+            "ok": {
+              "type": "boolean",
+              "const": true,
+              "title": "Ok"
+            },
+            "data": {
+              "type": "null",
+              "title": "Data"
+            }
+          },
+          "type": "object",
+          "required": [
+            "ok",
+            "data"
+          ],
+          "title": "NoneTypeResponse"
+        },
+        "Error": {
+          "properties": {
+            "code": {
+              "type": "string",
+              "title": "Code"
+            },
+            "message": {
+              "type": "string",
+              "title": "Message"
+            }
+          },
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "Error",
+          "description": "What went wrong."
+        },
+        "ErrorResponse": {
+          "properties": {
+            "ok": {
+              "type": "boolean",
+              "const": false,
+              "title": "Ok"
+            },
+            "error": {
+              "$ref": "#/components/schemas/Error"
+            }
+          },
+          "type": "object",
+          "required": [
+            "ok",
+            "error"
+          ],
+          "title": "ErrorResponse",
+          "description": "A failure, as the daemon answers it."
+        },
+        "HTTPValidationError": {
+          "properties": {
+            "detail": {
+              "items": {
+                "$ref": "#/components/schemas/ValidationError"
+              },
+              "type": "array",
+              "title": "Detail"
+            }
+          },
+          "type": "object",
+          "title": "HTTPValidationError"
+        },
+        "JsonValue": {},
+        "MessagePatch": {
+          "properties": {
+            "role": {
+              "$ref": "#/components/schemas/Role",
+              "description": "Omit to leave it unchanged."
+            },
+            "provider": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Provider",
+              "description": "Omit to leave it unchanged; null clears it."
+            },
+            "meta": {
+              "$ref": "#/components/schemas/JsonValue",
+              "description": "Free-form details; replaces the stored value."
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "title": "MessagePatch",
+          "description": "Changes to an AI message. Omitted fields are left unchanged."
+        },
+        "Page_CardListItem_": {
+          "properties": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/CardListItem"
+              },
+              "type": "array",
+              "title": "Items",
+              "description": "The page's items."
+            },
+            "next_cursor": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Next Cursor",
+              "description": "Pass back to get the next page; null on the last page."
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "items",
+            "next_cursor"
+          ],
+          "title": "CardListItemPage"
+        },
+        "Role": {
+          "type": "string",
+          "enum": [
+            "user",
+            "assistant"
+          ],
+          "title": "Role",
+          "description": "Who wrote a message."
+        },
+        "TagOccurrence": {
+          "properties": {
+            "tag": {
+              "type": "string",
+              "title": "Tag",
+              "description": "The normalized tag."
+            },
+            "byte_start": {
+              "type": "integer",
+              "maximum": 2147483647.0,
+              "minimum": -2147483648.0,
+              "format": "int32",
+              "title": "Byte Start",
+              "description": "Inclusive byte offset of the leading # in content."
+            },
+            "byte_end": {
+              "type": "integer",
+              "maximum": 2147483647.0,
+              "minimum": -2147483648.0,
+              "format": "int32",
+              "title": "Byte End",
+              "description": "Exclusive byte offset after the tag name."
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "tag",
+            "byte_start",
+            "byte_end"
+          ],
+          "title": "TagOccurrence",
+          "description": "A tag written in a card's content."
+        },
+        "ValidationError": {
+          "properties": {
+            "loc": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array",
+              "title": "Location"
+            },
+            "msg": {
+              "type": "string",
+              "title": "Message"
+            },
+            "type": {
+              "type": "string",
+              "title": "Error Type"
+            },
+            "input": {
+              "title": "Input"
+            },
+            "ctx": {
+              "type": "object",
+              "title": "Context"
+            }
+          },
+          "type": "object",
+          "required": [
+            "loc",
+            "msg",
+            "type"
+          ],
+          "title": "ValidationError"
+        }
+      }
+    }
+  }
 }

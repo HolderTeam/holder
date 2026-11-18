@@ -3,7 +3,6 @@
 from pathlib import Path
 from typing import Any
 
-from authoring.routes import Contract
 from compiler.ir import ContractView
 from compiler.pipeline import Compiler, ContractSource
 from compiler.source import load_contract
@@ -28,15 +27,15 @@ def generate_formatted(ir: dict[str, Any]) -> dict[str, str]:
     return generate_core(ContractView.model_validate(ir))
 
 
-def generate_daemon(ir: dict[str, Any], contract: Contract) -> dict[str, str]:
+def generate_daemon(ir: dict[str, Any]) -> dict[str, str]:
     """The daemon's files from a mutable dictionary test fixture, as the generators write them
     (before clang-format), so tests can look for what was emitted."""
-    return render_daemon(ContractView.model_validate(ir), contract)
+    return render_daemon(ContractView.model_validate(ir))
 
 
-def generate_daemon_formatted(ir: dict[str, Any], contract: Contract) -> dict[str, str]:
+def generate_daemon_formatted(ir: dict[str, Any]) -> dict[str, str]:
     """The daemon's files from a mutable dictionary test fixture, laid out as the daemon holds them."""
-    return generate_typed_daemon(ContractView.model_validate(ir), contract)
+    return generate_typed_daemon(ContractView.model_validate(ir))
 
 
 __all__ = ["extract", "generate", "generate_daemon", "generate_daemon_formatted", "generate_formatted", "load_contract"]

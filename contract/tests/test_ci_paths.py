@@ -9,7 +9,6 @@ import yaml
 
 from compiler.__main__ import repository_files
 from compiler.pipeline import Compiler, ContractSource
-from compiler.source import load_contract
 from generators.core import generate_core
 
 
@@ -23,7 +22,7 @@ def test_generated_outputs_select_contract_ci(tmp_path):
 
     source = root / "contract"
     ir = Compiler().compile(ContractSource(source, "interface"))
-    outputs = repository_files(ir, load_contract(source, "interface"), generate_core(ir))
+    outputs = repository_files(ir, generate_core(ir))
     selected = [*outputs, "contract/interface/app.py", "api/openapi-base.json", workflow_path]
     unrelated = ["README.md", "core/src/api/Cards.cpp", "daemon/src/api/GeneratedRoutes.cpp",
                  "apps/mobile/android/app/src/main/java/team/holder/android/MainActivity.kt"]
