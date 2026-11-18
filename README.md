@@ -64,3 +64,5 @@ Android derives its numeric `versionCode` from the same value; see its
 ## Licence
 
 Holder Framework is free software, licensed under the GNU General Public License, version 3. See [LICENSE](LICENSE).
+
+<!-- CI scheduling validation: skipped paths. -->
