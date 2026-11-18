@@ -191,7 +191,10 @@ TEST_CASE("HTTP recovery token import rejects project mismatch", "[http]") {
   server_thread.stop();
 }
 
-TEST_CASE("HTTP global recovery token import auto-creates project by token project_id", "[http]") {
+TEST_CASE(
+    "HTTP global recovery token import retries after its local remote becomes available",
+    "[http]"
+) {
   const auto dir = make_temp_dir();
   const auto db_path = dir / "holder.db";
   auto db = open_db_with_schema(db_path);
@@ -201,6 +204,7 @@ TEST_CASE("HTTP global recovery token import auto-creates project by token proje
   std::filesystem::create_directories(projects_root);
   EnvGuard root_env("HOLDER_PROJECTS_ROOT", projects_root.string());
 
+  const auto remote = dir / "remote";
   const std::string token = "testtoken";
   holder::api::HttpServer server("127.0.0.1", 0, db, token, nullptr, nullptr);
   holder::api::HttpServer::BoundInfo bound;
@@ -220,12 +224,21 @@ TEST_CASE("HTTP global recovery token import auto-creates project by token proje
       token,
       boost::beast::http::verb::post,
       "/projects",
-      {{"project_id", "proj-1"},
-       {"name", "Project One"},
-       {"git_remote_url", "https://example.com/recovered.git"}},
+      {{"project_id", "proj-1"}, {"name", "Project One"}, {"git_remote_url", remote.string()}},
       boost::beast::http::status::created
   );
 
+  const auto source = holder::project::ProjectRepo(db).get("proj-1").value();
+  const auto card = http_json_request(
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::post,
+      "/projects/proj-1/cards",
+      {{"title", "Recovered card"}, {"content", "durable remote content"}},
+      boost::beast::http::status::created
+  );
+  const auto card_id = card["data"]["card_id"].get<std::string>();
   const auto exported = http_json_request(
       bound.bind,
       bound.port,
@@ -278,7 +291,37 @@ TEST_CASE("HTTP global recovery token import auto-creates project by token proje
   REQUIRE(fetched["ok"] == true);
   REQUIRE(fetched["data"]["project_id"] == "proj-1");
   REQUIRE(fetched["data"]["project_key_id"] == key_id);
-  REQUIRE(fetched["data"]["git_remote_url"] == "https://example.com/recovered.git");
+  REQUIRE(fetched["data"]["git_remote_url"] == remote.string());
+
+  const auto recovered_root = fetched["data"]["root_path"].get<std::string>();
+  REQUIRE_FALSE(
+      std::filesystem::exists(std::filesystem::path(recovered_root) / ".holder/project.json")
+  );
+  std::filesystem::copy(source.root_path, remote, std::filesystem::copy_options::recursive);
+  const auto pull = http_json_request(
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::post,
+      "/projects/proj-1/git/pull",
+      nlohmann::json::object(),
+      boost::beast::http::status::ok
+  );
+  INFO(pull.dump());
+  REQUIRE(pull["data"]["pull"]["status"] == "succeeded");
+  REQUIRE(std::filesystem::is_regular_file(
+      std::filesystem::path(recovered_root) / ".holder/project.json"
+  ));
+  const auto recovered = http_json_request(
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::get,
+      "/projects/proj-1/cards/" + card_id,
+      nlohmann::json::object(),
+      boost::beast::http::status::ok
+  );
+  REQUIRE(recovered["data"]["content"] == "durable remote content");
 
   server_thread.stop();
 }

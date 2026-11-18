@@ -51,13 +51,17 @@ class Daemon:
 
     def __init__(self, binary: str):
         self.directory = Path(tempfile.mkdtemp(prefix="holder-conformance-daemon-"))
+        self.binary_path = Path(binary).resolve()
+        self._start()
+
+    def _start(self) -> None:
         environment = {**os.environ}
         for variable, name in (("XDG_DATA_HOME", "data"), ("XDG_CONFIG_HOME", "config"),
                                ("XDG_CACHE_HOME", "cache"), ("HOLDER_PROJECTS_ROOT", "projects"),
                                ("HOLDER_TEST_KEYSTORE_DIR", "keystore")):
             environment[variable] = str(self.directory / name)
-        binary_path = Path(binary).resolve()
-        self.log = (self.directory / "daemon.log").open("w")
+        binary_path = self.binary_path
+        self.log = (self.directory / "daemon.log").open("a")
         # The binary's build directory supplies its resources in a development build.
         self.process = subprocess.Popen([str(binary_path), "--bind", "127.0.0.1", "--port", "0"],
                                         cwd=os.environ.get("HOLDER_DAEMON_CWD", str(binary_path.parent.parent)),
@@ -102,7 +106,7 @@ class Daemon:
         except ValueError:
             return status, {"error": {"code": f"http_{status}", "message": raw.decode("replace")}}
 
-    def close(self) -> None:
+    def _stop(self) -> None:
         if self.process.poll() is None:
             self.process.terminate()
         try:
@@ -111,6 +115,14 @@ class Daemon:
             self.process.kill()
             self.process.wait(timeout=5)
         self.log.close()
+
+    def restart(self) -> None:
+        """Restart with the same database, projects, and key store."""
+        self._stop()
+        self._start()
+
+    def close(self) -> None:
+        self._stop()
         shutil.rmtree(self.directory, ignore_errors=True)
 
 

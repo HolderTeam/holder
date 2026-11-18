@@ -5,6 +5,7 @@
 #include "identity/Uuid.h"
 #include "model/Card.h"
 #include "privacy/ProjectPrivacy.h"
+#include "project/ProjectManifest.h"
 #include "project/ProjectRepo.h"
 #include "project/Rebuilder.h"
 
@@ -14,13 +15,44 @@
 #include <vector>
 
 namespace holder::sync {
+namespace {
+
+void verify_recovery_manifest(const holder::model::Project& project) {
+  const auto durable = holder::project::read_project_manifest(project.root_path);
+  if (durable.project_id != project.project_id || durable.privacy_mode != project.privacy_mode ||
+      durable.project_key_id != project.project_key_id) {
+    throw std::runtime_error("pulled project metadata does not match the recovery token");
+  }
+}
+
+} // namespace
 
 void reconcile_index_after_pull(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
     const holder::model::Project& project
 ) {
+  const auto root = std::filesystem::path(project.root_path);
+  if (std::filesystem::exists(root / holder::project::kPendingRecoveryPath) &&
+      std::filesystem::exists(root / holder::project::kProjectManifestPath)) {
+    verify_recovery_manifest(project);
+  }
   holder::store::Rebuilder(db, fts).rebuild_project(project);
+}
+
+void complete_recovery_manifest(holder::git::GitOps& git, const holder::model::Project& project) {
+  const auto root = std::filesystem::path(project.root_path);
+  const auto pending = root / holder::project::kPendingRecoveryPath;
+  if (!std::filesystem::exists(pending)) return;
+  const auto manifest = root / holder::project::kProjectManifestPath;
+  // A manifest fetched from the remote owns the durable settings. Rewriting it from
+  // the local projection could reintroduce a name or remote URL from an older token.
+  if (!std::filesystem::exists(manifest)) {
+    holder::project::write_project_manifest(git, project);
+    git.commit("Restore encrypted project metadata");
+    verify_recovery_manifest(project);
+  }
+  std::filesystem::remove(pending);
 }
 
 int resolve_pull_conflicts(

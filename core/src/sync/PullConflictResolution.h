@@ -20,6 +20,10 @@ void reconcile_index_after_pull(
     const holder::model::Project& project
 );
 
+// Older encrypted repositories can have a privacy bootstrap but no project manifest.
+// Finish their durable metadata only after the pull and index reconciliation succeeded.
+void complete_recovery_manifest(holder::git::GitOps& git, const holder::model::Project& project);
+
 // Called after GitRepo::merge_remote_taking_theirs_for_conflicts has already resolved a
 // diverged pull at the git level (remote wins for any card touched on both sides since the
 // merge-base). This preserves the pre-merge LOCAL version of each such card by re-creating it

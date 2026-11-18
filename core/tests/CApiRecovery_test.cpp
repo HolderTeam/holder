@@ -11,6 +11,7 @@
 #include "model/Project.h"
 #include "platform/Db.h"
 #include "privacy/ProjectPrivacy.h"
+#include "project/ProjectManifest.h"
 #include "project/ProjectRegistry.h"
 #include "project/ProjectRepo.h"
 
@@ -128,10 +129,10 @@ struct Fixture {
     return result;
   }
 
-  std::string add_card() {
+  std::string add_card(const char* content = "hidden") {
     holder_new_card request{};
     request.title = "Secret";
-    request.content = "hidden";
+    request.content = content;
     const holder_card* card = nullptr;
     REQUIRE(
         holder_create_card(source, project_id.c_str(), &request, arena, &card, &error) == HOLDER_OK
@@ -228,23 +229,19 @@ TEST_CASE(
   f.restore();
   const auto project = holder::project::ProjectRepo(f.target->db).get(f.project_id);
   REQUIRE(project.has_value());
+  // Force a checkout. An up-to-date pull need not read the Git index.
+  f.add_card();
+  f.push();
   const auto index = std::filesystem::path(project->root_path) / ".git/index";
   std::filesystem::rename(index, index.string() + ".saved");
   {
     std::ofstream corrupt(index, std::ios::binary);
     corrupt << "not an index";
   }
-  holder_recovery_token_import_request request{"1234", f.token.c_str()};
-  const holder_recovery_token_global_import_result* result = nullptr;
-  REQUIRE(
-      holder_import_recovery_token_global(f.target, &request, f.arena, &result, &f.error) ==
-      HOLDER_ERROR_RUNTIME
-  );
-  REQUIRE(f.error != nullptr);
-  CHECK(std::string(holder_error_message(f.error)).find("index") != std::string::npos);
-  CHECK(result == nullptr);
-  holder_error_destroy(f.error);
-  f.error = nullptr;
+  const auto* failed = f.restore();
+  REQUIRE(failed->pull_status == HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_FAILED);
+  REQUIRE(failed->pull_error != nullptr);
+  CHECK(std::string(failed->pull_error).find("index") != std::string::npos);
   REQUIRE(std::filesystem::remove(index));
   std::filesystem::rename(index.string() + ".saved", index);
   const auto* retried = f.restore();
@@ -386,7 +383,28 @@ TEST_CASE(
     "[capi][privacy]"
 ) {
   Fixture f;
-  const std::string card_id = f.add_card();
+  const std::string card_id = f.add_card("hidden #recovered");
+  const auto linked_id = f.add_card("linked note");
+  holder_new_link link{};
+  link.target_type = HOLDER_NEW_LINK_TARGET_TYPE_CARD;
+  link.target_id = linked_id.c_str();
+  const holder_link* added = nullptr;
+  REQUIRE(
+      holder_add_card_link(
+          f.source,
+          f.project_id.c_str(),
+          card_id.c_str(),
+          &link,
+          f.arena,
+          &added,
+          &f.error
+      ) == HOLDER_OK
+  );
+  auto source = holder::project::ProjectRepo(f.source->db).get(f.project_id).value();
+  source.name = "Renamed after export";
+  holder::git::RealGitOps metadata_git;
+  holder::project::write_project_manifest(metadata_git, source);
+  metadata_git.commit("Update remote project settings");
   f.push();
   const auto* result = f.restore();
   INFO("recovery pull: " << (result->pull_error ? result->pull_error : "no error"));
@@ -394,12 +412,56 @@ TEST_CASE(
   REQUIRE(result->remote_hint_present);
   REQUIRE(result->remote_configured);
   REQUIRE(result->pull_status == HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED);
+  const auto recovered = holder::project::ProjectRepo(f.target->db).get(f.project_id).value();
+  const auto durable = holder::project::read_project_manifest(recovered.root_path);
+  CHECK(durable.name == source.name);
+  holder::git::GitRepo source_git;
+  source_git.open_existing(source.root_path);
+  holder::git::GitRepo target_git;
+  target_git.open_existing(recovered.root_path);
+  CHECK(target_git.head_oid() == source_git.head_oid());
   const holder_card* card = nullptr;
   REQUIRE(
       holder_get_card(f.target, f.project_id.c_str(), card_id.c_str(), f.arena, &card, &f.error) ==
       HOLDER_OK
   );
-  REQUIRE(std::string(card->content) == "hidden");
+  REQUIRE(std::string(card->content) == "hidden #recovered");
+  const holder_link_list* links = nullptr;
+  REQUIRE(
+      holder_list_card_links(
+          f.target,
+          f.project_id.c_str(),
+          card_id.c_str(),
+          false,
+          f.arena,
+          &links,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(links->count == 1);
+  CHECK(std::string(links->items[0].target_id) == linked_id);
+  const holder_tag_count_list* tags = nullptr;
+  REQUIRE(
+      holder_list_project_tags(f.target, f.project_id.c_str(), f.arena, &tags, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(tags->count == 1);
+  CHECK(std::string(tags->items[0].tag) == "recovered");
+  const holder_search_card_list* hits = nullptr;
+  REQUIRE(
+      holder_search_cards(
+          f.target,
+          f.project_id.c_str(),
+          "hidden",
+          nullptr,
+          0,
+          f.arena,
+          &hits,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(hits->count == 1);
+  CHECK(std::string(hits->items[0].card_id) == card_id);
 }
 
 TEST_CASE(
@@ -411,6 +473,55 @@ TEST_CASE(
   REQUIRE(result->remote_configured);
   REQUIRE(result->pull_status == HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_FAILED);
   REQUIRE(result->pull_error != nullptr);
+  const auto project = holder::project::ProjectRepo(f.target->db).get(f.project_id).value();
+  const std::filesystem::path root = project.root_path;
+  CHECK(std::filesystem::exists(root / holder::project::kPendingRecoveryPath));
+  CHECK_FALSE(holder::project::has_project_manifest(root));
+  holder::git::GitRepo git;
+  git.open_existing(root);
+  CHECK_FALSE(git.head_oid());
+
+  // A token exported before the remote was configured must not start local history.
+  REQUIRE(project.project_key_id.has_value());
+  const auto earlier_token =
+      holder::privacy::export_recovery_token(f.project_id, *project.project_key_id, "1234");
+  const holder_recovery_token_import_request earlier_request{"1234", earlier_token.c_str()};
+  REQUIRE(
+      holder_import_recovery_token_global(f.target, &earlier_request, f.arena, &result, &f.error) ==
+      HOLDER_OK
+  );
+  CHECK(
+      result->pull_status == HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_NOT_ATTEMPTED
+  );
+  CHECK_FALSE(git.head_oid());
+
+  const auto target_dir = f.target->data_dir;
+  const auto schema = schema_sql();
+  holder_context_destroy(f.target);
+  f.target = nullptr;
+  const holder_database_rebuild_report* report = nullptr;
+  REQUIRE(
+      holder_database_rebuild(
+          target_dir.string().c_str(),
+          schema.c_str(),
+          false,
+          f.arena,
+          &report,
+          &f.error
+      ) == HOLDER_ERROR_RUNTIME
+  );
+  REQUIRE(f.error != nullptr);
+  CHECK(
+      std::string(holder_error_message(f.error)).find("waiting for a successful pull") !=
+      std::string::npos
+  );
+  holder_error_destroy(f.error);
+  f.error = nullptr;
+  REQUIRE(
+      holder_context_open(target_dir.string().c_str(), schema.c_str(), &f.target, &f.error) ==
+      HOLDER_OK
+  );
+  CHECK(holder::project::ProjectRepo(f.target->db).get(f.project_id).has_value());
 
   const std::string card_id = f.add_card();
   f.push();
@@ -420,12 +531,80 @@ TEST_CASE(
   );
   INFO("retry pull: " << (pulled->pull.error_message ? pulled->pull.error_message : "no error"));
   REQUIRE(pulled->pull.status == HOLDER_PULL_PHASE_STATUS_SUCCEEDED);
+  CHECK_FALSE(std::filesystem::exists(root / holder::project::kPendingRecoveryPath));
+  CHECK(holder::project::read_project_manifest(root).project_id == f.project_id);
   const holder_card* card = nullptr;
   REQUIRE(
       holder_get_card(f.target, f.project_id.c_str(), card_id.c_str(), f.arena, &card, &f.error) ==
       HOLDER_OK
   );
   REQUIRE(std::string(card->content) == "hidden");
+
+  holder_context_destroy(f.target);
+  f.target = nullptr;
+  REQUIRE(
+      holder_database_rebuild(
+          target_dir.string().c_str(),
+          schema.c_str(),
+          false,
+          f.arena,
+          &report,
+          &f.error
+      ) == HOLDER_OK
+  );
+  REQUIRE(
+      holder_context_open(target_dir.string().c_str(), schema.c_str(), &f.target, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(
+      holder_get_card(f.target, f.project_id.c_str(), card_id.c_str(), f.arena, &card, &f.error) ==
+      HOLDER_OK
+  );
+  CHECK(std::string(card->content) == "hidden");
+}
+
+TEST_CASE(
+    "Recovery pull retries index reconciliation after a failed insert",
+    "[capi][recovery-import-failures]"
+) {
+  Fixture f;
+  const auto first = f.add_card();
+  f.push();
+  REQUIRE(
+      f.restore()->pull_status == HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED
+  );
+  const auto second = f.add_card();
+  f.push();
+  f.target->db.exec("CREATE TEMP TRIGGER reject_card_rebuild BEFORE INSERT ON cards "
+                    "BEGIN SELECT RAISE(ABORT, 'recovery test rejects index insert'); END;");
+  const auto* failed = f.restore();
+  REQUIRE(failed->pull_status == HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_FAILED);
+  REQUIRE(failed->pull_error != nullptr);
+  CHECK(
+      std::string(failed->pull_error).find("recovery test rejects index insert") !=
+      std::string::npos
+  );
+  const holder_sync_state* state = nullptr;
+  REQUIRE(
+      holder_get_project_sync_state(f.target, f.project_id.c_str(), f.arena, &state, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(state->last_pull_status != nullptr);
+  CHECK(std::string(state->last_pull_status) == "failed");
+  const auto previous = holder::card::CardRepo(f.target->db).list_all(f.project_id);
+  REQUIRE(previous.size() == 1);
+  CHECK(previous.front().card_id == first);
+
+  f.target->db.exec("DROP TRIGGER reject_card_rebuild;");
+  REQUIRE(
+      f.restore()->pull_status == HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED
+  );
+  const holder_card* card = nullptr;
+  REQUIRE(
+      holder_get_card(f.target, f.project_id.c_str(), second.c_str(), f.arena, &card, &f.error) ==
+      HOLDER_OK
+  );
+  CHECK(std::string(card->content) == "hidden");
 }
 
 TEST_CASE(

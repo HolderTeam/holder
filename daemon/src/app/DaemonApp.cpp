@@ -134,7 +134,11 @@ void backfill_project_manifests(holder::platform::Db& db) {
   for (const auto& project : projects.list()) {
     holder::git::RealGitOps git;
     auto operation = git.lock_operation(project.root_path);
-    if (holder::project::has_project_manifest(project.root_path)) continue;
+    if (std::filesystem::exists(
+            std::filesystem::path(project.root_path) / holder::project::kPendingRecoveryPath
+        ) ||
+        holder::project::has_project_manifest(project.root_path))
+      continue;
     holder::project::write_project_manifest(git, project);
     git.commit("Add durable project metadata");
     spdlog::info("Added durable project metadata: {}", project.root_path);

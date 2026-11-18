@@ -360,6 +360,37 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun globalRecoveryImport_retriesThroughJniWhenTheRemoteAppears() {
+        initialize()
+        val project = HolderNative.createProject("Retry recovery", "encrypted_git")
+        val card = HolderNative.createCard(project.projectId, "Recovered card", "Remote body")
+        val sourceDir = dataDir
+        val remote = sourceDir.resolve("remote-repo")
+        HolderNative.updateProjectGitRemote(project.projectId, remote.absolutePath)
+        val pin = "9876"
+        val token = HolderNative.exportRecoveryToken(project.projectId, pin).recoveryToken
+        HolderNative.close()
+        dataDir = context.cacheDir.resolve("holder-jni-retry-${UUID.randomUUID()}")
+        try {
+            check(dataDir.mkdirs())
+            initialize()
+            val imported = HolderNative.importRecoveryTokenGlobal(pin, token)
+            assertTrue(imported.projectCreated)
+            assertTrue(imported.remoteConfigured)
+            assertEquals("failed", imported.pullStatus)
+            assertEquals("failed", HolderNative.gitSyncStatus(project.projectId).lastPullStatus)
+
+            check(sourceDir.resolve("projects/retry-recovery").copyRecursively(remote))
+            val retry = HolderNative.pullGit(project.projectId)
+            assertEquals("succeeded", retry.status)
+            assertEquals("Remote body", HolderNative.getCardContent(project.projectId, card.cardId))
+            assertTrue(HolderNative.encryptionCheck(project.projectId).ok)
+        } finally {
+            sourceDir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun projectRemoteUpdate_setsAndClears() {
         initialize()
         val project = HolderNative.createProject("Remote project")
