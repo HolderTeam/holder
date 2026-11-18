@@ -222,6 +222,88 @@ TEST_CASE("Location routes validate missing services fields and records", "[reso
 }
 
 TEST_CASE(
+    "Generated location binding preserves runtime failure responses",
+    "[resources][routes][daemon-boundary]"
+) {
+  LocationRouteFixture f;
+  f.put("local_directory", {}, {{"root_path", (f.root / "storage").string()}});
+  const auto request = make_request(
+      http::verb::put,
+      "/locations/location/binding",
+      {{"values", nlohmann::json::object()}}
+  );
+
+  SECTION("an unavailable secret store retains its declared status and code") {
+    http::response<http::string_body> response;
+    REQUIRE(holder::api::dispatch_generated_routes(request, response, f.db));
+    REQUIRE(response.result() == http::status::service_unavailable);
+    const auto payload = nlohmann::json::parse(response.body());
+    CHECK(
+        payload ==
+        nlohmann::json(
+            {{"ok", false},
+             {"error",
+              {{"code", "secret_store_unavailable"}, {"message", "Secret store unavailable."}}}}
+        )
+    );
+  }
+
+  SECTION("a runtime write failure remains an internal error") {
+    class FailingStore final : public holder::privacy::SecretStore {
+     public:
+      mutable int reads = 0;
+      int writes = 0;
+      std::optional<holder::privacy::StoredSecret> get(const std::string&, const std::string&)
+          const override {
+        ++reads;
+        return std::nullopt;
+      }
+      std::vector<holder::privacy::SecretMetadata> list(const std::string&) const override {
+        return {};
+      }
+      void set(
+          const std::string&,
+          const std::string&,
+          const std::string&,
+          const std::string&,
+          long long,
+          long long
+      ) override {
+        ++writes;
+        throw std::runtime_error("simulated binding write failure");
+      }
+      void remove(const std::string&, const std::string&) override {}
+    } store;
+    http::response<http::string_body> response;
+    REQUIRE(
+        holder::api::dispatch_generated_routes(request, response, f.db, nullptr, nullptr, &store)
+    );
+    REQUIRE(response.result() == http::status::internal_server_error);
+    const auto payload = nlohmann::json::parse(response.body());
+    CHECK(
+        payload ==
+        nlohmann::json(
+            {{"ok", false},
+             {"error", {{"code", "internal_error"}, {"message", "simulated binding write failure"}}}
+            }
+        )
+    );
+    CHECK(store.reads == 1);
+    CHECK(store.writes == 1);
+
+    // Validation must finish before reaching a service, even when that service fails.
+    auto invalid =
+        make_request(http::verb::put, "/locations/location/binding", {{"values", nullptr}});
+    REQUIRE(
+        holder::api::dispatch_generated_routes(invalid, response, f.db, nullptr, nullptr, &store)
+    );
+    CHECK(response.result() == http::status::bad_request);
+    CHECK(store.reads == 1);
+    CHECK(store.writes == 1);
+  }
+}
+
+TEST_CASE(
     "Location probes exercise S3 credentials and clean up after provider failures",
     "[resources][routes]"
 ) {

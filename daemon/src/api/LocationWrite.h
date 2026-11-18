@@ -4,6 +4,7 @@
 #include "api/HttpError.h"
 #include "api/LocationRead.h"
 #include "api/Schemas.h"
+#include "api/generated/DaemonTypes.h"
 #include "api/support/StorageErrors.h"
 
 #include <functional>
@@ -21,21 +22,8 @@ class SecretStore;
 
 namespace holder::api {
 
-struct LocationActionResponseData {
-  std::string location_id;
-  std::optional<bool> bound;
-  std::optional<std::optional<std::string>> binding_preview;
-};
-
-struct LocationActionResponse {
-  bool ok;
-  LocationActionResponseData data;
-};
-
-struct LocationBindingRequest {
-  std::map<std::string, std::string> values;
-  std::optional<std::string> preview;
-};
+// Preserve the runtime's existing nested-type spelling; its fields are generated.
+using LocationActionResponseData = LocationAction;
 
 struct LocationTestResponseData {
   bool available;
@@ -50,13 +38,6 @@ struct PutLocationsPreferredRequest {
   std::string project_id;
   std::string location_id;
 };
-
-LocationActionResponse put_locations_location_id_binding(
-    holder::platform::Db& db,
-    holder::privacy::SecretStore* secret_store,
-    std::string location_id,
-    LocationBindingRequest request
-);
 
 LocationActionResponse delete_locations_location_id_binding(
     holder::platform::Db& db,
