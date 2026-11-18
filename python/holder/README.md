@@ -114,3 +114,5 @@ Trash matches. See [reference lookup](docs/scripting.md#find-a-card-by-name-or-p
 
 For offline analysis and bulk work without a running Holder installation, see
 [Holder Kit](../kit/).
+
+<!-- CI scheduling validation: unchanged-core consumer. -->
