@@ -1,4 +1,5 @@
 #include "project/ProjectRegistry.h"
+#include "project/ProjectManifest.h"
 
 #include <nlohmann/json.hpp>
 
@@ -165,7 +166,8 @@ bool looks_like_project(const std::filesystem::path& root) {
           std::filesystem::exists(root / "resources") ||
           std::filesystem::exists(root / "locations") ||
           std::filesystem::exists(root / ".holder" / "privacy.json") ||
-          std::filesystem::exists(root / ".holder" / "project.json"));
+          std::filesystem::exists(root / ".holder" / "project.json") ||
+          std::filesystem::exists(root / holder::project::kPendingRecoveryPath));
 }
 
 std::string project_identity(const std::filesystem::path& root) {

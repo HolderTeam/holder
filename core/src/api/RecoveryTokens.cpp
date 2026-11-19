@@ -14,6 +14,7 @@
 #include "project/ProjectSyncRepo.h"
 #include "sync/PullConflictResolution.h"
 
+#include <fstream>
 #include <optional>
 #include <string>
 #include <utility>
@@ -85,9 +86,17 @@ RecoveryTokenGlobalImportResult import_global(
   auto pull_status = RecoveryTokenGlobalImportResultPullStatus::NotAttempted;
   std::optional<std::string> remote_error;
   std::optional<std::string> pull_error;
+  // Conflict resolution and indexing need the key and remote restored above.
+  const auto restored_project = find_project(context.db, metadata.project_id);
+  const auto pending = std::filesystem::path(restored_project.root_path) /
+                       holder::project::kPendingRecoveryPath;
   if (has_remote) {
-    const auto refreshed = find_project(context.db, metadata.project_id);
-    git.open_or_init(refreshed.root_path);
+    git.open_or_init(restored_project.root_path);
+    if (!holder::project::has_project_manifest(restored_project.root_path)) {
+      // Keep the empty repository discoverable for rebuild without starting a Git history.
+      std::ofstream marker(pending, std::ios::app);
+      if (!marker) throw std::runtime_error("cannot mark project recovery pending");
+    }
     try {
       git.set_remote("origin", *metadata.git_remote_url);
       configured = true;
@@ -102,13 +111,14 @@ RecoveryTokenGlobalImportResult import_global(
           holder::sync::resolve_pull_conflicts(
               context.db,
               &context.fts,
-              refreshed,
+              restored_project,
               git,
               diverged,
               now
           );
         }
-        holder::sync::reconcile_index_after_pull(context.db, &context.fts, refreshed);
+        holder::sync::reconcile_index_after_pull(context.db, &context.fts, restored_project);
+        holder::sync::complete_recovery_manifest(git, restored_project);
         pull_status = RecoveryTokenGlobalImportResultPullStatus::Succeeded;
         sync_repo.record_pull_result(metadata.project_id, "succeeded", true, std::nullopt, now);
       } catch (const std::exception& error) {
@@ -118,7 +128,8 @@ RecoveryTokenGlobalImportResult import_global(
       }
     }
     try {
-      const auto metrics = holder::git::inspect_repo_sync_metrics(refreshed.root_path, "origin");
+      const auto metrics =
+          holder::git::inspect_repo_sync_metrics(restored_project.root_path, "origin");
       sync_repo.update_activity_counts(
           metadata.project_id,
           {.uncommitted_changes_count = metrics.uncommitted_changes_count,
@@ -132,13 +143,12 @@ RecoveryTokenGlobalImportResult import_global(
 
   // A local metadata commit before the first successful pull would create an unrelated
   // history, so a later retry could not fast-forward from the hinted remote.
-  const auto refreshed = find_project(context.db, metadata.project_id);
-  if (!has_remote || pull_status == RecoveryTokenGlobalImportResultPullStatus::Succeeded) {
-    holder::project::write_project_manifest(git, refreshed);
+  if (!has_remote && !std::filesystem::exists(pending)) {
+    holder::project::write_project_manifest(git, restored_project);
     git.commit("Restore encrypted project metadata");
   }
   if (!context.registry_path.empty())
-    holder::core::ProjectRegistry(context.registry_path).restore(refreshed);
+    holder::core::ProjectRegistry(context.registry_path).restore(restored_project);
   return {
       {metadata.project_id},
       created,

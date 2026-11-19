@@ -363,6 +363,39 @@ TEST_CASE("GitRepo push_branch returns up_to_date for unborn branch with remote"
 }
 
 TEST_CASE(
+    "A blocked first checkout leaves the branch unborn for retry",
+    "[git][checkout-failure]"
+) {
+  const auto dir = make_temp_dir();
+  holder::git::GitRepo remote;
+  remote.open_or_init(dir / "remote");
+  remote.write_file("card.txt", "remote content\n");
+  remote.stage_path("card.txt");
+  remote.commit("Remote card");
+
+  const auto root = dir / "local";
+  holder::git::GitRepo local;
+  local.open_or_init(root);
+  local.set_remote("origin", (dir / "remote").string());
+  local.write_file("card.txt", "local work\n");
+  REQUIRE_THROWS(local.pull_remote_ff_only("origin"));
+  CHECK_FALSE(local.head_oid());
+  {
+    std::ifstream in(root / "card.txt");
+    std::string line;
+    REQUIRE(std::getline(in, line));
+    CHECK(line == "local work");
+  }
+  REQUIRE(std::filesystem::remove(root / "card.txt"));
+  local.pull_remote_ff_only("origin");
+  CHECK(local.head_oid() == remote.head_oid());
+  std::ifstream in(root / "card.txt");
+  std::string line;
+  REQUIRE(std::getline(in, line));
+  CHECK(line == "remote content");
+}
+
+TEST_CASE(
     "A blocked fast-forward checkout preserves local work and can be retried",
     "[git][checkout-failure]"
 ) {

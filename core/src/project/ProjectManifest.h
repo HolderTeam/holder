@@ -10,6 +10,8 @@ namespace holder::project {
 
 inline constexpr const char* kProjectBootstrapPath = ".holder/privacy.json";
 inline constexpr const char* kProjectManifestPath = ".holder/project.json";
+// Device-local marker for a recovery waiting on a remote. It is never tracked by Git.
+inline constexpr const char* kPendingRecoveryPath = ".git/holder-recovery-pending";
 
 // The bootstrap is deliberately clear text and contains only what is needed to
 // identify and, when necessary, decrypt a project after the local index is lost.

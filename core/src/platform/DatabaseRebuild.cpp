@@ -635,6 +635,11 @@ DatabaseRebuildReport rebuild_database_projection(const DatabaseRebuildRequest& 
     if (!std::filesystem::is_directory(root)) {
       throw std::runtime_error("registered project root is unavailable: " + root.string());
     }
+    if (std::filesystem::exists(root / holder::project::kPendingRecoveryPath)) {
+      throw std::runtime_error(
+          "project recovery is waiting for a successful pull: " + root.string()
+      );
+    }
     const auto project = holder::project::read_project_manifest(root);
     if (!project_ids.insert(project.project_id).second) {
       throw std::runtime_error("duplicate project_id in discovered roots: " + project.project_id);

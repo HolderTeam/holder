@@ -8,6 +8,7 @@
 #include "platform/Migrations.h"
 #include "platform/time_zone/TimeZones.h"
 #include "privacy/PlatformKeyring.h"
+#include "project/ProjectManifest.h"
 #include "project/ProjectRepo.h"
 #include "resource/LocalDirectoryProvider.h"
 #include "resource/StorageProvider.h"
@@ -33,7 +34,8 @@ using holder::capi::rebuild_readiness_path;
 
 bool looks_like_project(const std::filesystem::path& root) {
   return std::filesystem::is_directory(root) &&
-         std::filesystem::is_regular_file(root / ".holder" / "project.json");
+         (std::filesystem::is_regular_file(root / holder::project::kProjectManifestPath) ||
+          std::filesystem::is_regular_file(root / holder::project::kPendingRecoveryPath));
 }
 
 std::vector<std::filesystem::path> discover_managed_project_roots(

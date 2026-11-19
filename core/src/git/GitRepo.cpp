@@ -1046,6 +1046,8 @@ void GitRepo::pull_remote_ff_only(const std::string& name) {
   git_reference* head = nullptr;
   rc = git_repository_head(&head, repo);
   if (rc == GIT_EUNBORNBRANCH || rc == GIT_ENOTFOUND) {
+    // Leave the branch unborn if checkout fails, so a retry still checks out the tree.
+    checkout_commit_oid(repo, remote_oid);
     const std::string local_ref = "refs/heads/" + remote_branch;
     git_reference* created = nullptr;
     rc = git_reference_create(&created, repo, local_ref.c_str(), &remote_oid, 1, "pull bootstrap");
@@ -1055,7 +1057,6 @@ void GitRepo::pull_remote_ff_only(const std::string& name) {
     rc = git_repository_set_head(repo, local_ref.c_str());
     if (rc != 0) throw git_err("git_repository_set_head failed", rc);
 
-    checkout_commit_oid(repo, remote_oid);
     spdlog::info("Pulled {} (initialized branch {})", name, remote_branch);
     return;
   }

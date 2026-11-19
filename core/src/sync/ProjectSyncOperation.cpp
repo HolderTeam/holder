@@ -148,6 +148,7 @@ ProjectSyncResult run_project_sync(
             resolve_pull_conflicts(db, fts, project, git, diverged, request.now);
       }
       reconcile_index_after_pull(db, fts, project);
+      complete_recovery_manifest(git, project);
       result.pull.hidden_cards_repaired =
           repair_hierarchy_after_pull(db, fts, project, request.now);
       result.pull.status = PullPhaseStatus::Succeeded;
