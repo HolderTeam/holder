@@ -1112,8 +1112,16 @@ private void test_an_asset_can_be_exported_where_the_user_chooses() {
     var destination = Path.build_filename(av_temp_dir(), "exported.png");
     f.picker.chosen = File.new_for_path(destination);
     workspace.asset_preview.export_requested();
-    assert(wait_for_condition(() => f.has_toast("Asset exported.")));
-    assert(FileUtils.test(destination, FileTest.EXISTS));
+    // Wait for the complete PNG. A toast can be queued behind earlier feedback.
+    assert(wait_for_condition(() => {
+        try {
+            uint8[] exported;
+            FileUtils.get_data(destination, out exported);
+            return Base64.encode(exported) == WINDOW_PNG_BASE64;
+        } catch (FileError e) {
+            return false;
+        }
+    }));
     f.destroy();
 }
 
