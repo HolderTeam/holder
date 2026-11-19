@@ -432,6 +432,8 @@ executable(
 if get_option('tests')
 test('holder-accessible-runtime-tests', find_program('python3'),
   args: files('tests/accessible_runtime_test.py'))
+test('holder-test-tmp-launcher-tests', find_program('python3'),
+  args: files('tests/test_tmp_launcher_test.py'))
 
 test_exe = executable(
   'holder-gtk-tests',
