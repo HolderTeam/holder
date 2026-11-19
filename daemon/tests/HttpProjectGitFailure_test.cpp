@@ -2,6 +2,7 @@
 
 #include "git/GitOps.h"
 #include "model/Project.h"
+#include "project/ProjectManifest.h"
 #include "project/ProjectRepo.h"
 
 #include <filesystem>
@@ -10,14 +11,14 @@
 namespace {
 
 class FailingGitOps final : public holder::git::GitOps {
+  holder::git::RealGitOps repo_;
+
  public:
-  std::filesystem::path repo_dir_;
   bool fail_set_remote = false;
   bool fail_remove_remote = false;
 
   void open_or_init(const std::filesystem::path& repo_dir) override {
-    repo_dir_ = repo_dir;
-    std::filesystem::create_directories(repo_dir_);
+    repo_.open_or_init(repo_dir);
   }
   void write_file(const std::filesystem::path&, const std::string&) override {}
   void stage_path(const std::filesystem::path&) override {}
@@ -45,7 +46,7 @@ class FailingGitOps final : public holder::git::GitOps {
         .error_message = {}
     };
   }
-  std::filesystem::path repo_dir() const override { return repo_dir_; }
+  std::filesystem::path repo_dir() const override { return repo_.repo_dir(); }
 };
 
 } // namespace
@@ -151,6 +152,7 @@ TEST_CASE("Project patch preserves stored remote when git set_remote fails", "[g
 
 TEST_CASE("Global recovery import keeps success when git remote setup fails", "[git][http]") {
   const auto dir = holder::test::make_temp_dir();
+  holder::test::EnvGuard config_env("XDG_CONFIG_HOME", (dir / "config").string());
   const auto db_path = dir / "holder.db";
   auto db = holder::test::open_db_with_schema(db_path);
   holder::test::ensure_uuid_seeded();
@@ -172,10 +174,8 @@ TEST_CASE("Global recovery import keeps success when git remote setup fails", "[
     }
 
     holder::core::SignalHandler signals;
-    std::thread server_thread([&export_server, &signals]() {
-      export_server.run(signals);
-    });
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    holder::test::HttpServerThreadGuard server_thread(export_server, signals);
+    REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, token));
 
     holder::test::http_json_request(
         bound.bind,
@@ -210,8 +210,7 @@ TEST_CASE("Global recovery import keeps success when git remote setup fails", "[
         boost::beast::http::status::ok
     );
 
-    std::raise(SIGTERM);
-    server_thread.join();
+    server_thread.stop();
 
     // Second server forces set_remote failure during import.
     FailingGitOps git;
@@ -225,10 +224,8 @@ TEST_CASE("Global recovery import keeps success when git remote setup fails", "[
     }
 
     holder::core::SignalHandler import_signals;
-    std::thread import_thread([&import_server, &import_signals]() {
-      import_server.run(import_signals);
-    });
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    holder::test::HttpServerThreadGuard import_thread(import_server, import_signals);
+    REQUIRE(holder::test::wait_for_http_health_ready(import_bound.bind, import_bound.port, token));
 
     const auto imported = holder::test::http_json_request(
         import_bound.bind,
@@ -244,11 +241,15 @@ TEST_CASE("Global recovery import keeps success when git remote setup fails", "[
     REQUIRE(imported["data"]["project_created"] == true);
     REQUIRE(imported["data"]["remote_hint_present"] == true);
     REQUIRE(imported["data"]["remote_configured"] == false);
-    REQUIRE(imported["data"]["remote_error"].is_string());
+    REQUIRE(imported["data"]["remote_error"] == "set remote failed");
     REQUIRE(imported["data"]["pull_status"] == "not_attempted");
     REQUIRE(imported["data"]["pull_error"].is_null());
 
-    std::raise(SIGTERM);
-    import_thread.join();
+    import_thread.stop();
+    const auto recovered = holder::project::ProjectRepo(db).get("proj-1");
+    REQUIRE(recovered.has_value());
+    const auto root = std::filesystem::path(recovered->root_path);
+    REQUIRE(std::filesystem::exists(root / holder::project::kPendingRecoveryPath));
+    REQUIRE_FALSE(holder::project::has_project_manifest(root));
   }
 }

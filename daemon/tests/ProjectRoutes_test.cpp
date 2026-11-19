@@ -11,6 +11,7 @@
 #include "http_test_helpers.h"
 #include "model/Project.h"
 #include "platform/Paths.h"
+#include "project/ProjectManifest.h"
 #include "project/ProjectRegistry.h"
 #include "project/ProjectRepo.h"
 #include "project/ProjectSyncRepo.h"
@@ -697,22 +698,22 @@ TEST_CASE("The contract's route lists project tags with card counts", "[project-
 
 TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[project-routes]") {
   const auto dir = holder::test::make_temp_dir();
+  holder::test::EnvGuard config_env("XDG_CONFIG_HOME", (dir / "config").string());
+  holder::test::EnvGuard root_env("HOLDER_PROJECTS_ROOT", (dir / "recovered").string());
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
-  ProjectRoutesTestGitOps git;
 
   auto call = [&](http::verb method,
                   const std::string& path,
                   const nlohmann::json& body = nlohmann::json()) {
     auto req = make_request(method, path, body);
     http::response<http::string_body> res;
-    const bool handled = route_project(req, res, db, &git);
+    const bool handled = route_project(req, res, db, nullptr);
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };
 
   SECTION("global recovery import can mark pull succeeded with remote hint") {
     const auto repo_root = dir / "enc-repo";
-    std::filesystem::create_directories(repo_root);
 
     auto [create_status, create_payload] = call(
         http::verb::post,
@@ -721,7 +722,7 @@ TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[proje
          {"name", "Encrypted"},
          {"root_path", repo_root.string()},
          {"privacy_mode", "encrypted_git"},
-         {"git_remote_url", "https://example.com/recovered.git"},
+         {"git_remote_url", repo_root.string()},
          {"created_at", 10},
          {"updated_at", 10}}
     );
@@ -747,6 +748,12 @@ TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[proje
     REQUIRE(import_payload["data"]["remote_hint_present"] == true);
     REQUIRE(import_payload["data"]["remote_configured"] == true);
     REQUIRE(import_payload["data"]["pull_status"] == "succeeded");
+    const auto recovered = holder::project::ProjectRepo(db).get("proj-enc");
+    REQUIRE(recovered.has_value());
+    const auto root = std::filesystem::path(recovered->root_path);
+    REQUIRE(root != repo_root);
+    REQUIRE(holder::project::read_project_manifest(root).project_id == "proj-enc");
+    REQUIRE_FALSE(std::filesystem::exists(root / holder::project::kPendingRecoveryPath));
   }
 
   SECTION("encryption-check plain and encrypted branches plus storage failure") {
