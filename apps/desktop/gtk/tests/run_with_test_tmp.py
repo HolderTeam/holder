@@ -8,6 +8,19 @@ import sys
 import tempfile
 
 
+def configure_macos_test_limits() -> None:
+    import resource
+
+    # VTE's macOS fdwalk allocates open_max * sizeof(proc_fdinfo) on the stack
+    # between fork and exec. Large inherited limits (e.g. 1048575) overflow the
+    # child's stack before it can execute even /bin/cat or report an exec error.
+    # Bound only this test launcher's soft limit; preserve the hard limit and
+    # any lower soft limit. 65536 descriptors need about 512 KiB of stack.
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    if soft == resource.RLIM_INFINITY or soft > 65536:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (65536, hard))
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print("usage: run_with_test_tmp.py PROGRAM [ARGS...]", file=sys.stderr)
@@ -15,6 +28,7 @@ def main() -> int:
 
     env = os.environ.copy()
     if sys.platform == "darwin":
+        configure_macos_test_limits()
         runtime = env.get("HOLDER_DESKTOP_TEST_ACCESSIBLE_RUNTIME")
         if not runtime or not (pathlib.Path(runtime) / "lib/libgtk-4.1.dylib").is_file():
             print("macOS tests require a prepared AccessKit runtime. Run ./make.sh test "

@@ -867,15 +867,25 @@ private void test_selection_and_editor_changes_reach_the_controller() {
     var buffer = w.workspace_for_tests.editor_buffer;
     buffer.set_text("# Card 2\n\nEdited", -1);
     w.on_editor_buffer_changed();
-    assert(wait_for_condition(() => f.api.update_card_calls >= 1, 8000));
+    assert(wait_for_condition(() =>
+        f.api.update_card_calls >= 1 &&
+        !f.controller().is_editor_save_in_flight() &&
+        !f.controller().has_unsaved_editor_changes(), 8000));
+    assert(f.api.last_updated_card_id == "c2");
     assert(f.api.last_updated_content == "# Card 2\n\nEdited");
 
-    // Selection changes from the sidebar go through the orchestrator; re-selecting the project
-    // goes back to its overview.
+    // Let the sidebar finish reloading the card before starting another navigation.
+    var saved_card = f.controller().get_current_card();
     w.on_card_selection_changed();
+    assert(wait_for_condition(() => {
+        var card = f.controller().get_current_card();
+        return card != null && card != saved_card && ((!) card).card_id == "c2";
+    }));
+
     w.on_ai_thread_selection_changed();
     w.on_project_selection_changed();
-    assert(wait_for_condition(() => f.controller().get_current_card() == null));
+    assert(wait_for_condition(() =>
+        f.controller().get_current_card() == null && f.editor_text().has_prefix("# Project 1\n")));
     f.destroy();
 }
 
