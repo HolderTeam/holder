@@ -441,6 +441,11 @@ TEST_CASE(
     untracked = true;
     local.write_file("cards/new.md", "local untracked body\n");
   }
+  SECTION("ignored file collides with incoming addition") {
+    untracked = true;
+    std::ofstream(local_dir / ".git/info/exclude", std::ios::app) << "\n/cards/new.md\n";
+    local.write_file("cards/new.md", "local untracked body\n");
+  }
   local.write_file("unrelated.txt", "unrelated local work\n");
   const auto read = [&](const std::filesystem::path& path) {
     std::ifstream input(local_dir / path, std::ios::binary);

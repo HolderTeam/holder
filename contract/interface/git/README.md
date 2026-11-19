@@ -1,0 +1,8 @@
+# Local file edits during pull
+
+Holder leaves outside edits in the working tree. Pull never stages them or creates a commit on their behalf.
+
+- A fast-forward may proceed when the incoming changes do not overwrite an unstaged file. This applies to tracked live and Trash cards as well as other tracked files. An overlapping change fails with the blocking path when Git can identify it. Review and commit valid work, or back it up and restore tracked files or move untracked files aside before retrying.
+- A staged or unresolved index, an unstaged deletion, or a file type change stops pull. This keeps an unrelated staged change out of any merge or repair commit. Pull never removes unrelated untracked or ignored files. Diverged branches require a working tree clear of tracked changes and non-ignored untracked files before Holder can merge them. Ignored files that would be overwritten also block the merge.
+- After Git succeeds, the SQLite projection is rebuilt from the working tree. Card IDs must be valid and match the file's live or Trash location. The checkout's project record supplies the project ID. Legacy Markdown without front matter can still derive its card ID from the canonical filename. Encrypted card files with an available key must decrypt and pass the same validation. An invalid file leaves its bytes in place and rolls back the SQLite rebuild. Git may already have advanced to an independent incoming commit. Fix the file and retry to reconcile.
+- Hierarchy repair waits for a clean working tree because it can rewrite and commit card files. A pull blocked by local work or a failed rebuild is reported through the existing pull error and skips the paired push, including in scheduled sync.
