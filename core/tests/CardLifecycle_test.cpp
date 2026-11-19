@@ -178,6 +178,87 @@ struct Fixture {
 };
 } // namespace
 
+TEST_CASE("Card appends re-space large sibling keys and survive a rebuild", "[cardstore]") {
+  Fixture f;
+  constexpr double large_key = 9007199255137756.0;
+  const auto& first = before_id;
+  const auto& last = after_id;
+  const auto& appended = new_child_id;
+  std::optional<std::string> parent;
+  std::vector<std::string> expected{first, last, appended};
+  std::function<void()> append;
+
+  SECTION("creation without a key") {
+    append = [&] {
+      auto card = *f.cards.get(last);
+      card.card_id = appended;
+      card.title = appended;
+      card.rel_path.clear();
+      f.store.create(card, "new body");
+    };
+  }
+  SECTION("reparenting without a key") {
+    f.add(parent_id);
+    parent = parent_id;
+    f.add(appended);
+    append = [&] {
+      f.store.move(appended, true, parent, std::nullopt, 10);
+    };
+  }
+  SECTION("batch import with a key and then without one") {
+    expected.insert(expected.end() - 1, "batch-sibling");
+    append = [&] {
+      holder::card::BatchCardInput earlier;
+      earlier.card_id = earlier.title = "batch-sibling";
+      earlier.content = "earlier body";
+      earlier.sort_key = large_key + 4.0;
+      earlier.created_at = earlier.updated_at = 3;
+      auto later = earlier;
+      later.card_id = later.title = appended;
+      later.sort_key.reset();
+      f.store.create_batch(
+          f.project.project_id,
+          {earlier, later},
+          [] {
+            return "new-milestone-id";
+          },
+          "Import cards"
+      );
+    };
+  }
+
+  f.add(first, parent, 0.0);
+  f.add(last, parent, large_key);
+  const auto head = f.head();
+  const auto original = f.bytes(last);
+  f.git.fail_after_commit = true;
+  REQUIRE_THROWS_WITH(append(), "injected post-commit failure");
+  f.git.fail_after_commit = false;
+  CHECK(f.head() == head);
+  CHECK(f.order(parent) == std::vector<std::string>{first, last});
+  CHECK(f.bytes(last) == original);
+  REQUIRE(f.cards.get(last)->sort_key == large_key);
+
+  append();
+  const auto check_order = [&] {
+    std::vector<std::string> titles;
+    const auto ids = f.order(parent);
+    REQUIRE(ids.size() == expected.size());
+    for (const auto& id : ids)
+      titles.push_back(f.cards.get(id)->title);
+    CHECK(titles == expected);
+    const auto newest = f.cards.get(ids.back());
+    REQUIRE(newest);
+    CHECK(std::isfinite(newest->sort_key));
+    for (auto it = ids.begin(); it != ids.end() - 1; ++it)
+      CHECK(f.cards.get(*it)->sort_key < newest->sort_key);
+    CHECK(f.cards.get(last)->updated_at == 1);
+  };
+  check_order();
+  f.rebuild();
+  check_order();
+}
+
 TEST_CASE(
     "Interrupted mutation recovery preserves a later uncommitted edit",
     "[cardstore][broad-journal-later-edit]"

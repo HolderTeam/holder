@@ -268,8 +268,9 @@ class CardStore {
   // One card's change: its stored state and what it becomes, possibly moving between the live
   // and trash paths.
   struct CardChange {
-    holder::model::Card current;
+    std::optional<holder::model::Card> current;
     holder::core::ParsedCardFile target;
+    bool placement_only = false;
   };
   // A live card whose placement changes, read from its file.
   CardChange placement_change(

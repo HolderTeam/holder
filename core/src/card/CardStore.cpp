@@ -46,8 +46,7 @@ const std::string& require_project_key_id(const holder::model::Project& project)
   return *project.project_key_id;
 }
 
-void write_card_file(
-    holder::git::GitOps& repo,
+std::string render_card_bytes(
     const holder::model::Project& project,
     const holder::model::Card& card,
     const std::vector<holder::model::CardLink>& links,
@@ -57,13 +56,20 @@ void write_card_file(
   const auto plain = holder::core::render_card_front_matter(card, links, milestones) + content;
   if (project.privacy_mode == "encrypted_git") {
     const auto& project_key_id = require_project_key_id(project);
-    repo.write_file(
-        card.rel_path,
-        holder::privacy::encrypt_project_blob(project.project_id, project_key_id, plain)
-    );
-    return;
+    return holder::privacy::encrypt_project_blob(project.project_id, project_key_id, plain);
   }
-  repo.write_file(card.rel_path, plain);
+  return plain;
+}
+
+void write_card_file(
+    holder::git::GitOps& repo,
+    const holder::model::Project& project,
+    const holder::model::Card& card,
+    const std::vector<holder::model::CardLink>& links,
+    const std::vector<holder::model::Milestone>& milestones,
+    const std::string& content
+) {
+  repo.write_file(card.rel_path, render_card_bytes(project, card, links, milestones, content));
 }
 
 // The order create_batch writes items in, each parent before its children, and each item's
@@ -121,6 +127,53 @@ void assert_project_staged_blobs_safe(
     return;
   }
   holder::privacy::assert_encryption_index_paths_safe(project.root_path, relative_paths);
+}
+
+void commit_card_mutation(
+    holder::core::Fs& fs,
+    holder::git::GitOps& git,
+    const holder::model::Project& project,
+    holder::platform::Tx& tx,
+    const std::vector<std::string>& paths,
+    const std::vector<std::pair<std::string, std::string>>& renames,
+    const std::vector<std::pair<std::string, std::string>>& writes,
+    const std::string& message
+) {
+  std::map<std::string, std::optional<std::string>> file_changes;
+  for (const auto& [from, to] : renames)
+    file_changes[from] = std::nullopt;
+  for (const auto& [path, bytes] : writes)
+    file_changes[path] = bytes;
+  CardMutation mutation(fs, project.root_path, paths, file_changes);
+  try {
+    mutation.begin();
+    for (const auto& [from, to] : renames) {
+      fs.create_directories((git.repo_dir() / to).parent_path());
+      fs.rename(git.repo_dir() / from, git.repo_dir() / to);
+      git.remove_path(from);
+    }
+    std::vector<std::string> staged;
+    for (const auto& [path, bytes] : writes) {
+      git.write_file(path, bytes);
+      if (fs.read_file(git.repo_dir() / path) != bytes)
+        throw std::runtime_error("incomplete card lifecycle write");
+      staged.push_back(path);
+    }
+    const std::vector<std::filesystem::path> staged_paths(staged.begin(), staged.end());
+    git.stage_paths(staged_paths);
+    assert_project_staged_blobs_safe(project, staged);
+    git.commit(message);
+    mutation.preserve_unrelated_index();
+    // The journal helper uses a separate Git handle; discard this adapter's cached index.
+    git.open_or_init(project.root_path);
+    tx.commit();
+  } catch (...) {
+    // If compensation itself fails the durable journal remains for recovery.
+    mutation.rollback();
+    git.open_or_init(project.root_path);
+    throw;
+  }
+  mutation.finish();
 }
 
 std::optional<std::string> read_card_content_locked(
@@ -189,12 +242,6 @@ void CardStore::create(
   git_->open_or_init(project.root_path);
   if (project.git_remote_url.has_value()) git_->set_remote("origin", *project.git_remote_url);
   validate_card_parent(card_repo_, card);
-  if (explicit_sort_key.has_value()) {
-    card.sort_key = explicit_sort_key.value();
-  } else {
-    card.sort_key = card_repo_.next_sort_key(card.project_id, card.parent_card_id);
-  }
-
   const std::string expected = holder::core::card_rel_path(card.card_id);
   if (card.rel_path.empty()) {
     card.rel_path = expected;
@@ -218,6 +265,22 @@ void CardStore::create(
   for (const auto& milestone : milestones) {
     if (milestone.project_id != card.project_id || milestone.card_id != card.card_id)
       throw std::invalid_argument("milestone owner does not match new card");
+  }
+
+  if (explicit_sort_key) {
+    card.sort_key = *explicit_sort_key;
+  } else {
+    const auto placements = append_card_placement(card_repo_, card);
+    if (!placements.empty()) {
+      std::vector<CardChange> changes{{std::nullopt, {card, links, milestones, content}}};
+      for (const auto& placed : placements) {
+        auto change = placement_change(project, placed);
+        change.placement_only = true;
+        changes.push_back(std::move(change));
+      }
+      apply_card_changes(project, std::move(changes), "Add card " + card.title);
+      return;
+    }
   }
 
   write_card_file(*git_, project, card, links, milestones, content);
@@ -270,8 +333,16 @@ void CardStore::create_batch(
   }
   const auto [order, parents] = batch_order(items);
 
-  std::vector<std::string> staged_paths;
-  staged_paths.reserve(items.size());
+  struct PreparedCard {
+    holder::model::Card card;
+    std::vector<holder::model::CardLink> links;
+    std::vector<holder::model::Milestone> milestones;
+  };
+  std::vector<PreparedCard> prepared;
+  prepared.reserve(items.size());
+  std::map<std::string, std::size_t> prepared_by_id;
+  std::map<std::string, holder::model::Card> existing_placements;
+  bool respaced = false;
 
   // One transaction for every card's rows, not one auto-committed statement group per card --
   // at snapshot-restore scale (tens of thousands of cards) each individual commit's fsync-ish
@@ -287,10 +358,22 @@ void CardStore::create_batch(
     card.title = item.title;
     card.rel_path = holder::core::card_rel_path(card.card_id);
     if (parents[index]) card.parent_card_id = id_remap.at(*parents[index]);
-    card.sort_key = item.sort_key.value_or(card_repo_.next_sort_key(project_id, card.parent_card_id)
-    );
     card.created_at = item.created_at;
     card.updated_at = item.updated_at;
+    if (item.sort_key) {
+      card.sort_key = *item.sort_key;
+    } else {
+      for (const auto& placed : append_card_placement(card_repo_, card)) {
+        respaced = true;
+        card_repo_.move(placed.card_id, placed.parent_card_id, placed.sort_key, placed.updated_at);
+        const auto prior = prepared_by_id.find(placed.card_id);
+        if (prior != prepared_by_id.end()) {
+          prepared[prior->second].card.sort_key = placed.sort_key;
+        } else {
+          existing_placements.insert_or_assign(placed.card_id, placed);
+        }
+      }
+    }
 
     std::vector<holder::model::CardLink> links;
     for (const auto& link : item.links) {
@@ -333,9 +416,6 @@ void CardStore::create_batch(
       milestones.push_back(std::move(resolved));
     }
 
-    write_card_file(*git_, project, card, links, milestones, item.content);
-    staged_paths.push_back(card.rel_path);
-
     card_repo_.create(card);
     if (fts_) {
       fts_->upsert_card(card.card_id, card.project_id, card.title, item.content);
@@ -352,8 +432,45 @@ void CardStore::create_batch(
     if (!milestones.empty()) {
       milestone_repo_.replace_for_card(project_id, card.card_id, milestones);
     }
+    prepared_by_id.emplace(card.card_id, prepared.size());
+    prepared.push_back({std::move(card), std::move(links), std::move(milestones)});
   }
 
+  if (respaced) {
+    // The repaired keys must reach Git and SQLite together with the imported cards.
+    // Prepare the final bytes before writing so a sibling repaired twice is written once.
+    std::vector<std::pair<std::string, std::string>> writes;
+    std::vector<std::string> paths;
+    paths.reserve(prepared.size() + existing_placements.size());
+    writes.reserve(paths.capacity());
+    for (const auto& [id, placed] : existing_placements) {
+      const auto record = placement_change(project, placed).target;
+      paths.push_back(placed.rel_path);
+      writes.emplace_back(
+          placed.rel_path,
+          render_card_bytes(project, placed, record.links, record.milestones, record.body)
+      );
+    }
+    for (std::size_t i = 0; i < prepared.size(); ++i) {
+      const auto& [card, links, milestones] = prepared[i];
+      const auto& content = items[order[i]].content;
+      paths.push_back(card.rel_path);
+      writes.emplace_back(
+          card.rel_path,
+          render_card_bytes(project, card, links, milestones, content)
+      );
+    }
+    commit_card_mutation(*fs_, *git_, project, tx, paths, {}, writes, commit_message);
+    return;
+  }
+
+  std::vector<std::string> staged_paths;
+  staged_paths.reserve(prepared.size());
+  for (std::size_t i = 0; i < prepared.size(); ++i) {
+    const auto& [card, links, milestones] = prepared[i];
+    write_card_file(*git_, project, card, links, milestones, items[order[i]].content);
+    staged_paths.push_back(card.rel_path);
+  }
   tx.commit();
 
   if (!staged_paths.empty()) {
@@ -467,12 +584,15 @@ void CardStore::move(
                                                                     : card.parent_card_id;
   auto destination = card;
   destination.parent_card_id = next_parent;
+  destination.updated_at = updated_at;
   validate_card_parent(card_repo_, destination);
   double next_sort = card.sort_key;
+  std::vector<holder::model::Card> placements;
   if (sort_key.has_value()) {
     next_sort = sort_key.value();
   } else if (has_parent_card_id && next_parent != card.parent_card_id) {
-    next_sort = card_repo_.next_sort_key(card.project_id, next_parent);
+    placements = append_card_placement(card_repo_, destination);
+    next_sort = destination.sort_key;
   }
 
   const bool changed = (next_parent != card.parent_card_id) || (next_sort != card.sort_key);
@@ -489,6 +609,19 @@ void CardStore::move(
   const auto plain = decode_card_blob(project, raw);
   const auto parsed = holder::core::parse_card_file(plain);
   const auto links = link_repo_.list_outgoing(card.project_id, card.card_id);
+
+  if (!placements.empty()) {
+    std::vector<CardChange> changes{
+        {card, {destination, links, parsed.milestones, parsed.body}, true}
+    };
+    for (const auto& placed : placements) {
+      auto change = placement_change(project, placed);
+      change.placement_only = true;
+      changes.push_back(std::move(change));
+    }
+    apply_card_changes(project, std::move(changes), "Move card " + card.title);
+    return;
+  }
 
   card.parent_card_id = next_parent;
   card.sort_key = next_sort;
@@ -887,16 +1020,17 @@ void CardStore::apply_card_changes(
     std::vector<CardChange> changes,
     const std::string& message
 ) {
-  struct Rename {
-    std::string from;
-    std::string to;
-  };
-  std::vector<Rename> renames;
+  std::vector<std::pair<std::string, std::string>> renames;
   std::set<std::string> path_set;
   for (auto& change : changes) {
-    const auto& current = change.current;
-    const auto live_path = holder::core::card_rel_path(current.card_id);
-    const auto trash_path = holder::core::card_trash_rel_path(current.card_id);
+    const auto& card_id = change.target.card.card_id;
+    const auto live_path = holder::core::card_rel_path(card_id);
+    const auto trash_path = holder::core::card_trash_rel_path(card_id);
+    if (!change.current) {
+      path_set.insert(live_path);
+      continue;
+    }
+    const auto& current = *change.current;
     if (current.rel_path != live_path && !(current.deleted_at && current.rel_path == trash_path))
       throw std::runtime_error("card rel_path does not match card_id"
       ); // LCOV_EXCL_LINE - all private callers validate immutable source snapshots before applying
@@ -908,7 +1042,7 @@ void CardStore::apply_card_changes(
     if (source_path != target_path) {
       if (fs_->exists(git_->repo_dir() / target_path))
         throw holder::model::ConflictError("destination card file already exists");
-      renames.push_back({source_path, target_path});
+      renames.emplace_back(source_path, target_path);
     }
     change.target.card.rel_path = live_path;
     path_set.insert(live_path);
@@ -923,31 +1057,27 @@ void CardStore::apply_card_changes(
     auto durable_card = record.card;
     if (durable_card.deleted_at)
       durable_card.rel_path = holder::core::card_trash_rel_path(durable_card.card_id);
-    const auto plain =
-        holder::core::render_card_front_matter(durable_card, record.links, record.milestones) +
-        record.body;
     writes.emplace_back(
         durable_card.rel_path,
-        project.privacy_mode == "encrypted_git" ? holder::privacy::encrypt_project_blob(
-                                                      project.project_id,
-                                                      require_project_key_id(project),
-                                                      plain
-                                                  )
-                                                : plain
+        render_card_bytes(project, durable_card, record.links, record.milestones, record.body)
     );
   }
-  std::map<std::string, std::optional<std::string>> file_changes;
-  for (const auto& rename : renames)
-    file_changes[rename.from] = std::nullopt;
-  for (const auto& [path, bytes] : writes)
-    file_changes[path] = bytes;
-  CardMutation mutation(*fs_, project.root_path, paths, file_changes);
   holder::platform::Tx tx(db_);
   for (const auto& change : changes) {
     const auto& record = change.target;
     const auto& card = record.card;
-    card_repo_.restore_snapshot(card);
-    link_repo_.delete_links_from(card.project_id, card.card_id);
+    if (change.placement_only) {
+      card_repo_.move(card.card_id, card.parent_card_id, card.sort_key, card.updated_at);
+      if (fts_ && change.current->parent_card_id != card.parent_card_id)
+        fts_->upsert_card(card.card_id, card.project_id, card.title, record.body);
+      continue;
+    }
+    if (change.current) {
+      card_repo_.restore_snapshot(card);
+      link_repo_.delete_links_from(card.project_id, card.card_id);
+    } else {
+      card_repo_.create(card);
+    }
     if (!record.links.empty()) link_repo_.upsert_links(card.project_id, card.card_id, record.links);
     if (card.deleted_at) {
       if (fts_) fts_->delete_card(card.card_id);
@@ -959,40 +1089,12 @@ void CardStore::apply_card_changes(
           card.project_id,
           card.card_id,
           holder::core::extract_tags(record.body),
-          card.updated_at
+          change.current ? card.updated_at : card.created_at
       );
       milestone_repo_.replace_for_card(card.project_id, card.card_id, record.milestones);
     }
   }
-  try {
-    mutation.begin();
-    for (const auto& rename : renames) {
-      fs_->create_directories((git_->repo_dir() / rename.to).parent_path());
-      fs_->rename(git_->repo_dir() / rename.from, git_->repo_dir() / rename.to);
-      git_->remove_path(rename.from);
-    }
-    std::vector<std::string> staged;
-    for (const auto& [path, bytes] : writes) {
-      git_->write_file(path, bytes);
-      if (fs_->read_file(git_->repo_dir() / path) != bytes) {
-        throw std::runtime_error("incomplete card lifecycle write");
-      }
-      git_->stage_path(path);
-      staged.push_back(path);
-    }
-    assert_project_staged_blobs_safe(project, staged);
-    git_->commit(message);
-    mutation.preserve_unrelated_index();
-    // The journal helper uses a separate Git handle; discard this adapter's cached index.
-    git_->open_or_init(project.root_path);
-    tx.commit();
-  } catch (...) {
-    // If compensation itself fails the durable journal remains for recovery.
-    mutation.rollback();
-    git_->open_or_init(project.root_path);
-    throw;
-  }
-  mutation.finish();
+  commit_card_mutation(*fs_, *git_, project, tx, paths, renames, writes, message);
 }
 
 void CardStore::trash(const std::string& card_id, long long deleted_at, TrashChildren children) {

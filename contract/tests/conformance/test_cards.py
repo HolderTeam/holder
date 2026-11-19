@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import math
 import os
 import re
 import shutil
@@ -288,6 +289,8 @@ class Cards(RuleBasedStateMachine):
         assert created["card_id"] not in self.cards
         if "sort_key" in card:
             assert created["sort_key"] == card["sort_key"]
+        else:
+            self.check_appended(created)
         if "created_at" in card:
             assert created["created_at"] == card["created_at"]
         else:
@@ -295,6 +298,20 @@ class Cards(RuleBasedStateMachine):
         assert created["updated_at"] == card.get("updated_at", created["created_at"])
         self.check_tags(created)
         self.cards[created["card_id"]] = created
+
+    def check_appended(self, card: dict) -> None:
+        parent, project = card["parent_card_id"], card["project_id"]
+        siblings = self.siblings(parent, project)
+        last = self.cards[siblings[-1]]["sort_key"] if siblings else -1.0
+        next_key = last + 1.0
+        if math.isfinite(next_key) and next_key > last:
+            assert card["sort_key"] == next_key
+        else:
+            for sibling in siblings:
+                self.refresh(sibling, "sort_key")
+            assert self.siblings(parent, project) == siblings
+            assert math.isfinite(card["sort_key"])
+            assert all(self.cards[sibling]["sort_key"] < card["sort_key"] for sibling in siblings)
 
     def check_tags(self, card: dict) -> None:
         """The card's tags are the ones written in its content."""
@@ -416,6 +433,8 @@ class Cards(RuleBasedStateMachine):
             assert updated[name] == expected[name], name
         if "sort_key" in update or parent in (..., old["parent_card_id"]):
             assert updated["sort_key"] == expected["sort_key"]
+        else:
+            self.check_appended(updated)
         # A field set to its current value changes nothing.
         if any(expected[k] != old[k] for k in ("title", "content", "sort_key", "parent_card_id")):
             if "updated_at" in update:
