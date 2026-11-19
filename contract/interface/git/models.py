@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 
 from authoring import MISSING, Field, Int32, Record, Timestamp
 
+from ..cards.models import CardId, CardSummary
 from ..projects.ids import ProjectId
 from ..projects.models import GitRemoteUrl
 
@@ -11,6 +12,17 @@ type PushStatus = Literal["not_attempted", "pushed", "up_to_date", "auth_failed"
                           "non_fast_forward", "remote_unset", "unknown_error"]
 """What a push did: nothing, pushed, found the remote already had everything, or failed for one of these reasons.
 non_fast_forward means the remote has changes to pull first."""
+
+
+class ConflictCopy(Record):
+    """A local card version preserved during a divergent pull."""
+
+    original_card_id: CardId
+    """The original card's identity, even if the card no longer exists."""
+    original: CardSummary | None
+    """The original's current title and Trash status, or null if it no longer exists."""
+    copy_card: CardSummary
+    """The preserved card's current identity and title."""
 
 
 class SyncState(Record):
@@ -47,6 +59,8 @@ class SyncState(Record):
     """When a pull will next be tried; null when none is waiting."""
     updated_at: Timestamp | None
     """When this state was last recorded; null when nothing has been."""
+    conflict_copies: list[ConflictCopy] | MISSING = MISSING
+    """Live copies with a durable original association, newest first. Omitted when there are none."""
 
 
 class PullPhase(Record):
@@ -57,7 +71,7 @@ class PullPhase(Record):
     status: Literal["not_attempted", "succeeded", "remote_unset", "failed"]
     """How the pull ended."""
     conflicts_resolved: Int32
-    """Cards changed both here and on the remote, merged by Holder's card rules."""
+    """Local card versions actually preserved as new cards by this pull."""
     hidden_cards_repaired: Int32
     """Live cards the pull left under a missing or trashed parent, made reachable again."""
     error_message: str | None

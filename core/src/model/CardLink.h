@@ -5,6 +5,8 @@
 
 namespace holder::model {
 
+inline constexpr char kConflictCopyLinkKind[] = "conflict_copy_of";
+
 struct CardLink {
   std::string project_id;
   std::string from_card_id;

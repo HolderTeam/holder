@@ -34,6 +34,7 @@ public class ToolboxPane : Object {
     public signal void tags_card_open_requested(string card_id);
     public signal void resources_card_open_requested(string card_id);
     public signal void milestones_card_open_requested(string card_id);
+    public signal void git_conflict_card_open_requested(string project_id, string card_id);
     public signal void resource_references_requested(ProjectResource resource);
     public signal void asset_preview_requested(ProjectResource resource, ResourceAsset asset);
     public signal void project_resources_loaded(string project_id,
@@ -453,6 +454,9 @@ public class ToolboxPane : Object {
         });
         git_sync_tool.toast_requested.connect((message) => {
             toast_requested(message);
+        });
+        git_sync_tool.conflict_card_open_requested.connect((project_id, card_id) => {
+            git_conflict_card_open_requested(project_id, card_id);
         });
         git_sync_tool.repository_history_changed.connect((project_id) => {
             var card = card_selection != null

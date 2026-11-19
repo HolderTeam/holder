@@ -826,6 +826,23 @@ struct RecoveryTokenGlobalImportResult : ProjectRecoveryTokenImportResult {
   std::optional<std::string> pull_error; ///< Why pulling failed, or null.
 };
 
+/// Just enough to name a card, as in a reference or a backlink.
+struct CardSummary {
+  std::string card_id; ///< The card's ID.
+  std::string title; ///< The card's title.
+  std::optional<long long>
+      deleted_at; ///< When the card was moved to the trash; null when it is not in the trash.
+};
+
+/// A local card version preserved during a divergent pull.
+struct ConflictCopy {
+  std::string
+      original_card_id; ///< The original card's identity, even if the card no longer exists.
+  std::optional<CardSummary>
+      original; ///< The original's current title and Trash status, or null if it no longer exists.
+  CardSummary copy_card; ///< The preserved card's current identity and title.
+};
+
 /// What this device last recorded about a project's sync: its last pull and push, what is waiting
 /// to go, and when it will retry.
 struct SyncState {
@@ -851,6 +868,9 @@ struct SyncState {
       next_pull_retry_at; ///< When a pull will next be tried; null when none is waiting.
   std::optional<long long>
       updated_at; ///< When this state was last recorded; null when nothing has been.
+  std::optional<std::vector<ConflictCopy>>
+      conflict_copies; ///< Live copies with a durable original association, newest first. Omitted
+                       ///< when there are none.
 };
 
 /// How the pull ended.
@@ -861,7 +881,7 @@ struct PullPhase {
   bool attempted{}; ///< Whether a pull was tried.
   PullPhaseStatus status; ///< How the pull ended.
   std::int32_t conflicts_resolved{
-  }; ///< Cards changed both here and on the remote, merged by Holder's card rules.
+  }; ///< Local card versions actually preserved as new cards by this pull.
   std::int32_t hidden_cards_repaired{
   }; ///< Live cards the pull left under a missing or trashed parent, made reachable again.
   std::optional<std::string> error_message; ///< Why the pull failed; null when it did not.

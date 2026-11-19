@@ -144,6 +144,12 @@ void print_sync_status(const nlohmann::json& data, bool has_remote) {
   if (!sync.at("last_sync_error").is_null()) {
     std::cout << "Last failure: " << json_string(sync, "last_sync_error") << "\n";
   }
+  if (sync.contains("conflict_copies")) {
+    for (const auto& pair : sync.at("conflict_copies")) {
+      std::cout << "Conflict copy: " << json_string(pair.at("copy_card"), "card_id")
+                << " (original: " << json_string(pair, "original_card_id") << ")\n";
+    }
+  }
   for (const auto* key :
        {"updated_at", "last_sync_error_at", "next_retry_at", "next_pull_retry_at"}) {
     if (!sync.at(key).is_null()) std::cout << key << ": " << sync.at(key) << "\n";
@@ -213,7 +219,8 @@ int command_sync(const holder::core::Paths& paths, int argc, char* argv[]) {
       if (pull.at("conflicts_resolved").get<int>() != 0) {
         // LCOV_EXCL_START: presentation-only branch; conflict resolution is tested at the API
         // owner.
-        human << "Conflicts resolved: " << pull.at("conflicts_resolved") << "\n";
+        human << "Conflict copies preserved: " << pull.at("conflicts_resolved")
+              << "\nUse sync status to see the card IDs.\n";
         // LCOV_EXCL_STOP
       }
       if (action == "now") {

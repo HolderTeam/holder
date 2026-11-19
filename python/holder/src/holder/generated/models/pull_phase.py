@@ -18,7 +18,7 @@ class PullPhase:
     Attributes:
         attempted (bool): Whether a pull was tried.
         status (PullPhaseStatus): How the pull ended.
-        conflicts_resolved (int): Cards changed both here and on the remote, merged by Holder's card rules.
+        conflicts_resolved (int): Local card versions actually preserved as new cards by this pull.
         hidden_cards_repaired (int): Live cards the pull left under a missing or trashed parent, made reachable again.
         error_message (None | str): Why the pull failed; null when it did not.
     """

@@ -1,14 +1,17 @@
 #include "sync/PullConflictResolution.h"
 
 #include "card/CardFrontMatter.h"
+#include "card/CardPaths.h"
 #include "card/CardStore.h"
 #include "identity/Uuid.h"
 #include "model/Card.h"
+#include "model/CardLink.h"
 #include "privacy/ProjectPrivacy.h"
 #include "project/ProjectManifest.h"
 #include "project/ProjectRepo.h"
 #include "project/Rebuilder.h"
 
+#include <algorithm>
 #include <map>
 #include <set>
 #include <stdexcept>
@@ -61,7 +64,8 @@ int resolve_pull_conflicts(
     const holder::model::Project& project,
     holder::git::GitOps& git,
     const holder::git::NonFastForwardPullError& diverged,
-    long long now
+    long long now,
+    int* preserved_count
 ) {
   const auto current_project = holder::project::ProjectRepo(db).get(project.project_id);
   if (!current_project.has_value()) {
@@ -82,6 +86,10 @@ int resolve_pull_conflicts(
   std::vector<PendingCopy> pending;
   std::map<std::string, std::string> copied_card_ids;
   for (const auto& path : merge_result.conflicted_paths) {
+    const auto id = std::filesystem::path(path).stem().string();
+    if (!holder::identity::is_valid_uuid(id) ||
+        (path != holder::core::card_rel_path(id) && path != holder::core::card_trash_rel_path(id)))
+      continue;
     const auto blob = git.read_blob_at(diverged.local_oid_hex, path);
     if (!blob.has_value()) continue;
 
@@ -106,6 +114,8 @@ int resolve_pull_conflicts(
     const auto new_card_id = holder::identity::generate_id(current_project->id_scheme);
     if (!copied_card_ids.emplace(parsed.card.card_id, new_card_id).second)
       throw std::runtime_error("duplicate conflicted card ID: " + parsed.card.card_id);
+    if (parsed.card.card_id != id)
+      throw std::runtime_error("conflicted card ID does not match its path: " + path);
     pending.push_back({path, parsed, new_card_id});
   }
 
@@ -135,6 +145,10 @@ int resolve_pull_conflicts(
       duplicate.updated_at = now;
 
       auto links = parsed.links;
+      // A copy of a copy points at the identity involved in this pull.
+      std::erase_if(links, [](const auto& link) {
+        return link.kind == holder::model::kConflictCopyLinkKind;
+      });
       for (auto& link : links) {
         link.project_id = project.project_id;
         link.from_card_id = duplicate.card_id;
@@ -144,6 +158,16 @@ int resolve_pull_conflicts(
           if (copied_target != copied_card_ids.end()) link.to_card_id = copied_target->second;
         }
       }
+      links.push_back(
+          {project.project_id,
+           duplicate.card_id,
+           parsed.card.card_id,
+           "card",
+           holder::model::kConflictCopyLinkKind,
+           std::nullopt,
+           now,
+           std::nullopt}
+      );
 
       auto milestones = parsed.milestones;
       for (auto& milestone : milestones) {
@@ -155,6 +179,7 @@ int resolve_pull_conflicts(
       try {
         store.create(duplicate, parsed.body, std::nullopt, links, milestones);
         resolved++;
+        if (preserved_count) *preserved_count = resolved;
         created_card_ids.insert(duplicate.card_id);
         made_progress = true;
       } catch (const std::exception& ex) {

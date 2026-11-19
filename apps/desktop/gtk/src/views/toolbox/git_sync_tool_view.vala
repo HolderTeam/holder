@@ -37,6 +37,12 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     private Gtk.Button git_configured_copy_btn;
     private Gtk.Button git_configured_change_btn;
     private Gtk.Button git_configured_disconnect_btn;
+    private Gtk.Box conflict_panel;
+    private Gtk.Box conflict_rows;
+    private Gee.ArrayList<GitConflictCopy> shown_conflicts = new Gee.ArrayList<GitConflictCopy>();
+    private string? conflict_project_id;
+    private uint conflict_refresh_timer;
+    private bool conflict_refresh_running;
     private GitSyncProjectState project_state = new GitSyncProjectState();
     private string git_configured_web_url = "";
     private Gtk.Label git_gh_cli_status_label;
@@ -90,6 +96,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
     public signal void repository_history_changed(string project_id);
+    public signal void conflict_card_open_requested(string project_id, string card_id);
     public signal void activity_requested(string kind,
                                           string message,
                                           string? project_id,
@@ -209,13 +216,104 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     }
 
     private Gtk.Widget build_git_sync_start_page() {
+        var page = new Gtk.Box(Gtk.Orientation.VERTICAL, 12);
         git_start_state_stack = new Gtk.Stack();
         git_start_state_stack.set_name("git-start-state-stack");
         git_start_state_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE);
         git_start_state_stack.add_named(build_git_sync_setup_page(), "setup");
         git_start_state_stack.add_named(build_git_sync_configured_page(), "configured");
         git_start_state_stack.set_visible_child_name("setup");
-        return git_start_state_stack;
+        page.append(git_start_state_stack);
+
+        conflict_panel = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        conflict_panel.set_name("git-conflict-copies");
+        conflict_panel.set_visible(false);
+        var heading = new Gtk.Label("Local versions preserved as copies") { xalign = 0.0f };
+        heading.add_css_class("heading");
+        conflict_panel.append(heading);
+        var scroll = new Gtk.ScrolledWindow();
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC);
+        scroll.set_max_content_height(180);
+        scroll.set_propagate_natural_height(true);
+        conflict_rows = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        scroll.set_child(conflict_rows);
+        conflict_panel.append(scroll);
+        page.append(conflict_panel);
+
+        page.map.connect(() => {
+            refresh_visible_git_state.begin();
+            conflict_refresh_timer = Timeout.add_seconds(30, () => {
+                refresh_visible_git_state.begin();
+                return Source.CONTINUE;
+            });
+        });
+        page.unmap.connect(() => {
+            if (conflict_refresh_timer != 0) {
+                Source.remove(conflict_refresh_timer);
+                conflict_refresh_timer = 0;
+            }
+        });
+        return page;
+    }
+
+    private async void refresh_visible_git_state() {
+        if (api == null || current_project() == null || conflict_refresh_running) {
+            return;
+        }
+        conflict_refresh_running = true;
+        yield refresh_git_configured_state(null, false);
+        conflict_refresh_running = false;
+    }
+
+    private void render_conflict_copies(Project? project) {
+        var project_id = project?.project_id;
+        var copies = project != null ? project.sync.conflict_copies : new Gee.ArrayList<GitConflictCopy>();
+        if (conflict_project_id == project_id && shown_conflicts.size == copies.size) {
+            bool unchanged = true;
+            for (int i = 0; i < copies.size; i++) {
+                if (!copies[i].matches(shown_conflicts[i])) {
+                    unchanged = false;
+                    break;
+                }
+            }
+            if (unchanged) {
+                return;
+            }
+        }
+        conflict_project_id = project_id;
+        shown_conflicts = copies;
+        while (conflict_rows.get_first_child() != null) {
+            conflict_rows.remove(conflict_rows.get_first_child());
+        }
+        conflict_panel.set_visible(copies.size > 0);
+        if (project_id == null) {
+            return;
+        }
+        foreach (var copy in copies) {
+            var row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+            row.append(conflict_card_button("Copy", copy.copy_title, project_id, copy.copy_id));
+            if (copy.original_title != null && !copy.original_trashed) {
+                row.append(conflict_card_button("Original", copy.original_title, project_id, copy.original_id));
+            } else {
+                var unavailable = new Gtk.Label(copy.original_trashed
+                    ? "Original in Trash" : "Original unavailable") { xalign = 0.0f };
+                unavailable.set_tooltip_text(copy.original_title ?? copy.original_id);
+                unavailable.add_css_class("dim-label");
+                row.append(unavailable);
+            }
+            conflict_rows.append(row);
+        }
+    }
+
+    private Gtk.Button conflict_card_button(string role, string title, string project_id, string card_id) {
+        var text = "%s “%s”".printf(role, title);
+        var button = new Gtk.Button.with_label(text) { hexpand = true };
+        var label = (Gtk.Label) button.get_child();
+        label.set_ellipsize(Pango.EllipsizeMode.END);
+        label.set_xalign(0.0f);
+        button.set_tooltip_text(text);
+        button.clicked.connect(() => conflict_card_open_requested(project_id, card_id));
+        return button;
     }
 
     private Gtk.Widget build_git_sync_setup_page() {
@@ -451,11 +549,13 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             : null;
     }
 
-    private async void refresh_git_configured_state(Project? optimistic_project = null) {
+    private async void refresh_git_configured_state(Project? optimistic_project = null,
+                                                      bool render_initial = true) {
         var selected = current_project();
         var generation = project_state.begin_refresh();
         if (selected == null) {
             render_git_project_state(null);
+            render_conflict_copies(null);
             return;
         }
 
@@ -467,7 +567,12 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         var shown = optimistic_project != null && optimistic_project.project_id == selected.project_id
             ? optimistic_project
             : selected;
-        render_git_project_state(shown);
+        if (render_initial) {
+            render_git_project_state(shown);
+        }
+        if (conflict_project_id != shown.project_id) {
+            render_conflict_copies(shown);
+        }
         if (api == null) {
             return;
         }
@@ -484,6 +589,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             var refreshed = project_state.resolve_refreshed_project(projects, selected.project_id);
             if (refreshed != null) {
                 render_git_project_state(refreshed);
+                render_conflict_copies(refreshed);
             }
         } catch (Error e) {
             // Keep the last known durable state visible. Other API error surfaces provide

@@ -6,6 +6,8 @@
 
 #include "api/GeneratedRoutes.h"
 #include "api/support/PrivacyErrors.h"
+#include "card/CardRepo.h"
+#include "card/LinkRepo.h"
 #include "card/TagRepo.h"
 #include "git/GitOps.h"
 #include "http_test_helpers.h"
@@ -530,6 +532,38 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     auto [status, payload] = call(http::verb::get, "/projects/proj-1/git/sync-status");
     REQUIRE(status == http::status::ok);
     REQUIRE(payload["data"]["updated_at"].is_null());
+  }
+
+  SECTION("sync-status lists a preserved copy whose original is gone") {
+    holder::model::Card copy;
+    copy.card_id = "11111111-1111-4111-8111-111111111111";
+    copy.project_id = "proj-1";
+    copy.title = "Renamed copy";
+    copy.rel_path = "copy.md";
+    copy.created_at = copy.updated_at = 10;
+    holder::card::CardRepo(db).create(copy);
+    const std::string original_id = "22222222-2222-4222-8222-222222222222";
+    holder::card::LinkRepo(db).upsert_links(
+        "proj-1",
+        copy.card_id,
+        {{"proj-1",
+          copy.card_id,
+          original_id,
+          "card",
+          holder::model::kConflictCopyLinkKind,
+          std::nullopt,
+          10,
+          std::nullopt}}
+    );
+
+    auto [status, payload] = call(http::verb::get, "/projects/proj-1/git/sync-status");
+    REQUIRE(status == http::status::ok);
+    const auto& entries = payload["data"]["conflict_copies"];
+    REQUIRE(entries.size() == 1);
+    CHECK(entries[0]["original_card_id"] == original_id);
+    CHECK(entries[0]["original"].is_null());
+    CHECK(entries[0]["copy_card"]["card_id"] == copy.card_id);
+    CHECK(entries[0]["copy_card"]["title"] == "Renamed copy");
   }
 
   SECTION("git push best-effort metrics catch still returns payload") {

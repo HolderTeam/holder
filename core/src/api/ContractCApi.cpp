@@ -786,6 +786,12 @@ holder_recovery_token_global_import_result to_c(
     holder_arena* arena,
     const contract::RecoveryTokenGlobalImportResult& value
 );
+holder_card_summary to_c(holder_arena* arena, const contract::CardSummary& value);
+holder_conflict_copy to_c(holder_arena* arena, const contract::ConflictCopy& value);
+holder_conflict_copy_list to_c_list(
+    holder_arena* arena,
+    const std::vector<contract::ConflictCopy>& values
+);
 holder_sync_state to_c(holder_arena* arena, const contract::SyncState& value);
 holder_pull_phase to_c(holder_arena* arena, const contract::PullPhase& value);
 holder_push_phase to_c(holder_arena* arena, const contract::PushPhase& value);
@@ -1630,6 +1636,34 @@ holder_recovery_token_global_import_result to_c(
   return out;
 }
 
+holder_card_summary to_c(holder_arena* arena, const contract::CardSummary& value) {
+  holder_card_summary out{};
+  out.card_id = copy(arena, value.card_id);
+  out.title = copy(arena, value.title);
+  out.deleted_at = copy_value<int64_t>(arena, value.deleted_at);
+  return out;
+}
+
+holder_conflict_copy to_c(holder_arena* arena, const contract::ConflictCopy& value) {
+  holder_conflict_copy out{};
+  out.original_card_id = copy(arena, value.original_card_id);
+  out.original = copy_optional<holder_card_summary>(arena, value.original, [&](const auto& item) {
+    return to_c(arena, item);
+  });
+  out.copy_card = to_c(arena, value.copy_card);
+  return out;
+}
+
+holder_conflict_copy_list to_c_list(
+    holder_arena* arena,
+    const std::vector<contract::ConflictCopy>& values
+) {
+  auto* items = make<holder_conflict_copy>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i)
+    items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
 holder_sync_state to_c(holder_arena* arena, const contract::SyncState& value) {
   holder_sync_state out{};
   out.project_id = copy(arena, value.project_id);
@@ -1647,6 +1681,13 @@ holder_sync_state to_c(holder_arena* arena, const contract::SyncState& value) {
   out.pull_retry_count = value.pull_retry_count;
   out.next_pull_retry_at = copy_value<int64_t>(arena, value.next_pull_retry_at);
   out.updated_at = copy_value<int64_t>(arena, value.updated_at);
+  out.conflict_copies = copy_optional<holder_conflict_copy_list>(
+      arena,
+      value.conflict_copies,
+      [&](const auto& items) {
+        return to_c_list(arena, items);
+      }
+  );
   return out;
 }
 

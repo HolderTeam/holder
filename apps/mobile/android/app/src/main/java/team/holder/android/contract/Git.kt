@@ -39,6 +39,16 @@ enum class RemoteTestResultStatus(val value: String) {
     UNKNOWN_ERROR("unknown_error"),
 }
 
+/** A local card version preserved during a divergent pull. */
+data class ConflictCopy(
+    /** The original card's identity, even if the card no longer exists. */
+    val originalCardId: String,
+    /** The original's current title and Trash status, or null if it no longer exists. */
+    val original: CardSummary? = null,
+    /** The preserved card's current identity and title. */
+    val copyCard: CardSummary,
+)
+
 /**
  * What this device last recorded about a project's sync: its last pull and push, what is waiting to go, and
  * when it will retry.
@@ -74,6 +84,8 @@ data class SyncState(
     val nextPullRetryAt: Long? = null,
     /** When this state was last recorded; null when nothing has been. */
     val updatedAt: Long? = null,
+    /** Live copies with a durable original association, newest first. Omitted when there are none. */
+    val conflictCopies: List<ConflictCopy>? = null,
 )
 
 /** What a pull did. */
@@ -82,7 +94,7 @@ data class PullPhase(
     val attempted: Boolean,
     /** How the pull ended. */
     val status: PullPhaseStatus,
-    /** Cards changed both here and on the remote, merged by Holder's card rules. */
+    /** Local card versions actually preserved as new cards by this pull. */
     val conflictsResolved: Int,
     /** Live cards the pull left under a missing or trashed parent, made reachable again. */
     val hiddenCardsRepaired: Int,

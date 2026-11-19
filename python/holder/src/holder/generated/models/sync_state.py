@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from typing_extensions import Self
+
+from ..types import UNSET, Unset
+
+if TYPE_CHECKING:
+    from ..models.conflict_copy import ConflictCopy
+
 
 T = TypeVar("T", bound="SyncState")
 
@@ -30,6 +36,8 @@ class SyncState:
             pull_retry_count (int): Failed pulls in a row.
             next_pull_retry_at (int | None): When a pull will next be tried; null when none is waiting.
             updated_at (int | None): When this state was last recorded; null when nothing has been.
+            conflict_copies (list[ConflictCopy] | Unset): Live copies with a durable original association, newest first.
+                Omitted when there are none.
     """
 
     project_id: str
@@ -47,6 +55,7 @@ class SyncState:
     pull_retry_count: int
     next_pull_retry_at: int | None
     updated_at: int | None
+    conflict_copies: list[ConflictCopy] | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         project_id = self.project_id
@@ -89,6 +98,13 @@ class SyncState:
         updated_at: int | None
         updated_at = self.updated_at
 
+        conflict_copies: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.conflict_copies, Unset):
+            conflict_copies = []
+            for conflict_copies_item_data in self.conflict_copies:
+                conflict_copies_item = conflict_copies_item_data.to_dict()
+                conflict_copies.append(conflict_copies_item)
+
         field_dict: dict[str, Any] = {}
 
         field_dict.update(
@@ -110,11 +126,15 @@ class SyncState:
                 "updated_at": updated_at,
             }
         )
+        if conflict_copies is not UNSET:
+            field_dict["conflict_copies"] = conflict_copies
 
         return field_dict
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
+        from ..models.conflict_copy import ConflictCopy
+
         d = dict(src_dict)
         project_id = d.pop("project_id")
 
@@ -196,6 +216,15 @@ class SyncState:
 
         updated_at = _parse_updated_at(d.pop("updated_at"))
 
+        _conflict_copies = d.pop("conflict_copies", UNSET)
+        conflict_copies: list[ConflictCopy] | Unset = UNSET
+        if _conflict_copies is not UNSET:
+            conflict_copies = []
+            for conflict_copies_item_data in _conflict_copies:
+                conflict_copies_item = ConflictCopy.from_dict(conflict_copies_item_data)
+
+                conflict_copies.append(conflict_copies_item)
+
         sync_state = cls(
             project_id=project_id,
             last_commit_at=last_commit_at,
@@ -212,6 +241,7 @@ class SyncState:
             pull_retry_count=pull_retry_count,
             next_pull_retry_at=next_pull_retry_at,
             updated_at=updated_at,
+            conflict_copies=conflict_copies,
         )
 
         return sync_state

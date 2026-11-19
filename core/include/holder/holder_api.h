@@ -1218,6 +1218,28 @@ typedef struct holder_recovery_token_global_import_result {
   const char* pull_error; /* Why pulling failed, or null. May be NULL. */
 } holder_recovery_token_global_import_result;
 
+/* Just enough to name a card, as in a reference or a backlink. */
+typedef struct holder_card_summary {
+  const char* card_id; /* The card's ID. */
+  const char* title; /* The card's title. */
+  const int64_t* deleted_at; /* When the card was moved to the trash; null when it is not in the
+                                trash. May be NULL. */
+} holder_card_summary;
+
+/* A local card version preserved during a divergent pull. */
+typedef struct holder_conflict_copy {
+  const char*
+      original_card_id; /* The original card's identity, even if the card no longer exists. */
+  const holder_card_summary* original; /* The original's current title and Trash status, or null if
+                                          it no longer exists. May be NULL. */
+  holder_card_summary copy_card; /* The preserved card's current identity and title. */
+} holder_conflict_copy;
+
+typedef struct holder_conflict_copy_list {
+  const holder_conflict_copy* items;
+  size_t count;
+} holder_conflict_copy_list;
+
 /* What this device last recorded about a project's sync: its last pull and push, what is waiting to
  * go, and when it will retry.
  */
@@ -1244,6 +1266,9 @@ typedef struct holder_sync_state {
                                         May be NULL. */
   const int64_t*
       updated_at; /* When this state was last recorded; null when nothing has been. May be NULL. */
+  const holder_conflict_copy_list*
+      conflict_copies; /* Live copies with a durable original association, newest first. Omitted
+                          when there are none. NULL when absent. */
 } holder_sync_state;
 
 /* How the pull ended. */
@@ -1260,8 +1285,8 @@ typedef enum holder_pull_phase_status {
 typedef struct holder_pull_phase {
   bool attempted; /* Whether a pull was tried. */
   holder_pull_phase_status status; /* How the pull ended. */
-  int32_t conflicts_resolved; /* Cards changed both here and on the remote, merged by Holder's card
-                                 rules. */
+  int32_t
+      conflicts_resolved; /* Local card versions actually preserved as new cards by this pull. */
   int32_t hidden_cards_repaired; /* Live cards the pull left under a missing or trashed parent, made
                                     reachable again. */
   const char* error_message; /* Why the pull failed; null when it did not. May be NULL. */

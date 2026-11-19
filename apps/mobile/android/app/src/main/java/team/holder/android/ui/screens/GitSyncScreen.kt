@@ -63,7 +63,7 @@ private fun formatEpochSeconds(epochSeconds: Long?): String =
 // the user finds out a "(conflicted copy)" card now exists and is worth a look.
 private fun conflictsSuffix(conflictsResolved: Int): String =
     if (conflictsResolved > 0) {
-        " ($conflictsResolved conflict${if (conflictsResolved == 1) "" else "s"} resolved)"
+        " ($conflictsResolved conflict ${if (conflictsResolved == 1) "copy" else "copies"} preserved)"
     } else {
         ""
     }
