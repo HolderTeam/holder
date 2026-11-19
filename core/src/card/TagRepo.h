@@ -30,7 +30,7 @@ class TagRepo {
       const std::string& card_id
   ) const;
 
-  // Never includes a trashed card's id, even if card_tags somehow still has a row for one.
+  // Live matches ordered by card update time descending, then card ID descending.
   std::vector<std::string> list_card_ids_with_tag(
       const std::string& project_id,
       const std::string& tag

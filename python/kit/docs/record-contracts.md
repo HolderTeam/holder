@@ -371,8 +371,8 @@ returns trailing-line names in core's order. `tags.project_counts(project_id)`
 returns `ProjectTagRecord` dictionaries (`project_id`, `tag`, integer `card_count`),
 ordered by count descending then tag ascending. `tags.cards_with_tag(project_id,
 tag)` returns `TaggedCardRecord` dictionaries (`card_id`, `title`), using
-core's case-insensitive live-card search; equal-time matches have no promised
-tie ordering. Unknown projects yield empty query/export results. Direct reads
+core's case-insensitive live-card search in descending card update time, then
+descending card ID. Unknown projects yield empty query/export results. Direct reads
 or mutations for unknown cards raise `HolderError`.
 
 `tags.add(card_id, tag)` returns `TagAddResult.ADDED` or `.ALREADY_PRESENT`.

@@ -961,7 +961,7 @@ object HolderNative {
         return HolderCardTags(card.tags, card.removableTags)
     }
 
-    /** Cards in projectId carrying tag (case-insensitive). */
+    /** Cards in projectId carrying tag (case-insensitive), newest update first, then descending card ID. */
     fun cardsWithTag(projectId: String, tag: String): List<HolderCardRef> = cardsWithTagPaged(projectId, tag, 5000)
 
     internal fun cardsWithTagPaged(projectId: String, tag: String, pageSize: Int): List<HolderCardRef> {

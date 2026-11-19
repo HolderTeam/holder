@@ -1350,6 +1350,9 @@ using ListCardsParent = std::variant<ListCardsParentRoots, std::string>;
 enum class ListCardsOrder { CardIdAsc, UpdatedDesc, SortKeyAsc };
 
 /// Page through a project's live cards.
+/// Tag result views use updated_desc, which puts the latest card update first and breaks ties by
+/// descending card ID. Rebuilding the projection from the same card files preserves this order.
+///
 /// Filters combine. Each page reads current data; iterating is not a snapshot.
 /// @param parent Omit for every level; roots selects root cards; a card ID selects its children.
 /// @param tag Only cards with this tag.

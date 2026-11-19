@@ -130,8 +130,14 @@ ParsedCardFile parse_card_file(const std::string& raw) {
     if (node["project_id"]) card.project_id = node["project_id"].as<std::string>();
     if (node["title"]) card.title = node["title"].as<std::string>();
     if (node["rel_path"]) card.rel_path = node["rel_path"].as<std::string>();
-    if (node["created_at"]) card.created_at = node["created_at"].as<long long>();
-    if (node["updated_at"]) card.updated_at = node["updated_at"].as<long long>();
+    if (const auto created_at = node["created_at"]) {
+      card.created_at = created_at.as<long long>();
+      parsed.has_created_at = true;
+    }
+    if (const auto updated_at = node["updated_at"]) {
+      card.updated_at = updated_at.as<long long>();
+      parsed.has_updated_at = true;
+    }
     if (node["sort_key"]) card.sort_key = node["sort_key"].as<double>();
 
     if (node["parent_card_id"] && !node["parent_card_id"].IsNull()) {

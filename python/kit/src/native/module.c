@@ -1219,7 +1219,7 @@ Context_cards_with_tag(ContextObject *self, PyObject *args, PyObject *kwargs)
         const holder_card_list_item_page *page = NULL;
         holder_error *error = NULL;
         const int result = holder_list_cards(self->context, project_id, parent, tag,
-            HOLDER_LIST_CARDS_ORDER_DEFAULT, NULL,
+            HOLDER_LIST_CARDS_ORDER_UPDATED_DESC, NULL,
             cursor == NULL ? NULL : PyBytes_AsString(cursor), false, false,
             arena, &page, &error);
         if (result == HOLDER_ERROR_NOT_FOUND) {

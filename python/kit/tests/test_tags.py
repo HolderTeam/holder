@@ -57,7 +57,8 @@ def test_tag_queries_and_scoping(tmp_path: Path) -> None:
             {"project_id": project.project_id, "tag": "unique", "card_count": 1},
         ]
         matches = context.tags.cards_with_tag(project.project_id, "SAME")
-        assert {item["card_id"] for item in matches} == {first.card_id, second.card_id}
+        expected = sorted((first, second), key=lambda card: (card.updated_at, card.card_id), reverse=True)
+        assert [item["card_id"] for item in matches] == [card.card_id for card in expected]
         assert {item["title"] for item in matches} == {"First", "Second"}
         assert len(context.tags.to_records(project.project_id)) == 3
         assert len(context.tags.to_records()) == 4

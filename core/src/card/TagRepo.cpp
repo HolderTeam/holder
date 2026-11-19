@@ -124,11 +124,11 @@ std::vector<std::string> TagRepo::list_card_ids_with_tag(
   // own -- that's true today (CardStore::trash/Rebuilder both clean it up immediately) but is a
   // cross-table invariant every future write path would have to remember to preserve. Filtering
   // here makes "trashed cards never turn up in a tag search" a guarantee of the query itself.
-  static constexpr const char* SQL =
-      "SELECT ct.card_id FROM card_tags ct "
-      "JOIN cards c ON c.card_id = ct.card_id "
-      "WHERE ct.project_id = ? AND ct.tag = ? AND c.deleted_at IS NULL "
-      "ORDER BY ct.created_at DESC;";
+  static constexpr const char* SQL = "SELECT ct.card_id FROM card_tags ct "
+                                     "JOIN cards c ON c.card_id = ct.card_id "
+                                     "WHERE ct.project_id = ? AND c.project_id = ct.project_id "
+                                     "AND ct.tag = ? AND c.deleted_at IS NULL "
+                                     "ORDER BY c.updated_at DESC, c.card_id DESC;";
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK) {
     throw_sqlite(db_.handle(), "prepare list cards with tag failed");

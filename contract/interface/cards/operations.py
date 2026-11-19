@@ -73,6 +73,9 @@ def register(contract: Contract) -> None:
         name="list_cards",
         doc="""Page through a project's live cards.
 
+        Tag result views use updated_desc, which puts the latest card update first and breaks ties by descending card ID.
+        Rebuilding the projection from the same card files preserves this order.
+
         Filters combine. Each page reads current data; iterating is not a snapshot.
         """,
         errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted],

@@ -17,6 +17,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import team.holder.android.contract.Cards
+import team.holder.android.contract.NewCard
 import team.holder.android.contract.NewProject
 import team.holder.android.contract.NewProjectPrivacyMode
 import team.holder.android.contract.RegisterStorageProviderKind
@@ -953,14 +955,20 @@ class HolderNativeIntegrationTest {
         initialize()
         val project = HolderNative.createProject("Tag pages")
         val other = HolderNative.createProject("Other tags")
-        val cards = (1..3).map { index ->
-            HolderNative.createCard(project.projectId, "Tagged $index", "Body #TODO")
+        val cards = listOf(20L, 20L, 15L).mapIndexed { index, updatedAt ->
+            HolderNative.onContract {
+                Cards.createCard(it, project.projectId, NewCard(
+                    title = "Tagged $index", content = "Body #TODO",
+                    createdAt = (index + 1).toLong(), updatedAt = updatedAt,
+                ))
+            }
         }
         HolderNative.createCard(project.projectId, "Untagged", "Body")
         HolderNative.createCard(other.projectId, "Other project tag", "Body #TODO")
 
         val tagged = HolderNative.cardsWithTag(project.projectId, "todo")
-        assertEquals(cards.map { it.cardId }.toSet(), tagged.map { it.cardId }.toSet())
+        val expected = cards.take(2).map { it.cardId }.sortedDescending() + cards.last().cardId
+        assertEquals(expected, tagged.map { it.cardId })
         assertEquals(tagged, HolderNative.cardsWithTagPaged(project.projectId, "TODO", 1))
         assertTrue(HolderNative.cardsWithTag(project.projectId, "missing").isEmpty())
     }
