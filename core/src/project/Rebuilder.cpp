@@ -356,9 +356,6 @@ Rebuilder::RebuildStats Rebuilder::rebuild_project_in_transaction(
     if (parsed.has_front_matter && card.card_id.empty()) {
       throw std::runtime_error(actual_rel + ": card_id missing in front matter");
     }
-    if (!card.project_id.empty() && card.project_id != project.project_id) {
-      throw std::runtime_error(actual_rel + ": card project_id does not match the project");
-    }
     if (card.card_id.empty()) {
       card.card_id = path.stem().string();
     }

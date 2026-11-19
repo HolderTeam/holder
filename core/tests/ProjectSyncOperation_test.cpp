@@ -528,13 +528,6 @@ TEST_CASE("Project sync keeps external changes under the user's control", "[sync
     edited_bytes = "---\ncard_id: [invalid\n---\nbody\n";
     expected_error = live_path + ": invalid card front matter";
   }
-  SECTION("another project's card identity blocks reconciliation") {
-    checkout_completed = true;
-    auto wrong_project = card;
-    wrong_project.project_id = "proj-other";
-    edited_bytes = holder::core::render_card_front_matter(wrong_project, {}, {}) + "external body";
-    expected_error = "card project_id does not match the project";
-  }
   SECTION("a card's identity must match its path") {
     checkout_completed = true;
     auto wrong_id = card;
@@ -683,6 +676,13 @@ TEST_CASE(
   remote_git.commit("Delete card Parent (older client)");
 
   bool reject_repair = false;
+  bool defer_repair = false;
+  const auto child_rel = holder::core::card_rel_path(child_id);
+  const auto read_child = [&] {
+    std::ifstream in(local_root / child_rel, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(in), {});
+  };
+  const auto external_edit = read_child() + "\nExternal child edit\n";
   SECTION("repair succeeds during pull") {}
   SECTION("a failed optional repair can be retried after the successful pull") {
     reject_repair = true;
@@ -692,19 +692,21 @@ TEST_CASE(
                   "WHEN NEW.updated_at=400 AND OLD.parent_card_id IS NOT NEW.parent_card_id "
                   "BEGIN SELECT RAISE(ABORT, 'parent repair denied'); END;");
   }
+  SECTION("repair waits until an external edit to the child has been committed") {
+    defer_repair = true;
+    clone.write_file(child_rel, external_edit);
+  }
   holder::git::RealGitOps local_git;
-  const auto result = holder::sync::run_project_sync(
-      local_db,
-      &local_fts,
-      local_git,
-      "proj-1",
-      {.pull = true,
-       .push = false,
-       .push_after_failed_pull = false,
-       .branch = "",
-       .set_upstream = true,
-       .now = 400}
-  );
+  const auto pull = [&](long long now) {
+    return holder::sync::run_project_sync(
+        local_db,
+        &local_fts,
+        local_git,
+        "proj-1",
+        {.pull = true, .now = now}
+    );
+  };
+  const auto result = pull(400);
 
   INFO(
       result.pull.error_message.value_or("") + " / push: " + result.push.error_message.value_or("")
@@ -723,6 +725,17 @@ TEST_CASE(
         holder::card::CardStore(local_db, &local_fts).repair_hierarchy("proj-1", 500);
     REQUIRE(repaired.moved_card_ids.size() == 1);
     CHECK(repaired.moved_card_ids[0] == child_id);
+  } else if (defer_repair) {
+    CHECK(result.pull.hidden_cards_repaired == 0);
+    CHECK(cards.get(child_id)->parent_card_id == parent_id);
+    REQUIRE(read_child() == external_edit);
+    clone.open_existing(local_root);
+    clone.stage_path(child_rel);
+    clone.commit("Save externally edited child");
+    const auto retry = pull(500);
+    REQUIRE(retry.succeeded());
+    CHECK(retry.pull.hidden_cards_repaired == 1);
+    CHECK_THAT(read_child(), Catch::Matchers::ContainsSubstring("External child edit"));
   } else {
     REQUIRE(result.pull.hidden_cards_repaired == 1);
   }
