@@ -50,12 +50,15 @@ TEST_CASE(
   input.privacy_mode = "plain";
   input.created_at = 10;
   input.updated_at = 10;
+  auto project_parent = projects_root;
+  SECTION("managed project") {}
+  SECTION("registered project outside the managed root") { project_parent = dir / "external"; }
   const auto project = projects.create(
       input,
       [] {
         return std::string("unused-id");
       },
-      projects_root
+      project_parent
   );
 
   holder::card::CardStore cards(original, nullptr);
@@ -97,6 +100,7 @@ TEST_CASE(
   const auto recovered_project = holder::project::ProjectRepo(rebuilt).get(project.project_id);
   REQUIRE(recovered_project.has_value());
   REQUIRE(recovered_project->name == project.name);
+  REQUIRE(std::filesystem::equivalent(recovered_project->root_path, project.root_path));
   REQUIRE(recovered_project->git_remote_url == project.git_remote_url);
   REQUIRE(recovered_project->git_provider == project.git_provider);
   const auto recovered_card = holder::card::CardRepo(rebuilt).get(card.card_id);
