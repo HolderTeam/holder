@@ -6,6 +6,8 @@
 #include "api/CoreErrors.h"
 
 #include "capi/Context.h"
+#include "card/CardRepo.h"
+#include "card/LinkRepo.h"
 #include "git/GitOps.h"
 #include "git/PushResult.h"
 #include "git/RemoteProbe.h"
@@ -123,6 +125,19 @@ SyncState state(holder_context& context, const std::string& project_id) {
   const auto sync = holder::project::ProjectSyncRepo(context.db)
                         .get(project_id)
                         .value_or(holder::model::ProjectSyncState{});
+  holder::card::CardRepo cards(context.db);
+  std::vector<ConflictCopy> copies;
+  for (const auto& link : holder::card::LinkRepo(context.db).list_conflict_copy_links(project_id)) {
+    const auto copy = cards.get(link.from_card_id);
+    if (!copy || copy->project_id != project_id || copy->deleted_at) continue;
+    std::optional<CardSummary> original;
+    if (const auto card = cards.get(link.to_card_id); card && card->project_id == project_id) {
+      original = CardSummary{card->card_id, card->title, card->deleted_at};
+    }
+    copies.push_back(
+        {link.to_card_id, std::move(original), {copy->card_id, copy->title, copy->deleted_at}}
+    );
+  }
   return {
       project_id,
       sync.last_commit_at,
@@ -138,7 +153,8 @@ SyncState state(holder_context& context, const std::string& project_id) {
       sync.next_retry_at,
       sync.pull_retry_count,
       sync.next_pull_retry_at,
-      sync.updated_at > 0 ? std::optional<long long>(sync.updated_at) : std::nullopt
+      sync.updated_at > 0 ? std::optional<long long>(sync.updated_at) : std::nullopt,
+      copies.empty() ? std::nullopt : std::optional(std::move(copies))
   };
 }
 

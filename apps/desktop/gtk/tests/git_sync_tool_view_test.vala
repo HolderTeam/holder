@@ -198,6 +198,40 @@ private void test_git_sync_tool_view_refreshes_remote_from_backend() {
     assert(api.list_projects_calls > 0);
 }
 
+private void test_git_sync_tool_view_opens_conflict_pairs_by_id() {
+    var selected = configured_project();
+    selected.sync.conflict_copies.add(new HolderLinux.GitConflictCopy(
+        "copy-id", "Renamed copy", "original-id", "Renamed original", false
+    ));
+    selected.sync.conflict_copies.add(new HolderLinux.GitConflictCopy(
+        "second-copy", "Second copy", "missing-id", null, false
+    ));
+    var projects = new GLib.ListStore(typeof(HolderLinux.Project));
+    projects.append(selected);
+    projects.append(new HolderLinux.Project("p2", "Other", "plain", "/tmp/p2", 10, 20));
+    var selection = new Gtk.SingleSelection(projects);
+    var view = new HolderLinux.GitSyncToolView(false);
+    view.set_project_selection(selection);
+
+    var panel = find_widget_with_name(view.widget, "git-conflict-copies");
+    assert(panel != null && panel.get_visible());
+    string? opened = null;
+    view.conflict_card_open_requested.connect((project_id, card_id) => {
+        assert(project_id == "p1");
+        opened = card_id;
+    });
+    var copy = find_button_with_label(panel, "Copy “Renamed copy”");
+    var original = find_button_with_label(panel, "Original “Renamed original”");
+    assert(copy != null && original != null);
+    copy.clicked();
+    assert(opened == "copy-id");
+    original.clicked();
+    assert(opened == "original-id");
+
+    selection.set_selected(1);
+    assert(!panel.get_visible());
+}
+
 private void test_git_sync_tool_view_sync_now_uses_configured_project() {
     var store = new GLib.ListStore(typeof(HolderLinux.Project));
     store.append(configured_project());
@@ -269,6 +303,8 @@ public static int main(string[] args) {
                   test_git_sync_tool_view_shows_durable_configured_state);
     Test.add_func("/holder/git-sync-tool-view/backend-refresh",
                   test_git_sync_tool_view_refreshes_remote_from_backend);
+    Test.add_func("/holder/git-sync-tool-view/opens-conflict-pairs-by-id",
+                  test_git_sync_tool_view_opens_conflict_pairs_by_id);
     Test.add_func("/holder/git-sync-tool-view/sync-now",
                   test_git_sync_tool_view_sync_now_uses_configured_project);
     Test.add_func("/holder/git-sync-tool-view/setup-success-is-persistent",

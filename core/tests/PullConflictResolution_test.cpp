@@ -7,6 +7,7 @@
 
 #include "sync/PullConflictResolution.h"
 
+#include "capi/Context.h"
 #include "card/CardFrontMatter.h"
 #include "card/CardPaths.h"
 #include "card/CardRepo.h"
@@ -15,6 +16,7 @@
 #include "card/MilestoneRepo.h"
 #include "core_test_helpers.h"
 #include "git/GitOps.h"
+#include "holder/holder_api.h"
 #include "index/FtsIndexer.h"
 #include "model/Card.h"
 #include "model/Project.h"
@@ -26,6 +28,7 @@
 #include <fstream>
 #include <iterator>
 #include <map>
+#include <memory>
 
 namespace {
 
@@ -53,7 +56,7 @@ void create_plain_project(
 } // namespace
 
 TEST_CASE(
-    "Conflict preservation rejects duplicate identities and cyclic parents",
+    "Conflict preservation rejects misidentified cards and cyclic parents",
     "[sync][conflict-validation]"
 ) {
   const auto dir = make_temp_dir();
@@ -86,12 +89,12 @@ TEST_CASE(
   const auto local_project = local_projects.get(project_id).value();
   holder::store::Rebuilder(local_db, &local_fts).rebuild_project(local_project);
 
-  bool duplicate = false;
+  bool wrong_identity = false;
   bool malformed = false;
   std::string expected;
-  SECTION("two conflicted files claim the same card ID") {
-    duplicate = true;
-    expected = "duplicate conflicted card ID: ";
+  SECTION("a conflicted card names a different identity than its path") {
+    wrong_identity = true;
+    expected = "conflicted card ID does not match its path: ";
   }
   SECTION("conflicted parents form a cycle") {
     expected = "cannot preserve conflicted card parent cycle from commit ";
@@ -108,7 +111,7 @@ TEST_CASE(
     };
     auto parsed = holder::core::parse_card_file(bytes);
     REQUIRE(parsed.has_front_matter);
-    if (duplicate)
+    if (wrong_identity)
       parsed.card.card_id = kSharedCardId;
     else
       parsed.card.parent_card_id = id == kSharedCardId ? second_id : std::string(kSharedCardId);
@@ -302,13 +305,19 @@ TEST_CASE(
   auto assert_copy_metadata = [&]() {
     const auto links =
         holder::card::LinkRepo(local_db).list_outgoing(project_id, duplicate->card_id);
-    REQUIRE(links.size() == 3);
+    REQUIRE(links.size() == 4);
     bool found_self = false;
     bool found_external = false;
     bool found_resource = false;
+    bool found_original = false;
     for (const auto& link : links) {
       REQUIRE(link.from_card_id == duplicate->card_id);
-      if (link.to_type == "resource") {
+      if (link.kind == holder::model::kConflictCopyLinkKind) {
+        REQUIRE(link.to_type == "card");
+        REQUIRE(link.to_card_id == kSharedCardId);
+        REQUIRE_FALSE(link.target_project_id.has_value());
+        found_original = true;
+      } else if (link.to_type == "resource") {
         REQUIRE(link.to_card_id == "resource-id");
         REQUIRE(link.label == "attachment");
         found_resource = true;
@@ -326,6 +335,7 @@ TEST_CASE(
     REQUIRE(found_self);
     REQUIRE(found_external);
     REQUIRE(found_resource);
+    REQUIRE(found_original);
     const auto milestones =
         holder::card::MilestoneRepo(local_db).list_for_card(project_id, duplicate->card_id);
     REQUIRE(milestones.size() == 1);
@@ -454,6 +464,11 @@ TEST_CASE("resolve_pull_conflicts creates UUIDv4 copies for UUIDv4 projects", "[
   card.project_id = project_id;
   card.title = "Shared";
   holder::card::CardStore(remote_db, &remote_fts, nullptr, &remote_git).create(card, "base");
+  // An unrelated file with valid card-shaped front matter still isn't a card.
+  const auto memo = holder::core::render_card_front_matter(card, {}, {});
+  remote_git.write_file("memo.md", memo + "base memo");
+  remote_git.stage_path("memo.md");
+  remote_git.commit("Initial memo");
 
   holder::git::RealGitOps local_git;
   local_git.open_or_init(local_dir);
@@ -462,6 +477,9 @@ TEST_CASE("resolve_pull_conflicts creates UUIDv4 copies for UUIDv4 projects", "[
 
   holder::card::CardStore(remote_db, &remote_fts, nullptr, &remote_git)
       .update_content(kSharedCardId, "remote edit", std::nullopt, 2);
+  remote_git.write_file("memo.md", memo + "remote memo");
+  remote_git.stage_path("memo.md");
+  remote_git.commit("Remote memo");
 
   auto local_db = open_db_with_schema(dir / "local.db");
   holder::index::FtsIndexer local_fts(local_db);
@@ -471,6 +489,9 @@ TEST_CASE("resolve_pull_conflicts creates UUIDv4 copies for UUIDv4 projects", "[
   holder::store::Rebuilder(local_db, &local_fts).rebuild_project(local_project);
   holder::card::CardStore(local_db, &local_fts, nullptr, &local_git)
       .update_content(kSharedCardId, "local edit", std::nullopt, 2);
+  local_git.write_file("memo.md", memo + "local memo");
+  local_git.stage_path("memo.md");
+  local_git.commit("Local memo");
 
   bool diverged_seen = false;
   holder::git::NonFastForwardPullError diverged("", "", "");
@@ -566,6 +587,34 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
     diverged = error;
   }
   REQUIRE(diverged_seen);
+  bool fail_second_copy = false;
+  SECTION("a failed second copy leaves the first copy accurately reported") {
+    fail_second_copy = true;
+  }
+  SECTION("both copies remain discoverable after changes and reconstruction") {}
+  if (fail_second_copy) {
+    local_db.exec("CREATE TRIGGER reject_child_copy BEFORE INSERT ON cards "
+                  "WHEN NEW.title = 'Child (conflicted copy)' "
+                  "BEGIN SELECT RAISE(ABORT, 'child copy denied'); END;");
+    int preserved_count = 0;
+    REQUIRE_THROWS_WITH(
+        holder::sync::resolve_pull_conflicts(
+            local_db,
+            &local_fts,
+            local_project,
+            local_git,
+            diverged,
+            3,
+            &preserved_count
+        ),
+        Catch::Matchers::ContainsSubstring("failed to preserve conflicted card")
+    );
+    CHECK(preserved_count == 1);
+    const auto preserved = holder::card::LinkRepo(local_db).list_conflict_copy_links(project_id);
+    REQUIRE(preserved.size() == 1);
+    CHECK(preserved[0].to_card_id == parent.card_id);
+    return;
+  }
   REQUIRE(
       holder::sync::resolve_pull_conflicts(
           local_db,
@@ -588,16 +637,65 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
   REQUIRE(child_copy != cards.end());
   REQUIRE(child_copy->parent_card_id == parent_copy->card_id);
   auto links = holder::card::LinkRepo(local_db).list_outgoing(project_id, child_copy->card_id);
-  REQUIRE(links.size() == 1);
-  REQUIRE(links[0].to_card_id == parent_copy->card_id);
+  REQUIRE(links.size() == 2);
+  CHECK(std::any_of(links.begin(), links.end(), [&](const auto& link) {
+    return link.kind != holder::model::kConflictCopyLinkKind &&
+           link.to_card_id == parent_copy->card_id;
+  }));
 
-  holder::store::Rebuilder(local_db, &local_fts).rebuild_project(local_project);
-  const auto rebuilt_child = holder::card::CardRepo(local_db).get(child_copy->card_id);
+  const auto arena = std::unique_ptr<holder_arena, decltype(&holder_arena_free)>(
+      holder_arena_new(),
+      holder_arena_free
+  );
+  const auto conflict_pairs = [&](holder_context& context) {
+    const holder_sync_state* state = nullptr;
+    holder_error* error = nullptr;
+    REQUIRE(
+        holder_get_project_sync_state(&context, project_id.c_str(), arena.get(), &state, &error) ==
+        HOLDER_OK
+    );
+    REQUIRE(state->conflict_copies != nullptr);
+    REQUIRE(state->conflict_copies->count == 2);
+    std::map<std::string, holder_conflict_copy> pairs;
+    for (std::size_t i = 0; i < state->conflict_copies->count; ++i) {
+      const auto& pair = state->conflict_copies->items[i];
+      pairs.emplace(pair.original_card_id, pair);
+    }
+    return pairs;
+  };
+  holder_context context(local_db, local_fts, &local_git);
+  auto pairs = conflict_pairs(context);
+  CHECK(std::string(pairs.at(parent.card_id).copy_card.card_id) == parent_copy->card_id);
+  CHECK(std::string(pairs.at(child.card_id).copy_card.card_id) == child_copy->card_id);
+
+  holder::card::CardStore store(local_db, &local_fts, nullptr, &local_git);
+  store.update_content(child.card_id, "original update", "Renamed original", 4);
+  store.update_content(child_copy->card_id, "preserved update", "Renamed copy", 5);
+  pairs = conflict_pairs(context);
+  REQUIRE(pairs.at(child.card_id).original != nullptr);
+  CHECK(std::string(pairs.at(child.card_id).original->title) == "Renamed original");
+  CHECK(std::string(pairs.at(child.card_id).copy_card.title) == "Renamed copy");
+
+  store.trash(child.card_id, 6);
+  pairs = conflict_pairs(context);
+  REQUIRE(pairs.at(child.card_id).original != nullptr);
+  CHECK(pairs.at(child.card_id).original->deleted_at != nullptr);
+  store.hard_delete(child.card_id);
+  pairs = conflict_pairs(context);
+  CHECK(pairs.at(child.card_id).original == nullptr);
+  CHECK(std::string(pairs.at(child.card_id).copy_card.card_id) == child_copy->card_id);
+
+  auto rebuilt_db = open_db_with_schema(dir / "rebuilt.db");
+  holder::index::FtsIndexer rebuilt_fts(rebuilt_db);
+  holder::project::ProjectRepo(rebuilt_db).create(local_project);
+  holder::store::Rebuilder(rebuilt_db, &rebuilt_fts).rebuild_project(local_project);
+  const auto rebuilt_child = holder::card::CardRepo(rebuilt_db).get(child_copy->card_id);
   REQUIRE(rebuilt_child.has_value());
   REQUIRE(rebuilt_child->parent_card_id == parent_copy->card_id);
-  links = holder::card::LinkRepo(local_db).list_outgoing(project_id, child_copy->card_id);
-  REQUIRE(links.size() == 1);
-  REQUIRE(links[0].to_card_id == parent_copy->card_id);
+  holder_context rebuilt_context(rebuilt_db, rebuilt_fts, &local_git);
+  pairs = conflict_pairs(rebuilt_context);
+  CHECK(pairs.at(child.card_id).original == nullptr);
+  CHECK(std::string(pairs.at(child.card_id).copy_card.title) == "Renamed copy");
 }
 
 TEST_CASE("resolve_pull_conflicts rejects a project that no longer exists", "[sync]") {

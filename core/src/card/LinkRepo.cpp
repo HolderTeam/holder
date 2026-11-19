@@ -3,6 +3,7 @@
 #include <sqlite3.h>
 
 #include <algorithm>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 
@@ -56,6 +57,33 @@ holder::model::CardLink read_link(sqlite3_stmt* stmt) {
 
 LinkRepo::LinkRepo(holder::platform::Db& db)
     : db_(db) {}
+
+std::vector<holder::model::CardLink> LinkRepo::list_conflict_copy_links(
+    const std::string& project_id
+) const {
+  static constexpr const char* SQL =
+      "SELECT link.project_id, link.from_card_id, link.to_card_id, link.to_type, link.kind, "
+      "link.label, link.created_at, link.target_project_id FROM card_links AS link "
+      "JOIN cards AS copy ON copy.card_id = link.from_card_id AND copy.project_id = link.project_id "
+      "WHERE link.project_id = ? AND link.kind = ? AND link.to_type = 'card' "
+      "AND (link.target_project_id IS NULL OR link.target_project_id = link.project_id) "
+      "AND copy.deleted_at IS NULL AND link.from_card_id <> link.to_card_id "
+      "ORDER BY link.created_at DESC, link.from_card_id;";
+  sqlite3_stmt* stmt = nullptr;
+  if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK) {
+    throw_sqlite(db_.handle(), "prepare list conflict copies failed");
+  }
+  const std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> guard(stmt, sqlite3_finalize);
+  bind_text(stmt, 1, project_id);
+  bind_text(stmt, 2, holder::model::kConflictCopyLinkKind);
+  std::vector<holder::model::CardLink> links;
+  int rc;
+  while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+    links.push_back(read_link(stmt));
+  }
+  if (rc != SQLITE_DONE) throw_sqlite(db_.handle(), "list conflict copies failed");
+  return links;
+}
 
 void LinkRepo::upsert_links(
     const std::string& project_id,
@@ -389,7 +417,7 @@ void LinkRepo::delete_links_to_typed(
 ) {
   static constexpr const char* SQL =
       "DELETE FROM card_links WHERE project_id = ? AND to_card_id = ? AND to_type = ? "
-      "AND (target_project_id IS NULL OR target_project_id = project_id);";
+      "AND (target_project_id IS NULL OR target_project_id = project_id) AND kind <> ?;";
 
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -399,6 +427,7 @@ void LinkRepo::delete_links_to_typed(
   bind_text(stmt, 1, project_id);
   bind_text(stmt, 2, to_card_id);
   bind_text(stmt, 3, to_type);
+  bind_text(stmt, 4, holder::model::kConflictCopyLinkKind);
 
   const int rc = sqlite3_step(stmt);
   sqlite3_finalize(stmt);

@@ -247,6 +247,10 @@ class Core:
         for slot in self.model.slots(instance):
             value = getattr(struct, slot.name)
             kind = slot.type.kind
+            if kind in {"list", "map", "named"} and (slot.optional or slot.nullable) and value == self.ffi.NULL:
+                if slot.nullable:
+                    out[slot.name] = None
+                continue
             if kind == "string" or (kind in SCALARS_C and (slot.nullable or slot.optional)):
                 if value == self.ffi.NULL:
                     if slot.nullable:

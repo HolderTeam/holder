@@ -12,6 +12,7 @@ import team.holder.android.contract.CardReferenceResolveRequestScope
 import team.holder.android.contract.CardUpdate
 import team.holder.android.contract.Cards
 import team.holder.android.contract.Change
+import team.holder.android.contract.ConflictCopy
 import team.holder.android.contract.ConflictException
 import team.holder.android.contract.DeleteProjectTrashItemType
 import team.holder.android.contract.EmptyTrashType
@@ -354,14 +355,14 @@ data class GitSyncStatus(
     val lastPushStatus: String?,
     val lastPullStatus: String?,
     val lastSyncError: String?,
+    val conflictCopies: List<ConflictCopy> = emptyList(),
 )
 
 data class GitSyncIfDueResult(
     val pullAttempted: Boolean,
     val pullStatus: String?,
     val pullError: String?,
-    /** Non-zero only when pullStatus is "succeeded" after a divergent remote -- Holder's
-     * remote-wins conflict merge, not a user-facing merge tool. */
+    /** The number of local versions actually preserved, even if a later step failed. */
     val pullConflictsResolved: Int,
     val pushAttempted: Boolean,
     val pushStatus: String?,
@@ -1191,6 +1192,7 @@ object HolderNative {
             lastPushStatus = sync.lastPushStatus,
             lastPullStatus = sync.lastPullStatus,
             lastSyncError = sync.lastSyncError,
+            conflictCopies = sync.conflictCopies.orEmpty(),
         )
     }
 

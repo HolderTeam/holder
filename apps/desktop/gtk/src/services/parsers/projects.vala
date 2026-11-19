@@ -37,7 +37,7 @@ public class ApiParsersProjects { // LCOV_EXCL_LINE: declaration-only coverage a
     }
 
     private static ProjectSyncState parse_project_sync_state(Json.Object obj) { // LCOV_EXCL_BR_LINE: declaration branch artifact
-        return new ProjectSyncState( // LCOV_EXCL_BR_LINE: ctor edge branch artifact
+        var state = new ProjectSyncState( // LCOV_EXCL_BR_LINE: ctor edge branch artifact
             ApiParsersCommon.nullable_int_member_or_null(obj, "last_commit_at"),
             ApiParsersCommon.nullable_int_member_or_null(obj, "last_push_at"),
             ApiParsersCommon.nullable_int_member_or_null(obj, "last_pull_at"),
@@ -57,6 +57,22 @@ public class ApiParsersProjects { // LCOV_EXCL_LINE: declaration-only coverage a
             ApiParsersCommon.nullable_int_member_or_null(obj, "next_pull_retry_at"),
             ApiParsersCommon.nullable_int_member_or_null(obj, "updated_at")
         );
+        if (obj.has_member("conflict_copies")) {
+            var entries = obj.get_array_member("conflict_copies");
+            for (uint i = 0; i < entries.get_length(); i++) {
+                var entry = entries.get_object_element(i);
+                var copy = entry.get_object_member("copy_card");
+                var original = entry.get_null_member("original") ? null : entry.get_object_member("original");
+                state.conflict_copies.add(new GitConflictCopy(
+                    copy.get_string_member("card_id"),
+                    copy.get_string_member("title"),
+                    entry.get_string_member("original_card_id"),
+                    original != null ? original.get_string_member("title") : null,
+                    original != null && !original.get_null_member("deleted_at")
+                ));
+            }
+        }
+        return state;
     }
 }
 

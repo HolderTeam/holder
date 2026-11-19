@@ -137,12 +137,35 @@ private void test_parse_projects_full_and_defaults() {
     assert(p3.root_card_count == 0);
 }
 
+private void test_parse_conflict_copies() {
+    try {
+        var parser = new Json.Parser();
+        parser.load_from_data(
+            "{\"data\":{\"conflict_copies\":[" +
+            "{\"original_card_id\":\"o1\",\"original\":null," +
+            "\"copy_card\":{\"card_id\":\"c1\",\"title\":\"Renamed\",\"deleted_at\":null}}," +
+            "{\"original_card_id\":\"o2\",\"original\":{\"card_id\":\"o2\",\"title\":\"Trashed\",\"deleted_at\":10}," +
+            "\"copy_card\":{\"card_id\":\"c2\",\"title\":\"Second copy\",\"deleted_at\":null}}]}}"
+        );
+        var state = HolderLinux.ApiParsersProjects.parse_project_sync_status(parser.get_root().get_object());
+        assert(state.conflict_copies.size == 2);
+        assert(state.conflict_copies[0].original_id == "o1");
+        assert(state.conflict_copies[0].original_title == null);
+        assert(state.conflict_copies[0].copy_id == "c1");
+        assert(state.conflict_copies[0].copy_title == "Renamed");
+        assert(state.conflict_copies[1].original_trashed);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
     Test.add_func("/parsers/projects/missing-data-protocol-error", test_parse_projects_missing_data_is_protocol_error);
     Test.add_func("/parsers/projects/sync-status-missing-data-protocol-error", test_parse_project_sync_status_missing_data_is_protocol_error);
     Test.add_func("/parsers/projects/full-and-defaults", test_parse_projects_full_and_defaults);
+    Test.add_func("/parsers/projects/conflict-copies", test_parse_conflict_copies);
 
     return Test.run();
 }

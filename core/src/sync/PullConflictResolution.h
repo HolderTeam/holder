@@ -38,7 +38,8 @@ int resolve_pull_conflicts(
     const holder::model::Project& project,
     holder::git::GitOps& git,
     const holder::git::NonFastForwardPullError& diverged,
-    long long now
+    long long now,
+    int* preserved_count = nullptr
 );
 
 } // namespace holder::sync

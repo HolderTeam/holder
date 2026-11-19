@@ -24,6 +24,9 @@ class LinkRepo {
       const std::string& from_card_id
   ) const;
 
+  std::vector<holder::model::CardLink> list_conflict_copy_links(const std::string& project_id
+  ) const;
+
   std::vector<holder::model::CardLink> list_backlinks(
       const std::string& project_id,
       const std::string& to_card_id

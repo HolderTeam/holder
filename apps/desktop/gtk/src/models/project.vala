@@ -37,6 +37,26 @@ public class Project : Object {
     }
 }
 
+public class GitConflictCopy : Object {
+    public string copy_id { get; construct; }
+    public string copy_title { get; construct; }
+    public string original_id { get; construct; }
+    public string? original_title { get; construct; }
+    public bool original_trashed { get; construct; }
+
+    public GitConflictCopy(string copy_id, string copy_title, string original_id,
+                           string? original_title, bool original_trashed) {
+        Object(copy_id: copy_id, copy_title: copy_title, original_id: original_id,
+               original_title: original_title, original_trashed: original_trashed);
+    }
+
+    public bool matches(GitConflictCopy other) {
+        return copy_id == other.copy_id && copy_title == other.copy_title &&
+               original_id == other.original_id && original_title == other.original_title &&
+               original_trashed == other.original_trashed;
+    }
+}
+
 public class ProjectSyncState : Object {
     public bool has_last_commit_at { get; set; }
     public int64 last_commit_at { get; set; }
@@ -59,6 +79,7 @@ public class ProjectSyncState : Object {
     public int64 next_pull_retry_at { get; set; }
     public bool has_updated_at { get; set; }
     public int64 updated_at { get; set; }
+    public Gee.ArrayList<GitConflictCopy> conflict_copies { get; private set; default = new Gee.ArrayList<GitConflictCopy>(); }
 
     public ProjectSyncState(int64? last_commit_at = null,
                             int64? last_push_at = null,

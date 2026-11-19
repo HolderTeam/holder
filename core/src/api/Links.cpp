@@ -211,6 +211,8 @@ Link add(
     const std::string& card_id,
     const NewLink& request
 ) {
+  if (request.kind == holder::model::kConflictCopyLinkKind)
+    throw InvalidArgument("Conflict copy associations are managed by sync.");
   auto store = card_store(context);
   live_card(store, project_id, card_id);
   const auto type = type_name(request.target_type);
@@ -255,6 +257,8 @@ std::vector<Link> remove(
     const std::string& kind,
     const std::optional<std::string>& target_project
 ) {
+  if (kind == holder::model::kConflictCopyLinkKind)
+    throw InvalidArgument("Conflict copy associations are managed by sync.");
   auto store = card_store(context);
   live_card(store, project_id, card_id);
   const auto type = type_name(target_type);

@@ -180,6 +180,16 @@ data class TagCount(
     val cardCount: Int,
 )
 
+/** Just enough to name a card, as in a reference or a backlink. */
+data class CardSummary(
+    /** The card's ID. */
+    val cardId: String,
+    /** The card's title. */
+    val title: String,
+    /** When the card was moved to the trash; null when it is not in the trash. */
+    val deletedAt: Long? = null,
+)
+
 /** A reference to resolve among one project's cards. */
 data class CardReferenceResolveRequest(
     /** The project to search. */

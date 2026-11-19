@@ -8341,6 +8341,21 @@ components:
       type: object
       required: [ok, data]
       title: CardResponse
+    CardSummary:
+      properties:
+        card_id: {$ref: '#/components/schemas/CardId', description: The card's ID.}
+        title: {type: string, title: Title, description: The card's title.}
+        deleted_at:
+          anyOf:
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
+          - {type: 'null'}
+          title: Deleted At
+          description: When the card was moved to the trash; null when it is not in the trash.
+      additionalProperties: false
+      type: object
+      required: [card_id, title, deleted_at]
+      title: CardSummary
+      description: Just enough to name a card, as in a reference or a backlink.
     CardUpdate:
       properties:
         title: {type: string, minLength: 1, title: Title, description: The card's new title.}
@@ -8433,6 +8448,22 @@ components:
       required: [entity, entity_id, project_id, deleted, git_revision]
       title: ChangeEventData
       description: One entity invalidation from the live change feed.
+    ConflictCopy:
+      properties:
+        original_card_id: {$ref: '#/components/schemas/CardId', description: 'The original card''s identity,
+            even if the card no longer exists.'}
+        original:
+          anyOf:
+          - {$ref: '#/components/schemas/CardSummary'}
+          - {type: 'null'}
+          description: The original's current title and Trash status, or null if it no longer exists.
+        copy_card: {$ref: '#/components/schemas/CardSummary', description: The preserved card's current
+            identity and title.}
+      additionalProperties: false
+      type: object
+      required: [original_card_id, original, copy_card]
+      title: ConflictCopy
+      description: A local card version preserved during a divergent pull.
     DateTime: {type: string, maxLength: 25, minLength: 20}
     Day: {type: string, maxLength: 10, minLength: 10}
     DueSyncResult:
@@ -9405,8 +9436,8 @@ components:
           title: Status
           description: How the pull ended.
         conflicts_resolved: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32,
-          title: Conflicts Resolved, description: 'Cards changed both here and on the remote, merged by
-            Holder''s card rules.'}
+          title: Conflicts Resolved, description: Local card versions actually preserved as new cards
+            by this pull.}
         hidden_cards_repaired: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32,
           title: Hidden Cards Repaired, description: 'Live cards the pull left under a missing or trashed
             parent, made reachable again.'}
@@ -9993,6 +10024,12 @@ components:
           - {type: 'null'}
           title: Updated At
           description: When this state was last recorded; null when nothing has been.
+        conflict_copies:
+          items: {$ref: '#/components/schemas/ConflictCopy'}
+          type: array
+          title: Conflict Copies
+          description: Live copies with a durable original association, newest first. Omitted when there
+            are none.
       additionalProperties: false
       type: object
       required: [project_id, last_commit_at, last_push_at, last_pull_at, uncommitted_changes_count, unpushed_commits_count,

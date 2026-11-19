@@ -1009,6 +1009,14 @@ template <> struct codec<holder::contract::RecoveryTokenGlobalImportResult> {
   static json encode(const holder::contract::RecoveryTokenGlobalImportResult& value);
   static holder::contract::RecoveryTokenGlobalImportResult decode(const json& value);
 };
+template <> struct codec<holder::contract::CardSummary> {
+  static json encode(const holder::contract::CardSummary& value);
+  static holder::contract::CardSummary decode(const json& value);
+};
+template <> struct codec<holder::contract::ConflictCopy> {
+  static json encode(const holder::contract::ConflictCopy& value);
+  static holder::contract::ConflictCopy decode(const json& value);
+};
 template <> struct codec<holder::contract::SyncState> {
   static json encode(const holder::contract::SyncState& value);
   static holder::contract::SyncState decode(const json& value);
@@ -4430,6 +4438,94 @@ inline holder::contract::RecoveryTokenGlobalImportResult codec<
   return out;
 }
 
+inline json codec<holder::contract::CardSummary>::encode(const holder::contract::CardSummary& value
+) {
+  json result = json::object();
+  result["card_id"] = codec<std::string>::encode(value.card_id);
+  result["title"] = codec<std::string>::encode(value.title);
+  result["deleted_at"] = value.deleted_at ? codec<long long>::encode(*value.deleted_at)
+                                          : json(nullptr);
+  return result;
+}
+inline holder::contract::CardSummary codec<holder::contract::CardSummary>::decode(const json& value
+) {
+  if (!value.is_object()) throw std::invalid_argument("expected a CardSummary object");
+  for (auto it = value.begin(); it != value.end(); ++it)
+    if (it.key() != "card_id" && it.key() != "title" && it.key() != "deleted_at")
+      throw std::invalid_argument("CardSummary has no field " + it.key());
+  holder::contract::CardSummary out;
+  if (value.contains("card_id") && !value.at("card_id").is_null()) {
+    const auto& item = value.at("card_id");
+    out.card_id = check_text(
+        decode_field<std::string>(item, "card_id"),
+        "card_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+  } else {
+    throw std::invalid_argument("card_id is required and must not be null");
+  }
+  if (value.contains("title") && !value.at("title").is_null()) {
+    const auto& item = value.at("title");
+    out.title = check_text(
+        decode_field<std::string>(item, "title"),
+        "title",
+        0,
+        std::numeric_limits<std::size_t>::max()
+    );
+  } else {
+    throw std::invalid_argument("title is required and must not be null");
+  }
+  if (value.contains("deleted_at") && !value.at("deleted_at").is_null()) {
+    const auto& item = value.at("deleted_at");
+    out.deleted_at = decode_field<long long>(item, "deleted_at");
+  }
+  return out;
+}
+
+inline json codec<holder::contract::ConflictCopy>::encode(
+    const holder::contract::ConflictCopy& value
+) {
+  json result = json::object();
+  result["original_card_id"] = codec<std::string>::encode(value.original_card_id);
+  result["original"] = value.original
+                           ? codec<holder::contract::CardSummary>::encode(*value.original)
+                           : json(nullptr);
+  result["copy_card"] = codec<holder::contract::CardSummary>::encode(value.copy_card);
+  return result;
+}
+inline holder::contract::ConflictCopy codec<holder::contract::ConflictCopy>::decode(
+    const json& value
+) {
+  if (!value.is_object()) throw std::invalid_argument("expected a ConflictCopy object");
+  for (auto it = value.begin(); it != value.end(); ++it)
+    if (it.key() != "original_card_id" && it.key() != "original" && it.key() != "copy_card")
+      throw std::invalid_argument("ConflictCopy has no field " + it.key());
+  holder::contract::ConflictCopy out;
+  if (value.contains("original_card_id") && !value.at("original_card_id").is_null()) {
+    const auto& item = value.at("original_card_id");
+    out.original_card_id = check_text(
+        decode_field<std::string>(item, "original_card_id"),
+        "original_card_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+  } else {
+    throw std::invalid_argument("original_card_id is required and must not be null");
+  }
+  if (value.contains("original") && !value.at("original").is_null()) {
+    const auto& item = value.at("original");
+    out.original = codec<holder::contract::CardSummary>::decode(item);
+  }
+  if (value.contains("copy_card") && !value.at("copy_card").is_null()) {
+    const auto& item = value.at("copy_card");
+    out.copy_card = codec<holder::contract::CardSummary>::decode(item);
+  } else {
+    throw std::invalid_argument("copy_card is required and must not be null");
+  }
+  return out;
+}
+
 inline json codec<holder::contract::SyncState>::encode(const holder::contract::SyncState& value) {
   json result = json::object();
   result["project_id"] = codec<std::string>::encode(value.project_id);
@@ -4463,6 +4559,10 @@ inline json codec<holder::contract::SyncState>::encode(const holder::contract::S
                                      : json(nullptr);
   result["updated_at"] = value.updated_at ? codec<long long>::encode(*value.updated_at)
                                           : json(nullptr);
+  if (value.conflict_copies)
+    result["conflict_copies"] = codec<std::vector<holder::contract::ConflictCopy>>::encode(
+        *value.conflict_copies
+    );
   return result;
 }
 inline holder::contract::SyncState codec<holder::contract::SyncState>::decode(const json& value) {
@@ -4474,7 +4574,8 @@ inline holder::contract::SyncState codec<holder::contract::SyncState>::decode(co
         it.key() != "last_pull_status" && it.key() != "last_sync_error" &&
         it.key() != "last_sync_error_at" && it.key() != "retry_count" &&
         it.key() != "next_retry_at" && it.key() != "pull_retry_count" &&
-        it.key() != "next_pull_retry_at" && it.key() != "updated_at")
+        it.key() != "next_pull_retry_at" && it.key() != "updated_at" &&
+        it.key() != "conflict_copies")
       throw std::invalid_argument("SyncState has no field " + it.key());
   holder::contract::SyncState out;
   if (value.contains("project_id") && !value.at("project_id").is_null()) {
@@ -4567,6 +4668,13 @@ inline holder::contract::SyncState codec<holder::contract::SyncState>::decode(co
   if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
     const auto& item = value.at("updated_at");
     out.updated_at = decode_field<long long>(item, "updated_at");
+  }
+  if (value.contains("conflict_copies") && !value.at("conflict_copies").is_null()) {
+    const auto& item = value.at("conflict_copies");
+    out.conflict_copies =
+        decode_field<std::vector<holder::contract::ConflictCopy>>(item, "conflict_copies");
+  } else if (value.contains("conflict_copies")) {
+    throw std::invalid_argument("conflict_copies must not be null");
   }
   return out;
 }

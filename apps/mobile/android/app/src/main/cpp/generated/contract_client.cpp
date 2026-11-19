@@ -661,6 +661,8 @@ jobject to_java_holder_recovery_snapshot_page(JNIEnv* env, const holder_recovery
 jobject to_java_holder_project_recovery_token_export_result(JNIEnv* env, const holder_project_recovery_token_export_result& value);
 jobject to_java_holder_project_recovery_token_import_result(JNIEnv* env, const holder_project_recovery_token_import_result& value);
 jobject to_java_holder_recovery_token_global_import_result(JNIEnv* env, const holder_recovery_token_global_import_result& value);
+jobject to_java_holder_card_summary(JNIEnv* env, const holder_card_summary& value);
+jobject to_java_holder_conflict_copy(JNIEnv* env, const holder_conflict_copy& value);
 jobject to_java_holder_sync_state(JNIEnv* env, const holder_sync_state& value);
 jobject to_java_holder_pull_phase(JNIEnv* env, const holder_pull_phase& value);
 jobject to_java_holder_push_phase(JNIEnv* env, const holder_push_phase& value);
@@ -1580,13 +1582,45 @@ jobject to_java_holder_recovery_token_global_import_result(JNIEnv* env, const ho
   return env->NewObjectA(type, constructor, args);
 }
 
+jobject to_java_holder_card_summary(JNIEnv* env, const holder_card_summary& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/CardSummary");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;)V");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[3] = {};
+  args[0].l = locals.add(string(env, value.card_id));
+  if (env->ExceptionCheck()) return nullptr;
+  args[1].l = locals.add(string(env, value.title));
+  if (env->ExceptionCheck()) return nullptr;
+  args[2].l = locals.add((value.deleted_at ? box_int64(env, *value.deleted_at) : nullptr));
+  if (env->ExceptionCheck()) return nullptr;
+  return env->NewObjectA(type, constructor, args);
+}
+
+jobject to_java_holder_conflict_copy(JNIEnv* env, const holder_conflict_copy& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/ConflictCopy");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;Lteam/holder/android/contract/CardSummary;Lteam/holder/android/contract/CardSummary;)V");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[3] = {};
+  args[0].l = locals.add(string(env, value.original_card_id));
+  if (env->ExceptionCheck()) return nullptr;
+  args[1].l = locals.add((value.original ? to_java_holder_card_summary(env, *value.original) : nullptr));
+  if (env->ExceptionCheck()) return nullptr;
+  args[2].l = locals.add(to_java_holder_card_summary(env, value.copy_card));
+  if (env->ExceptionCheck()) return nullptr;
+  return env->NewObjectA(type, constructor, args);
+}
+
 jobject to_java_holder_sync_state(JNIEnv* env, const holder_sync_state& value) {
   static const jclass type = global_class(env, "team/holder/android/contract/SyncState");
   if (!type) return nullptr;
-  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;ILjava/lang/Long;ILjava/lang/Long;Ljava/lang/Long;)V");
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;ILjava/lang/Long;ILjava/lang/Long;Ljava/lang/Long;Ljava/util/List;)V");
   if (!constructor) return nullptr;
   Locals locals(env);
-  jvalue args[15] = {};
+  jvalue args[16] = {};
   args[0].l = locals.add(string(env, value.project_id));
   if (env->ExceptionCheck()) return nullptr;
   args[1].l = locals.add((value.last_commit_at ? box_int64(env, *value.last_commit_at) : nullptr));
@@ -1612,6 +1646,8 @@ jobject to_java_holder_sync_state(JNIEnv* env, const holder_sync_state& value) {
   args[13].l = locals.add((value.next_pull_retry_at ? box_int64(env, *value.next_pull_retry_at) : nullptr));
   if (env->ExceptionCheck()) return nullptr;
   args[14].l = locals.add((value.updated_at ? box_int64(env, *value.updated_at) : nullptr));
+  if (env->ExceptionCheck()) return nullptr;
+  args[15].l = locals.add((value.conflict_copies ? to_java_list(env, value.conflict_copies->items, value.conflict_copies->count, [&](const auto& item) -> jobject { return to_java_holder_conflict_copy(env, item); }) : nullptr));
   if (env->ExceptionCheck()) return nullptr;
   return env->NewObjectA(type, constructor, args);
 }

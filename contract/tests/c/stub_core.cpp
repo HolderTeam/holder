@@ -502,7 +502,9 @@ HierarchyRepair repair_project_hierarchy(holder_context& context, std::string pr
 // Git sync: the stand-in has no remotes, so every project has none.
 SyncState get_project_sync_state(holder_context& context, std::string project_id) {
   project_named(context, project_id);
-  return {project_id, {}, {}, {}, 0, 0, {}, {}, {}, {}, 0, {}, 0, {}, {}};
+  SyncState state{};
+  state.project_id = project_id;
+  return state;
 }
 
 SyncResult no_remote(holder_context& context, const std::string& project_id, bool pull, bool push) {

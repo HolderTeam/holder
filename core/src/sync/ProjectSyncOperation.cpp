@@ -162,8 +162,16 @@ ProjectSyncResult run_project_sync(
       try {
         git.pull_remote_ff_only("origin");
       } catch (const holder::git::NonFastForwardPullError& diverged) {
-        result.pull.conflicts_resolved =
-            resolve_pull_conflicts(db, fts, project, git, diverged, request.now);
+        allow_push_after_pull_failure = false;
+        resolve_pull_conflicts(
+            db,
+            fts,
+            project,
+            git,
+            diverged,
+            request.now,
+            &result.pull.conflicts_resolved
+        );
       }
       // A failed rebuild or recovery completion needs attention before we can
       // report a push or replace the recorded pull error.

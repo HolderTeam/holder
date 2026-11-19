@@ -112,6 +112,7 @@ internal interface IToolboxEventSource : Object {
     public abstract signal void tags_card_open_requested(string card_id);
     public abstract signal void resources_card_open_requested(string card_id);
     public abstract signal void milestones_card_open_requested(string card_id);
+    public abstract signal void git_conflict_card_open_requested(string project_id, string card_id);
     public abstract signal void resource_references_requested(ProjectResource resource);
     public abstract signal void connections_card_create_child_requested(string card_id);
     public abstract signal void flowboard_card_move_to_trash_requested(string card_id);
@@ -325,6 +326,7 @@ public class ToolboxPane : Object {
     public signal void tags_card_open_requested(string card_id);
     public signal void resources_card_open_requested(string card_id);
     public signal void milestones_card_open_requested(string card_id);
+    public signal void git_conflict_card_open_requested(string project_id, string card_id);
     public signal void resource_references_requested(ProjectResource resource);
     public signal void connections_card_create_child_requested(string card_id);
     public signal void flowboard_card_move_to_trash_requested(string card_id);
@@ -1408,6 +1410,14 @@ private void test_toolbox_event_source_forwards_every_signal() {
     string milestones_open = "";
     src.milestones_card_open_requested.connect((id) => { milestones_open = id; });
     toolbox.milestones_card_open_requested("c5");
+    bool conflict_open = false;
+    src.git_conflict_card_open_requested.connect((project_id, card_id) => {
+        assert(project_id == "p1");
+        assert(card_id == "c-copy");
+        conflict_open = true;
+    });
+    toolbox.git_conflict_card_open_requested("p1", "c-copy");
+    assert(conflict_open);
     assert(milestones_open == "c5");
 
     HolderLinux.ProjectResource? resource_seen = null;

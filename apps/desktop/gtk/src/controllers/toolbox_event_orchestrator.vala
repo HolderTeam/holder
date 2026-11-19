@@ -12,6 +12,7 @@ internal interface IToolboxEventSource : Object {
     public abstract signal void tags_card_open_requested(string card_id);
     public abstract signal void resources_card_open_requested(string card_id);
     public abstract signal void milestones_card_open_requested(string card_id);
+    public abstract signal void git_conflict_card_open_requested(string project_id, string card_id);
     public abstract signal void resource_references_requested(ProjectResource resource);
     public abstract signal void connections_card_create_child_requested(string card_id);
     public abstract signal void flowboard_card_move_to_trash_requested(string card_id);
@@ -128,6 +129,9 @@ internal class ToolboxEventOrchestrator : Object {
                 card_id,
                 "toolbox-milestones-card-open"
             );
+        });
+        toolbox.git_conflict_card_open_requested.connect((project_id, card_id) => {
+            selection_intent_orchestrator.open_conflict_card.begin(project_id, card_id);
         });
         toolbox.resource_references_requested.connect((resource) => {
             controller.show_resource_references(resource);

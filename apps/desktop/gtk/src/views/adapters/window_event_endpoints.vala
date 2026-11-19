@@ -285,6 +285,9 @@ internal class WindowToolboxEventSource : Object, IToolboxEventSource {
         toolbox.milestones_card_open_requested.connect((card_id) => {
             milestones_card_open_requested(card_id);
         });
+        toolbox.git_conflict_card_open_requested.connect((project_id, card_id) => {
+            git_conflict_card_open_requested(project_id, card_id);
+        });
         toolbox.resource_references_requested.connect((resource) => {
             resource_references_requested(resource);
         });

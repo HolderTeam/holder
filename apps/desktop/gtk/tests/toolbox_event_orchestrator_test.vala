@@ -37,10 +37,16 @@ public class ToolboxBreadcrumbController : Object {
 public class SelectionIntentOrchestrator : Object {
     public string last_open_card_id = "";
     public string last_open_reason = "";
+    public string last_conflict_project_id = "";
 
     public async void open_card_with_transition(string card_id, string reason) {
         last_open_card_id = card_id;
         last_open_reason = reason;
+    }
+
+    public async void open_conflict_card(string project_id, string card_id) {
+        last_conflict_project_id = project_id;
+        last_open_card_id = card_id;
     }
 }
 

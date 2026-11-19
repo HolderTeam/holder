@@ -125,6 +125,7 @@ from .card_reference_resolve_data_status import CardReferenceResolveDataStatus
 from .card_reference_resolve_request import CardReferenceResolveRequest
 from .card_reference_resolve_request_scope import CardReferenceResolveRequestScope
 from .card_response import CardResponse
+from .card_summary import CardSummary
 from .card_update import CardUpdate
 from .caste_info import CasteInfo
 from .caste_info_name import CasteInfoName
@@ -132,6 +133,7 @@ from .caste_recommended_model import CasteRecommendedModel
 from .caste_recommended_model_required_caste import CasteRecommendedModelRequiredCaste
 from .change_event_data import ChangeEventData
 from .change_event_data_entity import ChangeEventDataEntity
+from .conflict_copy import ConflictCopy
 from .delete_projects_project_id_cards_card_id_children import (
     DeleteProjectsProjectIdCardsCardIdChildren,
 )
@@ -410,6 +412,7 @@ __all__ = (
     "CardReferenceResolveRequest",
     "CardReferenceResolveRequestScope",
     "CardResponse",
+    "CardSummary",
     "CardUpdate",
     "CasteInfo",
     "CasteInfoName",
@@ -417,6 +420,7 @@ __all__ = (
     "CasteRecommendedModelRequiredCaste",
     "ChangeEventData",
     "ChangeEventDataEntity",
+    "ConflictCopy",
     "DeleteProjectsProjectIdCardsCardIdChildren",
     "DueSyncResult",
     "DueSyncResultResponse",

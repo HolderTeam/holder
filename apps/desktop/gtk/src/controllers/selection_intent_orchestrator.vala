@@ -153,6 +153,26 @@ internal class SelectionIntentOrchestrator : Object {
         );
     }
 
+    public async void open_conflict_card(string project_id, string card_id) {
+        yield controller.save_before_navigation();
+        if (controller.selected_project_id() != project_id ||
+            !(yield controller.reload_selected_project_cards_data())) {
+            return;
+        }
+        if (controller.selected_project_id() != project_id) {
+            return;
+        }
+        yield selection_intent_controller.open_card_with_transition(
+            card_id,
+            "toolbox-git-conflict-card-open",
+            controller,
+            resolve_card_summary_by_id,
+            selection_transition_controller,
+            selection_controller,
+            flowboard_controller
+        );
+    }
+
     private CardSummary? resolve_card_summary_by_id(string card_id) {
         for (uint i = 0; i < card_store.get_n_items(); i++) {
             var card = card_store.get_item(i) as CardSummary;
