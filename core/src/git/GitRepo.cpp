@@ -398,10 +398,12 @@ static git_oid remote_branch_target_oid_or_throw(
 }
 
 static void check_pull_worktree(git_repository* repo, bool diverged = false) {
-  git_status_options options = GIT_STATUS_OPTIONS_INIT;
+  git_status_options options{};
+  int rc = git_status_options_init(&options, GIT_STATUS_OPTIONS_VERSION);
+  if (rc != 0) throw git_err("git_status_options_init failed", rc); // LCOV_EXCL_LINE
   options.flags = diverged ? GIT_STATUS_OPT_INCLUDE_UNTRACKED : 0;
   git_status_list* list = nullptr;
-  const int rc = git_status_list_new(&list, repo, &options);
+  rc = git_status_list_new(&list, repo, &options);
   if (rc != 0) throw git_err("git_status_list_new failed", rc);
   const std::unique_ptr<git_status_list, decltype(&git_status_list_free)> guard(
       list,
