@@ -19,10 +19,12 @@ struct ProjectNewOptions {
   std::string name;
   std::string privacy_mode = "encrypted_git";
   std::optional<std::string> remote_url;
+  std::optional<std::string> id_scheme;
 };
 
 std::string project_usage() {
-  return "Usage: holderctl project new <name> [--plain|--encrypted] [--remote <url>] [--use] [--json]";
+  return "Usage: holderctl project new <name> [--plain|--encrypted] [--id-scheme <uuid7|uuid4>] "
+         "[--remote <url>] [--use] [--json]";
 }
 
 ProjectNewOptions parse_project_new_options(int argc, char* argv[]) {
@@ -61,6 +63,11 @@ ProjectNewOptions parse_project_new_options(int argc, char* argv[]) {
       privacy_set = true;
     } else if (arg == "--remote") {
       options.remote_url = require_value(arg);
+    } else if (arg == "--id-scheme") {
+      options.id_scheme = require_value(arg);
+      if (*options.id_scheme != "uuid7" && *options.id_scheme != "uuid4") {
+        throw std::runtime_error("--id-scheme must be uuid7 or uuid4");
+      }
     } else if (arg.rfind("--", 0) == 0) {
       throw std::runtime_error("Unknown project new option: " + arg);
     } else {
@@ -99,6 +106,9 @@ int command_project(const holder::core::Paths& paths, int argc, char* argv[]) {
   // LCOV_EXCL_STOP
   if (options.remote_url.has_value()) {
     body["git_remote_url"] = options.remote_url.value();
+  }
+  if (options.id_scheme) {
+    body["id_scheme"] = *options.id_scheme;
   }
 
   try {

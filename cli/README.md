@@ -10,6 +10,11 @@ It is also the reference client. Commands for working with Holder use only the d
 source shows how any client can do the same. Only the lifecycle and admin commands (`ensure`, `start`,
 `restart`, `database`) manage the daemon directly.
 
+## Project IDs
+
+New projects and their cards use UUIDv7 by default. Use `holderctl project new "My project" --id-scheme uuid4`
+to generate IDs with no embedded timestamp. Existing projects keep their recorded scheme.
+
 ## Card hierarchy
 
 ```sh

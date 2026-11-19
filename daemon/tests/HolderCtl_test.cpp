@@ -1047,7 +1047,8 @@ TEST_CASE("holderctl project new creates a project and can select it", "[holderc
   REQUIRE(created["data"]["git_remote_url"] == "https://example.com/repo.git");
   const auto project_id = created["data"]["project_id"].get<std::string>();
   const auto root_path = created["data"]["root_path"].get<std::string>();
-  REQUIRE_FALSE(project_id.empty());
+  REQUIRE(project_id.size() == 36);
+  CHECK(project_id[14] == '7');
   REQUIRE_FALSE(root_path.empty());
 
   const auto git_snapshot = git.snapshot();
@@ -1087,7 +1088,7 @@ TEST_CASE("holderctl project new creates a project and can select it", "[holderc
   const auto encrypted_json_out = xdg_root / "project-new-encrypted.json";
   REQUIRE(
       run_command(
-          bin + " project new Encrypted Project --encrypted --json > \"" +
+          bin + " project new Encrypted Project --encrypted --id-scheme uuid4 --json > \"" +
           encrypted_json_out.string() + "\""
       ) == 0
   );
@@ -1095,6 +1096,9 @@ TEST_CASE("holderctl project new creates a project and can select it", "[holderc
   REQUIRE(encrypted["ok"] == true);
   REQUIRE(encrypted["data"]["name"] == "Encrypted Project");
   REQUIRE(encrypted["data"]["privacy_mode"] == "encrypted_git");
+  const auto encrypted_id = encrypted["data"]["project_id"].get<std::string>();
+  REQUIRE(encrypted_id.size() == 36);
+  CHECK(encrypted_id[14] == '4');
 
   write_server_info(
       info_path,
@@ -1124,6 +1128,7 @@ TEST_CASE("holderctl parser errors do not require daemon metadata", "[holderctl]
   REQUIRE(run_command(bin + " project new Name --encrypted --plain >/dev/null 2>/dev/null") == 1);
   REQUIRE(run_command(bin + " project new Name --remote >/dev/null 2>/dev/null") == 1);
   REQUIRE(run_command(bin + " project new Name --remote '' >/dev/null 2>/dev/null") == 1);
+  REQUIRE(run_command(bin + " project new Name --id-scheme uuid6 >/dev/null 2>/dev/null") == 1);
   REQUIRE(run_command(bin + " search >/dev/null 2>/dev/null") == 1);
   REQUIRE(run_command(bin + " search --bad query >/dev/null 2>/dev/null") == 1);
   REQUIRE(run_command(bin + " search --limit >/dev/null 2>/dev/null") == 1);

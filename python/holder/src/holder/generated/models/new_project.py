@@ -6,6 +6,7 @@ from typing import Any, TypeVar, cast
 from attrs import define as _attrs_define
 from typing_extensions import Self
 
+from ..models.new_project_id_scheme import NewProjectIdScheme
 from ..models.privacy_mode import PrivacyMode
 from ..types import UNSET, Unset
 
@@ -29,6 +30,10 @@ class NewProject:
         created_at (int | Unset): When the project was made, for imports, after the epoch; omit for now.
         updated_at (int | Unset): When the project's settings last changed, for imports, after the epoch; omit for when
             it was made.
+        id_scheme (NewProjectIdScheme | Unset): How to generate the project's ID and new card IDs. UUIDv7 IDs sort by
+            creation time. Choose UUIDv4
+            for randomly ordered IDs that contain no timestamp. An explicitly supplied project ID stays as given. Default:
+            NewProjectIdScheme.UUID7.
     """
 
     name: str
@@ -39,6 +44,7 @@ class NewProject:
     privacy_mode: PrivacyMode | Unset = UNSET
     created_at: int | Unset = UNSET
     updated_at: int | Unset = UNSET
+    id_scheme: NewProjectIdScheme | Unset = NewProjectIdScheme.UUID7
 
     def to_dict(self) -> dict[str, Any]:
         name = self.name
@@ -67,6 +73,10 @@ class NewProject:
 
         updated_at = self.updated_at
 
+        id_scheme: str | Unset = UNSET
+        if not isinstance(self.id_scheme, Unset):
+            id_scheme = self.id_scheme.value
+
         field_dict: dict[str, Any] = {}
 
         field_dict.update(
@@ -88,6 +98,8 @@ class NewProject:
             field_dict["created_at"] = created_at
         if updated_at is not UNSET:
             field_dict["updated_at"] = updated_at
+        if id_scheme is not UNSET:
+            field_dict["id_scheme"] = id_scheme
 
         return field_dict
 
@@ -129,6 +141,13 @@ class NewProject:
 
         updated_at = d.pop("updated_at", UNSET)
 
+        _id_scheme = d.pop("id_scheme", UNSET)
+        id_scheme: NewProjectIdScheme | Unset
+        if isinstance(_id_scheme, Unset):
+            id_scheme = UNSET
+        else:
+            id_scheme = NewProjectIdScheme(_id_scheme)
+
         new_project = cls(
             name=name,
             project_id=project_id,
@@ -138,6 +157,7 @@ class NewProject:
             privacy_mode=privacy_mode,
             created_at=created_at,
             updated_at=updated_at,
+            id_scheme=id_scheme,
         )
 
         return new_project

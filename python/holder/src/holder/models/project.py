@@ -26,6 +26,7 @@ from ..generated.models import (
     GetProjectsOrderType0,
     HierarchyRepairRequest,
     NewProject,
+    NewProjectIdScheme,
     PrivacyMode,
     ProjectUpdate,
     RecoveryTokenExportRequest,
@@ -75,6 +76,7 @@ class ProjectCollection(Collection["Project"]):
         name: str,
         root_path: str | os.PathLike[str] | Unset = UNSET,
         privacy_mode: Literal["encrypted_git", "plain"] | Unset = UNSET,
+        id_scheme: Literal["uuid7", "uuid4"] | Unset = UNSET,
     ) -> Project:
         """Create a project using daemon defaults for omitted settings.
 
@@ -92,9 +94,10 @@ class ProjectCollection(Collection["Project"]):
             if isinstance(privacy_mode, Unset)
             else PrivacyMode(privacy_mode)
         )
+        scheme = UNSET if isinstance(id_scheme, Unset) else NewProjectIdScheme(id_scheme)
         data = self._holder._call(
             post_projects,
-            body=NewProject(name=name, root_path=root_path, privacy_mode=mode),
+            body=NewProject(name=name, root_path=root_path, privacy_mode=mode, id_scheme=scheme),
             write=True,
         )
         return Project._from(self._holder, data)

@@ -20,12 +20,13 @@
 namespace holder::sync {
 namespace {
 
-void verify_recovery_manifest(const holder::model::Project& project) {
+holder::model::IdScheme recovery_manifest_scheme(const holder::model::Project& project) {
   const auto durable = holder::project::read_project_manifest(project.root_path);
   if (durable.project_id != project.project_id || durable.privacy_mode != project.privacy_mode ||
       durable.project_key_id != project.project_key_id) {
     throw std::runtime_error("pulled project metadata does not match the recovery token");
   }
+  return durable.id_scheme;
 }
 
 } // namespace
@@ -38,12 +39,17 @@ void reconcile_index_after_pull(
   const auto root = std::filesystem::path(project.root_path);
   if (std::filesystem::exists(root / holder::project::kPendingRecoveryPath) &&
       std::filesystem::exists(root / holder::project::kProjectManifestPath)) {
-    verify_recovery_manifest(project);
+    (void)recovery_manifest_scheme(project);
   }
   holder::store::Rebuilder(db, fts).rebuild_project(project);
 }
 
-void complete_recovery_manifest(holder::git::GitOps& git, const holder::model::Project& project) {
+void complete_recovery_manifest(
+    holder::platform::Db& db,
+    holder::git::GitOps& git,
+    const holder::model::Project& project,
+    long long now
+) {
   const auto root = std::filesystem::path(project.root_path);
   const auto pending = root / holder::project::kPendingRecoveryPath;
   if (!std::filesystem::exists(pending)) return;
@@ -53,7 +59,9 @@ void complete_recovery_manifest(holder::git::GitOps& git, const holder::model::P
   if (!std::filesystem::exists(manifest)) {
     holder::project::write_project_manifest(git, project);
     git.commit("Restore encrypted project metadata");
-    verify_recovery_manifest(project);
+    (void)recovery_manifest_scheme(project);
+  } else if (const auto scheme = recovery_manifest_scheme(project); scheme != project.id_scheme) {
+    holder::project::ProjectRepo(db).update_id_scheme(project.project_id, scheme, now);
   }
   std::filesystem::remove(pending);
 }

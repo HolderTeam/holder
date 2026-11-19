@@ -46,7 +46,6 @@ TEST_CASE("ProjectStore create defaults id, timestamps, and root_path", "[projec
   holder::model::Project input;
   input.name = "Home";
   input.privacy_mode = "plain";
-  input.id_scheme = holder::model::IdScheme::Uuid7;
 
   const auto created = store.create(input, counting_uuid_v4("id"), dir / "projects");
 

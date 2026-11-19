@@ -2676,6 +2676,7 @@ bool from_java_holder_new_project(JNIEnv* env, jobject object, holder_new_projec
   static const jfieldID field_privacy_mode = env->GetFieldID(type, "privacyMode", "Lteam/holder/android/contract/NewProjectPrivacyMode;");
   static const jfieldID field_created_at = env->GetFieldID(type, "createdAt", "Ljava/lang/Long;");
   static const jfieldID field_updated_at = env->GetFieldID(type, "updatedAt", "Ljava/lang/Long;");
+  static const jfieldID field_id_scheme = env->GetFieldID(type, "idScheme", "Lteam/holder/android/contract/NewProjectIdScheme;");
   out = holder_new_project{};
   {
     Locals locals(env);
@@ -2736,6 +2737,12 @@ bool from_java_holder_new_project(JNIEnv* env, jobject object, holder_new_projec
     } else {
       out.updated_at = nullptr;
     }
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_id_scheme));
+    if (env->ExceptionCheck()) return false;
+    out.id_scheme = item ? static_cast<holder_new_project_id_scheme>(ordinal(env, item) + 1) : static_cast<holder_new_project_id_scheme>(0);
   }
   return !env->ExceptionCheck();
 }

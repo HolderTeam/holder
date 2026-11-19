@@ -435,6 +435,17 @@ typedef enum holder_new_project_privacy_mode {
       0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
 } holder_new_project_privacy_mode;
 
+/* How to generate the project's ID and new card IDs. UUIDv7 IDs sort by creation time. Choose
+ * UUIDv4 for randomly ordered IDs that contain no timestamp. An explicitly supplied project ID
+ * stays as given. */
+typedef enum holder_new_project_id_scheme {
+  HOLDER_NEW_PROJECT_ID_SCHEME_DEFAULT = 0, /* uuid7 */
+  HOLDER_NEW_PROJECT_ID_SCHEME_UUID7 = 1,
+  HOLDER_NEW_PROJECT_ID_SCHEME_UUID4 = 2,
+  HOLDER_NEW_PROJECT_ID_SCHEME_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_new_project_id_scheme;
+
 /* A project to make. */
 typedef struct holder_new_project {
   const char* project_id; /* The project's ID, for imports; omit for a new one. NULL when absent. */
@@ -452,6 +463,10 @@ typedef struct holder_new_project {
                                 now. NULL when absent. */
   const int64_t* updated_at; /* When the project's settings last changed, for imports, after the
                                 epoch; omit for when it was made. NULL when absent. */
+  holder_new_project_id_scheme
+      id_scheme; /* How to generate the project's ID and new card IDs. UUIDv7 IDs sort by creation
+                    time. Choose UUIDv4 for randomly ordered IDs that contain no timestamp. An
+                    explicitly supplied project ID stays as given. Zero for the default, uuid7. */
 } holder_new_project;
 
 /* A change to a project's settings. Each field left out keeps its value. */

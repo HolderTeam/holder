@@ -293,6 +293,11 @@ struct ResourceUpdate {
 /// How the project's files are stored.
 enum class NewProjectPrivacyMode { EncryptedGit, Plain };
 
+/// How to generate the project's ID and new card IDs. UUIDv7 IDs sort by creation time. Choose
+/// UUIDv4 for randomly ordered IDs that contain no timestamp. An explicitly supplied project ID
+/// stays as given.
+enum class NewProjectIdScheme { Uuid7, Uuid4 };
+
 /// A project to make.
 struct NewProject {
   std::optional<std::string> project_id; ///< The project's ID, for imports; omit for a new one.
@@ -311,6 +316,11 @@ struct NewProject {
       created_at; ///< When the project was made, for imports, after the epoch; omit for now.
   std::optional<long long> updated_at; ///< When the project's settings last changed, for imports,
                                        ///< after the epoch; omit for when it was made.
+  NewProjectIdScheme id_scheme =
+      NewProjectIdScheme::Uuid7; ///< How to generate the project's ID and new card IDs. UUIDv7 IDs
+                                 ///< sort by creation time. Choose UUIDv4 for randomly ordered IDs
+                                 ///< that contain no timestamp. An explicitly supplied project ID
+                                 ///< stays as given.
 };
 
 /// A change to a project's settings. Each field left out keeps its value.

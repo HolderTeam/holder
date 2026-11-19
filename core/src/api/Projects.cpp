@@ -138,6 +138,9 @@ Project create(holder_context& context, const NewProject& request) {
   project.git_remote_url = request.git_remote_url;
   project.git_provider = request.git_provider;
   project.privacy_mode = privacy_name(request.privacy_mode);
+  if (request.id_scheme == NewProjectIdScheme::Uuid4) {
+    project.id_scheme = holder::model::IdScheme::Uuid4;
+  }
   project.created_at = request.created_at.value_or(now_epoch_seconds());
   project.updated_at = request.updated_at.value_or(project.created_at);
   if (!project.project_id.empty() &&

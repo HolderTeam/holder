@@ -198,6 +198,20 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
   REQUIRE(created_auto["data"]["project_id"].is_string());
   REQUIRE(created_auto["data"]["project_id"].get<std::string>().size() > 0);
   const std::string auto_id = created_auto["data"]["project_id"].get<std::string>();
+  REQUIRE(auto_id.size() == 36);
+  CHECK(auto_id[14] == '7');
+  const auto auto_card = http_json_request(
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::post,
+      "/projects/" + auto_id + "/cards",
+      {{"title", "Generated ID"}},
+      boost::beast::http::status::created
+  );
+  const auto auto_card_id = auto_card["data"]["card_id"].get<std::string>();
+  REQUIRE(auto_card_id.size() == 36);
+  CHECK(auto_card_id[14] == '7');
 
   const auto fetched_auto = http_json_request(
       bound.bind,
