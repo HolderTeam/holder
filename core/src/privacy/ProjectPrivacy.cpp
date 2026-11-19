@@ -240,6 +240,13 @@ DecryptedRecoveryTokenPayload decrypt_recovery_payload(
   if (payload.contains("git_remote_url") && !payload.at("git_remote_url").is_null()) {
     out.metadata.git_remote_url = payload.at("git_remote_url").get<std::string>();
   }
+  if (payload.contains("id_scheme")) {
+    const auto scheme = holder::model::id_scheme_from_string(
+        payload.at("id_scheme").get<std::string>()
+    );
+    if (!scheme) throw std::runtime_error("unsupported recovery token ID scheme");
+    out.metadata.id_scheme = *scheme;
+  }
   out.project_key_material_b64 = payload.at("project_key_material_b64").get<std::string>();
   return out;
 }
@@ -303,7 +310,8 @@ std::string export_recovery_token(
     const std::string& project_key_id,
     const std::string& pin,
     const std::optional<std::string>& project_name,
-    const std::optional<std::string>& git_remote_url
+    const std::optional<std::string>& git_remote_url,
+    std::optional<holder::model::IdScheme> id_scheme
 ) {
   if (pin.empty()) {
     throw std::runtime_error("pin must not be empty");
@@ -321,6 +329,7 @@ std::string export_recovery_token(
   wrapped_payload["project_id"] = project_id;
   wrapped_payload["project_key_id"] = project_key_id;
   wrapped_payload["project_key_material_b64"] = key_material_b64;
+  if (id_scheme) wrapped_payload["id_scheme"] = holder::model::to_string(*id_scheme);
   if (project_name.has_value()) {
     wrapped_payload["project_name"] = project_name.value();
   } else {

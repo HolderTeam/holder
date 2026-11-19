@@ -132,6 +132,7 @@ std::vector<holder::model::Project> recover_project_roots(
           throw std::runtime_error("project has no durable manifest: " + root.string());
         }
         project.name = derive_project_name_from_root(root);
+        project.id_scheme = holder::model::IdScheme::Uuid4;
         project.root_path = root.string();
         project.created_at = now_epoch_seconds();
         project.updated_at = project.created_at;

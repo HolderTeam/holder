@@ -41,13 +41,15 @@ constexpr const char* kSharedCardId = "550e8400-e29b-41d4-a716-446655440000";
 void create_plain_project(
     holder::project::ProjectRepo& projects,
     const std::string& project_id,
-    const std::filesystem::path& root_path
+    const std::filesystem::path& root_path,
+    holder::model::IdScheme id_scheme = holder::model::IdScheme::Uuid7
 ) {
   holder::model::Project project;
   project.project_id = project_id;
   project.name = "Project";
   project.root_path = root_path.string();
   project.privacy_mode = "plain";
+  project.id_scheme = id_scheme;
   project.created_at = 1;
   project.updated_at = 1;
   projects.create(project);
@@ -457,7 +459,7 @@ TEST_CASE("resolve_pull_conflicts creates UUIDv4 copies for UUIDv4 projects", "[
   holder::index::FtsIndexer remote_fts(remote_db);
   holder::project::ProjectRepo remote_projects(remote_db);
   holder::git::RealGitOps remote_git;
-  create_plain_project(remote_projects, project_id, remote_dir);
+  create_plain_project(remote_projects, project_id, remote_dir, holder::model::IdScheme::Uuid4);
 
   holder::model::Card card;
   card.card_id = kSharedCardId;
@@ -484,7 +486,7 @@ TEST_CASE("resolve_pull_conflicts creates UUIDv4 copies for UUIDv4 projects", "[
   auto local_db = open_db_with_schema(dir / "local.db");
   holder::index::FtsIndexer local_fts(local_db);
   holder::project::ProjectRepo local_projects(local_db);
-  create_plain_project(local_projects, project_id, local_dir);
+  create_plain_project(local_projects, project_id, local_dir, holder::model::IdScheme::Uuid4);
   const auto local_project = local_projects.get(project_id).value();
   holder::store::Rebuilder(local_db, &local_fts).rebuild_project(local_project);
   holder::card::CardStore(local_db, &local_fts, nullptr, &local_git)

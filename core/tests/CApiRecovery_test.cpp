@@ -378,6 +378,56 @@ TEST_CASE(
   CHECK(holder::card::CardRepo(f.target->db).list_all(f.project_id).size() == 2);
 }
 
+TEST_CASE("Offline recovery preserves the scheme for new cards", "[capi][privacy]") {
+  Fixture f;
+  auto scheme = holder::model::IdScheme::Uuid7;
+  bool legacy_token = false;
+  SECTION("UUIDv7") {}
+  SECTION("explicit UUIDv4") { scheme = holder::model::IdScheme::Uuid4; }
+  SECTION("legacy token without a scheme") {
+    scheme = holder::model::IdScheme::Uuid4;
+    legacy_token = true;
+  }
+
+  holder::project::ProjectRepo source_repo(f.source->db);
+  source_repo.update_id_scheme(f.project_id, scheme, 21);
+  source_repo.update_git_remote(f.project_id, std::nullopt, 21);
+  if (legacy_token) {
+    const auto project = source_repo.get(f.project_id).value();
+    f.token = holder::privacy::export_recovery_token(f.project_id, *project.project_key_id, "1234");
+  } else {
+    const holder_recovery_token_export_request request{"1234"};
+    const holder_project_recovery_token_export_result* exported = nullptr;
+    REQUIRE(
+        holder_export_project_recovery_token(
+            f.source,
+            f.project_id.c_str(),
+            &request,
+            f.arena,
+            &exported,
+            &f.error
+        ) == HOLDER_OK
+    );
+    f.token = exported->recovery_token;
+  }
+
+  const auto* result = f.restore();
+  REQUIRE(result->project_created);
+  REQUIRE_FALSE(result->remote_hint_present);
+  const auto project = holder::project::ProjectRepo(f.target->db).get(f.project_id).value();
+  CHECK(project.id_scheme == scheme);
+  CHECK(holder::project::read_project_manifest(project.root_path).id_scheme == scheme);
+  holder_new_card request{};
+  request.title = "Created after recovery";
+  const holder_card* card = nullptr;
+  REQUIRE(
+      holder_create_card(f.target, f.project_id.c_str(), &request, f.arena, &card, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(std::string_view(card->card_id).size() == 36);
+  CHECK(card->card_id[14] == (scheme == holder::model::IdScheme::Uuid7 ? '7' : '4'));
+}
+
 TEST_CASE(
     "Generated recovery token import configures and pulls its remote hint",
     "[capi][privacy]"
@@ -401,6 +451,14 @@ TEST_CASE(
       ) == HOLDER_OK
   );
   auto source = holder::project::ProjectRepo(f.source->db).get(f.project_id).value();
+  // A token from before schemes were included still recovers the remote manifest's scheme.
+  f.token = holder::privacy::export_recovery_token(
+      f.project_id,
+      *source.project_key_id,
+      "1234",
+      source.name,
+      source.git_remote_url
+  );
   source.name = "Renamed after export";
   holder::git::RealGitOps metadata_git;
   holder::project::write_project_manifest(metadata_git, source);
@@ -415,6 +473,8 @@ TEST_CASE(
   const auto recovered = holder::project::ProjectRepo(f.target->db).get(f.project_id).value();
   const auto durable = holder::project::read_project_manifest(recovered.root_path);
   CHECK(durable.name == source.name);
+  CHECK(recovered.id_scheme == holder::model::IdScheme::Uuid7);
+  CHECK(recovered.id_scheme == durable.id_scheme);
   holder::git::GitRepo source_git;
   source_git.open_existing(source.root_path);
   holder::git::GitRepo target_git;

@@ -206,6 +206,7 @@ from .new_card import NewCard
 from .new_link import NewLink
 from .new_milestone import NewMilestone
 from .new_project import NewProject
+from .new_project_id_scheme import NewProjectIdScheme
 from .new_resource import NewResource
 from .new_storage_location import NewStorageLocation
 from .post_ai_runner_pull_request import PostAiRunnerPullRequest
@@ -483,6 +484,7 @@ __all__ = (
     "NewLink",
     "NewMilestone",
     "NewProject",
+    "NewProjectIdScheme",
     "NewResource",
     "NewStorageLocation",
     "PostAiRunnerPullRequest",

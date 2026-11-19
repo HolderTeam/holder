@@ -130,6 +130,7 @@ def test_project_create_explicit_options_and_rename(tmp_path):
                 "name": "Research",
                 "root_path": str(tmp_path),
                 "privacy_mode": "plain",
+                "id_scheme": "uuid4",
             }
             return created(stored)
         if request.method == "PATCH":
@@ -141,7 +142,7 @@ def test_project_create_explicit_options_and_rename(tmp_path):
 
     with holder_for(respond) as h:
         project = h.projects.create(
-            name="Research", root_path=tmp_path, privacy_mode="plain"
+            name="Research", root_path=tmp_path, privacy_mode="plain", id_scheme="uuid4"
         )
         assert project.update(name="Renamed") is project
         assert project.name == "Renamed"

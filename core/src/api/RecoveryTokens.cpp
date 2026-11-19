@@ -55,6 +55,7 @@ RecoveryTokenGlobalImportResult import_global(
   if (created) {
     holder::model::Project recovered;
     recovered.project_id = metadata.project_id;
+    recovered.id_scheme = metadata.id_scheme;
     recovered.name = metadata.project_name && !metadata.project_name->empty()
                          ? *metadata.project_name
                          : "Recovered Project";
@@ -118,7 +119,7 @@ RecoveryTokenGlobalImportResult import_global(
           );
         }
         holder::sync::reconcile_index_after_pull(context.db, &context.fts, restored_project);
-        holder::sync::complete_recovery_manifest(git, restored_project);
+        holder::sync::complete_recovery_manifest(context.db, git, restored_project, now);
         pull_status = RecoveryTokenGlobalImportResultPullStatus::Succeeded;
         sync_repo.record_pull_result(metadata.project_id, "succeeded", true, std::nullopt, now);
       } catch (const std::exception& error) {
@@ -175,7 +176,8 @@ ProjectRecoveryTokenExportResult export_project_recovery_token(
         *project.project_key_id,
         request.pin,
         project.name,
-        project.git_remote_url
+        project.git_remote_url,
+        project.id_scheme
     );
     return ProjectRecoveryTokenExportResult{
         std::move(project_id),

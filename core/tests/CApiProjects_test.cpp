@@ -88,7 +88,7 @@ TEST_CASE(
   REQUIRE(std::string(project->name) == "Home");
   REQUIRE(project->privacy_mode == HOLDER_PROJECT_PRIVACY_MODE_PLAIN);
   REQUIRE(id.size() == 36);
-  REQUIRE(id[14] == '4');
+  REQUIRE(id[14] == '7');
   REQUIRE(root.filename() == "home");
   REQUIRE(root.parent_path().filename() == "projects");
   REQUIRE(std::filesystem::is_directory(root / ".git"));
@@ -108,6 +108,8 @@ TEST_CASE(
       HOLDER_OK
   );
   const std::string card_id = card->card_id;
+  REQUIRE(card_id.size() == 36);
+  CHECK(card_id[14] == '7');
 
   holder_project_update change{};
   change.name = "Personal";
@@ -124,6 +126,29 @@ TEST_CASE(
       holder_get_card(f.context, id.c_str(), card_id.c_str(), f.arena, &card, &f.error) ==
       HOLDER_ERROR_NOT_FOUND
   );
+}
+
+TEST_CASE("C API projects can opt into UUIDv4 for newly generated IDs", "[capi][projects]") {
+  Fixture f;
+  holder_new_project request{};
+  request.name = "Random IDs";
+  request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN;
+  request.id_scheme = HOLDER_NEW_PROJECT_ID_SCHEME_UUID4;
+  const holder_project* project = nullptr;
+  REQUIRE(holder_create_project(f.context, &request, f.arena, &project, &f.error) == HOLDER_OK);
+  const std::string id = project->project_id;
+  REQUIRE(id.size() == 36);
+  CHECK(id[14] == '4');
+
+  holder_new_card card_request{};
+  card_request.title = "Random card";
+  const holder_card* card = nullptr;
+  REQUIRE(
+      holder_create_card(f.context, id.c_str(), &card_request, f.arena, &card, &f.error) ==
+      HOLDER_OK
+  );
+  REQUIRE(std::string_view(card->card_id).size() == 36);
+  CHECK(card->card_id[14] == '4');
 }
 
 TEST_CASE("The generated C API validates project requests", "[capi][projects]") {

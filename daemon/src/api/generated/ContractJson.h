@@ -809,6 +809,25 @@ template <> struct codec<holder::contract::NewProjectPrivacyMode> {
   }
 };
 
+template <> struct codec<holder::contract::NewProjectIdScheme> {
+  static json encode(holder::contract::NewProjectIdScheme value) {
+    switch (value) {
+    case holder::contract::NewProjectIdScheme::Uuid7:
+      return "uuid7";
+    case holder::contract::NewProjectIdScheme::Uuid4:
+      return "uuid4";
+    }
+    throw std::invalid_argument("is not a known value");
+  }
+  static holder::contract::NewProjectIdScheme decode(const json& value) {
+    if (!value.is_string()) throw std::invalid_argument("must be a string");
+    const auto& text = value.get_ref<const std::string&>();
+    if (text == "uuid7") return holder::contract::NewProjectIdScheme::Uuid7;
+    if (text == "uuid4") return holder::contract::NewProjectIdScheme::Uuid4;
+    throw std::invalid_argument("must be one of uuid7, uuid4");
+  }
+};
+
 template <> struct codec<holder::contract::RecoverySnapshotRestorePrivacyMode> {
   static json encode(holder::contract::RecoverySnapshotRestorePrivacyMode value) {
     switch (value) {
@@ -6861,6 +6880,7 @@ inline json codec<holder::contract::NewProject>::encode(const holder::contract::
   );
   if (value.created_at) result["created_at"] = codec<long long>::encode(*value.created_at);
   if (value.updated_at) result["updated_at"] = codec<long long>::encode(*value.updated_at);
+  result["id_scheme"] = codec<holder::contract::NewProjectIdScheme>::encode(value.id_scheme);
   return result;
 }
 inline holder::contract::NewProject codec<holder::contract::NewProject>::decode(const json& value) {
@@ -6868,7 +6888,7 @@ inline holder::contract::NewProject codec<holder::contract::NewProject>::decode(
   for (auto it = value.begin(); it != value.end(); ++it)
     if (it.key() != "project_id" && it.key() != "name" && it.key() != "root_path" &&
         it.key() != "git_remote_url" && it.key() != "git_provider" && it.key() != "privacy_mode" &&
-        it.key() != "created_at" && it.key() != "updated_at")
+        it.key() != "created_at" && it.key() != "updated_at" && it.key() != "id_scheme")
       throw std::invalid_argument("NewProject has no field " + it.key());
   holder::contract::NewProject out;
   if (value.contains("project_id") && !value.at("project_id").is_null()) {
@@ -6949,6 +6969,12 @@ inline holder::contract::NewProject codec<holder::contract::NewProject>::decode(
     );
   } else if (value.contains("updated_at")) {
     throw std::invalid_argument("updated_at must not be null");
+  }
+  if (value.contains("id_scheme") && !value.at("id_scheme").is_null()) {
+    const auto& item = value.at("id_scheme");
+    out.id_scheme = decode_field<holder::contract::NewProjectIdScheme>(item, "id_scheme");
+  } else if (value.contains("id_scheme")) {
+    throw std::invalid_argument("id_scheme must not be null");
   }
   return out;
 }

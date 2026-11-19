@@ -28,6 +28,12 @@ enum class NewProjectPrivacyMode(val value: String) {
     PLAIN("plain"),
 }
 
+/** How to generate the project's ID and new card IDs. UUIDv7 IDs sort by creation time. Choose UUIDv4 for randomly ordered IDs that contain no timestamp. An explicitly supplied project ID stays as given. */
+enum class NewProjectIdScheme(val value: String) {
+    UUID7("uuid7"),
+    UUID4("uuid4"),
+}
+
 /** A project on this device. */
 data class Project(
     /** The project's ID. */
@@ -100,6 +106,8 @@ data class NewProject(
     val createdAt: Long? = null,
     /** When the project's settings last changed, for imports, after the epoch; omit for when it was made. */
     val updatedAt: Long? = null,
+    /** How to generate the project's ID and new card IDs. UUIDv7 IDs sort by creation time. Choose UUIDv4 for randomly ordered IDs that contain no timestamp. An explicitly supplied project ID stays as given. */
+    val idScheme: NewProjectIdScheme = NewProjectIdScheme.UUID7,
 )
 
 /** A change to a project's settings. Each field left out keeps its value. */

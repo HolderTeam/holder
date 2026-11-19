@@ -18257,6 +18257,16 @@
             "format": "int64",
             "title": "Updated At",
             "description": "When the project's settings last changed, for imports, after the epoch; omit for when it was made."
+          },
+          "id_scheme": {
+            "type": "string",
+            "enum": [
+              "uuid7",
+              "uuid4"
+            ],
+            "title": "Id Scheme",
+            "description": "How to generate the project's ID and new card IDs. UUIDv7 IDs sort by creation time. Choose UUIDv4\nfor randomly ordered IDs that contain no timestamp. An explicitly supplied project ID stays as given.",
+            "default": "uuid7"
           }
         },
         "additionalProperties": false,

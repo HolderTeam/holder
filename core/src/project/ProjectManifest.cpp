@@ -176,6 +176,8 @@ holder::model::Project read_project_manifest(const std::filesystem::path& root_p
       );
     }
     project.id_scheme = *id_scheme;
+  } else {
+    project.id_scheme = holder::model::IdScheme::Uuid4;
   }
   project.created_at = manifest.at("created_at").get<long long>();
   project.updated_at = manifest.at("updated_at").get<long long>();

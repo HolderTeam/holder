@@ -14,6 +14,6 @@ TEST_CASE("ID schemes use stable canonical strings", "[identity][id_scheme]") {
   REQUIRE_FALSE(holder::model::id_scheme_from_string("unknown").has_value());
 }
 
-TEST_CASE("Project model defaults to UUID4 for old data", "[identity][id_scheme]") {
-  REQUIRE(holder::model::Project{}.id_scheme == holder::model::IdScheme::Uuid4);
+TEST_CASE("New project models default to UUIDv7", "[identity][id_scheme]") {
+  REQUIRE(holder::model::Project{}.id_scheme == holder::model::IdScheme::Uuid7);
 }

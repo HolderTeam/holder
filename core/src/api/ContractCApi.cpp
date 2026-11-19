@@ -2291,6 +2291,18 @@ contract::NewProject from_c(const holder_new_project& value) {
                               std::numeric_limits<long long>::max()
                           ))
                         : std::nullopt);
+  switch (value.id_scheme) {
+  case HOLDER_NEW_PROJECT_ID_SCHEME_DEFAULT:
+    break;
+  case HOLDER_NEW_PROJECT_ID_SCHEME_UUID7:
+    out.id_scheme = contract::NewProjectIdScheme::Uuid7;
+    break;
+  case HOLDER_NEW_PROJECT_ID_SCHEME_UUID4:
+    out.id_scheme = contract::NewProjectIdScheme::Uuid4;
+    break;
+  default:
+    throw ArgumentError("new_project.id_scheme is not a holder_new_project_id_scheme value");
+  }
   return out;
 }
 

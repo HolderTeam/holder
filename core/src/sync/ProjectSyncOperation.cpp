@@ -177,7 +177,7 @@ ProjectSyncResult run_project_sync(
       // report a push or replace the recorded pull error.
       allow_push_after_pull_failure = false;
       reconcile_index_after_pull(db, fts, project);
-      complete_recovery_manifest(git, project);
+      complete_recovery_manifest(db, git, project, request.now);
       result.pull.hidden_cards_repaired =
           repair_hierarchy_after_pull(db, fts, project, request.now);
       result.pull.status = PullPhaseStatus::Succeeded;

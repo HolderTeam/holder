@@ -1149,6 +1149,8 @@ class Cards(RuleBasedStateMachine):
         assert {k: made[k] for k in expected} == expected
         if given is not None:
             assert made["project_id"] == given
+        else:
+            assert made["project_id"][14] == project.get("id_scheme", "uuid7")[-1]
         assert made["project_id"] not in self.project_records
         if "created_at" in project:
             assert made["created_at"] == project["created_at"]

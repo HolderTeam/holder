@@ -69,6 +69,9 @@ class NewProject(Record):
     """When the project was made, for imports, after the epoch; omit for now."""
     updated_at: Annotated[Timestamp, Field(ge=1)] | MISSING = MISSING
     """When the project's settings last changed, for imports, after the epoch; omit for when it was made."""
+    id_scheme: Literal["uuid7", "uuid4"] = "uuid7"
+    """How to generate the project's ID and new card IDs. UUIDv7 IDs sort by creation time. Choose UUIDv4
+    for randomly ordered IDs that contain no timestamp. An explicitly supplied project ID stays as given."""
 
 
 class ProjectUpdate(Record):

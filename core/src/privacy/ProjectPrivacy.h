@@ -22,6 +22,8 @@ struct RecoveryTokenMetadata {
   std::string project_key_id;
   std::optional<std::string> project_name;
   std::optional<std::string> git_remote_url;
+  // Tokens exported before the scheme was recorded keep the historical default.
+  holder::model::IdScheme id_scheme = holder::model::IdScheme::Uuid4;
 };
 
 struct EncryptionSafetyCheck {
@@ -61,7 +63,8 @@ std::string export_recovery_token(
     const std::string& project_key_id,
     const std::string& pin,
     const std::optional<std::string>& project_name = std::nullopt,
-    const std::optional<std::string>& git_remote_url = std::nullopt
+    const std::optional<std::string>& git_remote_url = std::nullopt,
+    std::optional<holder::model::IdScheme> id_scheme = std::nullopt
 );
 
 std::string encrypt_project_blob(
