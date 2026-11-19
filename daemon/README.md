@@ -333,6 +333,26 @@ missing and leftover keys, removal failures, and explicit recovery. They use an
 isolated test keystore; native Keychain permissions and app signing changes still
 need testing on macOS.
 
+### Database recovery
+
+Stop the daemon before running `holderctl database rebuild --dry-run`. The
+JSON report shows what the rebuild can reconstruct and how many missing card
+files would cause rows to be quarantined. The preview leaves those rows and
+the quarantine log alone. An interrupted card change must be recovered before
+previewing a rebuild.
+
+A successful rebuild preserves the previous database and its SQLite sidecars
+under `server/database-backups/`. A corrupt database or sidecars without a
+database go into a `quarantine-*` directory. A successful rebuild of a healthy
+database records missing card files in `server/quarantined-cards.json`. The
+preserved database still has those rows for later inspection.
+
+If a rebuild fails, keep the database and sidecars, project roots, registry,
+device configuration, cloud usage ledger, and access to the original key store.
+Correct the reported blocker before retrying. If the error names a stale
+`holder.db.rebuild.tmp` file or a backup that could not be restored, preserve
+the files and inspect the backup before attempting another rebuild.
+
 ## Daemons.
 
 In computing, a daemon is a program that runs as a background process,

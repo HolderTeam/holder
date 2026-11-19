@@ -2,9 +2,11 @@
 
 #include "ai/AiMessagePaths.h"
 #include "ai/AiThreadManifest.h"
+#include "card/CardMutation.h"
 #include "card/CardPaths.h"
 #include "index/FtsIndexer.h"
 #include "platform/Migrations.h"
+#include "platform/Tx.h"
 #include "project/ProjectManifest.h"
 #include "project/StartupRecovery.h"
 #include "resource/ResourcePaths.h"
@@ -13,6 +15,7 @@
 #include <sqlite3.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
@@ -166,10 +169,6 @@ std::filesystem::path unique_backup_dir(const std::filesystem::path& backup_root
   // Requires 1,000 pre-existing same-second backup names. The bound prevents
   // an infinite loop but is not a practical runtime state.
   throw std::runtime_error("unable to allocate database backup directory"); // LCOV_EXCL_LINE
-}
-
-void move_if_exists(const std::filesystem::path& from, const std::filesystem::path& to) {
-  if (std::filesystem::exists(from)) std::filesystem::rename(from, to);
 }
 
 void use_delete_journal_for_rebuild(Db& db) {
@@ -421,23 +420,17 @@ void append_quarantine_log(
   }
   std::error_code ec;
   std::filesystem::rename(temporary, quarantine_log_path, ec);
-  if (ec) { // LCOV_EXCL_START - filesystem rename faults are not injectable through
-            // std::filesystem.
+  if (ec) {
     std::filesystem::remove(temporary);
     throw std::runtime_error("failed to replace quarantine log: " + ec.message());
-  } // LCOV_EXCL_STOP
+  }
 }
 
 // A card whose durable file is genuinely missing (not the trash-path case above, which is
 // resolved before this ever runs) is quarantined rather than treated as fatal: the row is
-// removed from the live projection and durably logged to quarantine_log_path, but every other
-// card -- a project can easily have hundreds -- still opens normally. One card that's actually
-// lost must never be a reason the other 999 become inaccessible. Returns the number quarantined,
-// for the caller's report.
-std::size_t quarantine_cards_with_missing_files(
-    Db& db,
-    const std::filesystem::path& quarantine_log_path
-) {
+// removed from the projection, but every other card still opens normally. The caller
+// decides when the audit's entries can be written to the quarantine log.
+static nlohmann::json quarantine_cards_with_missing_files(Db& db) {
   sqlite3_stmt* card_stmt = nullptr;
   if (sqlite3_prepare_v2(
           db.handle(),
@@ -499,11 +492,10 @@ std::size_t quarantine_cards_with_missing_files(
     sqlite3_finalize(delete_stmt);
     if (rc != SQLITE_DONE) throw std::runtime_error("card quarantine delete failed");
   }
-  append_quarantine_log(quarantine_log_path, log_entries);
-  return missing_ids.size();
+  return log_entries;
 }
 
-std::size_t audit_core_durable_ownership(Db& db, const std::filesystem::path& quarantine_log_path) {
+static nlohmann::json audit_core_ownership(Db& db) {
   require_file_rows(
       db,
       "project metadata",
@@ -517,7 +509,7 @@ std::size_t audit_core_durable_ownership(Db& db, const std::filesystem::path& qu
   // deleted_at/updated_at), so the expected path is always recomputed from card_id + deleted_at
   // rather than trusting the stored column -- the same way CardStore, Rebuilder, and the AI message
   // audit just below already do.
-  const std::size_t quarantined = quarantine_cards_with_missing_files(db, quarantine_log_path);
+  auto quarantine_entries = quarantine_cards_with_missing_files(db);
 
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(
@@ -601,7 +593,15 @@ std::size_t audit_core_durable_ownership(Db& db, const std::filesystem::path& qu
     }
   }
   sqlite3_finalize(stmt);
-  return quarantined;
+  return quarantine_entries;
+}
+
+std::size_t audit_core_durable_ownership(Db& db, const std::filesystem::path& quarantine_log_path) {
+  Tx tx(db);
+  const auto entries = audit_core_ownership(db);
+  append_quarantine_log(quarantine_log_path, entries);
+  tx.commit();
+  return entries.size();
 }
 
 DatabaseRebuildReport rebuild_database_projection(const DatabaseRebuildRequest& input) {
@@ -614,13 +614,21 @@ DatabaseRebuildReport rebuild_database_projection(const DatabaseRebuildRequest& 
   if (health.health == DatabaseHealth::IoError) {
     throw std::runtime_error("database I/O failure is not safe to rebuild: " + health.detail);
   }
-  if ((health.health == DatabaseHealth::Corrupt ||
-       (health.health == DatabaseHealth::Missing && !request.project_roots.empty())) &&
-      !request.durable_ownership_ready) {
+  const std::array source_files{
+      request.database_path,
+      std::filesystem::path(request.database_path.string() + "-wal"),
+      std::filesystem::path(request.database_path.string() + "-shm"),
+  };
+  const bool orphan_sidecars = health.health == DatabaseHealth::Missing &&
+                               (std::filesystem::exists(source_files[1]) ||
+                                std::filesystem::exists(source_files[2]));
+  const bool recovering = health.health == DatabaseHealth::Corrupt || orphan_sidecars ||
+                          (health.health == DatabaseHealth::Missing &&
+                           !request.project_roots.empty());
+  if (recovering && !request.durable_ownership_ready) {
     throw std::runtime_error("database was preserved because durable ownership is not ready");
   }
-  if (health.health == DatabaseHealth::Corrupt ||
-      (health.health == DatabaseHealth::Missing && !request.project_roots.empty())) {
+  if (recovering) {
     for (const auto& [label, path] : request.required_authorities) {
       if (!std::filesystem::is_regular_file(path)) {
         throw std::runtime_error(
@@ -640,6 +648,11 @@ DatabaseRebuildReport rebuild_database_projection(const DatabaseRebuildRequest& 
           "project recovery is waiting for a successful pull: " + root.string()
       );
     }
+    if (request.dry_run && holder::card::CardMutation::pending(root)) {
+      throw std::runtime_error(
+          "project has an interrupted card change to recover: " + root.string()
+      );
+    }
     const auto project = holder::project::read_project_manifest(root);
     if (!project_ids.insert(project.project_id).second) {
       throw std::runtime_error("duplicate project_id in discovered roots: " + project.project_id);
@@ -648,20 +661,22 @@ DatabaseRebuildReport rebuild_database_projection(const DatabaseRebuildRequest& 
 
   const auto quarantine_log_path = request.database_path.parent_path() / "quarantined-cards.json";
   std::map<std::string, long long> old_counts;
-  std::size_t quarantined_cards = 0;
+  auto quarantine_entries = nlohmann::json::array();
   if (health.health == DatabaseHealth::Healthy) {
     Db old_db;
     old_db.open(request.database_path);
-    quarantined_cards = audit_core_durable_ownership(old_db, quarantine_log_path);
+    // Count the source after a prospective quarantine, then roll back. Keep
+    // the original rows available in the active database and in any backup.
+    Tx preview(old_db);
+    quarantine_entries = audit_core_ownership(old_db);
     if (request.hooks.audit_existing) request.hooks.audit_existing(old_db);
     old_counts = durable_counts(old_db);
-    old_db.close();
   }
 
   DatabaseRebuildReport report;
   report.dry_run = request.dry_run;
   report.previous_health = health_name(health.health);
-  report.quarantined_cards = quarantined_cards;
+  report.quarantined_cards = quarantine_entries.size();
   auto temporary = request.database_path;
   temporary += ".rebuild.tmp";
   for (const auto& artifact : {
@@ -727,15 +742,22 @@ DatabaseRebuildReport rebuild_database_projection(const DatabaseRebuildRequest& 
   }
 
   std::filesystem::path backup_dir;
-  if (health.health != DatabaseHealth::Missing) {
-    backup_dir = unique_backup_dir(request.backup_root, health.health == DatabaseHealth::Corrupt);
-    std::filesystem::create_directories(backup_dir);
-    move_if_exists(request.database_path, backup_dir / "holder.db");
-    move_if_exists(request.database_path.string() + "-wal", backup_dir / "holder.db-wal");
-    move_if_exists(request.database_path.string() + "-shm", backup_dir / "holder.db-shm");
-  }
+  const std::array backup_names{"holder.db", "holder.db-wal", "holder.db-shm"};
+  std::array<bool, backup_names.size()> moved{};
+  bool installed = false;
   try {
+    if (health.health != DatabaseHealth::Missing || orphan_sidecars) {
+      backup_dir = unique_backup_dir(request.backup_root, health.health != DatabaseHealth::Healthy);
+      std::filesystem::create_directories(backup_dir);
+      for (std::size_t i = 0; i < source_files.size(); ++i) {
+        if (std::filesystem::exists(source_files[i])) {
+          std::filesystem::rename(source_files[i], backup_dir / backup_names[i]);
+          moved[i] = true;
+        }
+      }
+    }
     std::filesystem::rename(temporary, request.database_path);
+    installed = true;
     sync_directory(request.database_path.parent_path());
     const auto final_health = inspect_database_health(request.database_path);
     if (final_health.health != DatabaseHealth::Healthy) {
@@ -747,22 +769,20 @@ DatabaseRebuildReport rebuild_database_projection(const DatabaseRebuildRequest& 
       );
       // LCOV_EXCL_STOP
     }
-  } catch (...) { // LCOV_EXCL_LINE
-    // Recovery from an external failure during rename/fsync/final re-open. The
-    // normal replacement and healthy-backup paths are integration-tested.
-    std::error_code ignored; // LCOV_EXCL_LINE
-    std::filesystem::remove(request.database_path, ignored); // LCOV_EXCL_LINE
-    if (!backup_dir.empty() && health.health == DatabaseHealth::Healthy) { // LCOV_EXCL_LINE
-      move_if_exists(backup_dir / "holder.db", request.database_path); // LCOV_EXCL_LINE
-      // LCOV_EXCL_START
-      move_if_exists(backup_dir / "holder.db-wal", request.database_path.string() + "-wal");
-      // LCOV_EXCL_STOP
-      // LCOV_EXCL_START
-      move_if_exists(backup_dir / "holder.db-shm", request.database_path.string() + "-shm");
-      // LCOV_EXCL_STOP
+    append_quarantine_log(quarantine_log_path, quarantine_entries);
+  } catch (...) {
+    std::error_code ignored;
+    std::filesystem::remove(temporary, ignored);
+    if (installed) std::filesystem::remove(request.database_path);
+    // Restore sidecars first so the original database is the last file put back.
+    for (std::size_t i = source_files.size(); i > 0; --i) {
+      const auto index = i - 1;
+      if (moved[index]) {
+        std::filesystem::rename(backup_dir / backup_names[index], source_files[index]);
+      }
     }
-    throw; // LCOV_EXCL_LINE
-  } // LCOV_EXCL_LINE
+    throw;
+  }
   report.backup_path = backup_dir;
   return report;
 }

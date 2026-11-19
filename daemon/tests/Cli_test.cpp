@@ -175,6 +175,70 @@ TEST_CASE(
   REQUIRE_FALSE(std::filesystem::exists(xdg_root / "data" / "holder" / "server" / "holder.db"));
 }
 
+TEST_CASE("CLI startup can retry a failed database rebuild", "[cli][database][recovery]") {
+  const auto dir = holder::test::make_temp_dir();
+  holder::test::EnvGuard data_env("XDG_DATA_HOME", (dir / "data").string());
+  holder::test::EnvGuard config_env("XDG_CONFIG_HOME", (dir / "config").string());
+  holder::test::EnvGuard cache_env("XDG_CACHE_HOME", (dir / "cache").string());
+  holder::test::EnvGuard roots_env("HOLDER_PROJECTS_ROOT", (dir / "projects").string());
+  holder::test::EnvGuard keys_env("HOLDER_TEST_KEYSTORE_DIR", (dir / "keys").string());
+  CwdGuard cwd(std::filesystem::path(__FILE__).parent_path().parent_path());
+  const auto paths = holder::core::Paths::resolve("holder");
+  const std::string start = "\"" + std::string(HOLDER_BIN_PATH) + "\" --reindex";
+  REQUIRE(run_command(start) == 0);
+
+  std::string project_id;
+  std::string card_id;
+  {
+    holder::platform::Db original;
+    original.open(paths.db_path());
+    const auto projects = holder::project::ProjectRepo(original).list();
+    REQUIRE(projects.size() == 1);
+    REQUIRE(projects.front().privacy_mode == "encrypted_git");
+    project_id = projects.front().project_id;
+    const auto cards = holder::card::CardRepo(original).list_all(project_id);
+    REQUIRE(cards.size() == 1);
+    card_id = cards.front().card_id;
+  }
+  const std::string corrupt = "damaged offline test database";
+  const auto backups = paths.server_dir() / "database-backups";
+  {
+    std::ofstream damaged(paths.db_path(), std::ios::binary | std::ios::trunc);
+    REQUIRE(damaged);
+    damaged << corrupt;
+    std::ofstream blocked(backups);
+    REQUIRE(blocked);
+  }
+  for (int attempt = 0; attempt < 2; ++attempt) {
+    REQUIRE(run_command(start) != 0);
+    std::ifstream input(paths.db_path(), std::ios::binary);
+    const std::string preserved{std::istreambuf_iterator<char>(input), {}};
+    CHECK(preserved == corrupt);
+    CHECK_FALSE(std::filesystem::exists(paths.db_path().string() + ".rebuild.tmp"));
+  }
+  REQUIRE(std::filesystem::remove(backups));
+  REQUIRE(run_command(start) == 0);
+
+  holder::platform::Db rebuilt;
+  rebuilt.open(paths.db_path());
+  const auto projects = holder::project::ProjectRepo(rebuilt).list();
+  REQUIRE(projects.size() == 1);
+  CHECK(projects.front().project_id == project_id);
+  const auto cards = holder::card::CardRepo(rebuilt).list_all(project_id);
+  REQUIRE(cards.size() == 1);
+  CHECK(cards.front().card_id == card_id);
+  CHECK(
+      holder::card::CardStore(rebuilt, nullptr).get_content(cards.front()) ==
+      std::string(holder::contract::WELCOME_CARD)
+  );
+  const auto backup = std::filesystem::directory_iterator(backups);
+  REQUIRE(backup != std::filesystem::directory_iterator{});
+  CHECK(backup->path().filename().string().starts_with("quarantine-"));
+  std::ifstream input(backup->path() / "holder.db", std::ios::binary);
+  const std::string preserved{std::istreambuf_iterator<char>(input), {}};
+  CHECK(preserved == corrupt);
+}
+
 TEST_CASE("CLI upgrades a v1 database and backfills card tags", "[cli][migrations]") {
   const auto dir = holder::test::make_temp_dir();
   const auto xdg_root = dir / "xdg";

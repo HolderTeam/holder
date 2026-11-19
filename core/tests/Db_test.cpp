@@ -8,10 +8,12 @@
 #include "ai/AiMessagePaths.h"
 #include "ai/AiThreadManifest.h"
 #include "card/CardPaths.h"
+#include "card/CardRepo.h"
 #include "platform/DatabaseRebuild.h"
 #include "platform/Db.h"
 #include "platform/Tx.h"
 #include "project/ProjectManifest.h"
+#include "project/ProjectRepo.h"
 #include "resource/ResourcePaths.h"
 
 #include <nlohmann/json.hpp>
@@ -608,6 +610,135 @@ TEST_CASE("Database rebuild detects a projection whose durable counts changed", 
       )
   );
   REQUIRE_FALSE(std::filesystem::exists(database.string() + ".rebuild.tmp"));
+}
+
+TEST_CASE(
+    "Database rebuild preserves quarantine candidates until replacement succeeds",
+    "[db][rebuild]"
+) {
+  const auto dir = make_temp_dir();
+  const auto root = dir / "project";
+  const auto database = dir / "holder.db";
+  const auto log = dir / "quarantined-cards.json";
+  const std::string card_id = "11111111-1111-4111-8111-111111111111";
+  write_plain_project_manifest(root, "project-1234");
+  {
+    holder::platform::Db db;
+    db.open(database);
+    db.exec(schema_sql());
+    holder::project::ProjectRepo(db).create(holder::project::read_project_manifest(root));
+    holder::model::Card card;
+    card.card_id = card_id;
+    card.project_id = "project-1234";
+    card.title = "Missing durable file";
+    card.rel_path = holder::core::card_rel_path(card_id);
+    card.created_at = card.updated_at = 1;
+    holder::card::CardRepo(db).create(card);
+  }
+
+  const auto card_exists = [&](const std::filesystem::path& path) {
+    holder::platform::Db db;
+    db.open(path);
+    return holder::card::CardRepo(db).get(card_id).has_value();
+  };
+  holder::platform::DatabaseRebuildRequest request;
+  request.database_path = database;
+  request.backup_root = dir / "backups";
+  request.schema_sql = schema_sql();
+  request.project_roots = {root};
+
+  request.dry_run = true;
+  CHECK(holder::platform::rebuild_database_projection(request).quarantined_cards == 1);
+  CHECK(card_exists(database));
+  CHECK_FALSE(std::filesystem::exists(log));
+  CHECK_FALSE(std::filesystem::exists(request.backup_root));
+  const auto journal = root / ".git" / "holder-card-mutation";
+  write_file(journal);
+  REQUIRE_THROWS_WITH(
+      holder::platform::rebuild_database_projection(request),
+      Catch::Matchers::ContainsSubstring("project has an interrupted card change to recover")
+  );
+  CHECK(std::filesystem::is_regular_file(journal));
+  REQUIRE(std::filesystem::remove(journal));
+  REQUIRE(std::filesystem::remove(journal.parent_path()));
+  request.dry_run = false;
+
+  SECTION("backup destination is blocked") {
+    write_file(request.backup_root);
+    REQUIRE_THROWS(holder::platform::rebuild_database_projection(request));
+    CHECK(card_exists(database));
+    CHECK_FALSE(std::filesystem::exists(log));
+    REQUIRE(std::filesystem::remove(request.backup_root));
+  }
+  SECTION("quarantine log cannot be replaced after the database swap") {
+    std::filesystem::create_directory(log);
+    REQUIRE_THROWS_WITH(
+        holder::platform::rebuild_database_projection(request),
+        Catch::Matchers::ContainsSubstring("failed to replace quarantine log")
+    );
+    CHECK(card_exists(database));
+    REQUIRE(std::filesystem::remove(log));
+  }
+  SECTION("the staged SQLite database runs out of pages") {
+    request.hooks.restore_after_projects = [](holder::platform::Db& rebuilt) {
+      rebuilt.exec("CREATE TABLE test_fill(bytes BLOB);");
+      rebuilt.exec("PRAGMA max_page_count=1;");
+      rebuilt.exec("INSERT INTO test_fill(bytes) VALUES(zeroblob(1048576));");
+    };
+    REQUIRE_THROWS_WITH(
+        holder::platform::rebuild_database_projection(request),
+        Catch::Matchers::ContainsSubstring("database or disk is full")
+    );
+    CHECK(card_exists(database));
+    CHECK_FALSE(std::filesystem::exists(log));
+    request.hooks.restore_after_projects = {};
+  }
+  CHECK_FALSE(std::filesystem::exists(database.string() + ".rebuild.tmp"));
+  const auto report = holder::platform::rebuild_database_projection(request);
+  CHECK(report.quarantined_cards == 1);
+  CHECK_FALSE(card_exists(database));
+  REQUIRE(std::filesystem::is_regular_file(report.backup_path / "holder.db"));
+  CHECK(card_exists(report.backup_path / "holder.db"));
+  std::ifstream input(log, std::ios::binary);
+  const auto entries = nlohmann::json::parse(input);
+  REQUIRE(entries.size() == 1);
+  CHECK(entries.front().at("card_id") == card_id);
+}
+
+TEST_CASE("Database rebuild quarantines orphaned SQLite sidecars", "[db][rebuild]") {
+  const auto dir = make_temp_dir();
+  holder::platform::DatabaseRebuildRequest request;
+  request.database_path = dir / "holder.db";
+  request.backup_root = dir / "backups";
+  request.schema_sql = schema_sql();
+  const auto wal = dir / "holder.db-wal";
+  const auto shm = dir / "holder.db-shm";
+  write_file(wal, "original WAL");
+  write_file(shm, "original SHM");
+  REQUIRE_THROWS_WITH(
+      holder::platform::rebuild_database_projection(request),
+      Catch::Matchers::ContainsSubstring("durable ownership is not ready")
+  );
+  CHECK(std::filesystem::is_regular_file(wal));
+  CHECK(std::filesystem::is_regular_file(shm));
+  CHECK_FALSE(std::filesystem::exists(request.database_path));
+
+  request.durable_ownership_ready = true;
+  const auto report = holder::platform::rebuild_database_projection(request);
+  CHECK(report.previous_health == "missing");
+  CHECK(report.backup_path.filename().string().starts_with("quarantine-"));
+  CHECK_FALSE(std::filesystem::exists(wal));
+  CHECK_FALSE(std::filesystem::exists(shm));
+  CHECK(
+      holder::platform::inspect_database_health(request.database_path).health ==
+      holder::platform::DatabaseHealth::Healthy
+  );
+  for (const auto& [name, expected] :
+       {std::pair{"holder.db-wal", "original WAL"}, std::pair{"holder.db-shm", "original SHM"}}) {
+    std::ifstream preserved(report.backup_path / name, std::ios::binary);
+    const std::string bytes{std::istreambuf_iterator<char>(preserved), {}};
+    CHECK(bytes == expected);
+  }
 }
 
 TEST_CASE("Tx destructor swallows rollback failure", "[db][tx]") {
