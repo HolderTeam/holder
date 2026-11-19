@@ -15,6 +15,8 @@ struct ParsedCardFile {
   std::vector<holder::model::Milestone> milestones;
   std::string body;
   bool has_front_matter = false;
+  bool has_created_at = false;
+  bool has_updated_at = false;
 };
 
 // Invalid front matter returns the original body with no partially parsed metadata.

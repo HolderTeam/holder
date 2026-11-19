@@ -1874,6 +1874,9 @@ typedef enum holder_list_cards_order {
 } holder_list_cards_order;
 
 /* Page through a project's live cards.
+ * Tag result views use updated_desc, which puts the latest card update first and breaks ties by
+ * descending card ID. Rebuilding the projection from the same card files preserves this order.
+ *
  * Filters combine. Each page reads current data; iterating is not a snapshot.
  * parent: Omit for every level; roots selects root cards; a card ID selects its children. The zero
  * value is null. tag: Only cards with this tag. May be NULL. order: updated_desc breaks ties by

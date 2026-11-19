@@ -379,10 +379,11 @@ Rebuilder::RebuildStats Rebuilder::rebuild_project_in_transaction(
     }
 
     const long long mtime = file_mtime_seconds(fs, path);
-    if (card.created_at <= 0) {
+    // An import can explicitly supply the Unix epoch or an earlier time.
+    if (!parsed.has_created_at) {
       card.created_at = mtime;
     }
-    if (card.updated_at <= 0) {
+    if (!parsed.has_updated_at) {
       card.updated_at = card.created_at;
     }
 

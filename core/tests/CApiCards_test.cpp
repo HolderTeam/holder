@@ -7,7 +7,9 @@
 #endif
 
 #include "api/CardCursor.h"
+#include "capi/Context.h"
 #include "card/CardPaths.h"
+#include "card/TagRepo.h"
 #include "core_test_helpers.h"
 
 #include <holder/holder_api.h>
@@ -106,7 +108,8 @@ struct Fixture {
       const char* cursor = nullptr,
       bool content = false,
       bool counts = false,
-      holder_list_cards_order order = HOLDER_LIST_CARDS_ORDER_DEFAULT
+      holder_list_cards_order order = HOLDER_LIST_CARDS_ORDER_DEFAULT,
+      const char* tag = nullptr
   ) {
     const holder_card_list_item_page* page = nullptr;
     REQUIRE(
@@ -114,7 +117,7 @@ struct Fixture {
             context,
             project_id.c_str(),
             parent,
-            nullptr,
+            tag,
             order,
             limit,
             cursor,
@@ -716,6 +719,82 @@ TEST_CASE("holder_list_cards filters tags without case sensitivity", "[capi][con
   );
   REQUIRE(page->items.count == 1);
   REQUIRE(std::string(page->items.items[0].card_id) == tagged);
+}
+
+TEST_CASE("Tagged card order and tied pages survive a project rebuild", "[capi][contract]") {
+  Fixture f;
+  const auto create_tagged = [&](const char* title, int64_t created_at, int64_t updated_at) {
+    holder_new_card request{};
+    request.title = title;
+    request.content = "Body #draft";
+    request.created_at = &created_at;
+    request.updated_at = &updated_at;
+    const holder_card* card = nullptr;
+    REQUIRE(
+        holder_create_card(f.context, f.project_id.c_str(), &request, f.arena, &card, &f.error) ==
+        HOLDER_OK
+    );
+    return std::string(card->card_id);
+  };
+
+  const auto edited = create_tagged("Edited", 1, 1);
+  const auto tied = create_tagged("Imported", 10, 20);
+  const auto recent_creation = create_tagged("Newer creation", 15, 15);
+  const auto epoch = create_tagged("Epoch", 0, 0);
+  const auto before_epoch = create_tagged("Before epoch", -20, -10);
+  f.create("Untagged");
+
+  const int64_t edit_time = 20;
+  holder_card_update update{};
+  update.content = "Updated body #draft";
+  update.updated_at = &edit_time;
+  const holder_card* updated = nullptr;
+  REQUIRE(
+      holder_update_card(
+          f.context,
+          f.project_id.c_str(),
+          edited.c_str(),
+          &update,
+          f.arena,
+          &updated,
+          &f.error
+      ) == HOLDER_OK
+  );
+
+  const std::vector<std::string> expected{
+      std::max(edited, tied),
+      std::min(edited, tied),
+      recent_creation,
+      epoch,
+      before_epoch
+  };
+  const std::vector<int64_t> expected_updates{20, 20, 15, 0, -10};
+  const auto check_order = [&] {
+    const char* cursor = nullptr;
+    const int32_t one = 1;
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+      const auto* page =
+          f.list({}, &one, cursor, false, false, HOLDER_LIST_CARDS_ORDER_UPDATED_DESC, "DRAFT");
+      REQUIRE(page->items.count == 1);
+      CHECK(page->items.items[0].card_id == expected[i]);
+      CHECK(page->items.items[0].updated_at == expected_updates[i]);
+      if (i == 3) CHECK(page->items.items[0].created_at == 0);
+      if (i == 4) CHECK(page->items.items[0].created_at == -20);
+      cursor = page->next_cursor;
+      CHECK((cursor != nullptr) == (i + 1 < expected.size()));
+    }
+    CHECK(
+        holder::card::TagRepo(f.context->db).list_card_ids_with_tag(f.project_id, "draft") ==
+        expected
+    );
+  };
+
+  check_order();
+  const holder_rebuild_request request{f.project_id.c_str()};
+  const holder_rebuild_result* rebuilt = nullptr;
+  REQUIRE(holder_rebuild_project(f.context, &request, f.arena, &rebuilt, &f.error) == HOLDER_OK);
+  CHECK(rebuilt->cards == 6);
+  check_order();
 }
 
 TEST_CASE("holder_search_cards follows card changes and reindexing", "[capi][contract]") {

@@ -3178,7 +3178,13 @@ paths:
   /projects/{project_id}/cards:
     get:
       summary: Page through a project's live cards.
-      description: Filters combine. Each page reads current data; iterating is not a snapshot.
+      description: 'Tag result views use updated_desc, which puts the latest card update first and breaks
+        ties by descending card ID.
+
+        Rebuilding the projection from the same card files preserves this order.
+
+
+        Filters combine. Each page reads current data; iterating is not a snapshot.'
       parameters:
       - name: project_id
         in: path
