@@ -117,15 +117,15 @@ private void gfa_test_a_setup_that_finishes_after_the_selection_moved_does_not_s
 private void gfa_test_a_sync_that_finishes_after_the_selection_moved_does_not_show_the_old_project() {
     var h = new GitSyncViewHarness("https://example.com/p1.git");
     h.store.append(gsv_project("p2", "Second Project", null));
-    h.api.stall_next_push = true;
+    h.api.stall_next_sync = true;
     gsv_button(h.view.widget, "Sync now").clicked();
-    assert(wait_for_condition(() => h.api.has_stalled_push(), 5000));
+    assert(wait_for_condition(() => h.api.has_stalled_sync(), 5000));
 
     h.selection.set_selected(1);
     h.settle();
     assert(h.state_page() == "setup");
 
-    h.api.release_stalled_push();
+    h.api.release_stalled_sync();
     h.settle();
 
     assert(h.state_page() == "setup");

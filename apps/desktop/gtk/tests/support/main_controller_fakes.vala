@@ -129,6 +129,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public int set_project_git_remote_calls = 0;
     public int test_project_git_remote_calls = 0;
     public int push_project_git_calls = 0;
+    public int sync_project_git_calls = 0;
+    public bool fail_sync_project_git = false;
     public int list_trash_calls = 0;
     public int empty_trash_calls = 0;
     public int restore_trash_calls = 0;
@@ -538,7 +540,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         );
     }
 
-    public async HolderLinux.CardDetail get_card(string project_id, string card_id) throws Error {
+    public virtual async HolderLinux.CardDetail get_card(string project_id, string card_id) throws Error {
         if (slow_get_card) {
             var end = GLib.get_monotonic_time() + 50 * 1000;
             while (GLib.get_monotonic_time() < end) {
@@ -1069,6 +1071,18 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
                                                    test_project_git_remote_status,
                                                    test_project_git_remote_status == "reachable",
                                                    "");
+    }
+
+    public virtual async HolderLinux.GitSyncResult sync_project_git(string project_id) throws Error {
+        sync_project_git_calls++;
+        last_git_project_id = project_id;
+        if (fail_sync_project_git) {
+            throw new IOError.FAILED("sync project git failed");
+        }
+        return new HolderLinux.GitSyncResult(
+            new HolderLinux.GitPullPhase(true, "succeeded", 0, 0, ""), true,
+            new HolderLinux.GitPushResult(project_id, "", "", "pushed", 0, 0, "", "", "")
+        );
     }
 
     public virtual async HolderLinux.GitPushResult push_project_git(string project_id,

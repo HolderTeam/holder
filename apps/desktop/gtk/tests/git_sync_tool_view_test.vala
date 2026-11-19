@@ -249,8 +249,9 @@ private void test_git_sync_tool_view_sync_now_uses_configured_project() {
     assert(sync != null);
     ((!) sync).clicked();
 
-    assert(wait_for_condition(() => api.push_project_git_calls == 1));
+    assert(wait_for_condition(() => api.sync_project_git_calls == 1));
     assert(api.last_git_project_id == "p1");
+    assert(api.push_project_git_calls == 0);
     assert(wait_for_condition(() => history_project_id != null));
     assert(history_project_id == "p1");
 }

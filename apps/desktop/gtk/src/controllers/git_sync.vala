@@ -454,8 +454,8 @@ public class GitSyncController : Object {
     }
 
     public async GitSyncNowOutcome sync_now_flow(IHolderApi api, string project_id) throws Error {
-        var result = yield api.push_project_git(project_id, "", true);
-        return GitSyncOutcomes.for_push_result(result);
+        var result = yield api.sync_project_git(project_id);
+        return GitSyncOutcomes.for_sync_result(result);
     }
 
     private string format_sync_time(bool has_timestamp, int64 timestamp) {

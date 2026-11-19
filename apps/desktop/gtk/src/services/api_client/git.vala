@@ -52,6 +52,16 @@ public class ApiClientGitEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration 
         return ApiParsersGit.parse_git_test_remote_result(root.get_object_member("data")); // LCOV_EXCL_BR_LINE: return edge artifact
     }
 
+    public static async GitSyncResult sync_project_git(ApiClient client, string project_id) throws Error {
+        var root = yield client.request_json(
+            "POST",
+            "/projects/%s/git/sync".printf(Uri.escape_string(project_id)),
+            "{}",
+            null
+        );
+        return ApiParsersGit.parse_git_sync_result(root);
+    }
+
     public static async GitPushResult push_project_git(ApiClient client, // LCOV_EXCL_BR_LINE: async signature branch artifact
                                                        string project_id,
                                                        string branch = "",

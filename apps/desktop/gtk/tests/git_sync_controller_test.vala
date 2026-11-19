@@ -861,7 +861,7 @@ private void test_create_guided_repository_flow_failure_without_details_uses_def
     assert(result.error_details == "Repository could not be created.");
 }
 
-private void test_sync_now_flow_maps_push_result_and_forwards_arguments() {
+private void test_sync_now_flow_uses_forced_sync() {
     var controller = new HolderLinux.GitSyncController();
     var api = new HolderLinuxTests.MainControllerFakeApi();
 
@@ -878,17 +878,16 @@ private void test_sync_now_flow_maps_push_result_and_forwards_arguments() {
     assert(HolderLinuxTests.wait_for_condition(() => done));
     assert(outcome != null);
     assert(outcome.toast_message == "Project synced.");
-    assert(outcome.history_changed);
-    assert(api.push_project_git_calls == 1);
+    assert(outcome.pull_succeeded);
+    assert(api.sync_project_git_calls == 1);
+    assert(api.push_project_git_calls == 0);
     assert(api.last_git_project_id == "p1");
-    assert(api.last_git_branch == "");
-    assert(api.last_git_set_upstream);
 }
 
 private void test_sync_now_flow_propagates_api_failure() {
     var controller = new HolderLinux.GitSyncController();
     var api = new HolderLinuxTests.MainControllerFakeApi();
-    api.fail_push_project_git = true;
+    api.fail_sync_project_git = true;
 
     bool done = false;
     string? failure = null;
@@ -901,7 +900,7 @@ private void test_sync_now_flow_propagates_api_failure() {
         done = true;
     });
     assert(HolderLinuxTests.wait_for_condition(() => done));
-    assert(failure == "push project git failed");
+    assert(failure == "sync project git failed");
 }
 
 private void test_validate_remote_setup_inputs_missing_project_returns_toast() {
@@ -1015,8 +1014,8 @@ int main(string[] args) {
                   test_create_guided_repository_flow_failure_reports_details);
     Test.add_func("/git_sync_controller/create_guided_repository_flow_failure_without_details_uses_default",
                   test_create_guided_repository_flow_failure_without_details_uses_default);
-    Test.add_func("/git_sync_controller/sync_now_flow_maps_push_result_and_forwards_arguments",
-                  test_sync_now_flow_maps_push_result_and_forwards_arguments);
+    Test.add_func("/git_sync_controller/sync_now_flow_uses_forced_sync",
+                  test_sync_now_flow_uses_forced_sync);
     Test.add_func("/git_sync_controller/sync_now_flow_propagates_api_failure",
                   test_sync_now_flow_propagates_api_failure);
     Test.add_func("/git_sync_controller/validate_remote_setup_inputs_missing_project_returns_toast",

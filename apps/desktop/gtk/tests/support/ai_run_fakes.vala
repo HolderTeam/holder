@@ -286,6 +286,10 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                                    true,
                                                    "");
     }
+    public async HolderLinux.GitSyncResult sync_project_git(string project_id) throws Error {
+        throw new IOError.NOT_SUPPORTED("unused");
+    }
+
     public async HolderLinux.GitPushResult push_project_git(string project_id,
                                                             string branch = "",
                                                             bool set_upstream = true) throws Error {

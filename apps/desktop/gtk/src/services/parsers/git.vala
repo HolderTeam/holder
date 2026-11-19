@@ -11,6 +11,29 @@ public class ApiParsersGit { // LCOV_EXCL_LINE: declaration-only coverage artifa
         );
     }
 
+    public static GitSyncResult parse_git_sync_result(Json.Object root) throws Error {
+        var data = ApiParsersCommon.object_member_or_null(root, "data");
+        if (data == null) {
+            throw new ApiError.PROTOCOL("Missing data for git sync response");
+        }
+        var pull = ApiParsersCommon.object_member_or_null(data, "pull");
+        var push = ApiParsersCommon.object_member_or_null(data, "push");
+        if (pull == null || push == null) {
+            throw new ApiError.PROTOCOL("Missing pull or push phase for git sync response");
+        }
+        return new GitSyncResult(
+            new GitPullPhase(
+                pull.get_boolean_member_with_default("attempted", false),
+                ApiParsersCommon.string_member_or_empty(pull, "status"),
+                (int) pull.get_int_member_with_default("conflicts_resolved", 0),
+                (int) pull.get_int_member_with_default("hidden_cards_repaired", 0),
+                ApiParsersCommon.string_member_or_empty(pull, "error_message")
+            ),
+            push.get_boolean_member_with_default("attempted", false),
+            parse_git_push_result(data)
+        );
+    }
+
     // POST /projects/{project_id}/git/push answers a sync result; its push phase is the outcome.
     public static GitPushResult parse_git_push_result(Json.Object data, string branch = "") { // LCOV_EXCL_BR_LINE: declaration branch artifact
         var push = data.has_member("push") ? data.get_object_member("push") : new Json.Object();
