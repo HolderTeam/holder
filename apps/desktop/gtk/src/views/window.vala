@@ -97,6 +97,7 @@ public class MainWindow : Adw.ApplicationWindow {
 
     private uint applying_state_depth = 0; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private uint rendered_sidebar_data_version = uint.MAX; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private uint git_refresh_serial = 0;
 
     public MainWindow(Adw.Application app,
                       int startup_width = 0,
@@ -426,6 +427,9 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.set_activity_log_store(activity_log_store);
         toolbox.bind_connections_context(project_selection, card_store, card_selection);
         toolbox.bind_flowboard_controller(flowboard_controller);
+        toolbox.git_project_pulled.connect((project_id) => {
+            refresh_project_after_git_pull.begin(project_id);
+        });
         workspace.asset_preview_toggled.connect((visible) => {
             workspace.set_asset_preview_visible(visible);
             if (visible && attachment_selection.selected_index >= 0) {
@@ -1324,6 +1328,67 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void refresh_trash_tool() {
         toolbox.refresh_trash();
+    }
+
+    private async void refresh_project_after_git_pull(string project_id) {
+        var api = controller.get_api_client();
+        if (api == null || controller.selected_project_id() != project_id) {
+            return;
+        }
+        var refresh = ++git_refresh_serial;
+        try {
+            var cards = yield api.list_cards(project_id, "recent");
+            if (refresh != git_refresh_serial || controller.get_api_client() != api ||
+                controller.selected_project_id() != project_id) {
+                return;
+            }
+            var card_id = controller.selected_card_id();
+            bool card_removed = card_id != null && !cards.any_match((card) => card.card_id == card_id);
+            if (card_removed &&
+                (controller.has_unsaved_editor_changes() || controller.is_editor_save_in_flight())) {
+                add_toast("The pulled changes removed the open card. Your unsaved edits are still in the editor.");
+                return;
+            }
+            with_state_apply(() => {
+                controller.replace_cards(cards);
+                selection_request_controller.request_card(card_selection, card_removed ? null : card_id);
+            });
+            flowboard_controller.refresh();
+            toolbox.refresh_trash();
+            if (card_removed) {
+                request_card_selection(null);
+                return;
+            }
+
+            var current = controller.get_current_card();
+            if (card_id == null || current == null || current.card_id != card_id ||
+                controller.has_unsaved_editor_changes() || controller.is_editor_save_in_flight()) {
+                return;
+            }
+            var previous_content = current.content;
+            var previous_updated_at = current.updated_at;
+            var pulled_card = yield api.get_card(project_id, card_id);
+            if (refresh != git_refresh_serial || controller.get_api_client() != api ||
+                controller.selected_project_id() != project_id || controller.selected_card_id() != card_id ||
+                controller.get_current_card() != current || current.content != previous_content ||
+                current.updated_at != previous_updated_at ||
+                controller.has_unsaved_editor_changes() || controller.is_editor_save_in_flight()) {
+                return;
+            }
+            controller.current_card = pulled_card;
+            if (previous_content != pulled_card.content) {
+                controller.set_loaded_card_editor_state(pulled_card);
+            }
+            if (current.title != pulled_card.title) {
+                update_window_title(pulled_card.title);
+            }
+            refresh_current_card_attachments();
+        } catch (Error e) {
+            if (refresh == git_refresh_serial && controller.get_api_client() == api &&
+                controller.selected_project_id() == project_id) {
+                show_error("Could not refresh cards after pull", e.message);
+            }
+        }
     }
 
     internal async void on_trash_item_restored(string? card_id) {

@@ -247,9 +247,9 @@ private void gss_test_sync_now_reports_a_pushed_project() {
 
     assert(h.wait_for_toast("Project synced."));
     h.settle();
-    assert(h.api.push_project_git_calls == 1);
+    assert(h.api.sync_project_git_calls == 1);
     assert(h.api.last_git_project_id == "p1");
-    assert(h.api.last_git_branch == "");
+    assert(h.api.push_project_git_calls == 0);
     assert(h.histories.size == 1 && h.histories[0] == "p1");
     assert(h.errors.size == 0);
     assert(sync.get_sensitive());
@@ -260,8 +260,8 @@ private void gss_test_sync_now_reports_an_up_to_date_project() {
     h.api.push_status = "up_to_date";
     gsv_button(h.view.widget, "Sync now").clicked();
 
-    assert(h.wait_for_toast("Project is already up to date."));
-    assert(h.api.push_project_git_calls == 1);
+    assert(h.wait_for_toast("Project synced."));
+    assert(h.api.sync_project_git_calls == 1);
     assert(h.histories.size == 1);
     assert(h.errors.size == 0);
 }
@@ -272,12 +272,36 @@ private void gss_test_sync_now_reports_a_rejected_push() {
     h.api.push_error_message = "remote rejected";
     gsv_button(h.view.widget, "Sync now").clicked();
 
-    assert(h.wait_for_error("Git sync failed|remote rejected"));
+    assert(h.wait_for_error("Git push failed|Pull succeeded.\nremote rejected"));
     h.settle();
-    assert(h.api.push_project_git_calls == 1);
+    assert(h.api.sync_project_git_calls == 1);
     assert(h.errors.size == 1);
     assert(h.toasts.size == 0);
+    assert(h.histories.size == 1);
+}
+
+private void gss_test_sync_now_reports_pull_failure_without_refreshing() {
+    var h = new GitSyncViewHarness("https://example.com/p1.git");
+    var pulls = 0;
+    h.view.project_pulled.connect(() => { pulls++; });
+    h.api.pull_status = "failed";
+    h.api.pull_error_message = "remote unavailable";
+    gsv_button(h.view.widget, "Sync now").clicked();
+
+    assert(h.wait_for_error("Git pull failed|remote unavailable\nNo push was attempted."));
+    assert(h.api.sync_project_git_calls == 1);
+    assert(h.api.push_project_git_calls == 0);
     assert(h.histories.size == 0);
+    assert(pulls == 0);
+}
+
+private void gss_test_sync_now_reports_preserved_conflicts() {
+    var h = new GitSyncViewHarness("https://example.com/p1.git");
+    h.api.conflicts_resolved = 2;
+    gsv_button(h.view.widget, "Sync now").clicked();
+
+    assert(h.wait_for_toast("Project synced. 2 local versions were preserved as conflict copies."));
+    assert(h.histories.size == 1);
 }
 
 private void gss_test_sync_now_names_an_unknown_push_status() {
@@ -285,18 +309,18 @@ private void gss_test_sync_now_names_an_unknown_push_status() {
     h.api.push_status = "conflict";
     gsv_button(h.view.widget, "Sync now").clicked();
 
-    assert(h.wait_for_error("Git sync failed|Git sync returned: conflict"));
-    assert(h.api.push_project_git_calls == 1);
+    assert(h.wait_for_error("Git push failed|Pull succeeded.\nPush status: conflict."));
+    assert(h.api.sync_project_git_calls == 1);
     assert(h.errors.size == 1);
 }
 
 private void gss_test_sync_now_reports_an_api_failure_and_re_enables_the_button() {
     var h = new GitSyncViewHarness("https://example.com/p1.git");
-    h.api.fail_push_project_git = true;
+    h.api.fail_sync_project_git = true;
     var sync = gsv_button(h.view.widget, "Sync now");
     sync.clicked();
 
-    assert(h.wait_for_error("Git sync failed|push project git failed"));
+    assert(h.wait_for_error("Git sync failed|sync project git failed"));
     h.settle();
     assert(h.errors.size == 1);
     assert(h.named_label("git-configured-status").get_text() == "Needs attention");
@@ -307,15 +331,15 @@ private void gss_test_sync_now_reports_an_api_failure_and_re_enables_the_button(
 private void gss_test_sync_now_shows_progress_while_the_push_is_in_flight() {
     var h = new GitSyncViewHarness("https://example.com/p1.git");
     var sync = gsv_button(h.view.widget, "Sync now");
-    h.api.stall_next_push = true;
+    h.api.stall_next_sync = true;
     sync.clicked();
 
-    assert(h.api.has_stalled_push());
+    assert(h.api.has_stalled_sync());
     assert(!sync.get_sensitive());
     assert(h.named_label("git-configured-status").get_text() == "Syncing…");
     assert(h.toasts.size == 0);
 
-    h.api.release_stalled_push();
+    h.api.release_stalled_sync();
     assert(h.wait_for_toast("Project synced."));
     h.settle();
     assert(sync.get_sensitive());
@@ -327,7 +351,7 @@ private void gss_test_sync_now_needs_an_api_client() {
     sync.clicked();
 
     assert(h.toasts.contains("Select a configured project first."));
-    assert(h.api.push_project_git_calls == 0);
+    assert(h.api.sync_project_git_calls == 0);
     assert(sync.get_sensitive());
 }
 
@@ -464,6 +488,8 @@ public void register_git_sync_view_state_tests() {
     Test.add_func(prefix + "sync/pushed", gss_test_sync_now_reports_a_pushed_project);
     Test.add_func(prefix + "sync/up-to-date", gss_test_sync_now_reports_an_up_to_date_project);
     Test.add_func(prefix + "sync/rejected", gss_test_sync_now_reports_a_rejected_push);
+    Test.add_func(prefix + "sync/pull-failed", gss_test_sync_now_reports_pull_failure_without_refreshing);
+    Test.add_func(prefix + "sync/conflicts", gss_test_sync_now_reports_preserved_conflicts);
     Test.add_func(prefix + "sync/unknown-status", gss_test_sync_now_names_an_unknown_push_status);
     Test.add_func(prefix + "sync/api-failure", gss_test_sync_now_reports_an_api_failure_and_re_enables_the_button);
     Test.add_func(prefix + "sync/in-flight", gss_test_sync_now_shows_progress_while_the_push_is_in_flight);

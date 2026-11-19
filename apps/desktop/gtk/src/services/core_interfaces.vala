@@ -111,6 +111,7 @@ public interface IHolderApi : Object {
                                                       string? git_remote_url) throws Error;
     public abstract async GitTestRemoteResult test_project_git_remote(string project_id,
                                                                       string? remote_url = null) throws Error;
+    public abstract async GitSyncResult sync_project_git(string project_id) throws Error;
     public abstract async GitPushResult push_project_git(string project_id,
                                                          string branch = "",
                                                          bool set_upstream = true) throws Error;

@@ -14,11 +14,16 @@ public class GitSyncViewFakeApi : MainControllerFakeApi {
     public string push_commit = "";
     public string push_error_message = "";
     public string push_next_action = "";
+    public string pull_status = "succeeded";
+    public string pull_error_message = "";
+    public int conflicts_resolved = 0;
     public bool stall_next_list_projects = false;
     public bool stall_next_push = false;
+    public bool stall_next_sync = false;
     public bool stall_next_set_remote = false;
     private SourceFunc? stalled_list = null;
     private SourceFunc? stalled_push = null;
+    private SourceFunc? stalled_sync = null;
     private SourceFunc? stalled_set_remote = null;
 
     public bool has_stalled_set_remote() {
@@ -67,6 +72,17 @@ public class GitSyncViewFakeApi : MainControllerFakeApi {
         }
     }
 
+    public bool has_stalled_sync() {
+        return stalled_sync != null;
+    }
+
+    public void release_stalled_sync() {
+        var resume = (owned) stalled_sync;
+        if (resume != null) {
+            resume();
+        }
+    }
+
     // The list is captured before the stall, so a stalled call resumes with the backend state as it
     // was when the call started, like a slow real response would.
     public override async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
@@ -85,6 +101,22 @@ public class GitSyncViewFakeApi : MainControllerFakeApi {
             throw new IOError.FAILED("provider catalog failed");
         }
         return provider_catalog;
+    }
+
+    public override async HolderLinux.GitSyncResult sync_project_git(string project_id) throws Error {
+        if (stall_next_sync) {
+            stall_next_sync = false;
+            stalled_sync = sync_project_git.callback;
+            yield;
+        }
+        yield base.sync_project_git(project_id);
+        var pulled = pull_status == "succeeded";
+        return new HolderLinux.GitSyncResult(
+            new HolderLinux.GitPullPhase(true, pull_status, conflicts_resolved, 0, pull_error_message),
+            pulled,
+            new HolderLinux.GitPushResult(project_id, "", "", pulled ? push_status : "not_attempted",
+                                         0, 0, push_commit, push_error_message, push_next_action)
+        );
     }
 
     public override async HolderLinux.GitPushResult push_project_git(string project_id,

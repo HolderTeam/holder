@@ -496,6 +496,10 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
         return yield ApiClientGitEndpoints.test_project_git_remote(this, project_id, remote_url); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
+    public async GitSyncResult sync_project_git(string project_id) throws Error {
+        return yield ApiClientGitEndpoints.sync_project_git(this, project_id);
+    }
+
     public async GitPushResult push_project_git(string project_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
                                                 string branch = "",
                                                 bool set_upstream = true) throws Error {

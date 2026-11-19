@@ -96,6 +96,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
     public signal void repository_history_changed(string project_id);
+    public signal void project_pulled(string project_id);
     public signal void conflict_card_open_requested(string project_id, string card_id);
     public signal void activity_requested(string kind,
                                           string message,
@@ -645,7 +646,8 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             } else {
                 toast_requested(outcome.toast_message);
             }
-            if (outcome.history_changed) {
+            if (outcome.pull_succeeded) {
+                project_pulled(project.project_id);
                 repository_history_changed(project.project_id);
             }
             yield refresh_git_configured_state(project);

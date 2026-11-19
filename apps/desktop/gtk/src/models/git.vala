@@ -85,6 +85,30 @@ public class GitPushResult : Object {
     }
 }
 
+public class GitPullPhase : Object {
+    public bool attempted { get; construct; }
+    public string status { get; construct; }
+    public int conflicts_resolved { get; construct; }
+    public int hidden_cards_repaired { get; construct; }
+    public string error_message { get; construct; }
+
+    public GitPullPhase(bool attempted, string status, int conflicts_resolved,
+                        int hidden_cards_repaired, string error_message) {
+        Object(attempted: attempted, status: status, conflicts_resolved: conflicts_resolved,
+               hidden_cards_repaired: hidden_cards_repaired, error_message: error_message);
+    }
+}
+
+public class GitSyncResult : Object {
+    public GitPullPhase pull { get; construct; }
+    public bool push_attempted { get; construct; }
+    public GitPushResult push { get; construct; }
+
+    public GitSyncResult(GitPullPhase pull, bool push_attempted, GitPushResult push) {
+        Object(pull: pull, push_attempted: push_attempted, push: push);
+    }
+}
+
 public class GitPushDetails : ActivityDetails {
     public string status { get; construct; }
     public string local_head_commit { get; construct; }

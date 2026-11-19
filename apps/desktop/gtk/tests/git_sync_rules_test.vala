@@ -287,24 +287,33 @@ private void test_provider_label_entry_at_and_resolve_transport() {
 
 // --- GitSyncOutcomes -----------------------------------------------------
 
-private void test_outcomes_for_push_result() {
-    var pushed = HolderLinux.GitSyncOutcomes.for_push_result(make_push("pushed"));
+private void test_outcomes_for_sync_result() {
+    var pull = new HolderLinux.GitPullPhase(true, "succeeded", 0, 0, "");
+    var pushed = HolderLinux.GitSyncOutcomes.for_sync_result(
+        new HolderLinux.GitSyncResult(pull, true, make_push("pushed")));
     assert(pushed.toast_message == "Project synced.");
     assert(pushed.error_title == "");
-    assert(pushed.history_changed);
+    assert(pushed.pull_succeeded);
 
-    var up_to_date = HolderLinux.GitSyncOutcomes.for_push_result(make_push("up_to_date"));
-    assert(up_to_date.toast_message == "Project is already up to date.");
-    assert(up_to_date.history_changed);
+    var up_to_date = HolderLinux.GitSyncOutcomes.for_sync_result(
+        new HolderLinux.GitSyncResult(pull, true, make_push("up_to_date")));
+    assert(up_to_date.toast_message == "Project synced.");
+    assert(up_to_date.pull_succeeded);
 
-    var failed = HolderLinux.GitSyncOutcomes.for_push_result(make_push("failed", "  auth rejected  "));
-    assert(failed.error_title == "Git sync failed");
-    assert(failed.error_details == "auth rejected");
+    var failed = HolderLinux.GitSyncOutcomes.for_sync_result(
+        new HolderLinux.GitSyncResult(pull, true, make_push("failed", "  auth rejected  ")));
+    assert(failed.error_title == "Git push failed");
+    assert(failed.error_details == "Pull succeeded.\nauth rejected");
     assert(failed.toast_message == "");
-    assert(!failed.history_changed);
+    assert(failed.pull_succeeded);
 
-    var unknown = HolderLinux.GitSyncOutcomes.for_push_result(make_push("weird"));
-    assert(unknown.error_details == "Git sync returned: weird");
+    var blocked = HolderLinux.GitSyncOutcomes.for_sync_result(
+        new HolderLinux.GitSyncResult(
+            new HolderLinux.GitPullPhase(true, "failed", 0, 0, "Cannot reach remote"),
+            false, make_push("not_attempted")));
+    assert(blocked.error_title == "Git pull failed");
+    assert(blocked.error_details == "Cannot reach remote\nNo push was attempted.");
+    assert(!blocked.pull_succeeded);
 }
 
 public static int main(string[] args) {
@@ -326,7 +335,7 @@ public static int main(string[] args) {
     Test.add_func("/git-sync-rules/provider/transport-parse", test_provider_transport_options_parse_and_prefer);
     Test.add_func("/git-sync-rules/provider/transport-defaults", test_provider_transport_options_defaults);
     Test.add_func("/git-sync-rules/provider/label-entry-resolve", test_provider_label_entry_at_and_resolve_transport);
-    Test.add_func("/git-sync-rules/outcomes/push-result", test_outcomes_for_push_result);
+    Test.add_func("/git-sync-rules/outcomes/sync-result", test_outcomes_for_sync_result);
 
     return Test.run();
 }

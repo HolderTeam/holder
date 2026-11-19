@@ -156,6 +156,31 @@ private void test_missing_data_errors_for_test_remote_and_push() {
     assert(got_push_protocol);
 }
 
+private void test_forced_sync_reads_both_phases() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200,
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"status\":\"failed\",\"remote_url\":null," +
+        "\"pull\":{\"attempted\":true,\"status\":\"succeeded\",\"conflicts_resolved\":2," +
+        "\"hidden_cards_repaired\":1,\"error_message\":null}," +
+        "\"push\":{\"attempted\":true,\"status\":\"auth_failed\",\"error_message\":\"remote rejected push\"}}}");
+    var client = make_client(transport);
+    HolderLinux.GitSyncResult? result = null;
+    bool done = false;
+    client.sync_project_git.begin("p1", (obj, res) => {
+        try { result = client.sync_project_git.end(res); } catch (Error e) { assert_not_reached(); }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(result != null);
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/projects/p1/git/sync"));
+    assert(result.pull.attempted && result.pull.status == "succeeded");
+    assert(result.pull.conflicts_resolved == 2 && result.pull.hidden_cards_repaired == 1);
+    assert(result.push_attempted && result.push.status == "auth_failed");
+    assert(result.push.error_message == "remote rejected push");
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -169,6 +194,7 @@ public static int main(string[] args) {
                   test_test_remote_whitespace_remote_and_push_without_branch);
     Test.add_func("/api_client_git/missing_data_errors_for_test_remote_and_push",
                   test_missing_data_errors_for_test_remote_and_push);
+    Test.add_func("/api_client_git/forced_sync_reads_both_phases", test_forced_sync_reads_both_phases);
 
     return Test.run();
 }

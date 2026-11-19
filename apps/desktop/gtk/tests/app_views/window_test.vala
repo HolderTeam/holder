@@ -633,6 +633,65 @@ private void test_the_window_shows_what_the_controller_reports() {
     f.destroy();
 }
 
+private class WindowSyncApi : MainControllerFakeApi {
+    public string pulled_content = "# Card 1\n\nRemote edits";
+
+    public override async HolderLinux.CardDetail get_card(string project_id, string card_id) throws Error {
+        var card = yield base.get_card(project_id, card_id);
+        if (sync_project_git_calls > 0) {
+            card.content = pulled_content;
+        }
+        return card;
+    }
+}
+
+private void test_sync_now_refreshes_remote_edits_and_deletions() {
+    var f = new WindowFixture();
+    var api = new WindowSyncApi();
+    f.api = api;
+    f.open_loaded();
+    f.open_card("c1");
+
+    Gtk.Button? sync = null;
+    foreach (var widget in av_descendants(f.window.workspace_for_tests.toolbox.widget)) {
+        var button = widget as Gtk.Button;
+        if (button != null && button.get_label() == "Sync now") {
+            sync = button;
+            break;
+        }
+    }
+    assert(sync != null);
+    sync.clicked();
+    assert(wait_for_condition(() => f.editor_text() == api.pulled_content));
+    assert(f.controller().selected_card_id() == "c1");
+    assert(api.sync_project_git_calls == 1);
+    assert(api.push_project_git_calls == 0);
+    assert(wait_for_condition(() => sync.get_sensitive()));
+
+    // A draft typed while the refreshed card is being read must win over that response.
+    var editor_buffer = f.window.workspace_for_tests.editor_buffer;
+    var synced_content = api.pulled_content;
+    api.pulled_content = "# Card 1\n\nAnother remote edit";
+    api.get_card_before_complete_hook = (card_id) => {
+        if (card_id == "c1") {
+            editor_buffer.set_text("# Card 1\n\nLocal draft", -1);
+        }
+    };
+    sync.clicked();
+    assert(wait_for_condition(() => f.editor_text() == "# Card 1\n\nLocal draft" && sync.get_sensitive()));
+    assert(f.controller().has_unsaved_editor_changes());
+    api.get_card_before_complete_hook = null;
+    editor_buffer.set_text(synced_content, -1);
+
+    api.list_cards_empty = true;
+    sync.clicked();
+    assert(wait_for_condition(() => f.controller().get_current_card() == null));
+    assert(f.controller().selected_card_id() == null);
+    assert(!f.controller().has_card_summary("c1"));
+    assert(api.sync_project_git_calls == 3);
+    f.destroy();
+}
+
 private void test_sharing_a_card_opens_an_email() {
     var f = new WindowFixture();
     f.open_loaded();
@@ -1330,6 +1389,7 @@ internal void register_window_tests() {
     Test.add_func("/app_views/window/search", test_searching_runs_shows_and_clears_results);
     Test.add_func("/app_views/window/find_replace", test_find_and_replace_edit_the_card);
     Test.add_func("/app_views/window/reported_state", test_the_window_shows_what_the_controller_reports);
+    Test.add_func("/app_views/window/sync_now_refresh", test_sync_now_refreshes_remote_edits_and_deletions);
     Test.add_func("/app_views/window/email", test_sharing_a_card_opens_an_email);
     Test.add_func("/app_views/window/update_offer", test_a_newer_release_is_offered_once);
     Test.add_func("/app_views/window/preferences_at_startup", test_saved_preferences_are_applied_at_startup);
