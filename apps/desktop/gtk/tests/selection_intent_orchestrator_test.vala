@@ -52,6 +52,11 @@ internal class SearchSelectionController : Object {
 internal class MainController : Object {
     public string? selected_project_id_value = null;
     public string? selected_card_id_value = null;
+    public int reload_cards_calls = 0;
+    public bool reload_cards_succeeds = true;
+    public string? project_after_reload = null;
+    public CardSummary? card_after_reload = null;
+    public GLib.ListStore card_store;
 
     public string? selected_project_id() {
         return selected_project_id_value;
@@ -62,6 +67,17 @@ internal class MainController : Object {
     }
 
     public async void save_before_navigation() {
+    }
+
+    public async bool reload_selected_project_cards_data(bool allow_retry = true) {
+        reload_cards_calls++;
+        if (project_after_reload != null) {
+            selected_project_id_value = project_after_reload;
+        }
+        if (reload_cards_succeeds && card_after_reload != null) {
+            card_store.append(card_after_reload);
+        }
+        return reload_cards_succeeds;
     }
 }
 
@@ -88,6 +104,7 @@ internal class SelectionIntentController : Object {
     public int open_card_with_transition_calls = 0;
     public string? last_open_card_id = null;
     public string? last_open_card_reason = null;
+    public CardSummary? resolved_open_card = null;
 
     public async void on_project_selection(string? project_id,
                                            SelectionTransitionController transition,
@@ -143,6 +160,7 @@ internal class SelectionIntentController : Object {
         open_card_with_transition_calls++;
         last_open_card_id = card_id;
         last_open_card_reason = reason;
+        resolved_open_card = resolve_card_summary_by_id(card_id);
     }
 }
 
@@ -204,6 +222,7 @@ private HolderLinux.SelectionIntentOrchestrator make_orchestrator(
     project_selection = new Gtk.SingleSelection(project_store);
 
     card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    controller.card_store = card_store;
     card_selection = new Gtk.SingleSelection(card_store);
     card_selection.set_can_unselect(true);
 
@@ -510,6 +529,47 @@ private void test_open_card_with_transition_delegates() {
     assert(intents.last_open_card_reason == "toolbox-breadcrumb");
 }
 
+private void test_open_conflict_card_uses_reloaded_project_cards() {
+    HolderLinux.SelectionIntentController intents;
+    HolderLinux.MainController controller;
+    Gtk.SingleSelection project_selection;
+    Gtk.SingleSelection card_selection;
+    Gtk.SingleSelection ai_thread_selection;
+    Gtk.SingleSelection search_selection;
+    GLib.ListStore card_store;
+    HolderLinux.SearchSelectionController search_selection_controller;
+    var orchestrator = make_orchestrator(
+        out intents, out controller, out project_selection, out card_selection,
+        out ai_thread_selection, out search_selection, out card_store,
+        out search_selection_controller
+    );
+    controller.selected_project_id_value = "p1";
+    var copy = new HolderLinux.CardSummary("c-copy", "p1");
+    controller.card_after_reload = copy;
+    assert(card_store.get_n_items() == 0);
+
+    var done = false;
+    orchestrator.open_conflict_card.begin("p1", "c-copy", (obj, res) => {
+        orchestrator.open_conflict_card.end(res);
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+    assert(controller.reload_cards_calls == 1);
+    assert(intents.open_card_with_transition_calls == 1);
+    assert(intents.last_open_card_reason == "toolbox-git-conflict-card-open");
+    assert(intents.resolved_open_card == copy);
+
+    controller.project_after_reload = "p2";
+    done = false;
+    orchestrator.open_conflict_card.begin("p1", "c-copy", (obj, res) => {
+        orchestrator.open_conflict_card.end(res);
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+    assert(controller.reload_cards_calls == 2);
+    assert(intents.open_card_with_transition_calls == 1);
+}
+
 private void test_select_project_with_transition_delegates() {
     HolderLinux.SelectionIntentController intents;
     HolderLinux.MainController controller;
@@ -647,6 +707,8 @@ public static int main(string[] args) {
                   test_search_result_activation_handles_missing_resolved_card);
     Test.add_func("/holder/selection-intent-orchestrator/open-card-with-transition",
                   test_open_card_with_transition_delegates);
+    Test.add_func("/holder/selection-intent-orchestrator/open-conflict-card",
+                  test_open_conflict_card_uses_reloaded_project_cards);
     Test.add_func("/holder/selection-intent-orchestrator/select-project-with-transition",
                   test_select_project_with_transition_delegates);
     Test.add_func("/holder/selection-intent-orchestrator/select-project-with-transition-blank-ignored",
