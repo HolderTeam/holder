@@ -344,29 +344,32 @@ Rebuilder::RebuildStats Rebuilder::rebuild_project_in_transaction(
 
   std::vector<CardRecord> card_records;
   auto load_card_file = [&](const std::filesystem::path& path, bool is_trash) {
-    const std::string raw = fs.read_file(path);
-    const auto parsed = holder::core::parse_card_file(decode_blob_for_project(project, raw));
-    const bool has_header = raw.rfind("---\n", 0) == 0 || raw.rfind("---\r\n", 0) == 0;
+    const auto actual_rel = relative_path_string(root, path);
+    const auto plain = decode_blob_for_project(project, fs.read_file(path));
+    const auto parsed = holder::core::parse_card_file(plain);
+    const bool has_header = plain.rfind("---\n", 0) == 0 || plain.rfind("---\r\n", 0) == 0;
     if (has_header && !parsed.has_front_matter) {
-      throw std::runtime_error("invalid card front matter");
+      throw std::runtime_error(actual_rel + ": invalid card front matter");
     }
     holder::model::Card card = parsed.card;
 
     if (parsed.has_front_matter && card.card_id.empty()) {
-      throw std::runtime_error("card_id missing in front matter");
+      throw std::runtime_error(actual_rel + ": card_id missing in front matter");
+    }
+    if (!card.project_id.empty() && card.project_id != project.project_id) {
+      throw std::runtime_error(actual_rel + ": card project_id does not match the project");
     }
     if (card.card_id.empty()) {
       card.card_id = path.stem().string();
     }
     if (!holder::identity::is_valid_uuid(card.card_id)) {
-      throw std::runtime_error("invalid card_id in file: expected UUIDv4 or UUIDv7");
+      throw std::runtime_error(actual_rel + ": invalid card_id in file: expected UUIDv4 or UUIDv7");
     }
 
     const std::string expected_rel = is_trash ? holder::core::card_trash_rel_path(card.card_id)
                                               : holder::core::card_rel_path(card.card_id);
-    const std::string actual_rel = relative_path_string(root, path);
     if (actual_rel != expected_rel) {
-      throw std::runtime_error("card path does not match card_id");
+      throw std::runtime_error(actual_rel + ": card path does not match card_id");
     }
 
     card.project_id = project.project_id;

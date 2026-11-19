@@ -397,6 +397,39 @@ static git_oid remote_branch_target_oid_or_throw(
   return out;
 }
 
+static void check_pull_worktree(git_repository* repo, bool diverged = false) {
+  git_status_options options = GIT_STATUS_OPTIONS_INIT;
+  options.flags = diverged ? GIT_STATUS_OPT_INCLUDE_UNTRACKED : 0;
+  git_status_list* list = nullptr;
+  const int rc = git_status_list_new(&list, repo, &options);
+  if (rc != 0) throw git_err("git_status_list_new failed", rc);
+  const std::unique_ptr<git_status_list, decltype(&git_status_list_free)> guard(
+      list,
+      git_status_list_free
+  );
+  constexpr int index_changes = GIT_STATUS_INDEX_NEW | GIT_STATUS_INDEX_MODIFIED |
+                                GIT_STATUS_INDEX_DELETED | GIT_STATUS_INDEX_RENAMED |
+                                GIT_STATUS_INDEX_TYPECHANGE | GIT_STATUS_CONFLICTED;
+  for (std::size_t i = 0; i < git_status_list_entrycount(list); ++i) {
+    const auto status = git_status_byindex(list, i)->status;
+    if (status & index_changes) {
+      throw PullBlockedByLocalChanges(
+          "Pull blocked by staged or unresolved Git changes. Finish or unstage them before retrying."
+      );
+    }
+    if (status & (GIT_STATUS_WT_DELETED | GIT_STATUS_WT_TYPECHANGE)) {
+      throw PullBlockedByLocalChanges(
+          "Pull blocked by a local deletion or file type change. Review it and commit or restore the affected path before retrying."
+      );
+    }
+    if (diverged) {
+      throw PullBlockedByLocalChanges(
+          "Pull cannot merge diverged branches while the working tree has local changes. Commit reviewed changes or back them up and clean the working tree before retrying."
+      );
+    }
+  }
+}
+
 static void checkout_commit_oid(git_repository* repo, const git_oid& oid) {
   git_object* commit_obj = nullptr;
   int rc = git_object_lookup(&commit_obj, repo, &oid, GIT_OBJECT_COMMIT);
@@ -405,9 +438,34 @@ static void checkout_commit_oid(git_repository* repo, const git_oid& oid) {
   git_checkout_options checkout_opts{};
   rc = git_checkout_options_init(&checkout_opts, GIT_CHECKOUT_OPTIONS_VERSION);
   if (rc != 0) throw git_err("git_checkout_options_init failed", rc); // LCOV_EXCL_LINE
-  checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE | GIT_CHECKOUT_RECREATE_MISSING;
+  checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE | GIT_CHECKOUT_RECREATE_MISSING |
+                                    GIT_CHECKOUT_DONT_OVERWRITE_IGNORED;
+  std::string blocking_path;
+  checkout_opts.notify_flags = GIT_CHECKOUT_NOTIFY_CONFLICT;
+  checkout_opts.notify_payload = &blocking_path;
+  checkout_opts.notify_cb = [](git_checkout_notify_t,
+                               const char* path,
+                               const git_diff_file*,
+                               const git_diff_file*,
+                               const git_diff_file*,
+                               void* payload) {
+    try {
+      if (path) *static_cast<std::string*>(payload) = path;
+    } catch (const std::bad_alloc&) {
+      // The checkout must still stop even if the path cannot be captured.
+    }
+    return static_cast<int>(GIT_ECONFLICT);
+  };
   rc = git_checkout_tree(repo, commit_obj, &checkout_opts);
   git_object_free(commit_obj);
+  if (rc == GIT_ECONFLICT) {
+    throw PullBlockedByLocalChanges(
+        "Pull would overwrite a local file" +
+        (blocking_path.empty() ? std::string{} : " (" + blocking_path + ")") +
+        ". Review and commit valid changes, or back up your work. Restore tracked files or move "
+        "untracked files aside before retrying."
+    );
+  }
   if (rc != 0) throw git_err("git_checkout_tree failed", rc);
 }
 
@@ -1042,6 +1100,7 @@ void GitRepo::pull_remote_ff_only(const std::string& name) {
   }
 
   const git_oid remote_oid = remote_branch_target_oid_or_throw(repo, name, remote_branch);
+  check_pull_worktree(repo);
 
   git_reference* head = nullptr;
   rc = git_repository_head(&head, repo);
@@ -1125,6 +1184,7 @@ GitRepo::DivergedMergeResult GitRepo::merge_remote_taking_theirs_for_conflicts(
 ) {
   ensure_open();
   auto* repo = reinterpret_cast<git_repository*>(repo_);
+  check_pull_worktree(repo, true);
 
   git_oid local_oid{};
   if (git_oid_fromstr(&local_oid, local_oid_hex.c_str()) != 0) {
@@ -1156,15 +1216,25 @@ GitRepo::DivergedMergeResult GitRepo::merge_remote_taking_theirs_for_conflicts(
     }
   }
 
+  const char* wd = git_repository_workdir(repo);
+  if (!wd)
+    throw std::runtime_error("Repository has no working directory (bare?)"); // LCOV_EXCL_LINE
+
+  // An ignored file recreated at a locally deleted path is invisible to the status check.
+  for (const auto& c : local_only) {
+    if (c.type == ChangeType::Deleted && fs::exists(fs::symlink_status(fs::path(wd) / c.path))) {
+      throw PullBlockedByLocalChanges(
+          "Pull would overwrite a local file (" + c.path +
+          "). Back it up and clear the affected path before retrying."
+      );
+    }
+  }
+
   // Remote is the baseline: correct as-is for remote-only changes, and (deliberately, per this
   // strategy) for conflicted paths too -- the pre-merge local content at those paths is not
   // lost, just no longer live here; the caller reads it via read_blob_at(local_oid_hex, path)
   // to preserve it separately (e.g. as a duplicate card) if it wants to.
   checkout_commit_oid(repo, remote_oid);
-
-  const char* wd = git_repository_workdir(repo);
-  if (!wd)
-    throw std::runtime_error("Repository has no working directory (bare?)"); // LCOV_EXCL_LINE
 
   for (const auto& c : local_only) {
     if (c.type == ChangeType::Deleted) {

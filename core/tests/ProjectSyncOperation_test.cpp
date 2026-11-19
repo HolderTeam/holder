@@ -468,6 +468,155 @@ TEST_CASE(
   REQUIRE(holder::card::CardRepo(local_db).list_all("proj-1").size() == 2);
 }
 
+TEST_CASE("Project sync keeps external changes under the user's control", "[sync][operation]") {
+  const auto dir = holder::test::make_temp_dir();
+  const auto remote_root = dir / "remote";
+  const auto local_root = dir / "local";
+  auto remote_db = holder::test::open_db_with_schema(dir / "remote.db");
+  create_project(remote_db, "proj-1", remote_root, std::nullopt);
+  holder::git::RealGitOps remote_git;
+  holder::card::CardStore remote_store(remote_db, nullptr, nullptr, &remote_git);
+  holder::model::Card card;
+  card.project_id = "proj-1";
+  card.card_id = "11111111-1111-4111-8111-111111111111";
+  card.title = "Live card";
+  remote_store.create(card, "original body");
+  auto trashed = card;
+  trashed.card_id = "22222222-2222-4222-8222-222222222222";
+  trashed.title = "Trashed card";
+  remote_store.create(trashed, "trashed body");
+  remote_store.trash(trashed.card_id, 10);
+  const auto live_path = holder::core::card_rel_path(card.card_id);
+  const auto trash_path = holder::core::card_trash_rel_path(trashed.card_id);
+
+  holder::git::GitRepo local;
+  local.open_or_init(local_root);
+  local.set_remote("origin", remote_root.string());
+  local.pull_remote_ff_only("origin");
+  auto local_db = holder::test::open_db_with_schema(dir / "local.db");
+  holder::index::FtsIndexer fts(local_db);
+  create_project(local_db, "proj-1", local_root, remote_root.string());
+  holder::store::Rebuilder(local_db, &fts)
+      .rebuild_project(holder::project::ProjectRepo(local_db).get("proj-1").value());
+
+  const auto read_file = [](const auto& path) {
+    std::ifstream input(path, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(input), {});
+  };
+  const auto original_live = read_file(local_root / live_path);
+  const auto original_live_blob = local.read_blob_at(*local.head_oid(), live_path);
+  const auto edited_live = original_live + "\nExternal live edit\n";
+  auto edited_path = live_path;
+  auto edited_bytes = edited_live;
+  auto remote_path = trash_path;
+  std::string expected_error;
+  bool checkout_completed = false;
+  bool local_deletion = false;
+
+  SECTION("incoming change overlaps an uncommitted live card") {
+    remote_path = live_path;
+    expected_error = "Pull would overwrite a local file (" + live_path + ")";
+  }
+  SECTION("incoming change overlaps an uncommitted Trash card") {
+    edited_path = trash_path;
+    edited_bytes = read_file(local_root / trash_path) + "\nExternal Trash edit\n";
+    expected_error = "Pull would overwrite a local file (" + trash_path + ")";
+  }
+  SECTION("independent remote change leaves a valid edit uncommitted") {}
+  SECTION("malformed front matter blocks reconciliation") {
+    checkout_completed = true;
+    edited_bytes = "---\ncard_id: [invalid\n---\nbody\n";
+    expected_error = live_path + ": invalid card front matter";
+  }
+  SECTION("another project's card identity blocks reconciliation") {
+    checkout_completed = true;
+    auto wrong_project = card;
+    wrong_project.project_id = "proj-other";
+    edited_bytes = holder::core::render_card_front_matter(wrong_project, {}, {}) + "external body";
+    expected_error = "card project_id does not match the project";
+  }
+  SECTION("a card's identity must match its path") {
+    checkout_completed = true;
+    auto wrong_id = card;
+    wrong_id.card_id = trashed.card_id;
+    edited_bytes = holder::core::render_card_front_matter(wrong_id, {}, {}) + "external body";
+    expected_error = "card path does not match card_id";
+  }
+  SECTION("an unstaged deletion is preserved") {
+    local_deletion = true;
+    expected_error = "Pull blocked by a local deletion or file type change";
+  }
+  SECTION("an unrelated staged change blocks even an independent pull") {
+    local.write_file("notes.txt", "staged note\n");
+    local.stage_path("notes.txt");
+    expected_error = "Pull blocked by staged or unresolved Git changes";
+  }
+  SECTION("divergence must not restore a committed version over a newer external edit") {
+    local.write_file(live_path, edited_live);
+    local.stage_path(live_path);
+    local.commit("Earlier local edit");
+    edited_bytes += "A later uncommitted edit\n";
+    expected_error = "Pull cannot merge diverged branches while the working tree has local changes";
+  }
+
+  const auto head_before = local.head_oid();
+  if (local_deletion) {
+    REQUIRE(std::filesystem::remove(local_root / edited_path));
+  } else {
+    local.write_file(edited_path, edited_bytes);
+  }
+  local.write_file("untracked.txt", "keep this untracked\n");
+  const auto index_before = read_file(local_root / ".git/index");
+  remote_git.write_file(remote_path, read_file(remote_root / remote_path) + "\nRemote edit\n");
+  remote_git.stage_path(remote_path);
+  remote_git.commit("Edit card on remote");
+  holder::git::GitRepo remote;
+  remote.open_existing(remote_root);
+
+  holder::git::RealGitOps local_git;
+  const auto result = holder::sync::run_project_sync(
+      local_db,
+      &fts,
+      local_git,
+      "proj-1",
+      {.pull = true, .push = !expected_error.empty(), .push_after_failed_pull = true, .now = 400}
+  );
+  INFO(result.pull.error_message.value_or(""));
+  CHECK_FALSE(result.push.attempted);
+  if (local_deletion) {
+    CHECK_FALSE(std::filesystem::exists(local_root / edited_path));
+  } else {
+    CHECK(read_file(local_root / edited_path) == edited_bytes);
+  }
+  CHECK(read_file(local_root / "untracked.txt") == "keep this untracked\n");
+  if (expected_error.empty()) {
+    REQUIRE(result.succeeded());
+    CHECK(local.head_oid() == remote.head_oid());
+    CHECK_THAT(
+        read_file(local_root / trash_path),
+        Catch::Matchers::ContainsSubstring("Remote edit")
+    );
+    CHECK(local.read_blob_at(*local.head_oid(), live_path) == original_live_blob);
+    CHECK_FALSE(local.read_blob_at(*local.head_oid(), "untracked.txt").has_value());
+  } else {
+    REQUIRE_FALSE(result.succeeded());
+    REQUIRE(result.pull.error_message.has_value());
+    CHECK_THAT(*result.pull.error_message, Catch::Matchers::ContainsSubstring(expected_error));
+    const auto state = holder::project::ProjectSyncRepo(local_db).get("proj-1");
+    REQUIRE(state.has_value());
+    CHECK(state->last_pull_status == "failed");
+    CHECK(state->last_sync_error == result.pull.error_message);
+    if (checkout_completed) {
+      // Git reached the independent remote commit but the invalid edit never entered SQLite.
+      CHECK(local.head_oid() == remote.head_oid());
+      CHECK(holder::card::CardRepo(local_db).get(card.card_id)->title == "Live card");
+    } else {
+      CHECK(local.head_oid() == head_before);
+      CHECK(read_file(local_root / ".git/index") == index_before);
+    }
+  }
+}
+
 TEST_CASE("Project sync names every persisted pull phase", "[sync]") {
   REQUIRE(
       std::string(holder::sync::pull_phase_status_name(holder::sync::PullPhaseStatus::NotAttempted)

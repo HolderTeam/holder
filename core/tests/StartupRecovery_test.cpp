@@ -149,7 +149,10 @@ TEST_CASE("Rebuilder rejects a non-UUID canonical card identity", "[startup][rec
     (void)holder::store::Rebuilder(db, nullptr).rebuild_project(project);
     FAIL("Expected a non-UUID card identity to be rejected");
   } catch (const std::exception& ex) {
-    REQUIRE(std::string(ex.what()) == "invalid card_id in file: expected UUIDv4 or UUIDv7");
+    REQUIRE(
+        std::string(ex.what()) ==
+        card.rel_path + ": invalid card_id in file: expected UUIDv4 or UUIDv7"
+    );
   }
   holder::card::CardRepo cards(db);
   REQUIRE_FALSE(cards.get(card.card_id).has_value());

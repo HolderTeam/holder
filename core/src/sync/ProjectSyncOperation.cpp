@@ -50,6 +50,12 @@ int repair_hierarchy_after_pull(
     long long now
 ) {
   try {
+    // Repair can rewrite and commit card files. Wait for a clean tree so an
+    // externally edited or untracked card stays under the user's control.
+    if (holder::git::inspect_repo_sync_metrics(project.root_path, "origin")
+            .uncommitted_changes_count != 0) {
+      return 0;
+    }
     const auto plan = holder::card::CardStore(db, fts).repair_hierarchy(project.project_id, now);
     return static_cast<int>(plan.moved_card_ids.size());
   } catch (const std::exception& ex) {
@@ -137,7 +143,19 @@ ProjectSyncResult run_project_sync(
     return result;
   }
 
+  bool allow_push_after_pull_failure = request.push_after_failed_pull;
   if (request.pull) {
+    const auto record_pull_failure = [&](const std::exception& ex) {
+      result.pull.status = PullPhaseStatus::Failed;
+      result.pull.error_message = ex.what();
+      sync.record_pull_result(
+          project_id,
+          pull_phase_status_name(result.pull.status),
+          false,
+          result.pull.error_message,
+          request.now
+      );
+    };
     try {
       git.open_or_init(project.root_path);
       git.set_remote("origin", *project.git_remote_url);
@@ -147,6 +165,9 @@ ProjectSyncResult run_project_sync(
         result.pull.conflicts_resolved =
             resolve_pull_conflicts(db, fts, project, git, diverged, request.now);
       }
+      // A failed rebuild or recovery completion needs attention before we can
+      // report a push or replace the recorded pull error.
+      allow_push_after_pull_failure = false;
       reconcile_index_after_pull(db, fts, project);
       complete_recovery_manifest(git, project);
       result.pull.hidden_cards_repaired =
@@ -159,22 +180,17 @@ ProjectSyncResult run_project_sync(
           std::nullopt,
           request.now
       );
+    } catch (const holder::git::PullBlockedByLocalChanges& ex) {
+      allow_push_after_pull_failure = false;
+      record_pull_failure(ex);
     } catch (const std::exception& ex) {
-      result.pull.status = PullPhaseStatus::Failed;
-      result.pull.error_message = ex.what();
-      sync.record_pull_result(
-          project_id,
-          pull_phase_status_name(result.pull.status),
-          false,
-          result.pull.error_message,
-          request.now
-      );
+      record_pull_failure(ex);
     }
     refresh_activity_best_effort(db, project, request.now);
   }
 
   if (request.push && (!request.pull || result.pull.status == PullPhaseStatus::Succeeded ||
-                       request.push_after_failed_pull)) {
+                       allow_push_after_pull_failure)) {
     result.push.attempted = true;
     try {
       git.open_or_init(project.root_path);

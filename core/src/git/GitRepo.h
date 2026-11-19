@@ -53,6 +53,11 @@ class NonFastForwardPullError : public std::runtime_error {
   std::string remote_name;
 };
 
+class PullBlockedByLocalChanges : public std::runtime_error {
+ public:
+  using std::runtime_error::runtime_error;
+};
+
 class GitRepo {
  public:
   GitRepo();
