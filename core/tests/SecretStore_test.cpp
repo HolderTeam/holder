@@ -584,7 +584,7 @@ void seed_secret_store_index(
 
 } // namespace
 
-TEST_CASE("SecretStore get maps libsecret lookup failure to KeyMaterialMissing", "[privacy]") {
+TEST_CASE("SecretStore get maps libsecret lookup failure to KeyringUnavailable", "[privacy]") {
   const auto dir = holder::test::make_temp_dir();
   EnvUnsetGuard unset_test_keystore("HOLDER_TEST_KEYSTORE_DIR");
   const auto server_dir = dir / "server";
@@ -596,7 +596,7 @@ TEST_CASE("SecretStore get maps libsecret lookup failure to KeyMaterialMissing",
     (void)store->get("holder.ai_provider_credentials", "libsecret-direct-missing");
     FAIL("Expected libsecret lookup failure");
   } catch (const holder::privacy::PrivacyError& ex) {
-    REQUIRE(ex.code() == holder::privacy::PrivacyErrorCode::KeyMaterialMissing);
+    REQUIRE(ex.code() == holder::privacy::PrivacyErrorCode::KeyringUnavailable);
   }
 }
 
@@ -634,7 +634,7 @@ TEST_CASE("SecretStore get covers default libsecret lookup via low-level API sea
   EnvUnsetGuard unset_test_keystore("HOLDER_TEST_KEYSTORE_DIR");
   const auto server_dir = dir / "server";
 
-  SECTION("error maps to KeyMaterialMissing") {
+  SECTION("error maps to KeyringUnavailable") {
     LibsecretLookupHookGuard lookup_guard(nullptr);
     LibsecretApiLookupHookGuard api_guard(&api_lookup_error);
     seed_secret_store_index(
@@ -648,7 +648,7 @@ TEST_CASE("SecretStore get covers default libsecret lookup via low-level API sea
       (void)store->get("holder.ai_provider_credentials", "default-libsecret-error");
       FAIL("Expected libsecret lookup failure");
     } catch (const holder::privacy::PrivacyError& ex) {
-      REQUIRE(ex.code() == holder::privacy::PrivacyErrorCode::KeyMaterialMissing);
+      REQUIRE(ex.code() == holder::privacy::PrivacyErrorCode::KeyringUnavailable);
     }
   }
 

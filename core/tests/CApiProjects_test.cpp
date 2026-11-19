@@ -431,6 +431,59 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "Generated recovery export distinguishes a failed lookup from a missing key",
+    "[capi][project-keyring]"
+) {
+  const auto key_dir = holder::test::make_temp_dir();
+  holder::test::EnvGuard keystore("HOLDER_TEST_KEYSTORE_DIR", key_dir.string());
+  Fixture f;
+  holder_new_project request{};
+  request.name = "Encrypted";
+  request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT;
+  const holder_project* project = nullptr;
+  REQUIRE(holder_create_project(f.context, &request, f.arena, &project, &f.error) == HOLDER_OK);
+
+  bool lookup_failed = false;
+  SECTION("the keyring is locked") { lookup_failed = true; }
+  SECTION("the keyring has no matching entry") {}
+  holder::test::EnvUnsetGuard no_test_keystore("HOLDER_TEST_KEYSTORE_DIR");
+  struct ResetProvider {
+    ~ResetProvider() { holder::privacy::platform_keyring_clear_external_provider(); }
+  } reset;
+  holder::privacy::platform_keyring_set_external_provider(
+      [lookup_failed](const holder::privacy::PlatformKeyringSecretRef&) {
+        return holder::privacy::PlatformKeyringLookupResult{
+            .secret = std::nullopt,
+            .error_message = lookup_failed ? std::optional<std::string>("device keyring is locked")
+                                           : std::nullopt
+        };
+      },
+      {},
+      {}
+  );
+
+  const holder_recovery_token_export_request export_request{"1234"};
+  const holder_project_recovery_token_export_result* exported = nullptr;
+  CHECK(
+      holder_export_project_recovery_token(
+          f.context,
+          project->project_id,
+          &export_request,
+          f.arena,
+          &exported,
+          &f.error
+      ) == (lookup_failed ? HOLDER_ERROR_KEYRING_UNAVAILABLE : HOLDER_ERROR_KEY_MISSING)
+  );
+  CHECK(exported == nullptr);
+  REQUIRE(f.error != nullptr);
+  CHECK(
+      std::string(holder_error_message(f.error)) ==
+      (lookup_failed ? "device keyring is locked"
+                     : "project key material not found in platform keyring")
+  );
+}
+
+TEST_CASE(
     "Generated encrypted project creation reports a locked keyring without registering a project",
     "[capi][project-keyring]"
 ) {

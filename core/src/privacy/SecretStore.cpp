@@ -251,7 +251,7 @@ class PlatformKeyringSecretBackend final : public RawSecretBackend {
         .project_id = std::nullopt,
     });
     if (result.error_message.has_value()) {
-      throw PrivacyError(PrivacyErrorCode::KeyMaterialMissing, *result.error_message);
+      throw PrivacyError(PrivacyErrorCode::KeyringUnavailable, *result.error_message);
     }
     return result.secret;
   }
