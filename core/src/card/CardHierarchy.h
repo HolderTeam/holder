@@ -7,6 +7,9 @@ namespace holder::card {
 // Sibling order: sort key, then ID, the order list_cards pages through by sort key.
 bool card_tree_less(const holder::model::Card& a, const holder::model::Card& b);
 
+// Assign the next usable key and return any siblings that must be re-spaced.
+std::vector<holder::model::Card> append_card_placement(CardRepo& repo, holder::model::Card& card);
+
 // Walk the entire chain, rejecting cycles. Skip unreachable/deleted ancestors when
 // restoring; strict validation is used by create/move under the project lock.
 std::optional<std::string> reachable_card_parent(CardRepo& repo, const holder::model::Card& card);

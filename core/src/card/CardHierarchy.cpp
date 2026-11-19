@@ -62,7 +62,7 @@ std::vector<Card> insert_block_into(
     std::size_t at,
     std::vector<Card> block,
     const std::optional<std::string>& parent,
-    long long updated_at
+    std::optional<long long> updated_at
 ) {
   if (block.empty()) return {};
   for (auto& card : block)
@@ -92,7 +92,7 @@ std::vector<Card> insert_block_into(
       const double key = (*keys)[i - low];
       if ((i >= at && i < block_end) || card.sort_key != key) {
         card.sort_key = key;
-        card.updated_at = updated_at;
+        if (updated_at) card.updated_at = *updated_at;
         changed.push_back(card);
       }
     }
@@ -105,7 +105,7 @@ std::vector<Card> insert_block(
     std::size_t at,
     std::vector<Card> block,
     const std::optional<std::string>& parent,
-    long long updated_at
+    std::optional<long long> updated_at
 ) {
   return insert_block_into(destination, at, std::move(block), parent, updated_at);
 }
@@ -114,6 +114,22 @@ std::vector<Card> insert_block(
 bool card_tree_less(const Card& a, const Card& b) {
   if (a.sort_key != b.sort_key) return a.sort_key < b.sort_key;
   return a.card_id < b.card_id;
+}
+
+std::vector<Card> append_card_placement(CardRepo& repo, Card& card) {
+  if (const auto key = repo.next_sort_key(card.project_id, card.parent_card_id)) {
+    card.sort_key = *key;
+    return {};
+  }
+
+  auto destination = siblings(repo, card);
+  const auto at = destination.size();
+  // Re-spacing for precision alone does not change when the siblings were edited.
+  auto changes =
+      insert_block(std::move(destination), at, {card}, card.parent_card_id, std::nullopt);
+  card.sort_key = changes.back().sort_key;
+  changes.pop_back();
+  return changes;
 }
 
 std::optional<std::string> reachable_card_parent(CardRepo& repo, const Card& card) {

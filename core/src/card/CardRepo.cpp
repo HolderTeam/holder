@@ -4,6 +4,7 @@
 #include <sqlite3.h>
 
 #include <cinttypes>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -546,15 +547,15 @@ int CardRepo::count_children_not_deleted(
   return 0; // LCOV_EXCL_LINE
 }
 
-double CardRepo::next_sort_key(
+std::optional<double> CardRepo::next_sort_key(
     const std::string& project_id,
     const std::optional<std::string>& parent_card_id
 ) const {
   static constexpr const char* SQL_ROOT =
-      "SELECT COALESCE(MAX(sort_key), -1.0) + 1.0 "
+      "SELECT COALESCE(MAX(sort_key), -1.0) "
       "FROM cards WHERE project_id = ? AND parent_card_id IS NULL AND deleted_at IS NULL;";
   static constexpr const char* SQL_CHILDREN =
-      "SELECT COALESCE(MAX(sort_key), -1.0) + 1.0 "
+      "SELECT COALESCE(MAX(sort_key), -1.0) "
       "FROM cards WHERE project_id = ? AND parent_card_id = ? AND deleted_at IS NULL;";
 
   const char* sql = parent_card_id.has_value() ? SQL_CHILDREN : SQL_ROOT;
@@ -570,8 +571,10 @@ double CardRepo::next_sort_key(
 
   const int rc = sqlite3_step(stmt);
   if (rc == SQLITE_ROW) {
-    const double next = sqlite3_column_double(stmt, 0);
+    const double last = sqlite3_column_double(stmt, 0);
     sqlite3_finalize(stmt);
+    const double next = last + 1.0;
+    if (!std::isfinite(next) || next <= last) return std::nullopt;
     return next;
   }
 
@@ -579,7 +582,7 @@ double CardRepo::next_sort_key(
   if (rc != SQLITE_DONE) { // LCOV_EXCL_LINE
     throw_sqlite(db_.handle(), "next sort_key query failed"); // LCOV_EXCL_LINE
   }
-  return 0.0; // LCOV_EXCL_LINE
+  return std::nullopt; // LCOV_EXCL_LINE
 }
 
 void CardRepo::update_title(

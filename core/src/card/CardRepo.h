@@ -91,7 +91,8 @@ class CardRepo {
   int count_roots_not_deleted(const std::string& project_id) const;
   int count_children_not_deleted(const std::string& project_id, const std::string& parent_card_id)
       const;
-  double next_sort_key(
+  // Empty when adding 1.0 cannot produce a finite key strictly after the last sibling.
+  std::optional<double> next_sort_key(
       const std::string& project_id,
       const std::optional<std::string>& parent_card_id
   ) const;
