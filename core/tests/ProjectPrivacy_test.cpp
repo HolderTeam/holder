@@ -723,7 +723,7 @@ TEST_CASE(
 
 #if HOLDER_HAVE_LIBSECRET || HOLDER_HAVE_MACOS_KEYCHAIN
 TEST_CASE(
-    "export_recovery_token maps platform keyring lookup failure to KeyMaterialMissing",
+    "export_recovery_token maps platform keyring lookup failure to KeyringUnavailable",
     "[privacy]"
 ) {
   EnvUnsetGuard unset_test_keystore("HOLDER_TEST_KEYSTORE_DIR");
@@ -735,9 +735,10 @@ TEST_CASE(
         "key-platform-missing",
         "1234"
     );
-    FAIL("Expected missing key material error");
+    FAIL("Expected keyring lookup failure");
   } catch (const holder::privacy::PrivacyError& ex) {
-    REQUIRE(ex.code() == holder::privacy::PrivacyErrorCode::KeyMaterialMissing);
+    REQUIRE(ex.code() == holder::privacy::PrivacyErrorCode::KeyringUnavailable);
+    CHECK(std::string(ex.what()) == "forced keyring lookup failure");
   }
 }
 
