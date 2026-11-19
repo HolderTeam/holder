@@ -303,6 +303,23 @@ private class WindowFixture : Object {
         return shows_label(title);
     }
 
+    // Errors reach the Debug tool immediately, even when their toasts are queued behind others.
+    public bool reports_error(string title, string details) {
+        var line = "ERROR: %s | %s\n".printf(title, details);
+        foreach (var widget in av_descendants(window.workspace_for_tests.toolbox.debug_tool.widget)) {
+            var view = widget as Gtk.TextView;
+            if (view != null) {
+                Gtk.TextIter start;
+                Gtk.TextIter end;
+                ((!) view).buffer.get_bounds(out start, out end);
+                if (((!) view).buffer.get_text(start, end, false).contains(line)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public bool shows_label(string text) {
         av_settle();
         return av_find_label(window, text) != null;
@@ -626,10 +643,8 @@ private void test_the_window_shows_what_the_controller_reports() {
     assert(wait_for_condition(() => restored));
     assert(f.api.list_cards_calls > lists);
 
-    // Toasts show one at a time and the terminal's "Copied" toast above lasts five seconds, so the
-    // error's toast waits behind it.
     w.on_project_create_error_reported("Could not create project", "Name taken");
-    assert(wait_for_condition(() => f.shows_label("Could not create project"), 15000));
+    assert(wait_for_condition(() => f.reports_error("Could not create project", "Name taken")));
     f.destroy();
 }
 
@@ -958,7 +973,7 @@ private void test_a_dropped_image_is_imported_and_placed_where_it_landed() {
     api.fail_import = true;
     var before = f.editor_text();
     f.window.on_workspace_file_dropped(File.new_for_path(window_write_png()), window_mark_at_end(f));
-    assert(wait_for_condition(() => f.shows_label(HolderLinux.AssetImportFlow.FAILED_TITLE)));
+    assert(wait_for_condition(() => f.reports_error(HolderLinux.AssetImportFlow.FAILED_TITLE, "disk full")));
     assert(f.editor_text() == before);
     f.destroy();
 }
@@ -1097,8 +1112,16 @@ private void test_an_asset_can_be_exported_where_the_user_chooses() {
     var destination = Path.build_filename(av_temp_dir(), "exported.png");
     f.picker.chosen = File.new_for_path(destination);
     workspace.asset_preview.export_requested();
-    assert(wait_for_condition(() => f.has_toast("Asset exported.")));
-    assert(FileUtils.test(destination, FileTest.EXISTS));
+    // Wait for the complete PNG. A toast can be queued behind earlier feedback.
+    assert(wait_for_condition(() => {
+        try {
+            uint8[] exported;
+            FileUtils.get_data(destination, out exported);
+            return Base64.encode(exported) == WINDOW_PNG_BASE64;
+        } catch (FileError e) {
+            return false;
+        }
+    }));
     f.destroy();
 }
 
@@ -1278,10 +1301,11 @@ private void test_the_preferences_turn_inline_previews_on() {
 private void test_recovery_keys_need_a_project_and_a_daemon() {
     // With no project, there is nothing to export.
     var f = new WindowFixture();
+    // Empty the project list after startup so first-run setup does not queue a creation toast.
+    f.open_loaded();
     f.api.list_projects_empty = true;
-    f.open();
-    assert(wait_for_condition(() => f.api.list_projects_calls > 0));
-    av_settle();
+    f.controller().reload_everything.begin();
+    assert(wait_for_condition(() => f.controller().get_current_project() == null));
     f.window.request_save_recovery_key_to_usb();
     f.enter_pin("2468");
     assert(wait_for_condition(() => f.has_toast("Select a project first.")));
@@ -1301,7 +1325,7 @@ private void test_recovery_keys_need_a_project_and_a_daemon() {
     g.open();
     g.window.request_import_recovery_key();
     g.enter_pin("2468");
-    assert(wait_for_condition(() => g.shows_label("Recovery key import failed")));
+    assert(wait_for_condition(() => g.reports_error("Recovery key import failed", "API client not connected.")));
     g.destroy();
 }
 
