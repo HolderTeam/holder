@@ -162,7 +162,7 @@ std::string load_key_material(const std::string& project_id, const std::string& 
 
   const auto result = platform_keyring_lookup_secret(project_key_ref(project_id, key_id));
   if (result.error_message.has_value()) {
-    throw PrivacyError(PrivacyErrorCode::KeyMaterialMissing, *result.error_message);
+    throw PrivacyError(PrivacyErrorCode::KeyringUnavailable, *result.error_message);
   }
   if (!result.secret.has_value()) {
     throw PrivacyError(
