@@ -4029,7 +4029,32 @@ endif
 if gtk_dep.version().version_compare('>=4.18')
   app_views_test_env.set('GDK_DEBUG', 'no-portals')
 endif
-test('holder-gtk-app-views-tests', app_views_test_exe, env: app_views_test_env, timeout: 120)
+# Keep one build of the app, with separate processes and timeouts for its test groups.
+app_views_test_groups = {
+  'editor-renderer': '/app_views/editor_renderer',
+  'internal-link-navigator': '/app_views/internal_link_navigator',
+  'toolbox': '/app_views/toolbox',
+  'workspace': '/app_views/workspace',
+  'window': '/app_views/window',
+  'lifetime': '/app-views/lifetime',
+}
+if terminal_backend == 'vte'
+  app_views_test_groups += {'terminal': '/app_views/terminal'}
+endif
+foreach group, path : app_views_test_groups
+  test(
+    'holder-gtk-app-views-' + group,
+    app_views_test_exe,
+    args: ['-p', path],
+    env: app_views_test_env,
+    suite: 'app-views',
+    # GUI tests share display focus and the clipboard.
+    is_parallel: false,
+    timeout: 60,
+    # Keep per-case timings in macOS CI output even when tests pass.
+    verbose: host_machine.system() == 'darwin',
+  )
+endforeach
 
 print_service_test_exe = executable(
   'holder-gtk-print-service-tests',

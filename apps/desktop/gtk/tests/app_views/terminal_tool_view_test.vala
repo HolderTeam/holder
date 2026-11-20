@@ -319,17 +319,17 @@ private void test_the_menu_and_ctrl_shift_keys_copy_paste_and_select() {
 }
 
 internal void register_terminal_tool_view_tests() {
-    Test.add_func("/app_views/terminal/describes_itself", test_the_terminal_tool_describes_itself_and_ignores_navigation);
-    Test.add_func("/app_views/terminal/captures_shortcuts", test_only_a_focused_terminal_keeps_the_application_shortcuts);
-    Test.add_func("/app_views/terminal/starts_shell", test_the_first_tab_starts_the_shell_and_reports_it);
-    Test.add_func("/app_views/terminal/shell_fails", test_a_shell_that_cannot_start_is_reported);
-    Test.add_func("/app_views/terminal/new_and_close", test_new_tabs_are_numbered_and_closing_selects_a_neighbour);
-    Test.add_func("/app_views/terminal/second_close_click", test_a_second_click_on_a_closed_tabs_button_is_ignored);
-    Test.add_func("/app_views/terminal/close_last", test_closing_the_last_tab_opens_a_fresh_one);
-    Test.add_func("/app_views/terminal/tab_title", test_the_tab_follows_the_title_the_program_sets);
-    Test.add_func("/app_views/terminal/copy_to_card", test_copy_to_card_needs_a_selection);
-    Test.add_func("/app_views/terminal/copy_all_to_card", test_copy_all_to_card_copies_everything_or_says_there_is_nothing);
-    Test.add_func("/app_views/terminal/clipboard_and_keys", test_the_menu_and_ctrl_shift_keys_copy_paste_and_select);
+    av_add_test("/app_views/terminal/describes_itself", test_the_terminal_tool_describes_itself_and_ignores_navigation);
+    av_add_test("/app_views/terminal/captures_shortcuts", test_only_a_focused_terminal_keeps_the_application_shortcuts);
+    av_add_test("/app_views/terminal/starts_shell", test_the_first_tab_starts_the_shell_and_reports_it);
+    av_add_test("/app_views/terminal/shell_fails", test_a_shell_that_cannot_start_is_reported);
+    av_add_test("/app_views/terminal/new_and_close", test_new_tabs_are_numbered_and_closing_selects_a_neighbour);
+    av_add_test("/app_views/terminal/second_close_click", test_a_second_click_on_a_closed_tabs_button_is_ignored);
+    av_add_test("/app_views/terminal/close_last", test_closing_the_last_tab_opens_a_fresh_one);
+    av_add_test("/app_views/terminal/tab_title", test_the_tab_follows_the_title_the_program_sets);
+    av_add_test("/app_views/terminal/copy_to_card", test_copy_to_card_needs_a_selection);
+    av_add_test("/app_views/terminal/copy_all_to_card", test_copy_all_to_card_copies_everything_or_says_there_is_nothing);
+    av_add_test("/app_views/terminal/clipboard_and_keys", test_the_menu_and_ctrl_shift_keys_copy_paste_and_select);
 }
 
 }
