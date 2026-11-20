@@ -38,7 +38,7 @@ from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, rule
 
 from holder_capi import Core, OperationError, Unrepresentable
-from holder_http import Http, Nonconforming, shared_daemon
+from holder_http import Http, Nonconforming, shared_daemon, validate_target_rejection
 from test_support.contract import extract, load_contract
 from test_support.coverage_evidence import observe
 from test_support.values import CHARACTERS, Values
@@ -1566,6 +1566,16 @@ def test_a_response_its_route_does_not_declare_is_nonconforming(operation, statu
     http = Http(IR, CONTRACT_APP, None)
     with pytest.raises(Nonconforming, match=re.escape(problem)):
         http.conforming(operation, status, media_type, json.dumps(body).encode())
+
+
+def test_target_rejection_requires_an_oversized_target_and_transport_error():
+    oversized = "/" + "x" * (128 * 1024)
+    body = json.dumps(failure("uri_too_long")).encode()
+    assert validate_target_rejection(oversized, "application/json", body) == "No."
+    with pytest.raises(Nonconforming, match="only 131072 wire bytes"):
+        validate_target_rejection(oversized[:-1], "application/json", body)
+    with pytest.raises(Nonconforming, match="without the uri_too_long error code"):
+        validate_target_rejection(oversized, "application/json", json.dumps(failure("invalid_argument")).encode())
 
 
 SETTINGS = settings(max_examples=int(os.environ.get("HOLDER_CONFORMANCE_EXAMPLES", "25")),

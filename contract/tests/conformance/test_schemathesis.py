@@ -28,7 +28,7 @@ from schemathesis.checks import not_a_server_error
 from schemathesis.config import SchemathesisConfig
 from schemathesis.specs.openapi.checks import negative_data_rejection, positive_data_acceptance
 
-from holder_http import MAX_TARGET, shared_daemon
+from holder_http import shared_daemon, validate_target_rejection
 from test_support.contract import extract
 from test_support.coverage_evidence import observe
 from test_support.schema_scope import SSE_SERVICE_ERRORS, positive_acceptance_limits, schema_routes
@@ -119,9 +119,6 @@ def test_unsupported_method_uses_the_declared_operation_for_scope():
           suppress_health_check=list(HealthCheck))
 def test_the_daemon_answers_as_its_document_says(case):
     daemon = shared_daemon(DAEMON)
-    target = requests.Request(case.method, daemon.url + case.formatted_path, params=case.query).prepare().path_url
-    if len(target) > MAX_TARGET:  # the daemon drops a request longer than it reads (#300)
-        return
     # A project's root path is a directory the daemon makes: a random one could be anywhere.
     if isinstance(case.body, dict) and "root_path" in case.body:
         return
@@ -133,7 +130,13 @@ def test_the_daemon_answers_as_its_document_says(case):
         excluded.append(not_a_server_error)
     if invalid_mutation_not_observed(case):
         excluded.append(negative_data_rejection)
-    case.call_and_validate(base_url=daemon.url, headers={"Authorization": f"Bearer {daemon.token}"},
-                           excluded_checks=excluded)
+    headers = {"Authorization": f"Bearer {daemon.token}"}
+    response = case.call(base_url=daemon.url, headers=headers)
+    if response.status_code == 414:
+        media_type = response.headers.get("Content-Type", "").partition(";")[0].strip()
+        validate_target_rejection(response.request.path_url, media_type, response.content)
+        return
+    case.validate_response(response, headers=headers, excluded_checks=excluded,
+                           transport_kwargs={"base_url": daemon.url, "headers": headers})
     if case.method.upper() == method:
         observe("http-schema", operation)

@@ -5,6 +5,7 @@
 
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/read_until.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
@@ -14,6 +15,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <future>
@@ -26,6 +28,12 @@ namespace holder::api {
 namespace {
 
 namespace http = boost::beast::http;
+
+// Allow 8,192 cursor characters at up to 12 wire bytes per character (four UTF-8
+// bytes, each percent encoded), plus the path, parameter names, and filters.
+constexpr std::size_t request_target_limit = 128 * 1024;
+constexpr std::size_t request_header_limit = 16 * 1024;
+constexpr std::size_t request_line_limit = request_target_limit + 64;
 
 template <typename T> void ignore_result(T&&) noexcept {}
 
@@ -54,6 +62,7 @@ std::string generate_uuid_v4() {
 
 struct AsyncReadResult {
   boost::system::error_code ec;
+  http::status rejection;
   Session::tcp::socket socket;
   Session::Request req;
 };
@@ -68,7 +77,6 @@ AsyncReadResult async_read_request(
     const Session::SocketHook& on_io_start,
     const Session::SocketHook& on_io_done
 ) {
-  namespace beast = boost::beast;
   auto promise = std::make_shared<std::promise<AsyncReadResult>>();
   auto future = promise->get_future();
 
@@ -81,8 +89,9 @@ AsyncReadResult async_read_request(
     bool cancel_requested = false;
     Session::tcp::socket socket;
     boost::asio::strand<boost::asio::any_io_executor> strand;
-    beast::flat_buffer buffer;
-    Session::Request req;
+    std::string wire;
+    decltype(boost::asio::dynamic_buffer(wire)) buffer = boost::asio::dynamic_buffer(wire);
+    http::request_parser<http::string_body> parser;
   };
 
   auto state = std::make_shared<State>(std::move(socket));
@@ -116,25 +125,87 @@ AsyncReadResult async_read_request(
   if (on_io_start) {
     on_io_start(io_handle);
   }
-  boost::asio::post(state->strand, [state, promise, on_io_done, io_handle]() mutable {
-    http::async_read(
+  const auto finish = [state, promise, on_io_done, io_handle](
+                          boost::system::error_code ec,
+                          http::status rejection = http::status::unknown
+                      ) {
+    std::unique_lock<std::mutex> lock(state->mu);
+    state->done = true;
+    AsyncReadResult result{ec, rejection, std::move(state->socket), state->parser.release()};
+    lock.unlock();
+    if (on_io_done) {
+      on_io_done(io_handle);
+    }
+    promise->set_value(std::move(result));
+  };
+
+  // Frame the line and headers separately so neither can consume the other's budget.
+  // Leave the bytes in the buffer for Beast to parse, including any body read ahead.
+  const auto read_headers = [state, finish](std::size_t line_size) {
+    const auto header_end_limit = line_size + request_header_limit;
+    const auto read_limit = std::max(header_end_limit, state->wire.size());
+    boost::asio::async_read_until(
         state->socket,
-        state->buffer,
-        state->req,
+        boost::asio::dynamic_buffer(state->wire, read_limit),
+        "\r\n\r\n",
         boost::asio::bind_executor(
             state->strand,
             [state,
-             promise,
-             on_io_done,
-             io_handle](boost::system::error_code ec, std::size_t) mutable {
-              std::unique_lock<std::mutex> lock(state->mu);
-              state->done = true;
-              AsyncReadResult result{ec, std::move(state->socket), std::move(state->req)};
-              lock.unlock();
-              if (on_io_done) {
-                on_io_done(io_handle);
+             finish,
+             header_end_limit](boost::system::error_code ec, std::size_t header_end) {
+              if (ec == boost::asio::error::not_found || header_end > header_end_limit) {
+                return finish({}, http::status::request_header_fields_too_large);
               }
-              promise->set_value(std::move(result));
+              if (ec) {
+                return finish(ec);
+              }
+              state->parser.header_limit(static_cast<std::uint32_t>(header_end_limit));
+              http::async_read(
+                  state->socket,
+                  state->buffer,
+                  state->parser,
+                  boost::asio::bind_executor(
+                      state->strand,
+                      [finish](boost::system::error_code error, std::size_t) {
+                        finish(error);
+                      }
+                  )
+              );
+            }
+        )
+    );
+  };
+  boost::asio::post(state->strand, [state, finish, read_headers]() {
+    boost::asio::async_read_until(
+        state->socket,
+        boost::asio::dynamic_buffer(state->wire, request_line_limit),
+        "\r\n",
+        boost::asio::bind_executor(
+            state->strand,
+            [state, finish, read_headers](boost::system::error_code ec, std::size_t line_size) {
+              if (ec == boost::asio::error::not_found) {
+                return finish({}, http::status::uri_too_long);
+              }
+              if (ec == boost::asio::error::eof && state->wire.empty()) {
+                return finish(http::error::end_of_stream);
+              }
+              if (ec) {
+                return finish(ec);
+              }
+              const std::string_view line{state->wire.data(), line_size - 2};
+              const auto method_end = line.find(' ');
+              if (method_end == line.npos) {
+                return finish(http::error::bad_target);
+              }
+              const auto target_end = line.find(' ', method_end + 1);
+              if (target_end == line.npos) {
+                return finish(http::error::bad_target);
+              }
+              if (target_end - method_end - 1 > request_target_limit) {
+                return finish({}, http::status::uri_too_long);
+              }
+
+              read_headers(line_size);
             }
         )
     );
@@ -287,6 +358,23 @@ std::optional<Session::PreparedRequest> Session::prepare_request(
 ) {
   const auto request_started = std::chrono::steady_clock::now();
   auto read_result = async_read_request(std::move(socket), on_io_start, on_io_done);
+  if (read_result.rejection != http::status::unknown) {
+    const bool target = read_result.rejection == http::status::uri_too_long;
+    auto response = support::error_response(
+        read_result.rejection,
+        target ? "uri_too_long" : "request_header_fields_too_large",
+        target ? "request target exceeds 128 KiB" : "request headers exceed 16 KiB"
+    );
+    write_prepared_response(
+        {std::move(read_result.socket),
+         std::move(read_result.req),
+         std::move(response),
+         request_started},
+        on_io_start,
+        on_io_done
+    );
+    return std::nullopt;
+  }
   auto& ec = read_result.ec;
   if (ec == http::error::end_of_stream) {
     ignore_result(read_result.socket.shutdown(tcp::socket::shutdown_send, ec)
