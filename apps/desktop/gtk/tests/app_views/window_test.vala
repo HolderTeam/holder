@@ -659,6 +659,30 @@ private void test_the_window_shows_what_the_controller_reports() {
 private class WindowSyncApi : MainControllerFakeApi {
     public string pulled_content = "# Card 1\n\nRemote edits";
     public string pulled_title = "Renamed on the other Desktop";
+    public bool reject_push = false;
+    public bool stall_next_card_read = false;
+    public bool fail_stalled_card_read = false;
+    private SourceFunc? stalled_card_read = null;
+
+    public bool has_stalled_card_read() {
+        return stalled_card_read != null;
+    }
+
+    public void release_stalled_card_read() {
+        var resume = (owned) stalled_card_read;
+        assert(resume != null);
+        resume();
+    }
+
+    public override async HolderLinux.GitSyncResult sync_project_git(string project_id) throws Error {
+        var result = yield base.sync_project_git(project_id);
+        if (!reject_push) {
+            return result;
+        }
+        var push = new HolderLinux.GitPushResult(
+            project_id, "", "", "failed", 1, 0, "", "Remote rejected the push", "");
+        return new HolderLinux.GitSyncResult(result.pull, true, push);
+    }
 
     public override async HolderLinux.CardDetail get_card(string project_id, string card_id) throws Error {
         var card = yield base.get_card(project_id, card_id);
@@ -666,8 +690,27 @@ private class WindowSyncApi : MainControllerFakeApi {
             card.content = pulled_content;
             card.title = pulled_title;
         }
+        if (stall_next_card_read) {
+            stall_next_card_read = false;
+            var fail = fail_stalled_card_read;
+            stalled_card_read = get_card.callback;
+            yield;
+            if (fail) {
+                throw new IOError.FAILED("Older pulled card could not be read");
+            }
+        }
         return card;
     }
+}
+
+private Gtk.Button window_sync_button(WindowFixture f) {
+    foreach (var widget in av_descendants(f.window.workspace_for_tests.toolbox.widget)) {
+        var button = widget as Gtk.Button;
+        if (button != null && button.get_label() == "Sync now") {
+            return button;
+        }
+    }
+    assert_not_reached();
 }
 
 private class WindowConflictApi : MainControllerFakeApi {
@@ -775,17 +818,11 @@ private void test_sync_now_refreshes_remote_edits_and_deletions() {
     f.open_loaded();
     f.open_card("c1");
 
-    Gtk.Button? sync = null;
-    foreach (var widget in av_descendants(f.window.workspace_for_tests.toolbox.widget)) {
-        var button = widget as Gtk.Button;
-        if (button != null && button.get_label() == "Sync now") {
-            sync = button;
-            break;
-        }
-    }
-    assert(sync != null);
+    var sync = window_sync_button(f);
+    api.reject_push = true;
     sync.clicked();
     assert(wait_for_condition(() => f.editor_text() == api.pulled_content));
+    assert(f.reports_error("Git push failed", "Pull succeeded.\nRemote rejected the push"));
     assert(f.window.get_title().contains(api.pulled_title));
     assert(f.controller().selected_card_id() == "c1");
     assert(api.sync_project_git_calls == 1);
@@ -795,6 +832,7 @@ private void test_sync_now_refreshes_remote_edits_and_deletions() {
     // A draft typed while the refreshed card is being read must win over that response.
     var editor_buffer = f.window.workspace_for_tests.editor_buffer;
     var synced_content = api.pulled_content;
+    api.reject_push = false;
     api.pulled_content = "# Card 1\n\nAnother remote edit";
     api.get_card_before_complete_hook = (card_id) => {
         if (card_id == "c1") {
@@ -813,6 +851,37 @@ private void test_sync_now_refreshes_remote_edits_and_deletions() {
     assert(f.controller().selected_card_id() == null);
     assert(!f.controller().has_card_summary("c1"));
     assert(api.sync_project_git_calls == 3);
+    f.destroy();
+}
+
+private void test_newer_pull_wins_over_an_older_card_reply_or_error() {
+    var f = new WindowFixture();
+    var api = new WindowSyncApi();
+    f.api = api;
+    f.open_loaded();
+    f.open_card("c1");
+    var sync = window_sync_button(f);
+
+    // The Sync button can become ready again while the window's card refresh is still pending.
+    for (int i = 0; i < 2; i++) {
+        api.pulled_content = "# Card 1\n\nOld remote content %d".printf(i);
+        api.stall_next_card_read = true;
+        api.fail_stalled_card_read = i == 1;
+        sync.clicked();
+        assert(wait_for_condition(() => api.has_stalled_card_read() && sync.get_sensitive()));
+
+        var latest = "# Card 1\n\nLatest remote content %d".printf(i);
+        api.pulled_content = latest;
+        sync.clicked();
+        assert(wait_for_condition(() => f.editor_text() == latest && sync.get_sensitive()));
+
+        api.release_stalled_card_read();
+        av_settle();
+        assert(f.editor_text() == latest);
+        assert(f.controller().selected_card_id() == "c1");
+        assert(!f.reports_error("Could not refresh cards after pull", "Older pulled card could not be read"));
+    }
+    assert(api.sync_project_git_calls == 4);
     f.destroy();
 }
 
@@ -1624,6 +1693,7 @@ internal void register_window_tests() {
     av_add_test("/app_views/window/find_replace", test_find_and_replace_edit_the_card);
     av_add_test("/app_views/window/reported_state", test_the_window_shows_what_the_controller_reports);
     av_add_test("/app_views/window/sync_now_refresh", test_sync_now_refreshes_remote_edits_and_deletions);
+    av_add_test("/app_views/window/sync_out_of_order_card_replies", test_newer_pull_wins_over_an_older_card_reply_or_error);
     av_add_test("/app_views/window/sync_conflict_open", test_opening_a_conflict_copy_saves_and_loads_the_requested_card);
     av_add_test("/app_views/window/sync_deletion_with_draft", test_pull_deletion_preserves_unsaved_editor_text);
     av_add_test("/app_views/window/sync_refresh_errors", test_pull_refresh_handles_missing_selection_and_errors);
