@@ -477,11 +477,15 @@ private void test_closing_saves_the_window_and_says_goodbye() {
 
 private void test_a_recovery_draft_can_be_restored_or_discarded() {
     var f = new WindowFixture();
+    var draft = new HolderLinux.EditorRecoveryDraft("c1", "p1", "Card 1", "# Card 1\n\nUnsaved words", 999);
+    try {
+        new HolderLinux.EditorRecoveryDraftService().save_draft(draft);
+    } catch (Error e) {
+        assert_not_reached();
+    }
     f.open_loaded();
     f.open_card("c1");
-    var draft = new HolderLinux.EditorRecoveryDraft("c1", "p1", "Card 1", "# Card 1\n\nUnsaved words", 999);
 
-    f.window.show_recovery_draft(draft);
     var dialog = f.wait_for_dialog();
     av_answer(dialog, "restore");
     assert(f.editor_text() == "# Card 1\n\nUnsaved words");
@@ -654,14 +658,114 @@ private void test_the_window_shows_what_the_controller_reports() {
 
 private class WindowSyncApi : MainControllerFakeApi {
     public string pulled_content = "# Card 1\n\nRemote edits";
+    public string pulled_title = "Renamed on the other Desktop";
 
     public override async HolderLinux.CardDetail get_card(string project_id, string card_id) throws Error {
         var card = yield base.get_card(project_id, card_id);
         if (sync_project_git_calls > 0) {
             card.content = pulled_content;
+            card.title = pulled_title;
         }
         return card;
     }
+}
+
+private class WindowConflictApi : MainControllerFakeApi {
+    public override async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
+        var projects = yield base.list_projects();
+        projects[0].sync.conflict_copies.add(new HolderLinux.GitConflictCopy(
+            "c2", "Preserved edit", "c1", "Original", false));
+        return projects;
+    }
+}
+
+private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
+    var f = new WindowFixture();
+    f.api = new WindowConflictApi();
+    f.api.include_card2 = true;
+    f.open_loaded();
+    f.open_card("c1");
+    var workspace = f.window.workspace_for_tests;
+    workspace.toolbox.show_tool("git");
+    Gtk.Button? copy = null;
+    assert(wait_for_condition(() => {
+        foreach (var widget in av_descendants(workspace.toolbox.widget)) {
+            var button = widget as Gtk.Button;
+            if (button != null && button.get_label() == "Copy “Preserved edit”") {
+                copy = button;
+                return true;
+            }
+        }
+        return false;
+    }));
+
+    const string draft = "# Card 1\n\nSave before opening the conflict";
+    workspace.editor_buffer.set_text(draft, -1);
+    f.api.fail_list_cards_once = true;
+    ((!) copy).clicked();
+    assert(wait_for_condition(() => !f.api.fail_list_cards_once));
+    assert(f.controller().selected_card_id() == "c1");
+    assert(f.api.last_updated_content == draft);
+
+    ((!) copy).clicked();
+    assert(wait_for_condition(() => {
+        var card = f.controller().get_current_card();
+        return card != null && card.card_id == "c2";
+    }));
+    f.destroy();
+}
+
+private void test_pull_deletion_preserves_unsaved_editor_text() {
+    var f = new WindowFixture();
+    f.open_loaded();
+    f.open_card("c1");
+    var workspace = f.window.workspace_for_tests;
+    const string draft = "# Card 1\n\nAn unsaved edit";
+    workspace.editor_buffer.set_text(draft, -1);
+
+    int reads_before_pull = f.api.get_card_calls;
+    workspace.toolbox.git_project_pulled("p1");
+    av_settle();
+    assert(f.api.get_card_calls == reads_before_pull);
+    assert(f.editor_text() == draft);
+
+    f.api.list_cards_empty = true;
+    workspace.toolbox.git_project_pulled("p1");
+    assert(wait_for_condition(() => f.has_toast(
+        "The pulled changes removed the open card. Your unsaved edits are still in the editor.")));
+    assert(f.editor_text() == draft);
+    assert(f.controller().selected_card_id() == "c1");
+    f.destroy();
+}
+
+private void test_pull_refresh_handles_missing_selection_and_errors() {
+    var f = new WindowFixture();
+    f.open_loaded();
+    var toolbox = f.window.workspace_for_tests.toolbox;
+    int before = f.api.list_cards_calls;
+    toolbox.git_project_pulled("p-other");
+    assert(f.api.list_cards_calls == before);
+
+    toolbox.git_project_pulled("p1");
+    assert(f.controller().selected_card_id() == null);
+
+    f.api.fail_list_cards_once = true;
+    f.api.list_cards_failure_message = "Connection interrupted during refresh";
+    toolbox.git_project_pulled("p1");
+    assert(wait_for_condition(() => f.reports_error(
+        "Could not refresh cards after pull", "Connection interrupted during refresh")));
+
+    f.open_card("c1");
+    f.api.list_cards_empty = true;
+    f.api.list_cards_before_complete_hook = () => {
+        f.api.list_cards_before_complete_hook = null;
+        f.window.request_project_selection(null);
+    };
+    toolbox.git_project_pulled("p1");
+    assert(wait_for_condition(() => f.controller().selected_project_id() == null));
+    // The old, empty reply must not replace the cached list after the selection is cleared.
+    assert(f.controller().has_card_summary("c1"));
+    f.destroy();
 }
 
 private void test_sync_now_refreshes_remote_edits_and_deletions() {
@@ -682,6 +786,7 @@ private void test_sync_now_refreshes_remote_edits_and_deletions() {
     assert(sync != null);
     sync.clicked();
     assert(wait_for_condition(() => f.editor_text() == api.pulled_content));
+    assert(f.window.get_title().contains(api.pulled_title));
     assert(f.controller().selected_card_id() == "c1");
     assert(api.sync_project_git_calls == 1);
     assert(api.push_project_git_calls == 0);
@@ -744,6 +849,25 @@ private void test_startup_health_error_shows_advice_and_logs_diagnostics() {
     assert(f.debug_contains("API GET /health failed category=parse elapsed="));
     assert(f.debug_contains("status=200 invalid JSON object"));
     assert(!f.debug_contains("test-credential"));
+    f.destroy();
+}
+
+private void test_reconnecting_disconnects_the_previous_api_diagnostics() {
+    var f = new WindowFixture();
+    f.open_loaded();
+    var original = new HolderLinux.ApiClient(
+        "http://127.0.0.1:8080", "test-credential", new WindowFailureTransport());
+    var replacement = new HolderLinux.ApiClient(
+        "http://127.0.0.1:8081", "test-credential", new WindowFailureTransport());
+    f.window.on_api_client_connected(original);
+    original.request_failed("first client before reconnect");
+    assert(f.debug_contains("first client before reconnect"));
+
+    f.window.on_api_client_connected(replacement);
+    original.request_failed("first client after reconnect");
+    replacement.request_failed("new client after reconnect");
+    assert(!f.debug_contains("first client after reconnect"));
+    assert(f.debug_contains("new client after reconnect"));
     f.destroy();
 }
 
@@ -1500,7 +1624,11 @@ internal void register_window_tests() {
     av_add_test("/app_views/window/find_replace", test_find_and_replace_edit_the_card);
     av_add_test("/app_views/window/reported_state", test_the_window_shows_what_the_controller_reports);
     av_add_test("/app_views/window/sync_now_refresh", test_sync_now_refreshes_remote_edits_and_deletions);
+    av_add_test("/app_views/window/sync_conflict_open", test_opening_a_conflict_copy_saves_and_loads_the_requested_card);
+    av_add_test("/app_views/window/sync_deletion_with_draft", test_pull_deletion_preserves_unsaved_editor_text);
+    av_add_test("/app_views/window/sync_refresh_errors", test_pull_refresh_handles_missing_selection_and_errors);
     av_add_test("/app_views/window/startup_api_diagnostic", test_startup_health_error_shows_advice_and_logs_diagnostics);
+    av_add_test("/app_views/window/reconnect_api_diagnostics", test_reconnecting_disconnects_the_previous_api_diagnostics);
     av_add_test("/app_views/window/storage_api_diagnostic", test_adding_a_storage_location_shows_timeout_advice);
     av_add_test("/app_views/window/email", test_sharing_a_card_opens_an_email);
     av_add_test("/app_views/window/update_offer", test_a_newer_release_is_offered_once);

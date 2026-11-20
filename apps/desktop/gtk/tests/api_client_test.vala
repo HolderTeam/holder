@@ -2527,6 +2527,59 @@ private void test_request_json_http_error_parses_error_object() {
     assert(diagnostic.has_suffix("ms status=404 code=not_found"));
 }
 
+private void assert_api_error_advice(int status, string code, string advice) {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(status, "{\"ok\":false,\"error\":{\"code\":\"%s\",\"message\":\"raw details\"}}".printf(code));
+    var client = make_client(transport);
+    string? message = null;
+    client.list_projects.begin((obj, res) => {
+        try {
+            client.list_projects.end(res);
+            assert_not_reached();
+        } catch (HolderLinux.ApiError.HTTP error) {
+            message = error.message;
+        } catch (Error error) {
+            assert_not_reached();
+        }
+    });
+    assert(wait_for_condition(() => message != null));
+    assert(message != "raw details");
+    assert(message.contains(advice));
+}
+
+private void test_request_json_gives_recovery_advice_for_backend_errors() {
+    assert_api_error_advice(503, "keyring_unavailable", "Unlock it or check its permissions");
+    assert_api_error_advice(409, "key_missing", "Import its recovery key");
+    assert_api_error_advice(500, "data_corrupted", "restore it from a known good copy");
+    assert_api_error_advice(500, "history_unavailable", "Check that the project folder is accessible");
+    assert_api_error_advice(401, "unauthorized", "Reopen Holder to reconnect");
+    assert_api_error_advice(504, "timeout", "Check whether the action completed");
+}
+
+private void test_request_json_rejects_incomplete_git_sync_results() {
+    foreach (var body in new string[] {
+        "{\"ok\":true}",
+        "{\"ok\":true,\"data\":{\"pull\":{}}}"
+    }) {
+        var transport = new FakeApiHttpTransport();
+        transport.enqueue_read(200, body);
+        var client = make_client(transport);
+        string? message = null;
+        client.sync_project_git.begin("p1", (obj, res) => {
+            try {
+                client.sync_project_git.end(res);
+                assert_not_reached();
+            } catch (HolderLinux.ApiError.PROTOCOL error) {
+                message = error.message;
+            } catch (Error error) {
+                assert_not_reached();
+            }
+        });
+        assert(wait_for_condition(() => message != null));
+        assert(message.has_prefix("Missing "));
+    }
+}
+
 private void test_request_json_parse_error_on_success_response() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(200, "this-is-not-json");
@@ -3006,6 +3059,10 @@ int main(string[] args) {
                   test_request_json_transport_error_maps_to_api_transport);
     Test.add_func("/api_client/request_json_http_error_parses_error_object",
                   test_request_json_http_error_parses_error_object);
+    Test.add_func("/api_client/request_json_recovery_advice",
+                  test_request_json_gives_recovery_advice_for_backend_errors);
+    Test.add_func("/api_client/request_json_incomplete_git_sync",
+                  test_request_json_rejects_incomplete_git_sync_results);
     Test.add_func("/api_client/request_json_parse_error_on_success_response",
                   test_request_json_parse_error_on_success_response);
     Test.add_func("/api_client/request_json_protocol_error_when_ok_missing",

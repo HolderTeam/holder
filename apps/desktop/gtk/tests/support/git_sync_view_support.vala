@@ -17,6 +17,7 @@ public class GitSyncViewFakeApi : MainControllerFakeApi {
     public string pull_status = "succeeded";
     public string pull_error_message = "";
     public int conflicts_resolved = 0;
+    public HolderLinux.GitConflictCopy? conflict_copy = null;
     public bool stall_next_list_projects = false;
     public bool stall_next_push = false;
     public bool stall_next_sync = false;
@@ -87,6 +88,9 @@ public class GitSyncViewFakeApi : MainControllerFakeApi {
     // was when the call started, like a slow real response would.
     public override async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
         var projects = yield base.list_projects();
+        if (conflict_copy != null && projects.size > 0) {
+            projects[0].sync.conflict_copies.add((!) conflict_copy);
+        }
         if (stall_next_list_projects) {
             stall_next_list_projects = false;
             stalled_list = list_projects.callback;
@@ -343,14 +347,15 @@ public class GitSyncViewHarness : Object {
                               bool auto_check_cli = false,
                               HolderLinux.ProjectSyncState? sync = null,
                               bool use_fake_service = false,
-                              string? home_override = null) {
+                              string? home_override = null,
+                              HolderLinux.IScheduler? scheduler = null) {
         string? view_home = null;
         if (use_fake_service) {
             service = new GitSyncViewFakeService();
             home = GitSyncViewEnv.make_home();
             view_home = home_override ?? home;
         }
-        view = new HolderLinux.GitSyncToolView(auto_check_cli, service, launcher, clipboard, view_home);
+        view = new HolderLinux.GitSyncToolView(auto_check_cli, service, launcher, clipboard, view_home, scheduler);
         selection = new Gtk.SingleSelection(store);
         view.toast_requested.connect((message) => { toasts.add(message); });
         view.error_reported.connect((title, details) => { errors.add("%s|%s".printf(title, details)); });
