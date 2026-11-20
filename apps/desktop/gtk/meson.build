@@ -4037,6 +4037,7 @@ app_views_test_groups = {
   'toolbox': '/app_views/toolbox',
   'workspace': '/app_views/workspace',
   'window': '/app_views/window',
+  'conflict-comparison': '/app_views/conflict_comparison',
   'lifetime': '/app-views/lifetime',
 }
 if terminal_backend == 'vte'

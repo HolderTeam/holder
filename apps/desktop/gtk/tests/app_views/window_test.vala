@@ -795,7 +795,7 @@ private Gtk.Button comparison_button(Adw.Dialog dialog, string label) {
 }
 
 private void wait_for_dialog_open_frames(Adw.Dialog dialog) {
-    // Libadwaita 1.5 opens the sheet on its second frame after mapping.
+    // Libadwaita opens the sheet on its second frame after mapping.
     // Synthetic clicks and close requests can reach it before then.
     int frames = 0;
     dialog.add_tick_callback((widget, clock) => ++frames < 2);
@@ -839,11 +839,14 @@ private bool comparison_contains_text(Adw.Dialog dialog, string text) {
     return false;
 }
 
-private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
+private void test_reviewing_and_resolving_a_conflict_copy() {
+    // The comparison test has its own process and exercises the dialog actions.
+    Gtk.Settings.get_default().gtk_enable_animations = false;
     var f = new WindowFixture();
     var api = new WindowConflictApi();
     f.api = api;
     f.api.include_card2 = true;
+    Test.message("Loading the original and opening Git Sync");
     f.open_loaded();
     f.open_card("c1");
     var workspace = f.window.workspace_for_tests;
@@ -862,6 +865,7 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
         return copy != null && compare != null;
     }));
 
+    Test.message("Comparing both versions and discarding a draft");
     var comparison = open_conflict_comparison(f, (!) compare);
     assert(wait_for_condition(() => {
         var dialog = f.window.get_visible_dialog();
@@ -884,6 +888,7 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
     assert(api.resolution_calls == 0);
     assert(f.editor_text() == "# Card 1\n\nBody");
 
+    Test.message("Keeping the original and preserving the copy");
     comparison = open_conflict_comparison(f, (!) compare);
     assert(wait_for_condition(() => api.comparison_calls == 2));
     comparison_button(comparison, "Keep original").clicked();
@@ -901,6 +906,7 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
     comparison.close();
     assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
 
+    Test.message("Refreshing a stale review and saving the result");
     comparison = open_conflict_comparison(f, (!) compare);
     assert(wait_for_condition(() => api.comparison_calls == 3));
     comparison_button(comparison, "Start from copy").clicked();
@@ -935,6 +941,7 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
     comparison.close();
     assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
 
+    Test.message("Checking load failure and opening the preserved card");
     f.api.fail_get_card_once = true;
     comparison = open_conflict_comparison(f, (!) compare);
     assert(wait_for_condition(() => av_find_label(comparison,
@@ -956,6 +963,7 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
         return card != null && card.card_id == "c2";
     }));
 
+    Test.message("Rejecting stale cleanup and confirming a fresh review");
     var previous_comparisons = api.comparison_calls;
     comparison = open_conflict_comparison(f, (!) compare);
     assert(wait_for_condition(() => api.comparison_calls > previous_comparisons));
@@ -984,6 +992,7 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
         "The preserved copy was moved to Trash. You can restore it from there.") != null));
     assert(wait_for_condition(() => f.controller().selected_card_id() != "c2"));
     assert(api.resolved_content == combined);
+    Test.message("Closing the window after moving the copy to Trash");
     f.destroy();
 }
 
@@ -1060,7 +1069,6 @@ private void test_sync_now_refreshes_remote_edits_and_deletions() {
 
     // A draft typed while the refreshed card is being read must win over that response.
     var editor_buffer = f.window.workspace_for_tests.editor_buffer;
-    var synced_content = api.pulled_content;
     api.reject_push = false;
     api.pulled_content = "# Card 1\n\nAnother remote edit";
     api.get_card_before_complete_hook = (card_id) => {
@@ -1072,7 +1080,10 @@ private void test_sync_now_refreshes_remote_edits_and_deletions() {
     assert(wait_for_condition(() => f.editor_text() == "# Card 1\n\nLocal draft" && sync.get_sensitive()));
     assert(f.controller().has_unsaved_editor_changes());
     api.get_card_before_complete_hook = null;
-    editor_buffer.set_text(synced_content, -1);
+    // Restore the committed editor state before testing deletion of a clean card.
+    assert(wait_for_condition(() => !f.controller().is_editor_save_in_flight()));
+    f.controller().set_loaded_card_editor_state((!) f.controller().get_current_card());
+    assert(!f.controller().has_unsaved_editor_changes());
 
     api.list_cards_empty = true;
     sync.clicked();
@@ -1923,7 +1934,7 @@ internal void register_window_tests() {
     av_add_test("/app_views/window/reported_state", test_the_window_shows_what_the_controller_reports);
     av_add_test("/app_views/window/sync_now_refresh", test_sync_now_refreshes_remote_edits_and_deletions);
     av_add_test("/app_views/window/sync_out_of_order_card_replies", test_newer_pull_wins_over_an_older_card_reply_or_error);
-    av_add_test("/app_views/window/sync_conflict_open", test_opening_a_conflict_copy_saves_and_loads_the_requested_card);
+    av_add_test("/app_views/conflict_comparison/workflow", test_reviewing_and_resolving_a_conflict_copy);
     av_add_test("/app_views/window/sync_deletion_with_draft", test_pull_deletion_preserves_unsaved_editor_text);
     av_add_test("/app_views/window/sync_refresh_errors", test_pull_refresh_handles_missing_selection_and_errors);
     av_add_test("/app_views/window/startup_api_diagnostic", test_startup_health_error_shows_advice_and_logs_diagnostics);
