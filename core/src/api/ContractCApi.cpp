@@ -787,6 +787,10 @@ holder_recovery_token_global_import_result to_c(
     const contract::RecoveryTokenGlobalImportResult& value
 );
 holder_card_summary to_c(holder_arena* arena, const contract::CardSummary& value);
+holder_card_summary_list to_c_list(
+    holder_arena* arena,
+    const std::vector<contract::CardSummary>& values
+);
 holder_conflict_copy to_c(holder_arena* arena, const contract::ConflictCopy& value);
 holder_conflict_copy_list to_c_list(
     holder_arena* arena,
@@ -799,6 +803,14 @@ holder_conflict_changed_line_list to_c_list(
     const std::vector<contract::ConflictChangedLine>& values
 );
 holder_conflict_comparison to_c(holder_arena* arena, const contract::ConflictComparison& value);
+holder_conflict_copy_cleanup_review to_c(
+    holder_arena* arena,
+    const contract::ConflictCopyCleanupReview& value
+);
+holder_conflict_resolution_result to_c(
+    holder_arena* arena,
+    const contract::ConflictResolutionResult& value
+);
 holder_pull_phase to_c(holder_arena* arena, const contract::PullPhase& value);
 holder_push_phase to_c(holder_arena* arena, const contract::PushPhase& value);
 holder_sync_result to_c(holder_arena* arena, const contract::SyncResult& value);
@@ -1650,6 +1662,16 @@ holder_card_summary to_c(holder_arena* arena, const contract::CardSummary& value
   return out;
 }
 
+holder_card_summary_list to_c_list(
+    holder_arena* arena,
+    const std::vector<contract::CardSummary>& values
+) {
+  auto* items = make<holder_card_summary>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i)
+    items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
 holder_conflict_copy to_c(holder_arena* arena, const contract::ConflictCopy& value) {
   holder_conflict_copy out{};
   out.original_card_id = copy(arena, value.original_card_id);
@@ -1721,6 +1743,36 @@ holder_conflict_comparison to_c(holder_arena* arena, const contract::ConflictCom
   out.copy_changed_lines = to_c_list(arena, value.copy_changed_lines);
   out.truncated = value.truncated;
   out.review_token = copy(arena, value.review_token);
+  return out;
+}
+
+holder_conflict_copy_cleanup_review to_c(
+    holder_arena* arena,
+    const contract::ConflictCopyCleanupReview& value
+) {
+  holder_conflict_copy_cleanup_review out{};
+  out.cleanup_token = copy(arena, value.cleanup_token);
+  out.copy_links = to_c_list(arena, value.copy_links);
+  out.copy_milestones = to_c_list(arena, value.copy_milestones);
+  out.backlinks = to_c_list(arena, value.backlinks);
+  out.children = to_c_list(arena, value.children);
+  out.promotion_parent =
+      copy_optional<holder_card_summary>(arena, value.promotion_parent, [&](const auto& item) {
+        return to_c(arena, item);
+      });
+  out.placement_differs = value.placement_differs;
+  out.preserves_original = value.preserves_original;
+  out.copy_tags = copy_strings(arena, value.copy_tags);
+  return out;
+}
+
+holder_conflict_resolution_result to_c(
+    holder_arena* arena,
+    const contract::ConflictResolutionResult& value
+) {
+  holder_conflict_resolution_result out{};
+  out.card = to_c(arena, value.card);
+  out.cleanup = to_c(arena, value.cleanup);
   return out;
 }
 
@@ -2401,6 +2453,13 @@ contract::ConflictResolution from_c(const holder_conflict_resolution& value) {
   out.review_token = text(value.review_token, "conflict_resolution.review_token", 1, 256);
   out.title = text(value.title, "conflict_resolution.title", 1, SIZE_MAX);
   out.content = text(value.content, "conflict_resolution.content", 0, SIZE_MAX);
+  return out;
+}
+
+contract::TrashConflictCopyRequest from_c(const holder_trash_conflict_copy_request& value) {
+  contract::TrashConflictCopyRequest out;
+  out.cleanup_token =
+      text(value.cleanup_token, "trash_conflict_copy_request.cleanup_token", 1, 256);
   return out;
 }
 
@@ -4022,23 +4081,52 @@ int holder_resolve_conflict_copy(
     const char* copy_id,
     const holder_conflict_resolution* resolution,
     holder_arena* arena,
-    const holder_card** out_card,
+    const holder_conflict_resolution_result** out_conflict_resolution_result,
     holder_error** out_error
 ) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
-    require(out_card != nullptr, "out_card must not be null");
-    *out_card = nullptr;
+    require(
+        out_conflict_resolution_result != nullptr,
+        "out_conflict_resolution_result must not be null"
+    );
+    *out_conflict_resolution_result = nullptr;
     const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
     const auto copy_id_value = text(copy_id, "copy_id", 1, SIZE_MAX);
     require(resolution != nullptr, "resolution must not be null");
     const auto resolution_value = from_c(*resolution);
-    auto* out = make<holder_card>(arena);
+    auto* out = make<holder_conflict_resolution_result>(arena);
     *out = to_c(
         arena,
         contract::resolve_conflict_copy(*context, project_id_value, copy_id_value, resolution_value)
     );
-    *out_card = out;
+    *out_conflict_resolution_result = out;
+  });
+}
+
+int holder_trash_conflict_copy(
+    holder_context* context,
+    const char* project_id,
+    const char* copy_id,
+    const holder_trash_conflict_copy_request* confirmation,
+    holder_arena* arena,
+    const holder_card_metadata** out_card_metadata,
+    holder_error** out_error
+) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card_metadata != nullptr, "out_card_metadata must not be null");
+    *out_card_metadata = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto copy_id_value = text(copy_id, "copy_id", 1, SIZE_MAX);
+    require(confirmation != nullptr, "confirmation must not be null");
+    const auto confirmation_value = from_c(*confirmation);
+    auto* out = make<holder_card_metadata>(arena);
+    *out = to_c(
+        arena,
+        contract::trash_conflict_copy(*context, project_id_value, copy_id_value, confirmation_value)
+    );
+    *out_card_metadata = out;
   });
 }
 

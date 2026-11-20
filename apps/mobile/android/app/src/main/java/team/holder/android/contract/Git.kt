@@ -110,6 +110,36 @@ data class ConflictComparison(
     val reviewToken: String,
 )
 
+/** What stays on the preserved copy or is affected if the copy moves to Trash. */
+data class ConflictCopyCleanupReview(
+    /** An opaque token for the saved result, preserved copy, and the reviewed cleanup effects. */
+    val cleanupToken: String,
+    /** Outgoing links and attachments without an equivalent on the original. */
+    val copyLinks: List<Link>,
+    /** Milestones without an equivalent kind, description and dates on the original. */
+    val copyMilestones: List<Milestone>,
+    /** Live links on this device that point to the copy itself. */
+    val backlinks: List<Link>,
+    /** Live children that would move up a level using the normal Trash behavior. */
+    val children: List<CardSummary>,
+    /** Where children of the copy would move, or null for the project root. */
+    val promotionParent: CardSummary? = null,
+    /** Whether the parent or position of the copy differs from that of the original. */
+    val placementDiffers: Boolean,
+    /** Whether moving the copy to Trash can leave the original's placement untouched. */
+    val preservesOriginal: Boolean,
+    /** Tags present on the copy and absent from the saved original. */
+    val copyTags: List<String>,
+)
+
+/** The durably saved original and a review for optional cleanup. */
+data class ConflictResolutionResult(
+    /** The original after saving. */
+    val card: Card,
+    /** The copy and effects to review before moving it to Trash. */
+    val cleanup: ConflictCopyCleanupReview,
+)
+
 /** What a pull did. */
 data class PullPhase(
     /** Whether a pull was tried. */
@@ -196,6 +226,12 @@ data class ConflictResolution(
     val content: String,
 )
 
+/** Confirmation of the cleanup effects returned when the resolution was saved. */
+data class TrashConflictCopyRequest(
+    /** The token returned with the cleanup review. */
+    val cleanupToken: String,
+)
+
 /** How to push. */
 data class PushOptions(
     /** The branch to push; omit for the repository's default. */
@@ -239,14 +275,29 @@ object Git {
      * Holder verifies the token against both live cards before changing anything. A stale token is
      * Conflict. A missing association or a card that is missing or in Trash is NotFound. Changes
      * to the title and content make a new Git commit. The original's identity, hierarchy, links and
-     * milestones are retained. Saving the existing title and content makes no commit.
+     * milestones are retained. Saving the existing title and content makes no commit. The result
+     * includes a review for optional cleanup of the preserved copy.
      */
     external fun resolveConflictCopy(
         contextHandle: Long,
         projectId: String,
         copyId: String,
         resolution: ConflictResolution,
-    ): Card
+    ): ConflictResolutionResult
+
+    /**
+     * Move a reviewed conflict copy to Trash after choosing a result.
+     * Holder verifies the cleanup token against both live cards and the reviewed effects.
+     * A stale token or cleanup that would move the original is Conflict. A missing association
+     * or a card missing or in Trash is NotFound.
+     * The original is untouched. The copy can be restored and its live children move up a level.
+     */
+    external fun trashConflictCopy(
+        contextHandle: Long,
+        projectId: String,
+        copyId: String,
+        confirmation: TrashConflictCopyRequest,
+    ): CardMetadata
 
     /**
      * Pull a project's checked-out branch from its Git remote.

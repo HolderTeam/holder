@@ -666,6 +666,8 @@ jobject to_java_holder_conflict_copy(JNIEnv* env, const holder_conflict_copy& va
 jobject to_java_holder_sync_state(JNIEnv* env, const holder_sync_state& value);
 jobject to_java_holder_conflict_changed_line(JNIEnv* env, const holder_conflict_changed_line& value);
 jobject to_java_holder_conflict_comparison(JNIEnv* env, const holder_conflict_comparison& value);
+jobject to_java_holder_conflict_copy_cleanup_review(JNIEnv* env, const holder_conflict_copy_cleanup_review& value);
+jobject to_java_holder_conflict_resolution_result(JNIEnv* env, const holder_conflict_resolution_result& value);
 jobject to_java_holder_pull_phase(JNIEnv* env, const holder_pull_phase& value);
 jobject to_java_holder_push_phase(JNIEnv* env, const holder_push_phase& value);
 jobject to_java_holder_sync_result(JNIEnv* env, const holder_sync_result& value);
@@ -709,6 +711,7 @@ bool from_java_holder_recovery_snapshot_restore(JNIEnv* env, jobject object, hol
 bool from_java_holder_recovery_token_export_request(JNIEnv* env, jobject object, holder_recovery_token_export_request& out, Keep& keep);
 bool from_java_holder_recovery_token_import_request(JNIEnv* env, jobject object, holder_recovery_token_import_request& out, Keep& keep);
 bool from_java_holder_conflict_resolution(JNIEnv* env, jobject object, holder_conflict_resolution& out, Keep& keep);
+bool from_java_holder_trash_conflict_copy_request(JNIEnv* env, jobject object, holder_trash_conflict_copy_request& out, Keep& keep);
 bool from_java_holder_push_options(JNIEnv* env, jobject object, holder_push_options& out, Keep& keep);
 bool from_java_holder_remote_test(JNIEnv* env, jobject object, holder_remote_test& out, Keep& keep);
 
@@ -1683,6 +1686,46 @@ jobject to_java_holder_conflict_comparison(JNIEnv* env, const holder_conflict_co
   if (env->ExceptionCheck()) return nullptr;
   args[4].z = static_cast<jboolean>(value.truncated ? JNI_TRUE : JNI_FALSE);
   args[5].l = locals.add(string(env, value.review_token));
+  if (env->ExceptionCheck()) return nullptr;
+  return env->NewObjectA(type, constructor, args);
+}
+
+jobject to_java_holder_conflict_copy_cleanup_review(JNIEnv* env, const holder_conflict_copy_cleanup_review& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/ConflictCopyCleanupReview");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lteam/holder/android/contract/CardSummary;ZZLjava/util/List;)V");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[9] = {};
+  args[0].l = locals.add(string(env, value.cleanup_token));
+  if (env->ExceptionCheck()) return nullptr;
+  args[1].l = locals.add(to_java_list(env, (value.copy_links).items, (value.copy_links).count, [&](const auto& item) -> jobject { return to_java_holder_link(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  args[2].l = locals.add(to_java_list(env, (value.copy_milestones).items, (value.copy_milestones).count, [&](const auto& item) -> jobject { return to_java_holder_milestone(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  args[3].l = locals.add(to_java_list(env, (value.backlinks).items, (value.backlinks).count, [&](const auto& item) -> jobject { return to_java_holder_link(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  args[4].l = locals.add(to_java_list(env, (value.children).items, (value.children).count, [&](const auto& item) -> jobject { return to_java_holder_card_summary(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  args[5].l = locals.add((value.promotion_parent ? to_java_holder_card_summary(env, *value.promotion_parent) : nullptr));
+  if (env->ExceptionCheck()) return nullptr;
+  args[6].z = static_cast<jboolean>(value.placement_differs ? JNI_TRUE : JNI_FALSE);
+  args[7].z = static_cast<jboolean>(value.preserves_original ? JNI_TRUE : JNI_FALSE);
+  args[8].l = locals.add(to_java_list(env, (value.copy_tags).items, (value.copy_tags).count, [&](const auto& item) -> jobject { return string(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  return env->NewObjectA(type, constructor, args);
+}
+
+jobject to_java_holder_conflict_resolution_result(JNIEnv* env, const holder_conflict_resolution_result& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/ConflictResolutionResult");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Lteam/holder/android/contract/Card;Lteam/holder/android/contract/ConflictCopyCleanupReview;)V");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[2] = {};
+  args[0].l = locals.add(to_java_holder_card(env, value.card));
+  if (env->ExceptionCheck()) return nullptr;
+  args[1].l = locals.add(to_java_holder_conflict_copy_cleanup_review(env, value.cleanup));
   if (env->ExceptionCheck()) return nullptr;
   return env->NewObjectA(type, constructor, args);
 }
@@ -2931,6 +2974,20 @@ bool from_java_holder_conflict_resolution(JNIEnv* env, jobject object, holder_co
     jobject item = locals.add(env->GetObjectField(object, field_content));
     if (env->ExceptionCheck()) return false;
     if (!c_text(env, static_cast<jstring>(item), keep, out.content)) return false;
+  }
+  return !env->ExceptionCheck();
+}
+
+bool from_java_holder_trash_conflict_copy_request(JNIEnv* env, jobject object, holder_trash_conflict_copy_request& out, Keep& keep) {
+  static const jclass type = global_class(env, "team/holder/android/contract/TrashConflictCopyRequest");
+  if (!type) return false;
+  static const jfieldID field_cleanup_token = env->GetFieldID(type, "cleanupToken", "Ljava/lang/String;");
+  out = holder_trash_conflict_copy_request{};
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_cleanup_token));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.cleanup_token)) return false;
   }
   return !env->ExceptionCheck();
 }
@@ -4330,7 +4387,7 @@ Java_team_holder_android_contract_Git_resolveConflictCopy(JNIEnv* env, jobject, 
   if (!from_java_holder_conflict_resolution(env, a_resolution, *p_resolution, keep)) return nullptr;
   Arena arena;
   if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
-  const holder_card* out = nullptr;
+  const holder_conflict_resolution_result* out = nullptr;
   holder_error* error = nullptr;
   const int status = holder_resolve_conflict_copy(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
       p_project_id,
@@ -4338,7 +4395,31 @@ Java_team_holder_android_contract_Git_resolveConflictCopy(JNIEnv* env, jobject, 
       p_resolution,
       arena.value, &out, &error);
   if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
-  return to_java_holder_card(env, (*out));
+  return to_java_holder_conflict_resolution_result(env, (*out));
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_contract_Git_trashConflictCopy(JNIEnv* env, jobject, jlong context_handle, jstring a_project_id, jstring a_copy_id, jobject a_confirmation) {
+  if (!context_handle) { fail(env, "context is required"); return nullptr; }
+  Keep keep;
+  const char* p_project_id = nullptr;
+  if (!c_text(env, a_project_id, keep, p_project_id)) return nullptr;
+  const char* p_copy_id = nullptr;
+  if (!c_text(env, a_copy_id, keep, p_copy_id)) return nullptr;
+  if (!a_confirmation) { fail(env, "confirmation is required"); return nullptr; }
+  auto* p_confirmation = keep.make<holder_trash_conflict_copy_request>();
+  if (!from_java_holder_trash_conflict_copy_request(env, a_confirmation, *p_confirmation, keep)) return nullptr;
+  Arena arena;
+  if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
+  const holder_card_metadata* out = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_trash_conflict_copy(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      p_project_id,
+      p_copy_id,
+      p_confirmation,
+      arena.value, &out, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
+  return to_java_holder_card_metadata(env, (*out));
 }
 
 extern "C" JNIEXPORT jobject JNICALL

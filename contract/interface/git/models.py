@@ -5,6 +5,8 @@ from typing import Annotated, Literal
 from authoring import MISSING, Field, Int32, Record, Timestamp
 
 from ..cards.models import Card, CardId, CardSummary
+from ..links.models import Link
+from ..milestones.models import Milestone
 from ..projects.ids import ProjectId
 from ..projects.models import GitRemoteUrl
 
@@ -58,6 +60,45 @@ class ConflictResolution(Record):
     """The replacement title."""
     content: str
     """The replacement card content, which can be empty."""
+
+
+class ConflictCopyCleanupReview(Record):
+    """What stays on the preserved copy or is affected if the copy moves to Trash."""
+
+    cleanup_token: str
+    """An opaque token for the saved result, preserved copy, and the reviewed cleanup effects."""
+    copy_links: list[Link]
+    """Outgoing links and attachments without an equivalent on the original."""
+    copy_milestones: list[Milestone]
+    """Milestones without an equivalent kind, description and dates on the original."""
+    backlinks: list[Link]
+    """Live links on this device that point to the copy itself."""
+    children: list[CardSummary]
+    """Live children that would move up a level using the normal Trash behavior."""
+    promotion_parent: CardSummary | None
+    """Where children of the copy would move, or null for the project root."""
+    placement_differs: bool
+    """Whether the parent or position of the copy differs from that of the original."""
+    preserves_original: bool
+    """Whether moving the copy to Trash can leave the original's placement untouched."""
+    copy_tags: list[str]
+    """Tags present on the copy and absent from the saved original."""
+
+
+class ConflictResolutionResult(Record):
+    """The durably saved original and a review for optional cleanup."""
+
+    card: Card
+    """The original after saving."""
+    cleanup: ConflictCopyCleanupReview
+    """The copy and effects to review before moving it to Trash."""
+
+
+class TrashConflictCopyRequest(Record):
+    """Confirmation of the cleanup effects returned when the resolution was saved."""
+
+    cleanup_token: Annotated[str, Field(min_length=1, max_length=256)]
+    """The token returned with the cleanup review."""
 
 
 class SyncState(Record):

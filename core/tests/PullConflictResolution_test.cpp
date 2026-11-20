@@ -658,7 +658,6 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
         HOLDER_OK
     );
     REQUIRE(state->conflict_copies != nullptr);
-    REQUIRE(state->conflict_copies->count == 2);
     std::map<std::string, holder_conflict_copy> pairs;
     for (std::size_t i = 0; i < state->conflict_copies->count; ++i) {
       const auto& pair = state->conflict_copies->items[i];
@@ -668,6 +667,7 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
   };
   holder_context context(local_db, local_fts, &local_git);
   auto pairs = conflict_pairs(context);
+  REQUIRE(pairs.size() == 2);
   CHECK(std::string(pairs.at(parent.card_id).copy_card.card_id) == parent_copy->card_id);
   CHECK(std::string(pairs.at(child.card_id).copy_card.card_id) == child_copy->card_id);
 
@@ -703,7 +703,7 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
 
   const std::string stale_token = comparison->review_token;
   const holder_conflict_resolution stale{stale_token.c_str(), "Merged title", "Combined text"};
-  const holder_card* resolved = nullptr;
+  const holder_conflict_resolution_result* resolved = nullptr;
   // Two edits can have the same timestamp. The reviewed bytes still have to match.
   store.update_content(child_copy->card_id, "newer copy text", std::nullopt, 5);
   CHECK(
@@ -802,10 +802,12 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
           &comparison_error
       ) == HOLDER_OK
   );
-  CHECK(std::string(resolved->card_id) == child.card_id);
-  CHECK(std::string(resolved->title) == "Merged title");
-  CHECK(std::string(resolved->content) == "Combined text");
-  CHECK(std::string(resolved->parent_card_id) == parent.card_id);
+  CHECK(std::string(resolved->card.card_id) == child.card_id);
+  CHECK(std::string(resolved->card.title) == "Merged title");
+  CHECK(std::string(resolved->card.content) == "Combined text");
+  CHECK(std::string(resolved->card.parent_card_id) == parent.card_id);
+  REQUIRE(resolved->cleanup.copy_links.count == 1);
+  CHECK(std::string(resolved->cleanup.copy_links.items[0].target_id) == parent_copy->card_id);
   CHECK(local_history.head_oid() != head_before_resolution);
   const auto original_links =
       holder::card::LinkRepo(local_db).list_outgoing(project_id, child.card_id);
@@ -846,6 +848,91 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
   pairs = conflict_pairs(rebuilt_context);
   CHECK(pairs.at(child.card_id).original == nullptr);
   CHECK(std::string(pairs.at(child.card_id).copy_card.title) == "Renamed copy");
+
+  holder::model::Milestone milestone;
+  milestone.project_id = project_id;
+  milestone.card_id = parent_copy->card_id;
+  milestone.description = "Only on the copy";
+  milestone.dates = {{"start", "2026-11-20", std::nullopt}};
+  store.add_milestone(milestone, 7);
+  store.update_content(parent_copy->card_id, "# Local notes\n\n#copy-only", std::nullopt, 7);
+  const auto save_parent_result = [&] {
+    REQUIRE(
+        holder_compare_conflict_copy(
+            &context,
+            project_id.c_str(),
+            parent_copy->card_id.c_str(),
+            arena.get(),
+            &comparison,
+            &comparison_error
+        ) == HOLDER_OK
+    );
+    const holder_conflict_resolution resolution{
+        comparison->review_token,
+        comparison->original.title,
+        comparison->original.content
+    };
+    REQUIRE(
+        holder_resolve_conflict_copy(
+            &context,
+            project_id.c_str(),
+            parent_copy->card_id.c_str(),
+            &resolution,
+            arena.get(),
+            &resolved,
+            &comparison_error
+        ) == HOLDER_OK
+    );
+  };
+  save_parent_result();
+  REQUIRE(resolved->cleanup.copy_milestones.count == 1);
+  CHECK(std::string(resolved->cleanup.copy_milestones.items[0].description) == "Only on the copy");
+  REQUIRE(resolved->cleanup.copy_tags.count == 1);
+  CHECK(std::string(resolved->cleanup.copy_tags.items[0]) == "copy-only");
+  REQUIRE(resolved->cleanup.children.count == 1);
+  CHECK(std::string(resolved->cleanup.children.items[0].card_id) == child_copy->card_id);
+  CHECK(resolved->cleanup.preserves_original);
+
+  const auto trash_parent_copy = [&](const char* token) {
+    const holder_trash_conflict_copy_request confirmation{token};
+    const holder_card_metadata* trashed = nullptr;
+    return holder_trash_conflict_copy(
+        &context,
+        project_id.c_str(),
+        parent_copy->card_id.c_str(),
+        &confirmation,
+        arena.get(),
+        &trashed,
+        &comparison_error
+    );
+  };
+  const std::string cleanup_token = resolved->cleanup.cleanup_token;
+  store.move(child_copy->card_id, true, std::nullopt, std::nullopt, 8);
+  CHECK(trash_parent_copy(cleanup_token.c_str()) == HOLDER_ERROR_CONFLICT);
+  holder_error_destroy(comparison_error);
+  comparison_error = nullptr;
+  CHECK_FALSE(store.get(parent_copy->card_id)->deleted_at.has_value());
+
+  store.move(parent.card_id, true, parent_copy->card_id, std::nullopt, 8);
+  save_parent_result();
+  CHECK_FALSE(resolved->cleanup.preserves_original);
+  CHECK(trash_parent_copy(resolved->cleanup.cleanup_token) == HOLDER_ERROR_CONFLICT);
+  holder_error_destroy(comparison_error);
+  comparison_error = nullptr;
+  CHECK(store.get(parent.card_id)->parent_card_id == parent_copy->card_id);
+  store.move(parent.card_id, true, std::nullopt, std::nullopt, 8);
+  store.move(child_copy->card_id, true, parent_copy->card_id, std::nullopt, 8);
+  save_parent_result();
+  const auto saved_parent = store.get(parent.card_id);
+  REQUIRE(trash_parent_copy(resolved->cleanup.cleanup_token) == HOLDER_OK);
+  CHECK(store.get(parent_copy->card_id)->deleted_at.has_value());
+  CHECK_FALSE(store.get(child_copy->card_id)->parent_card_id.has_value());
+  CHECK(store.get(parent.card_id)->sort_key == saved_parent->sort_key);
+  CHECK(store.get(parent.card_id)->updated_at == saved_parent->updated_at);
+  CHECK_FALSE(conflict_pairs(context).contains(parent.card_id));
+  store.restore(parent_copy->card_id, 9);
+  CHECK(store.get_content(*store.get(parent_copy->card_id)) == "# Local notes\n\n#copy-only");
+  CHECK(conflict_pairs(context).contains(parent.card_id));
 }
 
 TEST_CASE("resolve_pull_conflicts rejects a project that no longer exists", "[sync]") {
