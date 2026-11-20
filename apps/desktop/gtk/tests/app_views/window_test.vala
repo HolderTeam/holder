@@ -794,6 +794,22 @@ private Gtk.Button comparison_button(Adw.Dialog dialog, string label) {
     assert_not_reached();
 }
 
+private void wait_for_dialog_open_frames(Adw.Dialog dialog) {
+    // Libadwaita 1.5 opens the sheet on its second frame after mapping.
+    // Synthetic clicks and close requests can reach it before then.
+    int frames = 0;
+    dialog.add_tick_callback((widget, clock) => ++frames < 2);
+    assert(wait_for_condition(() => frames == 2));
+}
+
+private Adw.Dialog open_conflict_comparison(WindowFixture f, Gtk.Button button) {
+    button.clicked();
+    assert(wait_for_condition(() => f.window.get_visible_dialog() != null));
+    var dialog = (!) f.window.get_visible_dialog();
+    wait_for_dialog_open_frames(dialog);
+    return dialog;
+}
+
 private Gtk.TextView conflict_result_editor(Adw.Dialog dialog) {
     foreach (var widget in av_descendants(dialog)) {
         var content = widget as Gtk.TextView;
@@ -846,7 +862,7 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
         return copy != null && compare != null;
     }));
 
-    ((!) compare).clicked();
+    var comparison = open_conflict_comparison(f, (!) compare);
     assert(wait_for_condition(() => {
         var dialog = f.window.get_visible_dialog();
         return dialog != null &&
@@ -856,21 +872,20 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
     assert(f.api.update_card_calls == 0);
     assert(f.controller().selected_card_id() == "c1");
     assert(f.editor_text() == "# Card 1\n\nBody");
-    var comparison = (!) f.window.get_visible_dialog();
     comparison_button(comparison, "Combine versions").clicked();
     var combined_editor = conflict_result_editor(comparison);
     assert(combined_editor.buffer.text == "# Card 1\n\nBody");
     combined_editor.buffer.text = "Discard this draft";
     assert(!comparison.close());
-    assert(wait_for_condition(() => f.window.get_visible_dialog() is Adw.AlertDialog));
-    comparison_button((!) f.window.get_visible_dialog(), "Discard Draft").clicked();
+    var discard = f.wait_for_dialog(comparison);
+    wait_for_dialog_open_frames(discard);
+    av_answer(discard, "discard");
     assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
     assert(api.resolution_calls == 0);
     assert(f.editor_text() == "# Card 1\n\nBody");
 
-    ((!) compare).clicked();
+    comparison = open_conflict_comparison(f, (!) compare);
     assert(wait_for_condition(() => api.comparison_calls == 2));
-    comparison = (!) f.window.get_visible_dialog();
     comparison_button(comparison, "Keep original").clicked();
     assert(wait_for_condition(() => av_find_label(comparison,
         "Saved to the original card. The preserved copy is still available.") != null));
@@ -886,9 +901,8 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
     comparison.close();
     assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
 
-    ((!) compare).clicked();
+    comparison = open_conflict_comparison(f, (!) compare);
     assert(wait_for_condition(() => api.comparison_calls == 3));
-    comparison = (!) f.window.get_visible_dialog();
     comparison_button(comparison, "Start from copy").clicked();
     Gtk.Entry? result_title = null;
     foreach (var widget in av_descendants(comparison)) {
@@ -922,13 +936,10 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
     assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
 
     f.api.fail_get_card_once = true;
-    ((!) compare).clicked();
-    assert(wait_for_condition(() => {
-        var dialog = f.window.get_visible_dialog();
-        return dialog != null && av_find_label(dialog,
-            "Could not load both card versions.\n" + f.api.get_card_failure_message) != null;
-    }));
-    ((!) f.window.get_visible_dialog()).close();
+    comparison = open_conflict_comparison(f, (!) compare);
+    assert(wait_for_condition(() => av_find_label(comparison,
+        "Could not load both card versions.\n" + f.api.get_card_failure_message) != null));
+    comparison.close();
     assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
 
     const string draft = "# Card 1\n\nSave before opening the conflict";
@@ -946,9 +957,8 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
     }));
 
     var previous_comparisons = api.comparison_calls;
-    ((!) compare).clicked();
+    comparison = open_conflict_comparison(f, (!) compare);
     assert(wait_for_condition(() => api.comparison_calls > previous_comparisons));
-    comparison = (!) f.window.get_visible_dialog();
     comparison_button(comparison, "Keep original").clicked();
     assert(wait_for_condition(() => av_find_label(comparison,
         "Saved to the original card. The preserved copy is still available.") != null));
@@ -963,9 +973,8 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
     comparison.close();
     assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
     previous_comparisons = api.comparison_calls;
-    ((!) compare).clicked();
+    comparison = open_conflict_comparison(f, (!) compare);
     assert(wait_for_condition(() => api.comparison_calls > previous_comparisons));
-    comparison = (!) f.window.get_visible_dialog();
     comparison_button(comparison, "Keep original").clicked();
     assert(wait_for_condition(() => av_find_label(comparison,
         "Saved to the original card. The preserved copy is still available.") != null));
