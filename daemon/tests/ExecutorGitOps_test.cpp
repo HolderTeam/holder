@@ -9,6 +9,7 @@
 
 #include <filesystem>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -23,6 +24,9 @@ class RecordingGitOps final : public holder::git::GitOps {
   std::string last_message;
   std::string last_branch;
   bool last_set_upstream = false;
+  std::string last_local_oid;
+  std::string last_remote_oid;
+  std::thread::id last_thread;
 
   holder::git::RemoteProbeResult probe_result{
       .status = holder::git::RemoteProbeStatus::Reachable,
@@ -74,6 +78,26 @@ class RecordingGitOps final : public holder::git::GitOps {
     return push_result;
   }
   std::filesystem::path repo_dir() const override { return opened_repo; }
+  holder::git::GitRepo::DivergedMergeResult merge_remote_taking_theirs_for_conflicts(
+      const std::string& name,
+      const std::string& local_oid_hex,
+      const std::string& remote_oid_hex
+  ) override {
+    last_name = name;
+    last_local_oid = local_oid_hex;
+    last_remote_oid = remote_oid_hex;
+    last_thread = std::this_thread::get_id();
+    return {{"cards/x.md"}};
+  }
+  std::optional<std::string> read_blob_at(
+      const std::string& commit_oid_hex,
+      const std::filesystem::path& relative_path
+  ) override {
+    last_local_oid = commit_oid_hex;
+    last_path = relative_path;
+    last_thread = std::this_thread::get_id();
+    return "unmerged local content";
+  }
 };
 
 } // namespace
@@ -136,6 +160,31 @@ TEST_CASE("ExecutorGitOps stages a batch in order through the default adapter", 
   const std::vector<std::filesystem::path> paths{"cards/b.md", "cards/a.md", "cards/c.md"};
   git.stage_paths(paths);
   CHECK(inner.staged_paths == paths);
+}
+
+TEST_CASE(
+    "ExecutorGitOps reconciles divergence and reads the preserved version",
+    "[git][executor]"
+) {
+  holder::core::SerialExecutor executor("git-executor-test");
+  RecordingGitOps inner;
+  holder::git::ExecutorGitOps git(inner, executor);
+  const auto worker = executor.call([] {
+    return std::this_thread::get_id();
+  });
+
+  const auto merge = git.merge_remote_taking_theirs_for_conflicts("origin", "local", "remote");
+  CHECK(inner.last_name == "origin");
+  CHECK(inner.last_local_oid == "local");
+  CHECK(inner.last_remote_oid == "remote");
+  CHECK(inner.last_thread == worker);
+  REQUIRE(merge.conflicted_paths.size() == 1);
+
+  const auto blob = git.read_blob_at("prior-local", merge.conflicted_paths.front());
+  CHECK(inner.last_local_oid == "prior-local");
+  CHECK(inner.last_path == std::filesystem::path("cards/x.md"));
+  CHECK(inner.last_thread == worker);
+  CHECK(blob == "unmerged local content");
 }
 
 TEST_CASE("GitOps defaults leave credentials alone and report unsupported URL probes", "[git]") {
