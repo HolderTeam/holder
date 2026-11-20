@@ -244,20 +244,24 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         conflict_panel.append(scroll);
         page.append(conflict_panel);
 
-        page.map.connect(() => {
-            refresh_visible_git_state.begin();
-            conflict_refresh_timer = scheduler.schedule_repeating(30 * 1000, () => {
-                refresh_visible_git_state.begin();
-                return Source.CONTINUE;
-            });
-        });
-        page.unmap.connect(() => {
-            if (conflict_refresh_timer != 0) {
-                scheduler.cancel(conflict_refresh_timer);
-                conflict_refresh_timer = 0;
-            }
-        });
+        page.map.connect(start_conflict_refresh);
+        page.unmap.connect(stop_conflict_refresh);
         return page;
+    }
+
+    internal void start_conflict_refresh() {
+        refresh_visible_git_state.begin();
+        conflict_refresh_timer = scheduler.schedule_repeating(30 * 1000, () => {
+            refresh_visible_git_state.begin();
+            return Source.CONTINUE;
+        });
+    }
+
+    internal void stop_conflict_refresh() {
+        if (conflict_refresh_timer != 0) {
+            scheduler.cancel(conflict_refresh_timer);
+            conflict_refresh_timer = 0;
+        }
     }
 
     private async void refresh_visible_git_state() {

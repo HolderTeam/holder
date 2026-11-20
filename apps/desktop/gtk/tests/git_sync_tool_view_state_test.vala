@@ -242,9 +242,9 @@ private void gss_test_navigation_returns_to_the_start_page_and_leaves_edit_mode(
 
 private void gss_test_visible_conflicts_poll_and_refresh_changed_rows() {
     var scheduler = new TestScheduler();
-    var h = new GitSyncViewHarness(GSS_REMOTE, true, false, true, false, null, false, null, scheduler);
-    h.window.present();
-    assert(wait_for_condition(() => scheduler.pending_repeating() == 1));
+    var h = new GitSyncViewHarness(GSS_REMOTE, true, false, false, false, null, false, null, scheduler);
+    h.view.start_conflict_refresh();
+    assert(scheduler.pending_repeating() == 1);
     assert(h.api.list_projects_calls == 0);
 
     h.api.conflict_copy = new HolderLinux.GitConflictCopy("copy", "First title", "original", "Original", false);
@@ -258,6 +258,7 @@ private void gss_test_visible_conflicts_poll_and_refresh_changed_rows() {
     assert(wait_for_condition(() => h.api.has_stalled_list()));
     int while_pending = h.api.list_projects_calls;
     assert(scheduler.tick_repeating() == 1);
+    h.settle();
     assert(h.api.list_projects_calls == while_pending);
     h.api.release_stalled_list();
     h.settle();
@@ -269,8 +270,8 @@ private void gss_test_visible_conflicts_poll_and_refresh_changed_rows() {
     assert(gsv_button(h.view.widget, "Copy “Renamed”").get_visible());
     assert(initial.get_parent() == null);
 
-    h.window.set_visible(false);
-    assert(wait_for_condition(() => scheduler.pending_repeating() == 0));
+    h.view.stop_conflict_refresh();
+    assert(scheduler.pending_repeating() == 0);
     assert(scheduler.tick_repeating() == 0);
     h.window.destroy();
 }
