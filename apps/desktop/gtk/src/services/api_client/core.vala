@@ -4,6 +4,7 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
     private IApiHttpTransport transport; // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     private string base_url;
     private string auth_token;
+    public signal void request_failed(string diagnostic);
 
     public ApiClient(string base_url, string auth_token, IApiHttpTransport? transport = null) { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
         this.base_url = base_url;
@@ -518,7 +519,8 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
             method,
             path,
             request_body,
-            query
+            query,
+            (line) => { request_failed(line); }
         );
     }
 
@@ -533,7 +535,8 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
             method,
             path,
             request_body,
-            query
+            query,
+            (line) => { request_failed(line); }
         );
     }
 

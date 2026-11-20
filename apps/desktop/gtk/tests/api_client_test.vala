@@ -2032,7 +2032,7 @@ private void test_non_2xx_json_without_error_object_maps_to_http_fallback() {
             client.list_projects.end(res);
         } catch (Error e) {
             got_http = (e is HolderLinux.ApiError.HTTP);
-            has_fallback_message = e.message.contains("HTTP 500 for GET /projects");
+            has_fallback_message = e.message.contains("Check the Debug tool for details.");
         }
         done = true;
     });
@@ -2507,20 +2507,24 @@ private void test_request_json_http_error_parses_error_object() {
 
     bool done = false;
     bool got_http = false;
-    bool message_has_code = false;
+    bool message_has_details = false;
+    string diagnostic = "";
+    client.request_failed.connect((line) => { diagnostic = line; });
     client.list_projects.begin((obj, res) => {
         try {
             client.list_projects.end(res);
         } catch (Error e) {
             got_http = (e is HolderLinux.ApiError.HTTP);
-            message_has_code = e.message.contains("not_found");
+            message_has_details = e.message == "Missing";
         }
         done = true;
     });
 
     assert(wait_for_condition(() => done));
     assert(got_http);
-    assert(message_has_code);
+    assert(message_has_details);
+    assert(diagnostic.has_prefix("API GET /projects failed category=http elapsed="));
+    assert(diagnostic.has_suffix("ms status=404 code=not_found"));
 }
 
 private void test_request_json_parse_error_on_success_response() {

@@ -169,6 +169,7 @@ private class WindowFixture : Object {
     private static Adw.Application? shared_app = null;
 
     public MainControllerFakeApi api = new MainControllerFakeApi();
+    public HolderLinux.IApiFactory? api_factory = null;
     public FakeServerDiscovery discovery = new FakeServerDiscovery();
     public RecordingPresence presence = new RecordingPresence();
     public OfflineUpdateTransport updates = new OfflineUpdateTransport();
@@ -211,7 +212,7 @@ private class WindowFixture : Object {
     // Builds and shows the window; it starts talking to the fake API straight away.
     public void open() {
         var services = new HolderLinux.MainWindowServices();
-        services.api_factory = new MainControllerFakeApiFactory(api, api);
+        services.api_factory = api_factory ?? new MainControllerFakeApiFactory(api, api);
         services.server_discovery = discovery;
         services.find_backend_starter = find_backend;
         services.backend_starter = backend_starter;
@@ -305,14 +306,17 @@ private class WindowFixture : Object {
 
     // Errors reach the Debug tool immediately, even when their toasts are queued behind others.
     public bool reports_error(string title, string details) {
-        var line = "ERROR: %s | %s\n".printf(title, details);
+        return debug_contains("ERROR: %s | %s\n".printf(title, details));
+    }
+
+    public bool debug_contains(string text) {
         foreach (var widget in av_descendants(window.workspace_for_tests.toolbox.debug_tool.widget)) {
             var view = widget as Gtk.TextView;
             if (view != null) {
                 Gtk.TextIter start;
                 Gtk.TextIter end;
                 ((!) view).buffer.get_bounds(out start, out end);
-                if (((!) view).buffer.get_text(start, end, false).contains(line)) {
+                if (((!) view).buffer.get_text(start, end, false).contains(text)) {
                     return true;
                 }
             }
@@ -704,6 +708,78 @@ private void test_sync_now_refreshes_remote_edits_and_deletions() {
     assert(f.controller().selected_card_id() == null);
     assert(!f.controller().has_card_summary("c1"));
     assert(api.sync_project_git_calls == 3);
+    f.destroy();
+}
+
+private class WindowFailureTransport : Object, HolderLinux.IApiHttpTransport {
+    public async HolderLinux.ApiHttpBytesResponse send_and_read(Soup.Message message) throws Error {
+        var path = message.get_uri().get_path();
+        if (path == "/locations" && message.get_method() == "POST") {
+            throw new IOError.TIMED_OUT("test-credential appeared in a raw socket error");
+        }
+        if (path == "/health") {
+            return new HolderLinux.ApiHttpBytesResponse(200, new Bytes("test-credential".data));
+        }
+        return new HolderLinux.ApiHttpBytesResponse(200, new Bytes("{\"ok\":true,\"data\":[]}".data));
+    }
+
+    public async HolderLinux.ApiHttpStreamResponse send(Soup.Message message) throws Error {
+        throw new IOError.NOT_SUPPORTED("unused");
+    }
+}
+
+private class WindowFailureApiFactory : Object, HolderLinux.IApiFactory {
+    public HolderLinux.IHolderApi create(string base_url, string auth_token) {
+        return new HolderLinux.ApiClient(base_url, auth_token, new WindowFailureTransport());
+    }
+}
+
+private void test_startup_health_error_shows_advice_and_logs_diagnostics() {
+    var f = new WindowFixture();
+    f.api_factory = new WindowFailureApiFactory();
+    f.open();
+    var advice = "Holder received an unexpected response. Reopen Holder and try again.";
+    assert(wait_for_condition(() => f.editor_text().contains(advice)));
+    assert(f.reports_error("Health check failed", advice));
+    assert(f.debug_contains("API GET /health failed category=parse elapsed="));
+    assert(f.debug_contains("status=200 invalid JSON object"));
+    assert(!f.debug_contains("test-credential"));
+    f.destroy();
+}
+
+private void test_adding_a_storage_location_shows_timeout_advice() {
+    var f = new WindowFixture();
+    f.open_loaded();
+    f.window.on_api_client_connected(new HolderLinux.ApiClient(
+        "http://127.0.0.1:8080", "test-credential", new WindowFailureTransport()));
+    var toolbox = f.window.workspace_for_tests.toolbox;
+    toolbox.show_tool("resources");
+    Gtk.Button? add_folder = null;
+    foreach (var widget in av_descendants(toolbox.widget)) {
+        var button = widget as Gtk.Button;
+        if (button != null && button.get_label() == "Add Folder") {
+            add_folder = button;
+            break;
+        }
+    }
+    assert(add_folder != null);
+    add_folder.clicked();
+    var dialog = f.wait_for_dialog();
+    foreach (var widget in av_descendants(dialog)) {
+        var entry = widget as Gtk.Entry;
+        if (entry != null && entry.get_placeholder_text() == "Assets on this computer") {
+            entry.set_text("Photos");
+        } else if (entry != null && entry.get_placeholder_text() == "/path/to/assets") {
+            entry.set_text("/srv/photos");
+        }
+    }
+    av_answer(dialog, "save");
+    var advice = "The Holder backend timed out. Check whether the action completed before trying again.";
+    assert(wait_for_condition(() => f.reports_error("Failed to add storage location", advice)));
+    assert(f.has_toast("Failed to add storage location"));
+    assert(f.debug_contains("API POST /locations failed category=timeout elapsed="));
+    assert(f.debug_contains("g-io-error-quark/"));
+    assert(!f.debug_contains("test-credential"));
     f.destroy();
 }
 
@@ -1424,6 +1500,8 @@ internal void register_window_tests() {
     Test.add_func("/app_views/window/find_replace", test_find_and_replace_edit_the_card);
     Test.add_func("/app_views/window/reported_state", test_the_window_shows_what_the_controller_reports);
     Test.add_func("/app_views/window/sync_now_refresh", test_sync_now_refreshes_remote_edits_and_deletions);
+    Test.add_func("/app_views/window/startup_api_diagnostic", test_startup_health_error_shows_advice_and_logs_diagnostics);
+    Test.add_func("/app_views/window/storage_api_diagnostic", test_adding_a_storage_location_shows_timeout_advice);
     Test.add_func("/app_views/window/email", test_sharing_a_card_opens_an_email);
     Test.add_func("/app_views/window/update_offer", test_a_newer_release_is_offered_once);
     Test.add_func("/app_views/window/preferences_at_startup", test_saved_preferences_are_applied_at_startup);
