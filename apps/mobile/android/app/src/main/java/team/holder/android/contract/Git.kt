@@ -106,6 +106,8 @@ data class ConflictComparison(
     val copyChangedLines: List<ConflictChangedLine>,
     /** Whether the bounded diff could only highlight part of the change. */
     val truncated: Boolean,
+    /** An opaque token for both reviewed versions, required when saving a resolution. */
+    val reviewToken: String,
 )
 
 /** What a pull did. */
@@ -184,6 +186,16 @@ data class RemoteTestResult(
     val errorMessage: String? = null,
 )
 
+/** Title and body to keep on the original card. */
+data class ConflictResolution(
+    /** The token returned with the reviewed comparison. */
+    val reviewToken: String,
+    /** The replacement title. */
+    val title: String,
+    /** The replacement card content, which can be empty. */
+    val content: String,
+)
+
 /** How to push. */
 data class PushOptions(
     /** The branch to push; omit for the repository's default. */
@@ -213,13 +225,28 @@ object Git {
     /**
      * Compare a preserved copy with its recorded original.
      * Reads both saved cards together. A missing association, an original or copy in Trash, or a card
-     * that no longer exists is NotFound. The operation does not change either card.
+     * that no longer exists is NotFound. A pair changed during the read is Conflict. The operation does not
+     * change either card.
      */
     external fun compareConflictCopy(
         contextHandle: Long,
         projectId: String,
         copyId: String,
     ): ConflictComparison
+
+    /**
+     * Save reviewed text to the original card without changing the preserved copy.
+     * Holder verifies the token against both live cards before changing anything. A stale token is
+     * Conflict. A missing association or a card that is missing or in Trash is NotFound. Changes
+     * to the title and content make a new Git commit. The original's identity, hierarchy, links and
+     * milestones are retained. Saving the existing title and content makes no commit.
+     */
+    external fun resolveConflictCopy(
+        contextHandle: Long,
+        projectId: String,
+        copyId: String,
+        resolution: ConflictResolution,
+    ): Card
 
     /**
      * Pull a project's checked-out branch from its Git remote.

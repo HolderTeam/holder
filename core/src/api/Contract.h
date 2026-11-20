@@ -361,6 +361,13 @@ struct RecoveryTokenImportRequest : RecoveryTokenExportRequest {
   std::string recovery_token; ///< Serialized .hrk token JSON.
 };
 
+/// Title and body to keep on the original card.
+struct ConflictResolution {
+  std::string review_token; ///< The token returned with the reviewed comparison.
+  std::string title; ///< The replacement title.
+  std::string content; ///< The replacement card content, which can be empty.
+};
+
 /// How to push.
 struct PushOptions {
   std::optional<std::string> branch; ///< The branch to push; omit for the repository's default.
@@ -897,6 +904,8 @@ struct ConflictComparison {
   std::vector<ConflictChangedLine>
       copy_changed_lines; ///< One-based lines of the copy's content that differ from the original.
   bool truncated{}; ///< Whether the bounded diff could only highlight part of the change.
+  std::string review_token; ///< An opaque token for both reviewed versions, required when saving a
+                            ///< resolution.
 };
 
 /// How the pull ended.
@@ -1883,12 +1892,26 @@ SyncState get_project_sync_state(holder_context& context, std::string project_id
 
 /// Compare a preserved copy with its recorded original.
 /// Reads both saved cards together. A missing association, an original or copy in Trash, or a card
-/// that no longer exists is NotFound. The operation does not change either card.
-/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+/// that no longer exists is NotFound. A pair changed during the read is Conflict. The operation
+/// does not change either card.
+/// @throws NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted
 ConflictComparison compare_conflict_copy(
     holder_context& context,
     std::string project_id,
     std::string copy_id
+);
+
+/// Save reviewed text to the original card without changing the preserved copy.
+/// Holder verifies the token against both live cards before changing anything. A stale token is
+/// Conflict. A missing association or a card that is missing or in Trash is NotFound. Changes
+/// to the title and content make a new Git commit. The original's identity, hierarchy, links and
+/// milestones are retained. Saving the existing title and content makes no commit.
+/// @throws NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted
+Card resolve_conflict_copy(
+    holder_context& context,
+    std::string project_id,
+    std::string copy_id,
+    const ConflictResolution& resolution
 );
 
 /// Pull a project's checked-out branch from its Git remote.

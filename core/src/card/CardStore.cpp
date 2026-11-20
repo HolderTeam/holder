@@ -555,6 +555,38 @@ void CardStore::update_content(
   }
 }
 
+void CardStore::save_conflict_resolution(
+    const std::string& project_id,
+    const std::string& card_id,
+    const std::string& title,
+    const std::string& content,
+    long long updated_at
+) {
+  const auto project = require_project(project_id);
+  auto operation = git_->lock_operation(project.root_path);
+  const auto card = card_repo_.get(card_id);
+  if (!card || card->project_id != project_id || card->deleted_at)
+    throw std::runtime_error("live card not found: " + card_id);
+  const auto relative_path = holder::core::card_rel_path(card_id);
+  if (card->rel_path != relative_path)
+    throw std::runtime_error("card rel_path does not match card_id");
+
+  git_->open_or_init(project.root_path);
+  const auto raw = fs_->read_file(git_->repo_dir() / relative_path);
+  auto target = holder::core::parse_card_file(decode_card_blob(project, raw));
+  if (!target.has_front_matter || target.card.card_id != card_id ||
+      target.card.project_id != project_id)
+    throw std::runtime_error("card front matter identity mismatch");
+  if (card->title == title && target.body == content) return;
+
+  target.card = *card;
+  target.card.title = title;
+  target.card.updated_at = updated_at;
+  target.body = content;
+  target.links = link_repo_.list_outgoing(project_id, card_id);
+  apply_card_changes(project, *card, std::move(target), {}, "Resolve conflict for " + title);
+}
+
 void CardStore::move(
     const std::string& card_id,
     bool has_parent_card_id,

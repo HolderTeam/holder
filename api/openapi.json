@@ -8623,7 +8623,7 @@
     "/projects/{project_id}/git/conflict-copies/{copy_id}/comparison": {
       "get": {
         "summary": "Compare a preserved copy with its recorded original.",
-        "description": "Reads both saved cards together. A missing association, an original or copy in Trash, or a card\nthat no longer exists is NotFound. The operation does not change either card.",
+        "description": "Reads both saved cards together. A missing association, an original or copy in Trash, or a card\nthat no longer exists is NotFound. A pair changed during the read is Conflict. The operation does not\nchange either card.",
         "parameters": [
           {
             "name": "project_id",
@@ -8684,7 +8684,113 @@
             }
           },
           "409": {
-            "description": "An encrypted project's key is not on this device; the project's recovery token restores it.",
+            "description": "The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash, or removing a tag that a card would still carry in its prose. An encrypted project's key is not on this device; the project's recovery token restores it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. Unexpected failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/git/conflict-copies/{copy_id}/resolution": {
+      "post": {
+        "summary": "Save reviewed text to the original card without changing the preserved copy.",
+        "description": "Holder verifies the token against both live cards before changing anything. A stale token is\nConflict. A missing association or a card that is missing or in Trash is NotFound. Changes\nto the title and content make a new Git commit. The original's identity, hierarchy, links and\nmilestones are retained. Saving the existing title and content makes no commit.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "copy_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CardId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConflictResolution"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The thing asked for does not exist, or is in the trash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash, or removing a tag that a card would still carry in its prose. An encrypted project's key is not on this device; the project's recovery token restores it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16944,6 +17050,11 @@
             "type": "boolean",
             "title": "Truncated",
             "description": "Whether the bounded diff could only highlight part of the change."
+          },
+          "review_token": {
+            "type": "string",
+            "title": "Review Token",
+            "description": "An opaque token for both reviewed versions, required when saving a resolution."
           }
         },
         "additionalProperties": false,
@@ -16953,7 +17064,8 @@
           "copy_card",
           "original_changed_lines",
           "copy_changed_lines",
-          "truncated"
+          "truncated",
+          "review_token"
         ],
         "title": "ConflictComparison",
         "description": "The two live cards in a recorded conflict pair, read together for review."
@@ -17007,6 +17119,37 @@
         ],
         "title": "ConflictCopy",
         "description": "A local card version preserved during a divergent pull."
+      },
+      "ConflictResolution": {
+        "properties": {
+          "review_token": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Review Token",
+            "description": "The token returned with the reviewed comparison."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Title",
+            "description": "The replacement title."
+          },
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "description": "The replacement card content, which can be empty."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "review_token",
+          "title",
+          "content"
+        ],
+        "title": "ConflictResolution",
+        "description": "Title and body to keep on the original card."
       },
       "DateTime": {
         "type": "string",

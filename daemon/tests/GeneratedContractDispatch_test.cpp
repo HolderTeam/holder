@@ -295,6 +295,10 @@ ConflictComparison compare_conflict_copy(holder_context& context, std::string, s
   context.invoke("compare_conflict_copy");
   return {};
 }
+Card resolve_conflict_copy(holder_context& context, std::string, std::string, const ConflictResolution&) {
+  context.invoke("resolve_conflict_copy");
+  return {};
+}
 SyncResult pull_project(holder_context& context, std::string) {
   context.invoke("pull_project");
   return {};
@@ -1375,6 +1379,42 @@ TEST_CASE(
        "/projects/a/git/conflict-copies/b/comparison",
        "",
        {
+           {"conflict",
+            409,
+            [] {
+              throw holder::contract::Conflict("operation rejected");
+            }},
+           {"not_found",
+            404,
+            [] {
+              throw holder::contract::NotFound("operation rejected");
+            }},
+           {"keyring_unavailable",
+            503,
+            [] {
+              throw holder::contract::KeyringUnavailable("operation rejected");
+            }},
+           {"key_missing",
+            409,
+            [] {
+              throw holder::contract::KeyMissing("operation rejected");
+            }},
+           {"data_corrupted",
+            500,
+            [] {
+              throw holder::contract::DataCorrupted("operation rejected");
+            }},
+       }},
+      {"resolve_conflict_copy",
+       "POST",
+       "/projects/a/git/conflict-copies/b/resolution",
+       R"({"review_token":"a","title":"chosen","content":"result"})",
+       {
+           {"conflict",
+            409,
+            [] {
+              throw holder::contract::Conflict("operation rejected");
+            }},
            {"not_found",
             404,
             [] {

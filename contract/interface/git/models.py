@@ -45,6 +45,19 @@ class ConflictComparison(Record):
     """One-based lines of the copy's content that differ from the original."""
     truncated: bool
     """Whether the bounded diff could only highlight part of the change."""
+    review_token: str
+    """An opaque token for both reviewed versions, required when saving a resolution."""
+
+
+class ConflictResolution(Record):
+    """Title and body to keep on the original card."""
+
+    review_token: Annotated[str, Field(min_length=1, max_length=256)]
+    """The token returned with the reviewed comparison."""
+    title: Annotated[str, Field(min_length=1)]
+    """The replacement title."""
+    content: str
+    """The replacement card content, which can be empty."""
 
 
 class SyncState(Record):

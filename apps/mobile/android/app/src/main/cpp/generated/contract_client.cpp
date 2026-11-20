@@ -708,6 +708,7 @@ bool from_java_holder_rebuild_request(JNIEnv* env, jobject object, holder_rebuil
 bool from_java_holder_recovery_snapshot_restore(JNIEnv* env, jobject object, holder_recovery_snapshot_restore& out, Keep& keep);
 bool from_java_holder_recovery_token_export_request(JNIEnv* env, jobject object, holder_recovery_token_export_request& out, Keep& keep);
 bool from_java_holder_recovery_token_import_request(JNIEnv* env, jobject object, holder_recovery_token_import_request& out, Keep& keep);
+bool from_java_holder_conflict_resolution(JNIEnv* env, jobject object, holder_conflict_resolution& out, Keep& keep);
 bool from_java_holder_push_options(JNIEnv* env, jobject object, holder_push_options& out, Keep& keep);
 bool from_java_holder_remote_test(JNIEnv* env, jobject object, holder_remote_test& out, Keep& keep);
 
@@ -1668,10 +1669,10 @@ jobject to_java_holder_conflict_changed_line(JNIEnv* env, const holder_conflict_
 jobject to_java_holder_conflict_comparison(JNIEnv* env, const holder_conflict_comparison& value) {
   static const jclass type = global_class(env, "team/holder/android/contract/ConflictComparison");
   if (!type) return nullptr;
-  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Lteam/holder/android/contract/Card;Lteam/holder/android/contract/Card;Ljava/util/List;Ljava/util/List;Z)V");
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Lteam/holder/android/contract/Card;Lteam/holder/android/contract/Card;Ljava/util/List;Ljava/util/List;ZLjava/lang/String;)V");
   if (!constructor) return nullptr;
   Locals locals(env);
-  jvalue args[5] = {};
+  jvalue args[6] = {};
   args[0].l = locals.add(to_java_holder_card(env, value.original));
   if (env->ExceptionCheck()) return nullptr;
   args[1].l = locals.add(to_java_holder_card(env, value.copy_card));
@@ -1681,6 +1682,8 @@ jobject to_java_holder_conflict_comparison(JNIEnv* env, const holder_conflict_co
   args[3].l = locals.add(to_java_list(env, (value.copy_changed_lines).items, (value.copy_changed_lines).count, [&](const auto& item) -> jobject { return to_java_holder_conflict_changed_line(env, item); }));
   if (env->ExceptionCheck()) return nullptr;
   args[4].z = static_cast<jboolean>(value.truncated ? JNI_TRUE : JNI_FALSE);
+  args[5].l = locals.add(string(env, value.review_token));
+  if (env->ExceptionCheck()) return nullptr;
   return env->NewObjectA(type, constructor, args);
 }
 
@@ -2900,6 +2903,34 @@ bool from_java_holder_recovery_token_import_request(JNIEnv* env, jobject object,
     jobject item = locals.add(env->GetObjectField(object, field_recovery_token));
     if (env->ExceptionCheck()) return false;
     if (!c_text(env, static_cast<jstring>(item), keep, out.recovery_token)) return false;
+  }
+  return !env->ExceptionCheck();
+}
+
+bool from_java_holder_conflict_resolution(JNIEnv* env, jobject object, holder_conflict_resolution& out, Keep& keep) {
+  static const jclass type = global_class(env, "team/holder/android/contract/ConflictResolution");
+  if (!type) return false;
+  static const jfieldID field_review_token = env->GetFieldID(type, "reviewToken", "Ljava/lang/String;");
+  static const jfieldID field_title = env->GetFieldID(type, "title", "Ljava/lang/String;");
+  static const jfieldID field_content = env->GetFieldID(type, "content", "Ljava/lang/String;");
+  out = holder_conflict_resolution{};
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_review_token));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.review_token)) return false;
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_title));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.title)) return false;
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_content));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.content)) return false;
   }
   return !env->ExceptionCheck();
 }
@@ -4284,6 +4315,30 @@ Java_team_holder_android_contract_Git_compareConflictCopy(JNIEnv* env, jobject, 
       arena.value, &out, &error);
   if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
   return to_java_holder_conflict_comparison(env, (*out));
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_contract_Git_resolveConflictCopy(JNIEnv* env, jobject, jlong context_handle, jstring a_project_id, jstring a_copy_id, jobject a_resolution) {
+  if (!context_handle) { fail(env, "context is required"); return nullptr; }
+  Keep keep;
+  const char* p_project_id = nullptr;
+  if (!c_text(env, a_project_id, keep, p_project_id)) return nullptr;
+  const char* p_copy_id = nullptr;
+  if (!c_text(env, a_copy_id, keep, p_copy_id)) return nullptr;
+  if (!a_resolution) { fail(env, "resolution is required"); return nullptr; }
+  auto* p_resolution = keep.make<holder_conflict_resolution>();
+  if (!from_java_holder_conflict_resolution(env, a_resolution, *p_resolution, keep)) return nullptr;
+  Arena arena;
+  if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
+  const holder_card* out = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_resolve_conflict_copy(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      p_project_id,
+      p_copy_id,
+      p_resolution,
+      arena.value, &out, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
+  return to_java_holder_card(env, (*out));
 }
 
 extern "C" JNIEXPORT jobject JNICALL

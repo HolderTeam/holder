@@ -700,6 +700,58 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
   CHECK(comparison->copy_changed_lines.items[0].line == 1);
   CHECK_FALSE(comparison->truncated);
 
+  const std::string stale_token = comparison->review_token;
+  const holder_conflict_resolution stale{stale_token.c_str(), "Merged title", "Combined text"};
+  const holder_card* resolved = nullptr;
+  // Two edits can have the same timestamp. The reviewed bytes still have to match.
+  store.update_content(child_copy->card_id, "newer copy text", std::nullopt, 5);
+  CHECK(
+      holder_resolve_conflict_copy(
+          &context,
+          project_id.c_str(),
+          child_copy->card_id.c_str(),
+          &stale,
+          arena.get(),
+          &resolved,
+          &comparison_error
+      ) == HOLDER_ERROR_CONFLICT
+  );
+  holder_error_destroy(comparison_error);
+  comparison_error = nullptr;
+  REQUIRE(store.get_content(*store.get(child.card_id)) == "original update");
+  REQUIRE(
+      holder_compare_conflict_copy(
+          &context,
+          project_id.c_str(),
+          child_copy->card_id.c_str(),
+          arena.get(),
+          &comparison,
+          &comparison_error
+      ) == HOLDER_OK
+  );
+  const holder_conflict_resolution reviewed{
+      comparison->review_token,
+      "Merged title",
+      "Combined text"
+  };
+  REQUIRE(
+      holder_resolve_conflict_copy(
+          &context,
+          project_id.c_str(),
+          child_copy->card_id.c_str(),
+          &reviewed,
+          arena.get(),
+          &resolved,
+          &comparison_error
+      ) == HOLDER_OK
+  );
+  CHECK(std::string(resolved->card_id) == child.card_id);
+  CHECK(std::string(resolved->title) == "Merged title");
+  CHECK(std::string(resolved->content) == "Combined text");
+  CHECK(std::string(resolved->parent_card_id) == parent.card_id);
+  REQUIRE(store.get_content(*store.get(child_copy->card_id)) == "newer copy text");
+  REQUIRE(conflict_pairs(context).at(child.card_id).copy_card.card_id != nullptr);
+
   store.trash(child.card_id, 6);
   CHECK(
       holder_compare_conflict_copy(
@@ -711,6 +763,7 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
           &comparison_error
       ) == HOLDER_ERROR_NOT_FOUND
   );
+  holder_error_destroy(comparison_error);
   pairs = conflict_pairs(context);
   REQUIRE(pairs.at(child.card_id).original != nullptr);
   CHECK(pairs.at(child.card_id).original->deleted_at != nullptr);

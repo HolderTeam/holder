@@ -512,6 +512,11 @@ ConflictComparison compare_conflict_copy(holder_context& context, std::string pr
   throw NotFound("card is not a preserved conflict copy");
 }
 
+Card resolve_conflict_copy(holder_context& context, std::string project_id, std::string, const ConflictResolution&) {
+  project_named(context, project_id);
+  throw NotFound("card is not a preserved conflict copy");
+}
+
 SyncResult no_remote(holder_context& context, const std::string& project_id, bool pull, bool push) {
   project_named(context, project_id);
   return {project_id,

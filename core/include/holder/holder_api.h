@@ -515,6 +515,13 @@ typedef struct holder_recovery_token_import_request {
   const char* recovery_token; /* Serialized .hrk token JSON. */
 } holder_recovery_token_import_request;
 
+/* Title and body to keep on the original card. */
+typedef struct holder_conflict_resolution {
+  const char* review_token; /* The token returned with the reviewed comparison. */
+  const char* title; /* The replacement title. */
+  const char* content; /* The replacement card content, which can be empty. */
+} holder_conflict_resolution;
+
 /* How to push. */
 typedef struct holder_push_options {
   const char* branch; /* The branch to push; omit for the repository's default. NULL when absent. */
@@ -1305,6 +1312,8 @@ typedef struct holder_conflict_comparison {
   holder_conflict_changed_line_list
       copy_changed_lines; /* One-based lines of the copy's content that differ from the original. */
   bool truncated; /* Whether the bounded diff could only highlight part of the change. */
+  const char* review_token; /* An opaque token for both reviewed versions, required when saving a
+                               resolution. */
 } holder_conflict_comparison;
 
 /* How the pull ended. */
@@ -2692,9 +2701,9 @@ int holder_get_project_sync_state(
 
 /* Compare a preserved copy with its recorded original.
  * Reads both saved cards together. A missing association, an original or copy in Trash, or a card
- * that no longer exists is NotFound. The operation does not change either card.
- * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
- * HOLDER_ERROR_DATA_CORRUPTED.
+ * that no longer exists is NotFound. A pair changed during the read is Conflict. The operation does
+ * not change either card. Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT,
+ * HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_compare_conflict_copy(
     holder_context* context,
@@ -2702,6 +2711,24 @@ int holder_compare_conflict_copy(
     const char* copy_id,
     holder_arena* arena,
     const holder_conflict_comparison** out_conflict_comparison,
+    holder_error** out_error
+);
+
+/* Save reviewed text to the original card without changing the preserved copy.
+ * Holder verifies the token against both live cards before changing anything. A stale token is
+ * Conflict. A missing association or a card that is missing or in Trash is NotFound. Changes
+ * to the title and content make a new Git commit. The original's identity, hierarchy, links and
+ * milestones are retained. Saving the existing title and content makes no commit.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_resolve_conflict_copy(
+    holder_context* context,
+    const char* project_id,
+    const char* copy_id,
+    const holder_conflict_resolution* resolution,
+    holder_arena* arena,
+    const holder_card** out_card,
     holder_error** out_error
 );
 

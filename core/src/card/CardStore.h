@@ -136,6 +136,13 @@ class CardStore {
       const std::optional<std::string>& title,
       long long updated_at
   );
+  void save_conflict_resolution(
+      const std::string& project_id,
+      const std::string& card_id,
+      const std::string& title,
+      const std::string& content,
+      long long updated_at
+  );
   void move(
       const std::string& card_id,
       bool has_parent_card_id,

@@ -1720,6 +1720,7 @@ holder_conflict_comparison to_c(holder_arena* arena, const contract::ConflictCom
   out.original_changed_lines = to_c_list(arena, value.original_changed_lines);
   out.copy_changed_lines = to_c_list(arena, value.copy_changed_lines);
   out.truncated = value.truncated;
+  out.review_token = copy(arena, value.review_token);
   return out;
 }
 
@@ -2394,6 +2395,14 @@ contract::RecoveryTokenImportRequest from_c(const holder_recovery_token_import_r
       text(value.recovery_token, "recovery_token_import_request.recovery_token", 1, SIZE_MAX);
   return out;
 } // LCOV_EXCL_LINE - GCC unwind continuation only; body and return remain measured.
+
+contract::ConflictResolution from_c(const holder_conflict_resolution& value) {
+  contract::ConflictResolution out;
+  out.review_token = text(value.review_token, "conflict_resolution.review_token", 1, 256);
+  out.title = text(value.title, "conflict_resolution.title", 1, SIZE_MAX);
+  out.content = text(value.content, "conflict_resolution.content", 0, SIZE_MAX);
+  return out;
+}
 
 contract::PushOptions from_c(const holder_push_options& value) {
   contract::PushOptions out;
@@ -4004,6 +4013,32 @@ int holder_compare_conflict_copy(
     auto* out = make<holder_conflict_comparison>(arena);
     *out = to_c(arena, contract::compare_conflict_copy(*context, project_id_value, copy_id_value));
     *out_conflict_comparison = out;
+  });
+}
+
+int holder_resolve_conflict_copy(
+    holder_context* context,
+    const char* project_id,
+    const char* copy_id,
+    const holder_conflict_resolution* resolution,
+    holder_arena* arena,
+    const holder_card** out_card,
+    holder_error** out_error
+) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card != nullptr, "out_card must not be null");
+    *out_card = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto copy_id_value = text(copy_id, "copy_id", 1, SIZE_MAX);
+    require(resolution != nullptr, "resolution must not be null");
+    const auto resolution_value = from_c(*resolution);
+    auto* out = make<holder_card>(arena);
+    *out = to_c(
+        arena,
+        contract::resolve_conflict_copy(*context, project_id_value, copy_id_value, resolution_value)
+    );
+    *out_card = out;
   });
 }
 

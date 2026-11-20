@@ -6,6 +6,7 @@
 #include "api/CoreErrors.h"
 
 #include "capi/Context.h"
+#include "card/CardPaths.h"
 #include "card/CardRepo.h"
 #include "card/LinkRepo.h"
 #include "git/GitOps.h"
@@ -16,12 +17,14 @@
 #include "privacy/ProjectPrivacy.h"
 #include "project/ProjectRepo.h"
 #include "project/ProjectSyncRepo.h"
+#include "resource/AssetEnvelope.h"
 #include "sync/ProjectSyncOperation.h"
 #include "sync/ProjectSyncPolicy.h"
 
 #include <git2.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
@@ -294,6 +297,33 @@ RemoteTestResult test_remote(
   };
 }
 
+ConflictComparison read_conflict_pair(
+    holder_context& context,
+    const holder::model::Project& project,
+    const std::string& copy_id
+) {
+  const auto links =
+      holder::card::LinkRepo(context.db).list_conflict_copy_links(project.project_id);
+  const auto link = std::ranges::find(links, copy_id, &holder::model::CardLink::from_card_id);
+  if (link == links.end()) throw NotFound("card is not a preserved conflict copy: " + copy_id);
+  const auto root = std::filesystem::path(project.root_path);
+  const auto card_digest = [&](const CardMetadata& card) {
+    const auto rel_path = holder::core::card_rel_path(card.card_id);
+    if (card.rel_path != rel_path || !std::filesystem::is_regular_file(root / rel_path))
+      throw NotFound("card content missing: " + card.card_id);
+    return holder::resource::digest_file(root / rel_path).sha256;
+  };
+  // The bytes contain the stable IDs, text, placement and durable links and milestones.
+  // Unrelated commits do not invalidate a reviewed pair.
+  auto token = card_digest(get_card_metadata(context, project.project_id, link->to_card_id)) + ":" +
+               card_digest(get_card_metadata(context, project.project_id, copy_id));
+  auto original = get_card(context, project.project_id, link->to_card_id);
+  auto copy = get_card(context, project.project_id, copy_id);
+  if (token != card_digest(original) + ":" + card_digest(copy))
+    throw Conflict("The conflict pair changed while being read. Review both versions again.");
+  return {std::move(original), std::move(copy), {}, {}, false, std::move(token)};
+}
+
 } // namespace
 
 SyncState get_project_sync_state(holder_context& context, std::string project_id) {
@@ -310,17 +340,7 @@ ConflictComparison compare_conflict_copy(
   const auto project = find(context, project_id);
   const auto mutex = holder::git::repo_mutex_for(project.root_path);
   std::unique_lock lock(*mutex);
-  const auto links = holder::card::LinkRepo(context.db).list_conflict_copy_links(project_id);
-  const auto link = std::ranges::find(links, copy_id, &holder::model::CardLink::from_card_id);
-  if (link == links.end()) throw NotFound("card is not a preserved conflict copy: " + copy_id);
-
-  ConflictComparison result{
-      get_card(context, project_id, link->to_card_id),
-      get_card(context, project_id, copy_id),
-      {},
-      {},
-      false
-  };
+  auto result = read_conflict_pair(context, project, copy_id);
   lock.unlock();
   if (result.original.content == result.copy_card.content) return result;
   const auto lines = holder::history::compare_card_text(
@@ -336,6 +356,32 @@ ConflictComparison compare_conflict_copy(
     }
   }
   return result;
+}
+
+Card resolve_conflict_copy(
+    holder_context& context,
+    std::string project_id,
+    std::string copy_id,
+    const ConflictResolution& resolution
+) {
+  return with_contract_errors([&] {
+    const auto project = find(context, project_id);
+    const auto mutex = holder::git::repo_mutex_for(project.root_path);
+    std::unique_lock lock(*mutex);
+    const auto reviewed = read_conflict_pair(context, project, copy_id);
+    if (resolution.review_token != reviewed.review_token)
+      throw Conflict(
+          "Either the original or the preserved copy changed. Review both versions again."
+      );
+    card_store(context).save_conflict_resolution(
+        project_id,
+        reviewed.original.card_id,
+        resolution.title,
+        resolution.content,
+        now_epoch_seconds()
+    );
+    return get_card(context, project_id, reviewed.original.card_id);
+  });
 }
 
 SyncResult pull_project(holder_context& context, std::string project_id) {
