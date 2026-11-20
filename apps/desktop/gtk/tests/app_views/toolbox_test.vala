@@ -422,16 +422,16 @@ private void test_an_unbound_toolbox_asks_with_no_selection() {
 }
 
 internal void register_toolbox_tests() {
-    Test.add_func("/app_views/toolbox/unbound", test_an_unbound_toolbox_asks_with_no_selection);
-    Test.add_func("/app_views/toolbox/passes_requests_on", test_the_toolbox_passes_each_tools_requests_on);
-    Test.add_func("/app_views/toolbox/debug_lines", test_tool_debug_lines_reach_the_debug_tool);
-    Test.add_func("/app_views/toolbox/history_resource", test_a_history_resource_opens_the_resources_tool);
-    Test.add_func("/app_views/toolbox/api_and_context", test_the_api_and_context_reach_the_tools);
-    Test.add_func("/app_views/toolbox/breadcrumbs", test_the_breadcrumbs_follow_the_selection_and_lead_back);
-    Test.add_func("/app_views/toolbox/sharing_needs_card", test_sharing_needs_a_selected_card);
-    Test.add_func("/app_views/toolbox/new_card", test_new_card_goes_under_the_selected_card_or_to_the_flowboard);
-    Test.add_func("/app_views/toolbox/tools_and_roots", test_showing_tools_and_roots);
-    Test.add_func("/app_views/toolbox/loading_reveal_terminal", test_loading_and_reveal_and_terminal_focus);
+    av_add_test("/app_views/toolbox/unbound", test_an_unbound_toolbox_asks_with_no_selection);
+    av_add_test("/app_views/toolbox/passes_requests_on", test_the_toolbox_passes_each_tools_requests_on);
+    av_add_test("/app_views/toolbox/debug_lines", test_tool_debug_lines_reach_the_debug_tool);
+    av_add_test("/app_views/toolbox/history_resource", test_a_history_resource_opens_the_resources_tool);
+    av_add_test("/app_views/toolbox/api_and_context", test_the_api_and_context_reach_the_tools);
+    av_add_test("/app_views/toolbox/breadcrumbs", test_the_breadcrumbs_follow_the_selection_and_lead_back);
+    av_add_test("/app_views/toolbox/sharing_needs_card", test_sharing_needs_a_selected_card);
+    av_add_test("/app_views/toolbox/new_card", test_new_card_goes_under_the_selected_card_or_to_the_flowboard);
+    av_add_test("/app_views/toolbox/tools_and_roots", test_showing_tools_and_roots);
+    av_add_test("/app_views/toolbox/loading_reveal_terminal", test_loading_and_reveal_and_terminal_focus);
 }
 
 }
