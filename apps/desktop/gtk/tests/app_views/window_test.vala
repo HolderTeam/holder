@@ -716,14 +716,19 @@ private Gtk.Button window_sync_button(WindowFixture f) {
 private class WindowConflictApi : MainControllerFakeApi, HolderLinux.IConflictComparisonApi {
     public int resolution_calls;
     public int comparison_calls;
+    public int trash_copy_calls;
     public bool reject_next_resolution;
+    public bool reject_next_trash;
+    public bool copy_trashed;
     public string? resolved_title;
     public string? resolved_content;
 
     public override async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
         var projects = yield base.list_projects();
-        projects[0].sync.conflict_copies.add(new HolderLinux.GitConflictCopy(
-            "c2", "Preserved edit", "c1", "Original", false));
+        if (!copy_trashed) {
+            projects[0].sync.conflict_copies.add(new HolderLinux.GitConflictCopy(
+                "c2", "Preserved edit", "c1", "Original", false));
+        }
         return projects;
     }
 
@@ -748,9 +753,8 @@ private class WindowConflictApi : MainControllerFakeApi, HolderLinux.IConflictCo
                                                   "review-%d".printf(comparison_calls));
     }
 
-    public async HolderLinux.CardDetail resolve_conflict_copy(string project_id, string copy_id,
-                                                              string review_token, string title,
-                                                              string content) throws Error {
+    public async HolderLinux.ConflictResolutionResult resolve_conflict_copy(
+        string project_id, string copy_id, string review_token, string title, string content) throws Error {
         resolution_calls++;
         assert(project_id == "p1");
         assert(copy_id == "c2");
@@ -761,7 +765,24 @@ private class WindowConflictApi : MainControllerFakeApi, HolderLinux.IConflictCo
         }
         resolved_title = title;
         resolved_content = content;
-        return yield get_card(project_id, "c1");
+        var cleanup = new HolderLinux.ConflictCopyCleanupReview("cleanup-" + review_token);
+        cleanup.preserves_original = true;
+        cleanup.copy_tags = { "copy-only" };
+        cleanup.copy_milestones = { "Ship Friday" };
+        cleanup.children = { "Preserved checklist" };
+        return new HolderLinux.ConflictResolutionResult(yield get_card(project_id, "c1"), cleanup);
+    }
+
+    public async void trash_conflict_copy(string project_id, string copy_id, string cleanup_token) throws Error {
+        trash_copy_calls++;
+        assert(project_id == "p1" && copy_id == "c2");
+        assert(cleanup_token == "cleanup-review-%d".printf(comparison_calls));
+        if (reject_next_trash) {
+            reject_next_trash = false;
+            throw new HolderLinux.ApiError.HTTP("The cleanup details changed.");
+        }
+        copy_trashed = true;
+        include_card2 = false;
     }
 }
 
@@ -856,6 +877,12 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
     assert(api.resolution_calls == 1);
     assert(api.resolved_title == "Card 1");
     assert(api.resolved_content == "# Card 1\n\nBody");
+    comparison_button(comparison, "Review preserved copy…").clicked();
+    assert(av_find_label(comparison, "Review preserved copy") != null);
+    assert(av_find_label(comparison, "Ship Friday") != null);
+    assert(av_find_label(comparison, "Preserved checklist") != null);
+    comparison_button(comparison, "Keep copy").clicked();
+    assert(api.trash_copy_calls == 0);
     comparison.close();
     assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
 
@@ -917,6 +944,37 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
         var card = f.controller().get_current_card();
         return card != null && card.card_id == "c2";
     }));
+
+    var previous_comparisons = api.comparison_calls;
+    ((!) compare).clicked();
+    assert(wait_for_condition(() => api.comparison_calls > previous_comparisons));
+    comparison = (!) f.window.get_visible_dialog();
+    comparison_button(comparison, "Keep original").clicked();
+    assert(wait_for_condition(() => av_find_label(comparison,
+        "Saved to the original card. The preserved copy is still available.") != null));
+    comparison_button(comparison, "Review preserved copy…").clicked();
+    api.reject_next_trash = true;
+    comparison_button(comparison, "Move copy to Trash").clicked();
+    assert(wait_for_condition(() => av_find_label(comparison,
+        "Could not move the copy to Trash.\nThe cleanup details changed.\n" +
+        "Close this dialog and compare again for a fresh review.") != null));
+    assert(f.controller().selected_card_id() == "c2");
+    assert(!api.copy_trashed);
+    comparison.close();
+    assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
+    previous_comparisons = api.comparison_calls;
+    ((!) compare).clicked();
+    assert(wait_for_condition(() => api.comparison_calls > previous_comparisons));
+    comparison = (!) f.window.get_visible_dialog();
+    comparison_button(comparison, "Keep original").clicked();
+    assert(wait_for_condition(() => av_find_label(comparison,
+        "Saved to the original card. The preserved copy is still available.") != null));
+    comparison_button(comparison, "Review preserved copy…").clicked();
+    comparison_button(comparison, "Move copy to Trash").clicked();
+    assert(wait_for_condition(() => av_find_label(comparison,
+        "The preserved copy was moved to Trash. You can restore it from there.") != null));
+    assert(wait_for_condition(() => f.controller().selected_card_id() != "c2"));
+    assert(api.resolved_content == combined);
     f.destroy();
 }
 

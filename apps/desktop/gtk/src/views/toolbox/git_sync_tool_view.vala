@@ -265,6 +265,10 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         }
     }
 
+    internal void refresh_after_conflict_resolution() {
+        refresh_git_configured_state.begin(null, false);
+    }
+
     private async void refresh_visible_git_state() {
         if (api == null || current_project() == null || conflict_refresh_running) {
             return;

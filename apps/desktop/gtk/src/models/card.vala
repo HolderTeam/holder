@@ -119,6 +119,31 @@ public class ConflictComparison : Object {
     }
 }
 
+public class ConflictCopyCleanupReview : Object {
+    public string cleanup_token { get; construct; }
+    public string? promotion_parent;
+    public bool placement_differs;
+    public bool preserves_original;
+    public string[] copy_tags = {};
+    public CardLink[] copy_links = {};
+    public CardLink[] backlinks = {};
+    public string[] copy_milestones = {};
+    public string[] children = {};
+
+    public ConflictCopyCleanupReview(string cleanup_token) {
+        Object(cleanup_token: cleanup_token);
+    }
+}
+
+public class ConflictResolutionResult : Object {
+    public CardDetail card { get; construct; }
+    public ConflictCopyCleanupReview cleanup { get; construct; }
+
+    public ConflictResolutionResult(CardDetail card, ConflictCopyCleanupReview cleanup) {
+        Object(card: card, cleanup: cleanup);
+    }
+}
+
 public class CardTagOccurrence : Object {
     public string tag { get; construct; }
     public int byte_start { get; construct; }

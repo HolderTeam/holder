@@ -11,12 +11,17 @@ internal class ConflictComparisonDialog : Adw.Dialog {
     private Gtk.Label feedback;
     private Gtk.Button save_button;
     private Gtk.Button refresh_button;
+    private Gtk.Button review_copy_button;
+    private Gtk.Button? trash_copy_button;
+    private Gtk.Button? keep_copy_button;
+    private Gtk.Label? cleanup_feedback;
     private ConflictComparison? comparison;
     private bool busy;
     private bool saved;
 
     public signal void resolution_requested(string review_token, string title, string content);
     public signal void refresh_requested();
+    public signal void copy_trash_requested(string cleanup_token);
 
     public ConflictComparisonDialog() {
         Object(title: "Compare card versions", content_width: 900, content_height: 600);
@@ -83,12 +88,30 @@ internal class ConflictComparisonDialog : Adw.Dialog {
         set_busy(false);
     }
 
-    public void show_resolution_saved() {
+    public void show_resolution_saved(ConflictCopyCleanupReview cleanup, GLib.ListModel cards) {
         saved = true;
         choices.set_visible(false);
         save_button.set_visible(false);
         refresh_button.set_visible(false);
+        states.add_named(build_cleanup_view(cleanup, cards), "cleanup");
+        review_copy_button.set_visible(true);
         set_feedback("Saved to the original card. The preserved copy is still available.");
+        set_busy(false);
+    }
+
+    public void show_copy_trashed() {
+        states.set_visible_child_name("versions");
+        review_copy_button.set_visible(false);
+        set_feedback("The preserved copy was moved to Trash. You can restore it from there.");
+        set_busy(false);
+    }
+
+    public void show_copy_trash_error(string message) {
+        if (cleanup_feedback != null) {
+            cleanup_feedback.set_text("Could not move the copy to Trash.\n" + message);
+            cleanup_feedback.add_css_class("error");
+            cleanup_feedback.set_visible(true);
+        }
         set_busy(false);
     }
 
@@ -162,8 +185,138 @@ internal class ConflictComparisonDialog : Adw.Dialog {
         save_button.clicked.connect(() => submit(result_title.text, result_content.buffer.text));
         result_title.changed.connect(() => save_button.set_sensitive(!busy && result_title.text.strip() != ""));
         actions.append(save_button);
+        review_copy_button = new Gtk.Button.with_label("Review preserved copy…") { visible = false };
+        review_copy_button.clicked.connect(() => states.set_visible_child_name("cleanup"));
+        actions.append(review_copy_button);
         layout.append(actions);
         return layout;
+    }
+
+    private Gtk.Widget build_cleanup_view(ConflictCopyCleanupReview cleanup, GLib.ListModel cards) {
+        var layout = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+        var scroll = new Gtk.ScrolledWindow() { vexpand = true, hscrollbar_policy = Gtk.PolicyType.NEVER };
+        var page = new Gtk.Box(Gtk.Orientation.VERTICAL, 16) {
+            margin_start = 24, margin_end = 24, margin_top = 18, margin_bottom = 16
+        };
+        scroll.set_child(page);
+        layout.append(scroll);
+
+        var heading = cleanup_label("Review preserved copy");
+        heading.add_css_class("title-2");
+        page.append(heading);
+        page.append(cleanup_label("The result is saved. Moving the copy to Trash leaves these details with the copy. " +
+                                  "You can restore the copy from Trash."));
+
+        if (cleanup.placement_differs) {
+            page.append(cleanup_label("The copy occupies a different position in the project."));
+        }
+        var groups = new Gtk.FlowBox() {
+            selection_mode = Gtk.SelectionMode.NONE, homogeneous = true, valign = Gtk.Align.START,
+            min_children_per_line = 1, max_children_per_line = 2, column_spacing = 16, row_spacing = 12
+        };
+        page.append(groups);
+        string[] tags = {};
+        foreach (var tag in cleanup.copy_tags) tags += "#" + tag;
+        append_cleanup_group(groups, "Tags only on the copy", tags);
+        append_cleanup_group(groups, "Links and attachments only on the copy", describe_links(cleanup.copy_links, cards, false));
+        append_cleanup_group(groups, "Milestones only on the copy", cleanup.copy_milestones);
+        append_cleanup_group(groups, "Links pointing to the copy", describe_links(cleanup.backlinks, cards, true));
+        if (cleanup.children.length > 0) {
+            var destination = cleanup.promotion_parent == null
+                ? "These cards would move to the project’s top level."
+                : "These cards would move under “%s”.".printf(cleanup.promotion_parent);
+            append_cleanup_group(groups, "Child cards", cleanup.children,
+                                 destination + " Restoring the copy keeps them there.");
+        }
+        if (tags.length == 0 && cleanup.copy_links.length == 0 && cleanup.copy_milestones.length == 0 &&
+            cleanup.backlinks.length == 0 && cleanup.children.length == 0) {
+            page.append(cleanup_label("There are no copy-only tags, links, milestones, or child cards to review."));
+        }
+        if (!cleanup.preserves_original) {
+            var blocked = cleanup_label("Moving the copy to Trash would also move the original. Move the original first.");
+            blocked.add_css_class("warning");
+            page.append(blocked);
+        }
+        cleanup_feedback = cleanup_label("");
+        cleanup_feedback.set_margin_start(24);
+        cleanup_feedback.set_margin_end(24);
+        cleanup_feedback.set_visible(false);
+        layout.append(cleanup_feedback);
+
+        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6) {
+            halign = Gtk.Align.END, margin_start = 12, margin_end = 12,
+            margin_top = 8, margin_bottom = 12
+        };
+        keep_copy_button = new Gtk.Button.with_label("Keep copy");
+        keep_copy_button.clicked.connect(() => states.set_visible_child_name("versions"));
+        actions.append(keep_copy_button);
+        if (cleanup.preserves_original) {
+            trash_copy_button = new Gtk.Button.with_label("Move copy to Trash");
+            trash_copy_button.add_css_class("destructive-action");
+            trash_copy_button.clicked.connect(() => {
+                set_busy(true);
+                cleanup_feedback.set_text("Moving the copy to Trash…");
+                cleanup_feedback.remove_css_class("error");
+                cleanup_feedback.set_visible(true);
+                copy_trash_requested(cleanup.cleanup_token);
+            });
+            actions.append(trash_copy_button);
+        }
+        layout.append(actions);
+        return layout;
+    }
+
+    private static Gtk.Label cleanup_label(string message) {
+        return new Gtk.Label(message) { wrap = true, wrap_mode = Pango.WrapMode.WORD_CHAR, xalign = 0.0f };
+    }
+
+    private static void append_cleanup_group(Gtk.FlowBox groups, string title, string[] items,
+                                             string? description = null) {
+        if (items.length == 0) return;
+        var group = new Gtk.Box(Gtk.Orientation.VERTICAL, 8) { valign = Gtk.Align.START };
+        var heading = cleanup_label(title);
+        heading.set_max_width_chars(34);
+        heading.add_css_class("heading");
+        group.append(heading);
+        if (description != null) {
+            var note = cleanup_label(description);
+            note.set_max_width_chars(34);
+            note.add_css_class("dim-label");
+            group.append(note);
+        }
+        var list = new Gtk.ListBox() { selection_mode = Gtk.SelectionMode.NONE };
+        list.add_css_class("boxed-list");
+        foreach (var item in items) {
+            var label = cleanup_label(item);
+            label.set_max_width_chars(34);
+            label.set_margin_start(12);
+            label.set_margin_end(12);
+            label.set_margin_top(10);
+            label.set_margin_bottom(10);
+            list.append(new Gtk.ListBoxRow() { child = label, activatable = false });
+        }
+        group.append(list);
+        groups.append(new Gtk.FlowBoxChild() { child = group, focusable = false });
+    }
+
+    private string[] describe_links(CardLink[] links, GLib.ListModel cards, bool incoming) {
+        var titles = new Gee.HashMap<string, string>();
+        for (uint i = 0; i < cards.get_n_items(); i++) {
+            var card = (CardSummary) cards.get_item(i);
+            titles[card.card_id] = card.title;
+        }
+        var project_id = comparison?.original.project_id;
+        string[] rows = {};
+        foreach (var link in links) {
+            var id = incoming ? link.from_card_id : link.to_card_id;
+            var link_project = incoming ? link.source_project_id : link.target_project_id;
+            var target = (link_project == project_id ? titles[id] : null) ?? id;
+            var label = link.label ?? (link.kind == "conflict_copy_of" ? "Preserved version" :
+                                       link.to_type == "resource" ? "Attachment" : link.kind.replace("_", " "));
+            if (link_project != project_id) target += " · " + link_project;
+            rows += "%s · %s".printf(label, target);
+        }
+        return rows;
     }
 
     private void start_editing(CardDetail source) {
@@ -189,6 +342,9 @@ internal class ConflictComparisonDialog : Adw.Dialog {
         set_can_close(!busy && (!result_editor.visible || saved));
         choices.set_sensitive(!busy);
         refresh_button.set_sensitive(!busy);
+        review_copy_button.set_sensitive(!busy);
+        if (trash_copy_button != null) trash_copy_button.set_sensitive(!busy);
+        if (keep_copy_button != null) keep_copy_button.set_sensitive(!busy);
         save_button.set_sensitive(!busy && result_title.text.strip() != "");
         result_title.set_editable(!busy && !saved);
         result_content.set_editable(!busy && !saved);

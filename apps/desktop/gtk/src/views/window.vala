@@ -1367,6 +1367,9 @@ public class MainWindow : Adw.ApplicationWindow {
             save_conflict_resolution.begin(source, api, comparison_api, project_id, original_id, copy_id,
                                            token, title, content);
         });
+        dialog.copy_trash_requested.connect((source, token) => {
+            trash_reviewed_conflict_copy.begin(source, api, comparison_api, project_id, copy_id, token);
+        });
         load_conflict_comparison.begin(dialog, api, comparison_api, project_id, original_id, copy_id);
     }
 
@@ -1404,14 +1407,41 @@ public class MainWindow : Adw.ApplicationWindow {
             return;
         }
         try {
-            yield comparison_api.resolve_conflict_copy(project_id, copy_id, token, title, content);
+            var result = yield comparison_api.resolve_conflict_copy(project_id, copy_id, token, title, content);
             if (conflict_comparison_is_current(dialog, api, project_id)) {
-                dialog.show_resolution_saved();
+                if (result.card.card_id != original_id || result.card.project_id != project_id) {
+                    dialog.show_resolution_error("The saved original could not be verified.", false);
+                    return;
+                }
+                dialog.show_resolution_saved(result.cleanup, card_store);
                 refresh_cards_after_git_change.begin(project_id, "Could not refresh cards after saving the result");
             }
         } catch (Error e) {
             if (conflict_comparison_is_current(dialog, api, project_id)) {
                 dialog.show_resolution_error("Could not save the result.\n" + e.message);
+            }
+        }
+    }
+
+    private async void trash_reviewed_conflict_copy(ConflictComparisonDialog dialog, IHolderApi api,
+                                                     IConflictComparisonApi comparison_api, string project_id,
+                                                     string copy_id, string token) {
+        if (!conflict_comparison_is_current(dialog, api, project_id)) return;
+        if (controller.selected_card_id() == copy_id &&
+            (controller.has_unsaved_editor_changes() || controller.is_editor_save_in_flight())) {
+            dialog.show_copy_trash_error("Save any edits to the copy in the main editor first.");
+            return;
+        }
+        try {
+            yield comparison_api.trash_conflict_copy(project_id, copy_id, token);
+            if (conflict_comparison_is_current(dialog, api, project_id)) {
+                dialog.show_copy_trashed();
+                toolbox.git_sync_tool.refresh_after_conflict_resolution();
+                refresh_cards_after_git_change.begin(project_id, "Could not refresh cards after moving the copy to Trash");
+            }
+        } catch (Error e) {
+            if (conflict_comparison_is_current(dialog, api, project_id)) {
+                dialog.show_copy_trash_error(e.message + "\nClose this dialog and compare again for a fresh review.");
             }
         }
     }
