@@ -561,23 +561,23 @@ private void test_search_results_list_their_titles_and_snippets() {
 }
 
 internal void register_workspace_pane_tests() {
-    Test.add_func("/app_views/workspace/header_buttons", test_the_header_buttons_raise_their_requests);
-    Test.add_func("/app_views/workspace/search_and_editor_toggles", test_the_search_and_editor_toggles_hide_their_parts);
-    Test.add_func("/app_views/workspace/app_message", test_an_app_message_offers_the_debug_panel);
-    Test.add_func("/app_views/workspace/search_entry", test_the_search_entry_raises_its_requests);
-    Test.add_func("/app_views/workspace/find_replace", test_find_and_replace_shows_hides_and_asks);
-    Test.add_func("/app_views/workspace/dropped_images", test_dropped_images_are_inserted_at_their_mark);
-    Test.add_func("/app_views/workspace/tag_highlights", test_saved_tags_are_highlighted_until_cleared);
-    Test.add_func("/app_views/workspace/tag_style", test_the_tag_style_follows_the_colour_scheme);
-    Test.add_func("/app_views/workspace/tidy_and_spelling", test_tidying_and_spell_checking_reach_the_editor);
-    Test.add_func("/app_views/workspace/panels", test_panels_open_at_their_remembered_widths);
-    Test.add_func("/app_views/workspace/context_click", test_a_context_click_moves_the_cursor_unless_text_is_selected);
-    Test.add_func("/app_views/workspace/file_drop", test_dropped_files_are_handed_on_with_a_mark_where_they_landed);
-    Test.add_func("/app_views/workspace/list_enter", test_enter_continues_and_ends_lists);
-    Test.add_func("/app_views/workspace/inline_shortcuts", test_formatting_shortcuts_wrap_and_unwrap_text);
-    Test.add_func("/app_views/workspace/line_shortcuts", test_line_shortcuts_change_whole_lines);
-    Test.add_func("/app_views/workspace/clear_formatting", test_clearing_formatting_handles_selections_and_lines);
-    Test.add_func("/app_views/workspace/search_results", test_search_results_list_their_titles_and_snippets);
+    av_add_test("/app_views/workspace/header_buttons", test_the_header_buttons_raise_their_requests);
+    av_add_test("/app_views/workspace/search_and_editor_toggles", test_the_search_and_editor_toggles_hide_their_parts);
+    av_add_test("/app_views/workspace/app_message", test_an_app_message_offers_the_debug_panel);
+    av_add_test("/app_views/workspace/search_entry", test_the_search_entry_raises_its_requests);
+    av_add_test("/app_views/workspace/find_replace", test_find_and_replace_shows_hides_and_asks);
+    av_add_test("/app_views/workspace/dropped_images", test_dropped_images_are_inserted_at_their_mark);
+    av_add_test("/app_views/workspace/tag_highlights", test_saved_tags_are_highlighted_until_cleared);
+    av_add_test("/app_views/workspace/tag_style", test_the_tag_style_follows_the_colour_scheme);
+    av_add_test("/app_views/workspace/tidy_and_spelling", test_tidying_and_spell_checking_reach_the_editor);
+    av_add_test("/app_views/workspace/panels", test_panels_open_at_their_remembered_widths);
+    av_add_test("/app_views/workspace/context_click", test_a_context_click_moves_the_cursor_unless_text_is_selected);
+    av_add_test("/app_views/workspace/file_drop", test_dropped_files_are_handed_on_with_a_mark_where_they_landed);
+    av_add_test("/app_views/workspace/list_enter", test_enter_continues_and_ends_lists);
+    av_add_test("/app_views/workspace/inline_shortcuts", test_formatting_shortcuts_wrap_and_unwrap_text);
+    av_add_test("/app_views/workspace/line_shortcuts", test_line_shortcuts_change_whole_lines);
+    av_add_test("/app_views/workspace/clear_formatting", test_clearing_formatting_handles_selections_and_lines);
+    av_add_test("/app_views/workspace/search_results", test_search_results_list_their_titles_and_snippets);
 }
 
 }

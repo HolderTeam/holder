@@ -99,10 +99,10 @@ private void test_a_scoped_form_is_freed_when_it_is_removed() {
 }
 
 public void register_lifetime_tests() {
-    Test.add_func("/app-views/lifetime/scoped-dialog", test_a_scoped_dialog_is_freed_when_it_closes);
-    Test.add_func("/app-views/lifetime/scoped-form", test_a_scoped_form_is_freed_when_it_is_removed);
-    Test.add_func("/app-views/lifetime/tool-views", test_tool_views_are_freed);
-    Test.add_func("/app-views/lifetime/preferences-dialog", test_preferences_dialog_is_freed);
+    av_add_test("/app-views/lifetime/scoped-dialog", test_a_scoped_dialog_is_freed_when_it_closes);
+    av_add_test("/app-views/lifetime/scoped-form", test_a_scoped_form_is_freed_when_it_is_removed);
+    av_add_test("/app-views/lifetime/tool-views", test_tool_views_are_freed);
+    av_add_test("/app-views/lifetime/preferences-dialog", test_preferences_dialog_is_freed);
 }
 
 }

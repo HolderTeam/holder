@@ -246,16 +246,16 @@ private void test_a_click_without_an_event_is_ignored() {
 }
 
 internal void register_internal_link_navigator_tests() {
-    Test.add_func("/app_views/internal_link_navigator/refresh_connections", test_refreshing_connections_reads_the_links_in_the_editor);
-    Test.add_func("/app_views/internal_link_navigator/only_ctrl_enter", test_only_ctrl_enter_navigates);
-    Test.add_func("/app_views/internal_link_navigator/opens_linked_card", test_ctrl_enter_on_a_link_opens_its_card);
-    Test.add_func("/app_views/internal_link_navigator/offers_to_create", test_a_link_to_a_missing_card_offers_to_create_it);
-    Test.add_func("/app_views/internal_link_navigator/resource_preview", test_a_resource_image_asks_for_its_preview);
-    Test.add_func("/app_views/internal_link_navigator/shows_tag", test_a_saved_tag_shows_the_tags_tool);
-    Test.add_func("/app_views/internal_link_navigator/opens_uri", test_a_link_opens_in_the_browser_and_a_failure_is_shown);
-    Test.add_func("/app_views/internal_link_navigator/plain_text", test_plain_text_leads_nowhere);
-    Test.add_func("/app_views/internal_link_navigator/ctrl_click", test_a_ctrl_click_navigates_where_it_lands);
-    Test.add_func("/app_views/internal_link_navigator/click_without_event", test_a_click_without_an_event_is_ignored);
+    av_add_test("/app_views/internal_link_navigator/refresh_connections", test_refreshing_connections_reads_the_links_in_the_editor);
+    av_add_test("/app_views/internal_link_navigator/only_ctrl_enter", test_only_ctrl_enter_navigates);
+    av_add_test("/app_views/internal_link_navigator/opens_linked_card", test_ctrl_enter_on_a_link_opens_its_card);
+    av_add_test("/app_views/internal_link_navigator/offers_to_create", test_a_link_to_a_missing_card_offers_to_create_it);
+    av_add_test("/app_views/internal_link_navigator/resource_preview", test_a_resource_image_asks_for_its_preview);
+    av_add_test("/app_views/internal_link_navigator/shows_tag", test_a_saved_tag_shows_the_tags_tool);
+    av_add_test("/app_views/internal_link_navigator/opens_uri", test_a_link_opens_in_the_browser_and_a_failure_is_shown);
+    av_add_test("/app_views/internal_link_navigator/plain_text", test_plain_text_leads_nowhere);
+    av_add_test("/app_views/internal_link_navigator/ctrl_click", test_a_ctrl_click_navigates_where_it_lands);
+    av_add_test("/app_views/internal_link_navigator/click_without_event", test_a_click_without_an_event_is_ignored);
 }
 
 }

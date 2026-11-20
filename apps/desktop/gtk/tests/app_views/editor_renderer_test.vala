@@ -104,10 +104,10 @@ private void test_new_content_keeps_the_chrome_already_set() {
 }
 
 internal void register_editor_renderer_tests() {
-    Test.add_func("/app_views/editor_renderer/apply_defaults", test_applying_shows_an_empty_read_only_editor_titled_holder);
-    Test.add_func("/app_views/editor_renderer/editor_state", test_editor_state_is_applied_and_marked_while_it_is);
-    Test.add_func("/app_views/editor_renderer/chrome_setters", test_the_chrome_follows_each_setter);
-    Test.add_func("/app_views/editor_renderer/content_keeps_chrome", test_new_content_keeps_the_chrome_already_set);
+    av_add_test("/app_views/editor_renderer/apply_defaults", test_applying_shows_an_empty_read_only_editor_titled_holder);
+    av_add_test("/app_views/editor_renderer/editor_state", test_editor_state_is_applied_and_marked_while_it_is);
+    av_add_test("/app_views/editor_renderer/chrome_setters", test_the_chrome_follows_each_setter);
+    av_add_test("/app_views/editor_renderer/content_keeps_chrome", test_new_content_keeps_the_chrome_already_set);
 }
 
 }

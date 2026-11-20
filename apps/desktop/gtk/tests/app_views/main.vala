@@ -2,6 +2,22 @@ using GLib;
 
 namespace HolderLinuxTests {
 
+// The Vala binding puts the destroy callback before the test callback.
+[CCode (cname = "g_test_add_data_func_full", cheader_filename = "glib.h")]
+private extern void add_test_with_data(string path,
+                                      [CCode (delegate_target_pos = 1.9, destroy_notify_pos = 2.9)]
+                                      owned TestDataFunc test_case);
+
+internal void av_add_test(string path, TestFunc test_case) {
+    add_test_with_data(path, () => {
+        Test.message("Running %s", path);
+        var started = get_monotonic_time();
+        test_case();
+        var elapsed_ms = (get_monotonic_time() - started) / 1000.0;
+        Test.message("%s took %.1f ms", path, elapsed_ms);
+    });
+}
+
 public static int main(string[] args) {
     av_report_warnings_as_failures();
     // Keep going past a failed test, so one run reports them all. (A failed assert still stops it.)
