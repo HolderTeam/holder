@@ -714,6 +714,11 @@ private Gtk.Button window_sync_button(WindowFixture f) {
 }
 
 private class WindowConflictApi : MainControllerFakeApi, HolderLinux.IConflictComparisonApi {
+    public int resolution_calls;
+    public int comparison_calls;
+    public string? resolved_title;
+    public string? resolved_content;
+
     public override async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
         var projects = yield base.list_projects();
         projects[0].sync.conflict_copies.add(new HolderLinux.GitConflictCopy(
@@ -726,6 +731,9 @@ private class WindowConflictApi : MainControllerFakeApi, HolderLinux.IConflictCo
         if (card_id == "c2") {
             card.title = "Renamed preserved edit";
             card.content = "# Renamed preserved edit\n\nWords from the other version";
+        } else if (card_id == "c1" && resolved_title != null && resolved_content != null) {
+            card.title = resolved_title;
+            card.content = resolved_content;
         }
         return card;
     }
@@ -734,8 +742,33 @@ private class WindowConflictApi : MainControllerFakeApi, HolderLinux.IConflictCo
                                                                        string copy_id) throws Error {
         var original = yield get_card(project_id, "c1");
         var copy = yield get_card(project_id, copy_id);
-        return new HolderLinux.ConflictComparison(original, copy, { 1, 3 }, { 1, 3 }, false);
+        comparison_calls++;
+        return new HolderLinux.ConflictComparison(original, copy, { 1, 3 }, { 1, 3 }, false,
+                                                  "review-%d".printf(comparison_calls));
     }
+
+    public async HolderLinux.CardDetail resolve_conflict_copy(string project_id, string copy_id,
+                                                              string review_token, string title,
+                                                              string content) throws Error {
+        resolution_calls++;
+        assert(project_id == "p1");
+        assert(copy_id == "c2");
+        assert(review_token == "review-%d".printf(resolution_calls));
+        if (resolution_calls == 1) {
+            throw new HolderLinux.ApiError.HTTP("A reviewed version changed.");
+        }
+        resolved_title = title;
+        resolved_content = content;
+        return yield get_card(project_id, "c1");
+    }
+}
+
+private Gtk.Button comparison_button(Adw.Dialog dialog, string label) {
+    foreach (var widget in av_descendants(dialog)) {
+        var button = widget as Gtk.Button;
+        if (button != null && button.label == label) return button;
+    }
+    assert_not_reached();
 }
 
 private bool comparison_contains_text(Adw.Dialog dialog, string text) {
@@ -761,7 +794,8 @@ private bool comparison_contains_text(Adw.Dialog dialog, string text) {
 
 private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
     var f = new WindowFixture();
-    f.api = new WindowConflictApi();
+    var api = new WindowConflictApi();
+    f.api = api;
     f.api.include_card2 = true;
     f.open_loaded();
     f.open_card("c1");
@@ -791,7 +825,39 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
     assert(f.api.update_card_calls == 0);
     assert(f.controller().selected_card_id() == "c1");
     assert(f.editor_text() == "# Card 1\n\nBody");
-    ((!) f.window.get_visible_dialog()).close();
+    var comparison = (!) f.window.get_visible_dialog();
+    comparison_button(comparison, "Start from copy").clicked();
+    Gtk.Entry? result_title = null;
+    Gtk.TextView? result_content = null;
+    foreach (var widget in av_descendants(comparison)) {
+        var title = widget as Gtk.Entry;
+        var content = widget as Gtk.TextView;
+        if (title != null) result_title = title;
+        if (content != null && content.editable) result_content = content;
+    }
+    assert(result_title != null && result_title.text == "Renamed preserved edit");
+    assert(result_content != null &&
+           result_content.buffer.text == "# Renamed preserved edit\n\nWords from the other version");
+    assert(api.resolution_calls == 0);
+    string combined = "# Combined\n\nBoth versions";
+    ((!) result_title).text = "Combined";
+    ((!) result_content).buffer.text = combined;
+    comparison_button(comparison, "Save to original").clicked();
+    assert(wait_for_condition(() => av_find_label(comparison,
+        "Could not save the result.\nA reviewed version changed.") != null));
+    assert(f.editor_text() == "# Card 1\n\nBody");
+    comparison_button(comparison, "Refresh versions").clicked();
+    assert(wait_for_condition(() => av_find_label(comparison,
+        "Versions refreshed. Review both versions before saving.") != null));
+    assert(((!) result_content).buffer.text == combined);
+    assert(((!) result_title).text == "Combined");
+    comparison_button(comparison, "Save to original").clicked();
+    assert(wait_for_condition(() => f.editor_text() == combined));
+    assert(api.resolved_title == "Combined");
+    assert(f.controller().selected_card_id() == "c1");
+    assert(f.api.update_card_calls == 0);
+    assert(av_find_label(comparison, "Saved to the original card. The preserved copy is still available.") != null);
+    comparison.close();
     assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
 
     f.api.fail_get_card_once = true;

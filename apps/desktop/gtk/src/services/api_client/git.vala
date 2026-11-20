@@ -10,12 +10,31 @@ public class ApiClientGitEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration 
             throw new ApiError.PROTOCOL("Missing data for conflict comparison");
         }
         var data = root.get_object_member("data");
+        var review_token = data.get_string_member_with_default("review_token", "");
+        if (review_token == "") {
+            throw new ApiError.PROTOCOL("Missing review token for conflict comparison");
+        }
         return new ConflictComparison(
             ApiParsersCards.parse_card_detail_data(data.get_object_member("original")),
             ApiParsersCards.parse_card_detail_data(data.get_object_member("copy_card")),
             comparison_lines(data.get_array_member("original_changed_lines")),
             comparison_lines(data.get_array_member("copy_changed_lines")),
-            data.get_boolean_member("truncated"));
+            data.get_boolean_member("truncated"), review_token);
+    }
+
+    public static async CardDetail resolve_conflict_copy(ApiClient client, string project_id, string copy_id,
+                                                         string review_token, string title, string content) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("review_token").add_string_value(review_token);
+        body.set_member_name("title").add_string_value(title);
+        body.set_member_name("content").add_string_value(content);
+        body.end_object();
+        var root = yield client.request_json("POST",
+            "/projects/%s/git/conflict-copies/%s/resolution".printf(
+                Uri.escape_string(project_id), Uri.escape_string(copy_id)),
+            client.json_string_from_builder(body), null);
+        return ApiParsersCards.parse_card_detail(root);
     }
 
     private static int[] comparison_lines(Json.Array array) {

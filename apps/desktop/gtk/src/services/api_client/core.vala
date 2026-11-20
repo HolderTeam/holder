@@ -90,6 +90,11 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
         return yield ApiClientGitEndpoints.compare_conflict_copy(this, project_id, copy_id);
     }
 
+    public async CardDetail resolve_conflict_copy(string project_id, string copy_id, string review_token,
+                                                  string title, string content) throws Error {
+        return yield ApiClientGitEndpoints.resolve_conflict_copy(this, project_id, copy_id, review_token, title, content);
+    }
+
     public async CardHistoryComparison compare_card_history(string project_id,
                                                             string card_id,
                                                             string? from_oid,

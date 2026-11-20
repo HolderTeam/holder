@@ -106,13 +106,14 @@ public class CardDetail : Object {
 public class ConflictComparison : Object {
     public CardDetail original { get; construct; }
     public CardDetail copy_card { get; construct; }
+    public string review_token { get; construct; }
     public int[] original_changed_lines;
     public int[] copy_changed_lines;
     public bool truncated { get; construct; }
 
     public ConflictComparison(CardDetail original, CardDetail copy_card, int[] original_changed_lines,
-                              int[] copy_changed_lines, bool truncated) {
-        Object(original: original, copy_card: copy_card, truncated: truncated);
+                              int[] copy_changed_lines, bool truncated, string review_token) {
+        Object(original: original, copy_card: copy_card, truncated: truncated, review_token: review_token);
         this.original_changed_lines = original_changed_lines;
         this.copy_changed_lines = copy_changed_lines;
     }

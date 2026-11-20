@@ -430,10 +430,10 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.bind_connections_context(project_selection, card_store, card_selection);
         toolbox.bind_flowboard_controller(flowboard_controller);
         toolbox.git_project_pulled.connect((project_id) => {
-            refresh_project_after_git_pull.begin(project_id);
+            refresh_cards_after_git_change.begin(project_id);
         });
         toolbox.git_compare_conflict_requested.connect((project_id, original_id, copy_id) => {
-            compare_conflict_cards.begin(project_id, original_id, copy_id);
+            compare_conflict_cards(project_id, original_id, copy_id);
         });
         workspace.asset_preview_toggled.connect((visible) => {
             workspace.set_asset_preview_visible(visible);
@@ -1348,7 +1348,7 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.refresh_trash();
     }
 
-    private async void compare_conflict_cards(string project_id, string original_id, string copy_id) {
+    private void compare_conflict_cards(string project_id, string original_id, string copy_id) {
         var api = controller.get_api_client();
         if (api == null || controller.selected_project_id() != project_id) {
             return;
@@ -1360,6 +1360,20 @@ public class MainWindow : Adw.ApplicationWindow {
             dialog.show_load_error("This connection does not support conflict comparisons.");
             return;
         }
+        dialog.refresh_requested.connect((source) => {
+            load_conflict_comparison.begin(source, api, comparison_api, project_id, original_id, copy_id);
+        });
+        dialog.resolution_requested.connect((source, token, title, content) => {
+            save_conflict_resolution.begin(source, api, comparison_api, project_id, original_id, copy_id,
+                                           token, title, content);
+        });
+        load_conflict_comparison.begin(dialog, api, comparison_api, project_id, original_id, copy_id);
+    }
+
+    private async void load_conflict_comparison(ConflictComparisonDialog dialog, IHolderApi api,
+                                               IConflictComparisonApi comparison_api, string project_id,
+                                               string original_id, string copy_id) {
+        if (!conflict_comparison_is_current(dialog, api, project_id)) return;
         try {
             var comparison = yield comparison_api.compare_conflict_copy(project_id, copy_id);
             if (!conflict_comparison_is_current(dialog, api, project_id)) {
@@ -1378,19 +1392,44 @@ public class MainWindow : Adw.ApplicationWindow {
         }
     }
 
+    private async void save_conflict_resolution(ConflictComparisonDialog dialog, IHolderApi api,
+                                                IConflictComparisonApi comparison_api, string project_id,
+                                                string original_id, string copy_id, string token,
+                                                string title, string content) {
+        if (!conflict_comparison_is_current(dialog, api, project_id)) return;
+        var selected_id = controller.selected_card_id();
+        if ((selected_id == original_id || selected_id == copy_id) &&
+            (controller.has_unsaved_editor_changes() || controller.is_editor_save_in_flight())) {
+            dialog.show_resolution_error("Save any edits in the main editor before resolving this conflict.", false);
+            return;
+        }
+        try {
+            yield comparison_api.resolve_conflict_copy(project_id, copy_id, token, title, content);
+            if (conflict_comparison_is_current(dialog, api, project_id)) {
+                dialog.show_resolution_saved();
+                refresh_cards_after_git_change.begin(project_id, "Could not refresh cards after saving the result");
+            }
+        } catch (Error e) {
+            if (conflict_comparison_is_current(dialog, api, project_id)) {
+                dialog.show_resolution_error("Could not save the result.\n" + e.message);
+            }
+        }
+    }
+
     private bool conflict_comparison_is_current(ConflictComparisonDialog dialog, IHolderApi api,
                                                 string project_id) {
         if (get_visible_dialog() != dialog) {
             return false;
         }
         if (controller.get_api_client() != api || controller.selected_project_id() != project_id) {
-            dialog.close();
+            dialog.force_close();
             return false;
         }
         return true;
     }
 
-    private async void refresh_project_after_git_pull(string project_id) {
+    private async void refresh_cards_after_git_change(string project_id,
+                                                      string error_title = "Could not refresh cards after pull") {
         var api = controller.get_api_client();
         if (api == null || controller.selected_project_id() != project_id) {
             return;
@@ -1446,7 +1485,7 @@ public class MainWindow : Adw.ApplicationWindow {
         } catch (Error e) {
             if (refresh == git_refresh_serial && controller.get_api_client() == api &&
                 controller.selected_project_id() == project_id) {
-                show_error("Could not refresh cards after pull", e.message);
+                show_error(error_title, e.message);
             }
         }
     }
