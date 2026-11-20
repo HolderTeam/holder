@@ -85,4 +85,23 @@ std::filesystem::path ExecutorGitOps::repo_dir() const {
   });
 }
 
+GitRepo::DivergedMergeResult ExecutorGitOps::merge_remote_taking_theirs_for_conflicts(
+    const std::string& name,
+    const std::string& local_oid_hex,
+    const std::string& remote_oid_hex
+) {
+  return executor_.call([&]() {
+    return inner_.merge_remote_taking_theirs_for_conflicts(name, local_oid_hex, remote_oid_hex);
+  });
+}
+
+std::optional<std::string> ExecutorGitOps::read_blob_at(
+    const std::string& commit_oid_hex,
+    const std::filesystem::path& relative_path
+) {
+  return executor_.call([&]() {
+    return inner_.read_blob_at(commit_oid_hex, relative_path);
+  });
+}
+
 } // namespace holder::git

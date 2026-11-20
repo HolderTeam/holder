@@ -21,6 +21,15 @@ class ExecutorGitOps final : public GitOps {
   RemoteProbeResult probe_remote_url(const std::string& url) override;
   PushResult push_branch(const std::string& name, const std::string& branch, bool set_upstream)
       override;
+  GitRepo::DivergedMergeResult merge_remote_taking_theirs_for_conflicts(
+      const std::string& name,
+      const std::string& local_oid_hex,
+      const std::string& remote_oid_hex
+  ) override;
+  std::optional<std::string> read_blob_at(
+      const std::string& commit_oid_hex,
+      const std::filesystem::path& relative_path
+  ) override;
   std::filesystem::path repo_dir() const override;
 
  private:
