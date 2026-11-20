@@ -713,7 +713,7 @@ private Gtk.Button window_sync_button(WindowFixture f) {
     assert_not_reached();
 }
 
-private class WindowConflictApi : MainControllerFakeApi {
+private class WindowConflictApi : MainControllerFakeApi, HolderLinux.IConflictComparisonApi {
     public override async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
         var projects = yield base.list_projects();
         projects[0].sync.conflict_copies.add(new HolderLinux.GitConflictCopy(
@@ -729,6 +729,13 @@ private class WindowConflictApi : MainControllerFakeApi {
         }
         return card;
     }
+
+    public async HolderLinux.ConflictComparison compare_conflict_copy(string project_id,
+                                                                       string copy_id) throws Error {
+        var original = yield get_card(project_id, "c1");
+        var copy = yield get_card(project_id, copy_id);
+        return new HolderLinux.ConflictComparison(original, copy, { 1, 3 }, { 1, 3 }, false);
+    }
 }
 
 private bool comparison_contains_text(Adw.Dialog dialog, string text) {
@@ -736,6 +743,16 @@ private bool comparison_contains_text(Adw.Dialog dialog, string text) {
         var content = widget as Gtk.TextView;
         if (content != null && content.get_buffer().text == text) {
             assert(!content.get_editable());
+            var buffer = content.get_buffer();
+            var changed = buffer.get_tag_table().lookup("changed-line");
+            assert(changed != null);
+            Gtk.TextIter start;
+            buffer.get_start_iter(out start);
+            assert(start.has_tag(changed));
+            buffer.get_iter_at_line(out start, 1);
+            assert(!start.has_tag(changed));
+            buffer.get_iter_at_line(out start, 2);
+            assert(start.has_tag(changed));
             return true;
         }
     }

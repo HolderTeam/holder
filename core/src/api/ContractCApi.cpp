@@ -793,6 +793,12 @@ holder_conflict_copy_list to_c_list(
     const std::vector<contract::ConflictCopy>& values
 );
 holder_sync_state to_c(holder_arena* arena, const contract::SyncState& value);
+holder_conflict_changed_line to_c(holder_arena* arena, const contract::ConflictChangedLine& value);
+holder_conflict_changed_line_list to_c_list(
+    holder_arena* arena,
+    const std::vector<contract::ConflictChangedLine>& values
+);
+holder_conflict_comparison to_c(holder_arena* arena, const contract::ConflictComparison& value);
 holder_pull_phase to_c(holder_arena* arena, const contract::PullPhase& value);
 holder_push_phase to_c(holder_arena* arena, const contract::PushPhase& value);
 holder_sync_result to_c(holder_arena* arena, const contract::SyncResult& value);
@@ -1688,6 +1694,32 @@ holder_sync_state to_c(holder_arena* arena, const contract::SyncState& value) {
         return to_c_list(arena, items);
       }
   );
+  return out;
+}
+
+holder_conflict_changed_line to_c(holder_arena*, const contract::ConflictChangedLine& value) {
+  holder_conflict_changed_line out{};
+  out.line = value.line;
+  return out;
+}
+
+holder_conflict_changed_line_list to_c_list(
+    holder_arena* arena,
+    const std::vector<contract::ConflictChangedLine>& values
+) {
+  auto* items = make<holder_conflict_changed_line>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i)
+    items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_conflict_comparison to_c(holder_arena* arena, const contract::ConflictComparison& value) {
+  holder_conflict_comparison out{};
+  out.original = to_c(arena, value.original);
+  out.copy_card = to_c(arena, value.copy_card);
+  out.original_changed_lines = to_c_list(arena, value.original_changed_lines);
+  out.copy_changed_lines = to_c_list(arena, value.copy_changed_lines);
+  out.truncated = value.truncated;
   return out;
 }
 
@@ -3952,6 +3984,26 @@ int holder_get_project_sync_state(
     auto* out = make<holder_sync_state>(arena);
     *out = to_c(arena, contract::get_project_sync_state(*context, project_id_value));
     *out_sync_state = out;
+  });
+}
+
+int holder_compare_conflict_copy(
+    holder_context* context,
+    const char* project_id,
+    const char* copy_id,
+    holder_arena* arena,
+    const holder_conflict_comparison** out_conflict_comparison,
+    holder_error** out_error
+) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_conflict_comparison != nullptr, "out_conflict_comparison must not be null");
+    *out_conflict_comparison = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto copy_id_value = text(copy_id, "copy_id", 1, SIZE_MAX);
+    auto* out = make<holder_conflict_comparison>(arena);
+    *out = to_c(arena, contract::compare_conflict_copy(*context, project_id_value, copy_id_value));
+    *out_conflict_comparison = out;
   });
 }
 

@@ -291,6 +291,10 @@ SyncState get_project_sync_state(holder_context& context, std::string) {
   context.invoke("get_project_sync_state");
   return {};
 }
+ConflictComparison compare_conflict_copy(holder_context& context, std::string, std::string) {
+  context.invoke("compare_conflict_copy");
+  return {};
+}
 SyncResult pull_project(holder_context& context, std::string) {
   context.invoke("pull_project");
   return {};
@@ -1364,6 +1368,32 @@ TEST_CASE(
             404,
             [] {
               throw holder::contract::NotFound("operation rejected");
+            }},
+       }},
+      {"compare_conflict_copy",
+       "GET",
+       "/projects/a/git/conflict-copies/b/comparison",
+       "",
+       {
+           {"not_found",
+            404,
+            [] {
+              throw holder::contract::NotFound("operation rejected");
+            }},
+           {"keyring_unavailable",
+            503,
+            [] {
+              throw holder::contract::KeyringUnavailable("operation rejected");
+            }},
+           {"key_missing",
+            409,
+            [] {
+              throw holder::contract::KeyMissing("operation rejected");
+            }},
+           {"data_corrupted",
+            500,
+            [] {
+              throw holder::contract::DataCorrupted("operation rejected");
             }},
        }},
       {"pull_project",

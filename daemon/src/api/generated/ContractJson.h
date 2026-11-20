@@ -1040,6 +1040,14 @@ template <> struct codec<holder::contract::SyncState> {
   static json encode(const holder::contract::SyncState& value);
   static holder::contract::SyncState decode(const json& value);
 };
+template <> struct codec<holder::contract::ConflictChangedLine> {
+  static json encode(const holder::contract::ConflictChangedLine& value);
+  static holder::contract::ConflictChangedLine decode(const json& value);
+};
+template <> struct codec<holder::contract::ConflictComparison> {
+  static json encode(const holder::contract::ConflictComparison& value);
+  static holder::contract::ConflictComparison decode(const json& value);
+};
 template <> struct codec<holder::contract::PullPhase> {
   static json encode(const holder::contract::PullPhase& value);
   static holder::contract::PullPhase decode(const json& value);
@@ -4694,6 +4702,98 @@ inline holder::contract::SyncState codec<holder::contract::SyncState>::decode(co
         decode_field<std::vector<holder::contract::ConflictCopy>>(item, "conflict_copies");
   } else if (value.contains("conflict_copies")) {
     throw std::invalid_argument("conflict_copies must not be null");
+  }
+  return out;
+}
+
+inline json codec<holder::contract::ConflictChangedLine>::encode(
+    const holder::contract::ConflictChangedLine& value
+) {
+  json result = json::object();
+  result["line"] = codec<std::int32_t>::encode(value.line);
+  return result;
+}
+inline holder::contract::ConflictChangedLine codec<holder::contract::ConflictChangedLine>::decode(
+    const json& value
+) {
+  if (!value.is_object()) throw std::invalid_argument("expected a ConflictChangedLine object");
+  for (auto it = value.begin(); it != value.end(); ++it)
+    if (it.key() != "line")
+      throw std::invalid_argument("ConflictChangedLine has no field " + it.key());
+  holder::contract::ConflictChangedLine out;
+  if (value.contains("line") && !value.at("line").is_null()) {
+    const auto& item = value.at("line");
+    out.line = check_range<std::int32_t>(
+        decode_field<std::int32_t>(item, "line"),
+        "line",
+        1,
+        std::numeric_limits<std::int32_t>::max()
+    );
+  } else {
+    throw std::invalid_argument("line is required and must not be null");
+  }
+  return out;
+}
+
+inline json codec<holder::contract::ConflictComparison>::encode(
+    const holder::contract::ConflictComparison& value
+) {
+  json result = json::object();
+  result["original"] = codec<holder::contract::Card>::encode(value.original);
+  result["copy_card"] = codec<holder::contract::Card>::encode(value.copy_card);
+  result["original_changed_lines"] =
+      codec<std::vector<holder::contract::ConflictChangedLine>>::encode(value.original_changed_lines
+      );
+  result["copy_changed_lines"] = codec<std::vector<holder::contract::ConflictChangedLine>>::encode(
+      value.copy_changed_lines
+  );
+  result["truncated"] = codec<bool>::encode(value.truncated);
+  return result;
+}
+inline holder::contract::ConflictComparison codec<holder::contract::ConflictComparison>::decode(
+    const json& value
+) {
+  if (!value.is_object()) throw std::invalid_argument("expected a ConflictComparison object");
+  for (auto it = value.begin(); it != value.end(); ++it)
+    if (it.key() != "original" && it.key() != "copy_card" && it.key() != "original_changed_lines" &&
+        it.key() != "copy_changed_lines" && it.key() != "truncated")
+      throw std::invalid_argument("ConflictComparison has no field " + it.key());
+  holder::contract::ConflictComparison out;
+  if (value.contains("original") && !value.at("original").is_null()) {
+    const auto& item = value.at("original");
+    out.original = codec<holder::contract::Card>::decode(item);
+  } else {
+    throw std::invalid_argument("original is required and must not be null");
+  }
+  if (value.contains("copy_card") && !value.at("copy_card").is_null()) {
+    const auto& item = value.at("copy_card");
+    out.copy_card = codec<holder::contract::Card>::decode(item);
+  } else {
+    throw std::invalid_argument("copy_card is required and must not be null");
+  }
+  if (value.contains("original_changed_lines") && !value.at("original_changed_lines").is_null()) {
+    const auto& item = value.at("original_changed_lines");
+    out.original_changed_lines = decode_field<std::vector<holder::contract::ConflictChangedLine>>(
+        item,
+        "original_changed_lines"
+    );
+  } else {
+    throw std::invalid_argument("original_changed_lines is required and must not be null");
+  }
+  if (value.contains("copy_changed_lines") && !value.at("copy_changed_lines").is_null()) {
+    const auto& item = value.at("copy_changed_lines");
+    out.copy_changed_lines = decode_field<std::vector<holder::contract::ConflictChangedLine>>(
+        item,
+        "copy_changed_lines"
+    );
+  } else {
+    throw std::invalid_argument("copy_changed_lines is required and must not be null");
+  }
+  if (value.contains("truncated") && !value.at("truncated").is_null()) {
+    const auto& item = value.at("truncated");
+    out.truncated = decode_field<bool>(item, "truncated");
+  } else {
+    throw std::invalid_argument("truncated is required and must not be null");
   }
   return out;
 }

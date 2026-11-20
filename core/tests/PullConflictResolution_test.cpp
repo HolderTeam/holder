@@ -678,7 +678,39 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
   CHECK(std::string(pairs.at(child.card_id).original->title) == "Renamed original");
   CHECK(std::string(pairs.at(child.card_id).copy_card.title) == "Renamed copy");
 
+  const holder_conflict_comparison* comparison = nullptr;
+  holder_error* comparison_error = nullptr;
+  REQUIRE(
+      holder_compare_conflict_copy(
+          &context,
+          project_id.c_str(),
+          child_copy->card_id.c_str(),
+          arena.get(),
+          &comparison,
+          &comparison_error
+      ) == HOLDER_OK
+  );
+  CHECK(std::string(comparison->original.card_id) == child.card_id);
+  CHECK(std::string(comparison->copy_card.card_id) == child_copy->card_id);
+  CHECK(std::string(comparison->original.content) == "original update");
+  CHECK(std::string(comparison->copy_card.content) == "preserved update");
+  REQUIRE(comparison->original_changed_lines.count == 1);
+  CHECK(comparison->original_changed_lines.items[0].line == 1);
+  REQUIRE(comparison->copy_changed_lines.count == 1);
+  CHECK(comparison->copy_changed_lines.items[0].line == 1);
+  CHECK_FALSE(comparison->truncated);
+
   store.trash(child.card_id, 6);
+  CHECK(
+      holder_compare_conflict_copy(
+          &context,
+          project_id.c_str(),
+          child_copy->card_id.c_str(),
+          arena.get(),
+          &comparison,
+          &comparison_error
+      ) == HOLDER_ERROR_NOT_FOUND
+  );
   pairs = conflict_pairs(context);
   REQUIRE(pairs.at(child.card_id).original != nullptr);
   CHECK(pairs.at(child.card_id).original->deleted_at != nullptr);

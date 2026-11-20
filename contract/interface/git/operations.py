@@ -6,9 +6,10 @@ from fastapi import Body, Path, Query
 
 from authoring import Contract, Int32
 
+from ..cards.models import CardId
 from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..projects.ids import ProjectId
-from .models import DueSyncResult, PushOptions, RemoteTest, RemoteTestResult, SyncResult, SyncState
+from .models import ConflictComparison, DueSyncResult, PushOptions, RemoteTest, RemoteTestResult, SyncResult, SyncState
 
 
 def register(contract: Contract) -> None:
@@ -16,6 +17,17 @@ def register(contract: Contract) -> None:
     def get_project_sync_state(project_id: Annotated[ProjectId, Path()]) -> SyncState:
         """What this device last recorded about a project's sync."""
 
+    @contract.route("GET", "/projects/{project_id}/git/conflict-copies/{copy_id}/comparison",
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
+    def compare_conflict_copy(
+        project_id: Annotated[ProjectId, Path()],
+        copy_id: Annotated[CardId, Path()],
+    ) -> ConflictComparison:
+        """Compare a preserved copy with its recorded original.
+
+        Reads both saved cards together. A missing association, an original or copy in Trash, or a card
+        that no longer exists is NotFound. The operation does not change either card.
+        """
 
     @contract.route("POST", "/projects/{project_id}/git/pull",
                     errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])

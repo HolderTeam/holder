@@ -1286,6 +1286,27 @@ typedef struct holder_sync_state {
                           when there are none. NULL when absent. */
 } holder_sync_state;
 
+/* A highlighted line in a conflict comparison. */
+typedef struct holder_conflict_changed_line {
+  int32_t line; /* The one-based line number within this card's content. */
+} holder_conflict_changed_line;
+
+typedef struct holder_conflict_changed_line_list {
+  const holder_conflict_changed_line* items;
+  size_t count;
+} holder_conflict_changed_line_list;
+
+/* The two live cards in a recorded conflict pair, read together for review. */
+typedef struct holder_conflict_comparison {
+  holder_card original; /* The current state of the original card. */
+  holder_card copy_card; /* The current state of the preserved copy. */
+  holder_conflict_changed_line_list original_changed_lines; /* One-based lines of the original's
+                                                               content that differ from the copy. */
+  holder_conflict_changed_line_list
+      copy_changed_lines; /* One-based lines of the copy's content that differ from the original. */
+  bool truncated; /* Whether the bounded diff could only highlight part of the change. */
+} holder_conflict_comparison;
+
 /* How the pull ended. */
 typedef enum holder_pull_phase_status {
   HOLDER_PULL_PHASE_STATUS_NOT_ATTEMPTED = 1,
@@ -2666,6 +2687,21 @@ int holder_get_project_sync_state(
     const char* project_id,
     holder_arena* arena,
     const holder_sync_state** out_sync_state,
+    holder_error** out_error
+);
+
+/* Compare a preserved copy with its recorded original.
+ * Reads both saved cards together. A missing association, an original or copy in Trash, or a card
+ * that no longer exists is NotFound. The operation does not change either card.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
+ * HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_compare_conflict_copy(
+    holder_context* context,
+    const char* project_id,
+    const char* copy_id,
+    holder_arena* arena,
+    const holder_conflict_comparison** out_conflict_comparison,
     holder_error** out_error
 );
 

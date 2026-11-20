@@ -297,10 +297,14 @@ def generate_glue(types: CoreTypes) -> str:
                        f"const std::vector<{instance.qualified('contract::')}>& values);")
     out.append("")
     for instance in outputs:
-        out.append(f"{instance.c_name} to_c(holder_arena* arena, const {instance.qualified('contract::')}& value) {{")
+        assignments = [
+            f"  out.{slot.name} = {to_c_value(types, slot, 'value.' + slot.name)};"
+            for slot in types.slots(instance)
+        ]
+        arena = "holder_arena* arena" if any("(arena," in assignment for assignment in assignments) else "holder_arena*"
+        out.append(f"{instance.c_name} to_c({arena}, const {instance.qualified('contract::')}& value) {{")
         out.append(f"  {instance.c_name} out{{}};")
-        for slot in types.slots(instance):
-            out.append(f"  out.{slot.name} = {to_c_value(types, slot, 'value.' + slot.name)};")
+        out.extend(assignments)
         out += ["  return out;", "}", ""]
         if instance in types.listed:
             out += [(f"{instance.c_name}_list to_c_list(holder_arena* arena, "

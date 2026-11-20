@@ -1,6 +1,31 @@
 namespace HolderLinux {
 
 public class ApiClientGitEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration branch artifact
+    public static async ConflictComparison compare_conflict_copy(ApiClient client, string project_id,
+                                                                 string copy_id) throws Error {
+        var root = yield client.request_json("GET",
+            "/projects/%s/git/conflict-copies/%s/comparison".printf(
+                Uri.escape_string(project_id), Uri.escape_string(copy_id)), null, null);
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for conflict comparison");
+        }
+        var data = root.get_object_member("data");
+        return new ConflictComparison(
+            ApiParsersCards.parse_card_detail_data(data.get_object_member("original")),
+            ApiParsersCards.parse_card_detail_data(data.get_object_member("copy_card")),
+            comparison_lines(data.get_array_member("original_changed_lines")),
+            comparison_lines(data.get_array_member("copy_changed_lines")),
+            data.get_boolean_member("truncated"));
+    }
+
+    private static int[] comparison_lines(Json.Array array) {
+        var lines = new int[array.get_length()];
+        for (uint i = 0; i < array.get_length(); i++) {
+            lines[i] = (int) array.get_object_element(i).get_int_member("line");
+        }
+        return lines;
+    }
+
     public static async Gee.ArrayList<GitProviderCatalogEntry> list_git_provider_catalog(ApiClient client) // LCOV_EXCL_BR_LINE: async signature branch artifact
         throws Error { // LCOV_EXCL_BR_LINE: throws edge artifact
         var root = yield client.request_json_unwrapped("GET", "/git_providers.json", null, null); // LCOV_EXCL_BR_LINE: async yield branch artifact

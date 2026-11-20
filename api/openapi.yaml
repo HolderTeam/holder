@@ -4557,6 +4557,61 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /projects/{project_id}/git/conflict-copies/{copy_id}/comparison:
+    get:
+      summary: Compare a preserved copy with its recorded original.
+      description: 'Reads both saved cards together. A missing association, an original or copy in Trash,
+        or a card
+
+        that no longer exists is NotFound. The operation does not change either card.'
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: copy_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/CardId'}
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConflictComparisonResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/git/pull:
     post:
       summary: Pull a project's checked-out branch from its Git remote.
@@ -8454,6 +8509,44 @@ components:
       required: [entity, entity_id, project_id, deleted, git_revision]
       title: ChangeEventData
       description: One entity invalidation from the live change feed.
+    ConflictChangedLine:
+      properties:
+        line: {type: integer, maximum: 2147483647, minimum: 1, format: int32, title: Line, description: The
+            one-based line number within this card's content.}
+      additionalProperties: false
+      type: object
+      required: [line]
+      title: ConflictChangedLine
+      description: A highlighted line in a conflict comparison.
+    ConflictComparison:
+      properties:
+        original: {$ref: '#/components/schemas/Card', description: The current state of the original card.}
+        copy_card: {$ref: '#/components/schemas/Card', description: The current state of the preserved
+            copy.}
+        original_changed_lines:
+          items: {$ref: '#/components/schemas/ConflictChangedLine'}
+          type: array
+          title: Original Changed Lines
+          description: One-based lines of the original's content that differ from the copy.
+        copy_changed_lines:
+          items: {$ref: '#/components/schemas/ConflictChangedLine'}
+          type: array
+          title: Copy Changed Lines
+          description: One-based lines of the copy's content that differ from the original.
+        truncated: {type: boolean, title: Truncated, description: Whether the bounded diff could only
+            highlight part of the change.}
+      additionalProperties: false
+      type: object
+      required: [original, copy_card, original_changed_lines, copy_changed_lines, truncated]
+      title: ConflictComparison
+      description: The two live cards in a recorded conflict pair, read together for review.
+    ConflictComparisonResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/ConflictComparison'}
+      type: object
+      required: [ok, data]
+      title: ConflictComparisonResponse
     ConflictCopy:
       properties:
         original_card_id: {$ref: '#/components/schemas/CardId', description: 'The original card''s identity,

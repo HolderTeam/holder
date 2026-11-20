@@ -1355,15 +1355,22 @@ public class MainWindow : Adw.ApplicationWindow {
         }
         var dialog = new ConflictComparisonDialog();
         dialog.present(this);
+        var comparison_api = api as IConflictComparisonApi;
+        if (comparison_api == null) {
+            dialog.show_load_error("This connection does not support conflict comparisons.");
+            return;
+        }
         try {
-            var original = yield api.get_card(project_id, original_id);
+            var comparison = yield comparison_api.compare_conflict_copy(project_id, copy_id);
             if (!conflict_comparison_is_current(dialog, api, project_id)) {
                 return;
             }
-            var copy = yield api.get_card(project_id, copy_id);
-            if (conflict_comparison_is_current(dialog, api, project_id)) {
-                dialog.show_versions(original, copy);
+            if (comparison.original.card_id != original_id || comparison.copy_card.card_id != copy_id ||
+                comparison.original.project_id != project_id || comparison.copy_card.project_id != project_id) {
+                dialog.show_load_error("The conflict pair changed. Refresh Git Sync and try again.");
+                return;
             }
+            dialog.show_versions(comparison);
         } catch (Error e) {
             if (conflict_comparison_is_current(dialog, api, project_id)) {
                 dialog.show_load_error(e.message);

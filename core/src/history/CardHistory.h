@@ -58,6 +58,12 @@ struct CardDiffLine {
   long long new_line = -1;
 };
 
+std::vector<CardDiffLine> compare_card_text(
+    const std::string& original,
+    const std::string& revised,
+    bool& truncated
+);
+
 struct CardHistoryComparison {
   CardVersion from;
   CardVersion to;

@@ -11,6 +11,7 @@
 #include "git/GitOps.h"
 #include "git/PushResult.h"
 #include "git/RemoteProbe.h"
+#include "history/CardHistory.h"
 #include "model/ProjectSyncState.h"
 #include "privacy/ProjectPrivacy.h"
 #include "project/ProjectRepo.h"
@@ -20,6 +21,8 @@
 
 #include <git2.h>
 
+#include <algorithm>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -297,6 +300,42 @@ SyncState get_project_sync_state(holder_context& context, std::string project_id
   return with_contract_errors([&] {
     return state(context, project_id);
   });
+}
+
+ConflictComparison compare_conflict_copy(
+    holder_context& context,
+    std::string project_id,
+    std::string copy_id
+) {
+  const auto project = find(context, project_id);
+  const auto mutex = holder::git::repo_mutex_for(project.root_path);
+  std::unique_lock lock(*mutex);
+  const auto links = holder::card::LinkRepo(context.db).list_conflict_copy_links(project_id);
+  const auto link = std::ranges::find(links, copy_id, &holder::model::CardLink::from_card_id);
+  if (link == links.end()) throw NotFound("card is not a preserved conflict copy: " + copy_id);
+
+  ConflictComparison result{
+      get_card(context, project_id, link->to_card_id),
+      get_card(context, project_id, copy_id),
+      {},
+      {},
+      false
+  };
+  lock.unlock();
+  if (result.original.content == result.copy_card.content) return result;
+  const auto lines = holder::history::compare_card_text(
+      result.original.content,
+      result.copy_card.content,
+      result.truncated
+  );
+  for (const auto& line : lines) {
+    if (line.origin == '-') {
+      result.original_changed_lines.push_back({static_cast<std::int32_t>(line.old_line)});
+    } else if (line.origin == '+') {
+      result.copy_changed_lines.push_back({static_cast<std::int32_t>(line.new_line)});
+    }
+  }
+  return result;
 }
 
 SyncResult pull_project(holder_context& context, std::string project_id) {

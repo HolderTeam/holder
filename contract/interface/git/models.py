@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 
 from authoring import MISSING, Field, Int32, Record, Timestamp
 
-from ..cards.models import CardId, CardSummary
+from ..cards.models import Card, CardId, CardSummary
 from ..projects.ids import ProjectId
 from ..projects.models import GitRemoteUrl
 
@@ -23,6 +23,28 @@ class ConflictCopy(Record):
     """The original's current title and Trash status, or null if it no longer exists."""
     copy_card: CardSummary
     """The preserved card's current identity and title."""
+
+
+class ConflictChangedLine(Record):
+    """A highlighted line in a conflict comparison."""
+
+    line: Annotated[Int32, Field(ge=1)]
+    """The one-based line number within this card's content."""
+
+
+class ConflictComparison(Record):
+    """The two live cards in a recorded conflict pair, read together for review."""
+
+    original: Card
+    """The current state of the original card."""
+    copy_card: Card
+    """The current state of the preserved copy."""
+    original_changed_lines: list[ConflictChangedLine]
+    """One-based lines of the original's content that differ from the copy."""
+    copy_changed_lines: list[ConflictChangedLine]
+    """One-based lines of the copy's content that differ from the original."""
+    truncated: bool
+    """Whether the bounded diff could only highlight part of the change."""
 
 
 class SyncState(Record):

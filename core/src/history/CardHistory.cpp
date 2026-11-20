@@ -177,7 +177,8 @@ void append_diff_line(
 std::vector<CardDiffLine> line_diff(
     const std::string& old_text,
     const std::string& new_text,
-    bool& truncated
+    bool& truncated,
+    bool allow_coarse_diff = true
 ) {
   truncated = false;
   const auto old_lines = lines_of(old_text);
@@ -185,6 +186,10 @@ std::vector<CardDiffLine> line_diff(
   // Card bodies are normally small. Keep pathological imported documents bounded; the fallback
   // remains truthful, merely less compact.
   if (!old_lines.empty() && new_lines.size() > 1'000'000U / old_lines.size()) {
+    if (!allow_coarse_diff) {
+      truncated = true;
+      return {};
+    }
     std::vector<CardDiffLine> out;
     long long old_no = 1;
     for (const auto& line : old_lines) {
@@ -284,6 +289,14 @@ CardHistoryComparison compare_snapshots(
 }
 
 } // namespace
+
+std::vector<CardDiffLine> compare_card_text(
+    const std::string& original,
+    const std::string& revised,
+    bool& truncated
+) {
+  return line_diff(original, revised, truncated, false);
+}
 
 CardHistoryPage CardHistoryService::list(
     const holder::model::Project& project,

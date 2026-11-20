@@ -88,6 +88,26 @@ data class SyncState(
     val conflictCopies: List<ConflictCopy>? = null,
 )
 
+/** A highlighted line in a conflict comparison. */
+data class ConflictChangedLine(
+    /** The one-based line number within this card's content. */
+    val line: Int,
+)
+
+/** The two live cards in a recorded conflict pair, read together for review. */
+data class ConflictComparison(
+    /** The current state of the original card. */
+    val original: Card,
+    /** The current state of the preserved copy. */
+    val copyCard: Card,
+    /** One-based lines of the original's content that differ from the copy. */
+    val originalChangedLines: List<ConflictChangedLine>,
+    /** One-based lines of the copy's content that differ from the original. */
+    val copyChangedLines: List<ConflictChangedLine>,
+    /** Whether the bounded diff could only highlight part of the change. */
+    val truncated: Boolean,
+)
+
 /** What a pull did. */
 data class PullPhase(
     /** Whether a pull was tried. */
@@ -189,6 +209,17 @@ object Git {
         contextHandle: Long,
         projectId: String,
     ): SyncState
+
+    /**
+     * Compare a preserved copy with its recorded original.
+     * Reads both saved cards together. A missing association, an original or copy in Trash, or a card
+     * that no longer exists is NotFound. The operation does not change either card.
+     */
+    external fun compareConflictCopy(
+        contextHandle: Long,
+        projectId: String,
+        copyId: String,
+    ): ConflictComparison
 
     /**
      * Pull a project's checked-out branch from its Git remote.

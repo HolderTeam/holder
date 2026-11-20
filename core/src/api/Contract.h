@@ -883,6 +883,22 @@ struct SyncState {
                        ///< when there are none.
 };
 
+/// A highlighted line in a conflict comparison.
+struct ConflictChangedLine {
+  std::int32_t line{}; ///< The one-based line number within this card's content.
+};
+
+/// The two live cards in a recorded conflict pair, read together for review.
+struct ConflictComparison {
+  Card original; ///< The current state of the original card.
+  Card copy_card; ///< The current state of the preserved copy.
+  std::vector<ConflictChangedLine> original_changed_lines; ///< One-based lines of the original's
+                                                           ///< content that differ from the copy.
+  std::vector<ConflictChangedLine>
+      copy_changed_lines; ///< One-based lines of the copy's content that differ from the original.
+  bool truncated{}; ///< Whether the bounded diff could only highlight part of the change.
+};
+
 /// How the pull ended.
 enum class PullPhaseStatus { NotAttempted, Succeeded, RemoteUnset, Failed };
 
@@ -1864,6 +1880,16 @@ RecoveryTokenGlobalImportResult import_recovery_token_global(
 /// What this device last recorded about a project's sync.
 /// @throws NotFound
 SyncState get_project_sync_state(holder_context& context, std::string project_id);
+
+/// Compare a preserved copy with its recorded original.
+/// Reads both saved cards together. A missing association, an original or copy in Trash, or a card
+/// that no longer exists is NotFound. The operation does not change either card.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+ConflictComparison compare_conflict_copy(
+    holder_context& context,
+    std::string project_id,
+    std::string copy_id
+);
 
 /// Pull a project's checked-out branch from its Git remote.
 /// Changes fast-forward, or merge card by card where both sides changed, and the project's index is
