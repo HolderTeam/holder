@@ -239,8 +239,10 @@ TEST_CASE("CLI startup can retry a failed database rebuild", "[cli][database][re
   CHECK(preserved == corrupt);
 }
 
-TEST_CASE("CLI reports the installed rebuild when the readiness marker fails",
-    "[cli][database][recovery]") {
+TEST_CASE(
+    "CLI reports the installed rebuild when the readiness marker fails",
+    "[cli][database][recovery]"
+) {
   const auto dir = holder::test::make_temp_dir();
   holder::test::EnvGuard data_env("XDG_DATA_HOME", (dir / "data").string());
   holder::test::EnvGuard config_env("XDG_CONFIG_HOME", (dir / "config").string());
@@ -256,8 +258,8 @@ TEST_CASE("CLI reports the installed rebuild when the readiness marker fails",
   REQUIRE(std::filesystem::remove(marker));
   REQUIRE(std::filesystem::create_directory(marker));
   const auto output = dir / "rebuild-output.txt";
-  const std::string rebuild = "\"" + std::string(HOLDER_CTL_PATH) +
-                              "\" database rebuild > \"" + output.string() + "\" 2>&1";
+  const std::string rebuild = "\"" + std::string(HOLDER_CTL_PATH) + "\" database rebuild > \"" +
+                              output.string() + "\" 2>&1";
   REQUIRE(run_command(rebuild) == 1);
 
   const auto backups = paths.server_dir() / "database-backups";
@@ -267,11 +269,17 @@ TEST_CASE("CLI reports the installed rebuild when the readiness marker fails",
   std::ifstream transcript_file(output);
   REQUIRE(transcript_file);
   const std::string transcript{std::istreambuf_iterator<char>(transcript_file), {}};
-  CHECK(transcript.find("Rebuilt database is already installed at " + paths.db_path().string()) !=
-        std::string::npos);
-  CHECK(transcript.find("Previous database files are backed up at " + backup->path().string()) !=
-        std::string::npos);
-  CHECK(transcript.find("Could not update the database rebuild readiness marker") != std::string::npos);
+  CHECK(
+      transcript.find("Rebuilt database is already installed at " + paths.db_path().string()) !=
+      std::string::npos
+  );
+  CHECK(
+      transcript.find("Previous database files are backed up at " + backup->path().string()) !=
+      std::string::npos
+  );
+  CHECK(
+      transcript.find("Could not update the database rebuild readiness marker") != std::string::npos
+  );
   REQUIRE(std::filesystem::is_directory(marker));
   REQUIRE(std::filesystem::remove(marker));
   REQUIRE(run_command(start) == 0);

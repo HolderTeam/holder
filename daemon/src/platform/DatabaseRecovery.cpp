@@ -171,8 +171,8 @@ DatabaseRebuildReport rebuild_database(
                                             report.backup_path.string() + ".";
       throw std::runtime_error(
           "Rebuilt database is already installed at " + paths.db_path().string() + ". " +
-          backup_message + " Could not update the database rebuild readiness marker: " +
-          error.what()
+          backup_message +
+          " Could not update the database rebuild readiness marker: " + error.what()
       );
     }
   }
