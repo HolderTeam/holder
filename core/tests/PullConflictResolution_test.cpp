@@ -16,6 +16,7 @@
 #include "card/MilestoneRepo.h"
 #include "core_test_helpers.h"
 #include "git/GitOps.h"
+#include "git/GitRepo.h"
 #include "holder/holder_api.h"
 #include "index/FtsIndexer.h"
 #include "model/Card.h"
@@ -729,6 +730,62 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
           &comparison_error
       ) == HOLDER_OK
   );
+  const std::string before_move = comparison->review_token;
+  store.move(child.card_id, true, std::nullopt, std::nullopt, 5);
+  const holder_conflict_resolution moved_review{
+      before_move.c_str(),
+      "Merged title",
+      "Combined text"
+  };
+  CHECK(
+      holder_resolve_conflict_copy(
+          &context,
+          project_id.c_str(),
+          child_copy->card_id.c_str(),
+          &moved_review,
+          arena.get(),
+          &resolved,
+          &comparison_error
+      ) == HOLDER_ERROR_CONFLICT
+  );
+  holder_error_destroy(comparison_error);
+  comparison_error = nullptr;
+  REQUIRE(store.get_content(*store.get(child.card_id)) == "original update");
+  REQUIRE_FALSE(store.get(child.card_id)->parent_card_id.has_value());
+  store.move(child.card_id, true, parent.card_id, std::nullopt, 5);
+  REQUIRE(
+      holder_compare_conflict_copy(
+          &context,
+          project_id.c_str(),
+          child_copy->card_id.c_str(),
+          arena.get(),
+          &comparison,
+          &comparison_error
+      ) == HOLDER_OK
+  );
+
+  holder::git::GitRepo local_history;
+  local_history.open_existing(local_dir);
+  const auto head_before_resolution = local_history.head_oid();
+  REQUIRE(head_before_resolution.has_value());
+  const holder_conflict_resolution keep{
+      comparison->review_token,
+      comparison->original.title,
+      comparison->original.content
+  };
+  REQUIRE(
+      holder_resolve_conflict_copy(
+          &context,
+          project_id.c_str(),
+          child_copy->card_id.c_str(),
+          &keep,
+          arena.get(),
+          &resolved,
+          &comparison_error
+      ) == HOLDER_OK
+  );
+  CHECK(local_history.head_oid() == head_before_resolution);
+
   const holder_conflict_resolution reviewed{
       comparison->review_token,
       "Merged title",
@@ -749,6 +806,12 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
   CHECK(std::string(resolved->title) == "Merged title");
   CHECK(std::string(resolved->content) == "Combined text");
   CHECK(std::string(resolved->parent_card_id) == parent.card_id);
+  CHECK(local_history.head_oid() != head_before_resolution);
+  const auto original_links =
+      holder::card::LinkRepo(local_db).list_outgoing(project_id, child.card_id);
+  REQUIRE(original_links.size() == 1);
+  CHECK(original_links[0].kind == child_link.kind);
+  CHECK(original_links[0].to_card_id == parent.card_id);
   REQUIRE(store.get_content(*store.get(child_copy->card_id)) == "newer copy text");
   REQUIRE(conflict_pairs(context).at(child.card_id).copy_card.card_id != nullptr);
 
