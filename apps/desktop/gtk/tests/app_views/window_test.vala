@@ -716,6 +716,7 @@ private Gtk.Button window_sync_button(WindowFixture f) {
 private class WindowConflictApi : MainControllerFakeApi, HolderLinux.IConflictComparisonApi {
     public int resolution_calls;
     public int comparison_calls;
+    public bool reject_next_resolution;
     public string? resolved_title;
     public string? resolved_content;
 
@@ -753,8 +754,9 @@ private class WindowConflictApi : MainControllerFakeApi, HolderLinux.IConflictCo
         resolution_calls++;
         assert(project_id == "p1");
         assert(copy_id == "c2");
-        assert(review_token == "review-%d".printf(resolution_calls));
-        if (resolution_calls == 1) {
+        assert(review_token == "review-%d".printf(comparison_calls));
+        if (reject_next_resolution) {
+            reject_next_resolution = false;
             throw new HolderLinux.ApiError.HTTP("A reviewed version changed.");
         }
         resolved_title = title;
@@ -767,6 +769,14 @@ private Gtk.Button comparison_button(Adw.Dialog dialog, string label) {
     foreach (var widget in av_descendants(dialog)) {
         var button = widget as Gtk.Button;
         if (button != null && button.label == label) return button;
+    }
+    assert_not_reached();
+}
+
+private Gtk.TextView conflict_result_editor(Adw.Dialog dialog) {
+    foreach (var widget in av_descendants(dialog)) {
+        var content = widget as Gtk.TextView;
+        if (content != null && content.editable) return content;
     }
     assert_not_reached();
 }
@@ -826,22 +836,46 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
     assert(f.controller().selected_card_id() == "c1");
     assert(f.editor_text() == "# Card 1\n\nBody");
     var comparison = (!) f.window.get_visible_dialog();
+    comparison_button(comparison, "Combine versions").clicked();
+    var combined_editor = conflict_result_editor(comparison);
+    assert(combined_editor.buffer.text == "# Card 1\n\nBody");
+    combined_editor.buffer.text = "Discard this draft";
+    assert(!comparison.close());
+    assert(wait_for_condition(() => f.window.get_visible_dialog() is Adw.AlertDialog));
+    comparison_button((!) f.window.get_visible_dialog(), "Discard Draft").clicked();
+    assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
+    assert(api.resolution_calls == 0);
+    assert(f.editor_text() == "# Card 1\n\nBody");
+
+    ((!) compare).clicked();
+    assert(wait_for_condition(() => api.comparison_calls == 2));
+    comparison = (!) f.window.get_visible_dialog();
+    comparison_button(comparison, "Keep original").clicked();
+    assert(wait_for_condition(() => av_find_label(comparison,
+        "Saved to the original card. The preserved copy is still available.") != null));
+    assert(api.resolution_calls == 1);
+    assert(api.resolved_title == "Card 1");
+    assert(api.resolved_content == "# Card 1\n\nBody");
+    comparison.close();
+    assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
+
+    ((!) compare).clicked();
+    assert(wait_for_condition(() => api.comparison_calls == 3));
+    comparison = (!) f.window.get_visible_dialog();
     comparison_button(comparison, "Start from copy").clicked();
     Gtk.Entry? result_title = null;
-    Gtk.TextView? result_content = null;
     foreach (var widget in av_descendants(comparison)) {
         var title = widget as Gtk.Entry;
-        var content = widget as Gtk.TextView;
         if (title != null) result_title = title;
-        if (content != null && content.editable) result_content = content;
     }
+    var result_content = conflict_result_editor(comparison);
     assert(result_title != null && result_title.text == "Renamed preserved edit");
-    assert(result_content != null &&
-           result_content.buffer.text == "# Renamed preserved edit\n\nWords from the other version");
-    assert(api.resolution_calls == 0);
+    assert(result_content.buffer.text == "# Renamed preserved edit\n\nWords from the other version");
+    assert(api.resolution_calls == 1);
     string combined = "# Combined\n\nBoth versions";
     ((!) result_title).text = "Combined";
-    ((!) result_content).buffer.text = combined;
+    result_content.buffer.text = combined;
+    api.reject_next_resolution = true;
     comparison_button(comparison, "Save to original").clicked();
     assert(wait_for_condition(() => av_find_label(comparison,
         "Could not save the result.\nA reviewed version changed.") != null));
@@ -849,7 +883,7 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
     comparison_button(comparison, "Refresh versions").clicked();
     assert(wait_for_condition(() => av_find_label(comparison,
         "Versions refreshed. Review both versions before saving.") != null));
-    assert(((!) result_content).buffer.text == combined);
+    assert(result_content.buffer.text == combined);
     assert(((!) result_title).text == "Combined");
     comparison_button(comparison, "Save to original").clicked();
     assert(wait_for_condition(() => f.editor_text() == combined));

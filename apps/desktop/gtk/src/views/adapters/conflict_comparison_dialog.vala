@@ -118,6 +118,12 @@ internal class ConflictComparisonDialog : Adw.Dialog {
         result_editor.append(scroll);
         panes.set_end_child(result_editor);
 
+        var note = new Gtk.Label("The original keeps its place in the project, its links, and its milestones.") {
+            wrap = true, xalign = 0.0f, margin_start = 12, margin_end = 12
+        };
+        note.add_css_class("dim-label");
+        layout.append(note);
+
         feedback = new Gtk.Label("") { visible = false, wrap = true, xalign = 0.0f,
                                       margin_start = 12, margin_end = 12 };
         layout.append(feedback);
@@ -207,7 +213,12 @@ internal class ConflictComparisonDialog : Adw.Dialog {
         dialog.set_default_response("keep");
         dialog.set_response_appearance("discard", Adw.ResponseAppearance.DESTRUCTIVE);
         dialog.response.connect((response) => {
-            if (response == "discard") force_close();
+            if (response == "discard") {
+                Idle.add(() => {
+                    force_close();
+                    return Source.REMOVE;
+                });
+            }
         });
         dialog.present(this);
     }
