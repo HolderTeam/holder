@@ -97,6 +97,119 @@ class ListenerRunGuard {
 
 } // namespace
 
+TEST_CASE(
+    "HTTP request size limits preserve pagination and isolate rejected connections",
+    "[http][listener]"
+) {
+  namespace http = boost::beast::http;
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  create_project(db, "p", (dir / "repo").string());
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore store(db, &fts);
+  const std::string first = "00000000-0000-4000-8000-000000000001";
+  const std::string second = "00000000-0000-4000-8000-000000000002";
+  holder::test::create_card_fixture(store, first, "p", "one", "one", 10);
+  holder::test::create_card_fixture(store, second, "p", "two", "two", 20);
+
+  const std::string token = "testtoken";
+  holder::api::HttpServer server("127.0.0.1", 0, db, token, &store, &fts);
+  holder::api::HttpServer::BoundInfo bound;
+  try {
+    bound = server.start();
+  } catch (const std::exception& ex) {
+    SKIP(std::string("Socket bind not available in test environment: ") + ex.what());
+  }
+  holder::core::SignalHandler signals;
+  holder::test::HttpServerThreadGuard guard(server, signals);
+
+  const auto list = [&](const std::string& query) {
+    return holder::test::http_json_request(
+               bound.bind,
+               bound.port,
+               token,
+               http::verb::get,
+               "/projects/p/cards?limit=1" + query,
+               nullptr,
+               http::status::ok
+    )
+        .at("data");
+  };
+  const auto rejected = [&](const std::string& request, http::status status, const char* code) {
+    boost::asio::io_context ioc;
+    auto socket = connect_test_socket(ioc, bound.bind, bound.port);
+    write_raw_request(socket, request);
+    boost::beast::flat_buffer buffer;
+    http::response<http::string_body> response;
+    http::read(socket, buffer, response);
+    REQUIRE(response.result() == status);
+    CHECK(response[http::field::content_type] == "application/json");
+    CHECK_FALSE(response.keep_alive());
+    const auto payload = nlohmann::json::parse(response.body());
+    CHECK(payload.at("ok") == false);
+    CHECK(payload.at("error").at("code") == code);
+    CHECK(payload.at("error").at("message").is_string());
+    boost::system::error_code ec;
+    char extra;
+    CHECK(socket.read_some(boost::asio::buffer(&extra, 1), ec) == 0);
+    CHECK((ec == boost::asio::error::eof || ec == boost::asio::error::connection_reset));
+
+    CHECK(list("").at("items").at(0).at("card_id") == first);
+  };
+
+  SECTION("An 8,192-character cursor returns the next page") {
+    const auto cursor = list("").at("next_cursor").get<std::string>();
+    REQUIRE(cursor.size() < 8192);
+    REQUIRE(cursor.size() % 2 == 0);
+    // Pad the cursor's hex-encoded JSON with trailing whitespace, preserving its page position.
+    // Percent-encode the padding on the wire as well.
+    std::string query = "&cursor=" + cursor;
+    for (auto size = cursor.size(); size < 8192; size += 2) {
+      query += "%32%30";
+    }
+    const auto page = list(query);
+    REQUIRE(page.at("items").size() == 1);
+    CHECK(page.at("items").at(0).at("card_id") == second);
+    CHECK(page.at("next_cursor").is_null());
+  }
+
+  SECTION("A target one byte over 128 KiB receives 414") {
+    rejected(
+        "GET /" + std::string(128 * 1024, 'x') + " HTTP/1.1\r\nHost: localhost\r\n\r\n",
+        http::status::uri_too_long,
+        "uri_too_long"
+    );
+  }
+
+  SECTION("An oversized request line receives 414 without a line terminator") {
+    rejected(
+        "GET /" + std::string(128 * 1024 + 64 - 5, 'x'),
+        http::status::uri_too_long,
+        "uri_too_long"
+    );
+  }
+
+  SECTION("The header budget is independent of the request line") {
+    const std::string line = "GET /health HTTP/1.1\r\n";
+    const std::string fields = "Host: localhost\r\nAuthorization: Bearer " + token +
+                               "\r\nX-Padding: ";
+    const std::string padding(16 * 1024 - fields.size() - 4, 'x');
+    boost::asio::io_context ioc;
+    auto socket = connect_test_socket(ioc, bound.bind, bound.port);
+    write_raw_request(socket, line + fields + padding + "\r\n\r\n");
+    boost::beast::flat_buffer buffer;
+    http::response<http::string_body> response;
+    http::read(socket, buffer, response);
+    REQUIRE(response.result() == http::status::ok);
+
+    rejected(
+        line + fields + padding + "x\r\n\r\n",
+        http::status::request_header_fields_too_large,
+        "request_header_fields_too_large"
+    );
+  }
+}
+
 TEST_CASE("Listener start fails when port already in use", "[listener]") {
   const auto dir = make_temp_dir();
   const auto db_path = dir / "holder.db";

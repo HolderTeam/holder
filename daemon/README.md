@@ -53,6 +53,18 @@ HTTP route changes.
 
 Model catalog config lives at `config/models.yaml` and is served by the API at `/models.yaml`.
 
+## HTTP Request Limits
+
+The daemon accepts a request target of up to 128 KiB on the wire. This covers
+the 8,192-character card cursor even if each character takes four UTF-8 bytes
+and every byte is percent-encoded, with room for the path and other parameters.
+The full request line is capped at 128 KiB plus 64 bytes for the method, version,
+and delimiters. Request headers have a separate 16 KiB budget, including field
+separators and the terminating blank line.
+If the request exceeds these limits, the daemon sends a JSON error and closes
+that connection. An oversized target or request line returns `414 uri_too_long`.
+Oversized headers return `431 request_header_fields_too_large`.
+
 ## Optional Runtime Dependencies
 
 - Ollama (for local model execution via AI routes)

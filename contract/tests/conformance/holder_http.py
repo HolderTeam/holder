@@ -34,9 +34,6 @@ from authoring.routes import Contract, ErrorResponse
 from generators.core.abi import snake
 from holder_capi import OperationError, Unrepresentable
 
-# The longest request target to send. The daemon reads at most 8 KB of request line and headers,
-# and drops a connection whose request is longer (#300), so a longer argument cannot be sent over HTTP.
-MAX_TARGET = 7 * 1024
 # The codes contract_http::failure writes that are not error kinds, and their statuses.
 CODES = {"invalid_argument": "InvalidArgument", "internal_error": "Runtime"}
 STATUSES = {"InvalidArgument": 400, "Runtime": 500}
@@ -44,6 +41,21 @@ STATUSES = {"InvalidArgument": 400, "Runtime": 500}
 
 class Nonconforming(AssertionError):
     """A response its route does not declare."""
+
+
+def validate_target_rejection(target: str, media_type: str, raw: bytes) -> str:
+    """Check a 414 response against the daemon's documented transport limit."""
+    if len(target) <= 128 * 1024:
+        raise Nonconforming(f"414 for a request target of only {len(target)} wire bytes")
+    if media_type != "application/json":
+        raise Nonconforming(f"414 as {media_type}, not application/json")
+    try:
+        payload = ErrorResponse.model_validate_json(raw, strict=True)
+    except ValidationError as error:
+        raise Nonconforming(f"414 with an invalid ErrorResponse: {error}") from None
+    if payload.error.code != "uri_too_long":
+        raise Nonconforming("414 without the uri_too_long error code")
+    return payload.error.message
 
 
 class Daemon:
@@ -186,8 +198,6 @@ class Http:
         query = [f"{name}={text(arguments[name])}" for name in binding["query"]
                  if arguments.get(name, None) is not None]
         target = path + ("?" + "&".join(query) if query else "")
-        if len(target) > MAX_TARGET:
-            raise Unrepresentable(f"a request target of {len(target)} bytes, longer than the daemon reads")
         body = None
         if "body" in binding:
             value = arguments.get(binding["body"], ...)
@@ -198,6 +208,8 @@ class Http:
             except TypeError as error:  # bytes, which JSON cannot carry
                 raise Unrepresentable(str(error)) from None
         status, media_type, raw = self.daemon.exchange(binding["method"], target, body)
+        if status == 414:
+            raise Unrepresentable(validate_target_rejection(target, media_type, raw))
         return self.expect(status, self.conforming(operation, status, media_type, raw))
 
     def conforming(self, operation: str, status: int, media_type: str, raw: bytes) -> Any:
