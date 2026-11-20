@@ -795,8 +795,9 @@ private Gtk.Button comparison_button(Adw.Dialog dialog, string label) {
 }
 
 private void wait_for_dialog_open_frames(Adw.Dialog dialog) {
-    // Libadwaita opens the sheet on its second frame after mapping.
-    // Synthetic clicks and close requests can reach it before then.
+    // Libadwaita 1.5 on Ubuntu 24.04 can lose a synthetic close request before
+    // the sheet opens. The macOS CI display can skip these frame callbacks.
+    if (Environment.get_variable("HOLDER_DESKTOP_TEST_PLATFORM") == "darwin") return;
     int frames = 0;
     dialog.add_tick_callback((widget, clock) => ++frames < 2);
     assert(wait_for_condition(() => frames == 2));
@@ -1675,10 +1676,13 @@ private void test_an_asset_can_be_exported_where_the_user_chooses() {
     var f = new WindowFixture();
     var api = new WindowStorageApi();
     f.api = api;
+    // Give attachment refreshes the same resource that the test will export.
+    var resource = window_image_resource("r-export");
+    api.resources.add(resource);
+    api.card_links.add(new HolderLinux.CardLink("c1", resource.resource_id, "resource", "attachment", null, 1));
     f.open_loaded();
     f.open_card("c1");
     var workspace = f.window.workspace_for_tests;
-    var resource = window_image_resource("r-export");
     workspace.toolbox.asset_preview_requested(resource, resource.assets[0]);
     assert(wait_for_condition(() => f.preview_state() == "image"));
 
@@ -1690,16 +1694,22 @@ private void test_an_asset_can_be_exported_where_the_user_chooses() {
     var destination = Path.build_filename(av_temp_dir(), "exported.png");
     f.picker.chosen = File.new_for_path(destination);
     workspace.asset_preview.export_requested();
-    // Wait for the complete PNG. A toast can be queued behind earlier feedback.
+    assert(wait_for_condition(() => f.picker.asks == 2));
+    // Wait for the complete PNG or the reported export error. A toast can be queued.
+    bool exported_png = false;
     assert(wait_for_condition(() => {
+        if (f.debug_contains("ERROR: Failed to export Asset | ")) return true;
         try {
             uint8[] exported;
             FileUtils.get_data(destination, out exported);
-            return Base64.encode(exported) == WINDOW_PNG_BASE64;
+            exported_png = Base64.encode(exported) == WINDOW_PNG_BASE64;
+            return exported_png;
         } catch (FileError e) {
             return false;
         }
     }));
+    if (!exported_png) Test.message("%s", f.debug_log());
+    assert(exported_png);
     f.destroy();
 }
 

@@ -40,7 +40,8 @@ private void test_tool_views_are_freed() {
     lt_check("ResourcesToolView", new HolderLinux.ResourcesToolView());
     lt_check("MilestonesToolView", new HolderLinux.MilestonesToolView());
     lt_check("HistoryToolView", new HolderLinux.HistoryToolView());
-    lt_check("GitSyncToolView", new HolderLinux.GitSyncToolView());
+    // An in-flight GitHub CLI probe holds the view until the external command returns.
+    lt_check("GitSyncToolView", new HolderLinux.GitSyncToolView(false));
     lt_check("RecoveryKeyToolView", new HolderLinux.RecoveryKeyToolView());
     lt_check("TrashToolView", new HolderLinux.TrashToolView());
     lt_check("DebugToolView", new HolderLinux.DebugToolView());
