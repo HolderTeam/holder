@@ -16,6 +16,7 @@ private void test_request_json_ok_true_success() {
         "/health",
         null,
         null,
+        null,
         (obj, res) => {
             try {
                 root = HolderLinux.ApiClientTransport.request_json.end(res);
@@ -47,6 +48,7 @@ private void test_request_json_requires_ok_true() {
         "/health",
         null,
         null,
+        null,
         (obj, res) => {
             try {
                 HolderLinux.ApiClientTransport.request_json.end(res);
@@ -74,6 +76,7 @@ private void test_request_json_unwrapped_sets_json_content_type_with_body() {
         "POST",
         "/projects",
         "{\"name\":\"n\"}",
+        null,
         null,
         (obj, res) => {
             try {
@@ -107,6 +110,7 @@ private void test_request_json_unwrapped_transport_error_maps_to_api_transport()
         "/projects",
         null,
         null,
+        null,
         (obj, res) => {
             try {
                 HolderLinux.ApiClientTransport.request_json_unwrapped.end(res);
@@ -135,6 +139,7 @@ private void test_request_json_unwrapped_parse_error_on_2xx_rethrows_parse() {
         "/projects",
         null,
         null,
+        null,
         (obj, res) => {
             try {
                 HolderLinux.ApiClientTransport.request_json_unwrapped.end(res);
@@ -151,7 +156,7 @@ private void test_request_json_unwrapped_parse_error_on_2xx_rethrows_parse() {
 
 private void test_request_json_unwrapped_parse_error_on_non_2xx_maps_to_http() {
     var transport = new FakeApiHttpTransport();
-    transport.enqueue_read(500, "not-json");
+    transport.enqueue_read(503, "not-json");
 
     bool done = false;
     bool got_http = false;
@@ -163,11 +168,12 @@ private void test_request_json_unwrapped_parse_error_on_non_2xx_maps_to_http() {
         "/projects",
         null,
         null,
+        null,
         (obj, res) => {
             try {
                 HolderLinux.ApiClientTransport.request_json_unwrapped.end(res);
             } catch (Error e) {
-                got_http = (e is HolderLinux.ApiError.HTTP);
+                got_http = e is HolderLinux.ApiError.HTTP && e.message.contains("backend is unavailable");
             }
             done = true;
         }
@@ -183,21 +189,25 @@ private void test_request_json_unwrapped_non_2xx_with_error_object_maps_to_http(
 
     bool done = false;
     bool got_http = false;
-    bool message_has_code = false;
+    bool preserves_advice = false;
+    var query = new HashTable<string, string>(str_hash, str_equal);
+    query.set("token", "private-query-value");
+    string diagnostic = "";
     HolderLinux.ApiClientTransport.request_json_unwrapped.begin(
         transport,
         "http://127.0.0.1:8080",
         "token-123",
         "POST",
-        "/resources",
-        null,
-        null,
+        "/projects/private-project-id/cards",
+        "{\"token\":\"private-body-value\"}",
+        query,
+        (line) => { diagnostic = line; },
         (obj, res) => {
             try {
                 HolderLinux.ApiClientTransport.request_json_unwrapped.end(res);
             } catch (Error e) {
                 got_http = (e is HolderLinux.ApiError.HTTP);
-                message_has_code = e.message.contains("conflict") && e.message.contains("already exists");
+                preserves_advice = e.message == "already exists";
             }
             done = true;
         }
@@ -205,7 +215,12 @@ private void test_request_json_unwrapped_non_2xx_with_error_object_maps_to_http(
 
     assert(wait_for_condition(() => done));
     assert(got_http);
-    assert(message_has_code);
+    assert(preserves_advice);
+    assert(diagnostic.has_prefix("API POST /projects/{…}/cards failed category=http elapsed="));
+    assert(diagnostic.has_suffix("ms status=409 code=conflict"));
+    assert(!diagnostic.contains("private-"));
+    assert(!diagnostic.contains("token-123"));
+    assert(!diagnostic.contains("already exists"));
 }
 
 private void test_request_json_unwrapped_non_2xx_with_error_object_missing_message_uses_default() {
@@ -223,13 +238,13 @@ private void test_request_json_unwrapped_non_2xx_with_error_object_missing_messa
         "/resources",
         null,
         null,
+        null,
         (obj, res) => {
             try {
                 HolderLinux.ApiClientTransport.request_json_unwrapped.end(res);
             } catch (Error e) {
                 got_http = (e is HolderLinux.ApiError.HTTP);
-                has_default_message = e.message.contains("unprocessable")
-                    && e.message.contains("Request failed");
+                has_default_message = e.message.contains("Check the Debug tool for details.");
             }
             done = true;
         }
@@ -252,6 +267,7 @@ private void test_request_json_unwrapped_non_2xx_without_error_object_maps_to_ht
         "token-123",
         "GET",
         "/resources",
+        null,
         null,
         null,
         (obj, res) => {
@@ -284,6 +300,7 @@ private void test_request_json_unwrapped_appends_query_params() {
         "/projects/p1/cards",
         null,
         query,
+        null,
         (obj, res) => {
             try {
                 HolderLinux.ApiClientTransport.request_json_unwrapped.end(res);

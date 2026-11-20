@@ -98,6 +98,8 @@ public class MainWindow : Adw.ApplicationWindow {
     private uint applying_state_depth = 0; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private uint rendered_sidebar_data_version = uint.MAX; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private uint git_refresh_serial = 0;
+    private ApiClient? diagnostic_client;
+    private ulong request_failed_handler = 0;
 
     public MainWindow(Adw.Application app,
                       int startup_width = 0,
@@ -1317,6 +1319,11 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void on_api_client_connected(IHolderApi api_client) {
+        disconnect_api_diagnostics();
+        diagnostic_client = api_client as ApiClient;
+        if (diagnostic_client != null) {
+            request_failed_handler = diagnostic_client.request_failed.connect(log_debug_line);
+        }
         ai_panel.set_api_client(api_client);
         if (workspace.is_ai_panel_visible()) {
             ai_panel.refresh_config(controller.selected_project_id());
@@ -1324,6 +1331,14 @@ public class MainWindow : Adw.ApplicationWindow {
             ai_nudge_controller.evaluate_title_suggestion_for_current_card.begin();
         }
         toolbox.set_api_client(api_client);
+    }
+
+    private void disconnect_api_diagnostics() {
+        if (diagnostic_client != null && request_failed_handler != 0) {
+            diagnostic_client.disconnect(request_failed_handler);
+            request_failed_handler = 0;
+        }
+        diagnostic_client = null;
     }
 
     internal void refresh_trash_tool() {
@@ -1659,6 +1674,7 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     protected override void dispose() {
+        disconnect_api_diagnostics();
         ai_run_controller.stop();
         base.dispose();
     }

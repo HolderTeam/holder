@@ -125,6 +125,21 @@ backend up again each time, if the connection drops. Nothing is read from the st
 When running from a source tree, set `HOLDER_CTL` to a built `holderctl`; `./make.sh run` does this itself when
 `daemon/build/holderctl` exists in this repository (`../../../daemon/build/holderctl`). The Debug tool says what was used or why the step was skipped.
 
+### Diagnosing failed API requests
+
+The Desktop JSON request layer reports connection failures, timeouts, HTTP
+errors, and unreadable response envelopes. This covers startup health checks,
+project and card operations, and storage setup. Error feedback gives the next
+step and keeps specific server advice for validation failures and conflicts.
+
+The Debug tool records the HTTP method, route with IDs omitted, failure
+category, elapsed time, and HTTP status or transport error code. Request
+diagnostics leave out URLs, headers, query values, bodies, and raw error text.
+When no window is listening, the same diagnostic is available in GLib debug
+output with `G_MESSAGES_DEBUG=all`. Backend discovery, file downloads,
+event streams, and endpoint-specific payload validation retain their own
+reporting.
+
 Windows and macOS still start the backend through their launcher for now.
 
 Run the fast headless-safe test suite from this directory:
