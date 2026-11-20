@@ -224,6 +224,7 @@ sources = [
   'src/views/adapters/card_action_dialog.vala',
   'src/views/adapters/project_create_dialog.vala',
   'src/views/adapters/recovery_dialog.vala',
+  'src/views/adapters/conflict_comparison_dialog.vala',
   'src/views/components/signal_scope.vala',
   'src/views/adapters/window_sidebar_events.vala',
   'src/views/adapters/window_selection_editor_events.vala',

@@ -222,7 +222,19 @@ private void test_git_sync_tool_view_opens_conflict_pairs_by_id() {
     });
     var copy = find_button_with_label(panel, "Copy “Renamed copy”");
     var original = find_button_with_label(panel, "Original “Renamed original”");
+    var compare = find_button_with_label(panel, "Compare versions");
     assert(copy != null && original != null);
+    assert(compare != null);
+    bool comparison_requested = false;
+    view.compare_conflict_requested.connect((project_id, original_id, copy_id) => {
+        assert(project_id == "p1");
+        assert(original_id == "original-id");
+        assert(copy_id == "copy-id");
+        comparison_requested = true;
+    });
+    compare.clicked();
+    assert(comparison_requested);
+    assert(find_button_with_label(((!) compare).parent.get_next_sibling(), "Compare versions") == null);
     copy.clicked();
     assert(opened == "copy-id");
     original.clicked();

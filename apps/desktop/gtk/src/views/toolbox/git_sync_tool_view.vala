@@ -99,6 +99,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     public signal void repository_history_changed(string project_id);
     public signal void project_pulled(string project_id);
     public signal void conflict_card_open_requested(string project_id, string card_id);
+    public signal void compare_conflict_requested(string project_id, string original_id, string copy_id);
     public signal void activity_requested(string kind,
                                           string message,
                                           string? project_id,
@@ -298,10 +299,15 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             return;
         }
         foreach (var copy in copies) {
+            var pair = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
             var row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+            pair.append(row);
             row.append(conflict_card_button("Copy", copy.copy_title, project_id, copy.copy_id));
             if (copy.original_title != null && !copy.original_trashed) {
                 row.append(conflict_card_button("Original", copy.original_title, project_id, copy.original_id));
+                var compare = new Gtk.Button.with_label("Compare versions") { halign = Gtk.Align.START };
+                compare.clicked.connect(() => compare_conflict_requested(project_id, copy.original_id, copy.copy_id));
+                pair.append(compare);
             } else {
                 var unavailable = new Gtk.Label(copy.original_trashed
                     ? "Original in Trash" : "Original unavailable") { xalign = 0.0f };
@@ -309,7 +315,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
                 unavailable.add_css_class("dim-label");
                 row.append(unavailable);
             }
-            conflict_rows.append(row);
+            conflict_rows.append(pair);
         }
     }
 

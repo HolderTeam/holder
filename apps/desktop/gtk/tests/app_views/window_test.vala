@@ -720,6 +720,26 @@ private class WindowConflictApi : MainControllerFakeApi {
             "c2", "Preserved edit", "c1", "Original", false));
         return projects;
     }
+
+    public override async HolderLinux.CardDetail get_card(string project_id, string card_id) throws Error {
+        var card = yield base.get_card(project_id, card_id);
+        if (card_id == "c2") {
+            card.title = "Renamed preserved edit";
+            card.content = "# Renamed preserved edit\n\nWords from the other version";
+        }
+        return card;
+    }
+}
+
+private bool comparison_contains_text(Adw.Dialog dialog, string text) {
+    foreach (var widget in av_descendants(dialog)) {
+        var content = widget as Gtk.TextView;
+        if (content != null && content.get_buffer().text == text) {
+            assert(!content.get_editable());
+            return true;
+        }
+    }
+    return false;
 }
 
 private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
@@ -731,16 +751,41 @@ private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
     var workspace = f.window.workspace_for_tests;
     workspace.toolbox.show_tool("git");
     Gtk.Button? copy = null;
+    Gtk.Button? compare = null;
     assert(wait_for_condition(() => {
         foreach (var widget in av_descendants(workspace.toolbox.widget)) {
             var button = widget as Gtk.Button;
             if (button != null && button.get_label() == "Copy “Preserved edit”") {
                 copy = button;
-                return true;
+            } else if (button != null && button.get_label() == "Compare versions") {
+                compare = button;
             }
         }
-        return false;
+        return copy != null && compare != null;
     }));
+
+    ((!) compare).clicked();
+    assert(wait_for_condition(() => {
+        var dialog = f.window.get_visible_dialog();
+        return dialog != null &&
+            comparison_contains_text(dialog, "# Card 1\n\nBody") &&
+            comparison_contains_text(dialog, "# Renamed preserved edit\n\nWords from the other version");
+    }));
+    assert(f.api.update_card_calls == 0);
+    assert(f.controller().selected_card_id() == "c1");
+    assert(f.editor_text() == "# Card 1\n\nBody");
+    ((!) f.window.get_visible_dialog()).close();
+    assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
+
+    f.api.fail_get_card_once = true;
+    ((!) compare).clicked();
+    assert(wait_for_condition(() => {
+        var dialog = f.window.get_visible_dialog();
+        return dialog != null && av_find_label(dialog,
+            "Could not load both card versions.\n" + f.api.get_card_failure_message) != null;
+    }));
+    ((!) f.window.get_visible_dialog()).close();
+    assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
 
     const string draft = "# Card 1\n\nSave before opening the conflict";
     workspace.editor_buffer.set_text(draft, -1);
