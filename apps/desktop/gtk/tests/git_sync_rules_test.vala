@@ -287,6 +287,30 @@ private void test_provider_label_entry_at_and_resolve_transport() {
 
 // --- GitSyncOutcomes -----------------------------------------------------
 
+private void test_outcomes_explain_incomplete_sync_and_reconciliation() {
+    foreach (var status in new string[] { "remote_unset", "failed" }) {
+        var pull = new HolderLinux.GitPullPhase(true, status, 0, 0, "");
+        var result = HolderLinux.GitSyncOutcomes.for_sync_result(
+            new HolderLinux.GitSyncResult(pull, false, make_push("not_attempted")));
+        var explanation = status == "remote_unset"
+            ? "No remote repository is configured." : "Pull status: failed.";
+        assert(result.error_details == explanation + "\nNo push was attempted.");
+    }
+
+    var pull = new HolderLinux.GitPullPhase(true, "succeeded", 1, 1, "");
+    var interrupted = HolderLinux.GitSyncOutcomes.for_sync_result(
+        new HolderLinux.GitSyncResult(pull, false, make_push("not_attempted")));
+    assert(interrupted.pull_succeeded);
+    assert(interrupted.error_title == "Git push failed");
+    assert(interrupted.error_details == "Pull succeeded. One local version was preserved as a conflict copy." +
+           " One hidden card was made reachable.\nNo push was attempted.");
+
+    var repaired = new HolderLinux.GitPullPhase(true, "succeeded", 0, 2, "");
+    var result = HolderLinux.GitSyncOutcomes.for_sync_result(
+        new HolderLinux.GitSyncResult(repaired, true, make_push("up_to_date")));
+    assert(result.toast_message == "Project synced. 2 hidden cards were made reachable.");
+}
+
 private void test_outcomes_for_sync_result() {
     var pull = new HolderLinux.GitPullPhase(true, "succeeded", 0, 0, "");
     var pushed = HolderLinux.GitSyncOutcomes.for_sync_result(
@@ -336,6 +360,8 @@ public static int main(string[] args) {
     Test.add_func("/git-sync-rules/provider/transport-defaults", test_provider_transport_options_defaults);
     Test.add_func("/git-sync-rules/provider/label-entry-resolve", test_provider_label_entry_at_and_resolve_transport);
     Test.add_func("/git-sync-rules/outcomes/sync-result", test_outcomes_for_sync_result);
+    Test.add_func("/git-sync-rules/outcomes/incomplete-and-reconciled",
+                  test_outcomes_explain_incomplete_sync_and_reconciliation);
 
     return Test.run();
 }

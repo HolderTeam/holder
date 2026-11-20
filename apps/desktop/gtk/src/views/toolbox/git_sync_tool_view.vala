@@ -81,6 +81,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     private bool auto_check_github_cli;
     private IUriLauncher uri_launcher;
     private ITextClipboard clipboard;
+    private IScheduler scheduler;
     private string? home_directory_override;
     private uint cli_check_serial = 0;
     private ulong project_selection_handler_id = 0;
@@ -111,10 +112,12 @@ public class GitSyncToolView : Object, IToolShellAdapter {
                            GitSyncService? service = null,
                            IUriLauncher? uri_launcher = null,
                            ITextClipboard? clipboard = null,
-                           string? home_directory = null) {
+                           string? home_directory = null,
+                           IScheduler? scheduler = null) {
         this.auto_check_github_cli = auto_check_github_cli;
         this.uri_launcher = uri_launcher ?? new AppInfoUriLauncher();
         this.clipboard = clipboard ?? new GtkTextClipboard();
+        this.scheduler = scheduler ?? new MainLoopScheduler();
         this.home_directory_override = home_directory;
         controller = new GitSyncController(service);
         controller.activity_requested.connect((kind, message, project_id, card_id, details) => {
@@ -241,20 +244,24 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         conflict_panel.append(scroll);
         page.append(conflict_panel);
 
-        page.map.connect(() => {
-            refresh_visible_git_state.begin();
-            conflict_refresh_timer = Timeout.add_seconds(30, () => {
-                refresh_visible_git_state.begin();
-                return Source.CONTINUE;
-            });
-        });
-        page.unmap.connect(() => {
-            if (conflict_refresh_timer != 0) {
-                Source.remove(conflict_refresh_timer);
-                conflict_refresh_timer = 0;
-            }
-        });
+        page.map.connect(start_conflict_refresh);
+        page.unmap.connect(stop_conflict_refresh);
         return page;
+    }
+
+    internal void start_conflict_refresh() {
+        refresh_visible_git_state.begin();
+        conflict_refresh_timer = scheduler.schedule_repeating(30 * 1000, () => {
+            refresh_visible_git_state.begin();
+            return Source.CONTINUE;
+        });
+    }
+
+    internal void stop_conflict_refresh() {
+        if (conflict_refresh_timer != 0) {
+            scheduler.cancel(conflict_refresh_timer);
+            conflict_refresh_timer = 0;
+        }
     }
 
     private async void refresh_visible_git_state() {

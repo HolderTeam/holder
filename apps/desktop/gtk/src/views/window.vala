@@ -98,7 +98,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private uint applying_state_depth = 0; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private uint rendered_sidebar_data_version = uint.MAX; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private uint git_refresh_serial = 0;
-    private ApiClient? diagnostic_client;
+    private ApiClient? diagnostic_client; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: declaration maps to generated finalizer cleanup
     private ulong request_failed_handler = 0;
 
     public MainWindow(Adw.Application app,

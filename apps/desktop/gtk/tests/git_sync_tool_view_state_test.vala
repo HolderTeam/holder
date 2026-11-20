@@ -240,6 +240,42 @@ private void gss_test_navigation_returns_to_the_start_page_and_leaves_edit_mode(
     assert(h.page() == "start");
 }
 
+private void gss_test_visible_conflicts_poll_and_refresh_changed_rows() {
+    var scheduler = new TestScheduler();
+    var h = new GitSyncViewHarness(GSS_REMOTE, true, false, false, false, null, false, null, scheduler);
+    h.view.start_conflict_refresh();
+    assert(scheduler.pending_repeating() == 1);
+    assert(h.api.list_projects_calls == 0);
+
+    h.api.conflict_copy = new HolderLinux.GitConflictCopy("copy", "First title", "original", "Original", false);
+    h.view.set_api_client(h.api);
+    h.settle();
+    var initial = gsv_button(h.view.widget, "Copy “First title”");
+    assert(initial.get_visible());
+
+    h.api.stall_next_list_projects = true;
+    assert(scheduler.tick_repeating() == 1);
+    assert(wait_for_condition(() => h.api.has_stalled_list()));
+    int while_pending = h.api.list_projects_calls;
+    assert(scheduler.tick_repeating() == 1);
+    h.settle();
+    assert(h.api.list_projects_calls == while_pending);
+    h.api.release_stalled_list();
+    h.settle();
+    assert(gsv_button(h.view.widget, "Copy “First title”") == initial);
+
+    h.api.conflict_copy = new HolderLinux.GitConflictCopy("copy", "Renamed", "original", "Original", false);
+    assert(scheduler.tick_repeating() == 1);
+    h.settle();
+    assert(gsv_button(h.view.widget, "Copy “Renamed”").get_visible());
+    assert(initial.get_parent() == null);
+
+    h.view.stop_conflict_refresh();
+    assert(scheduler.pending_repeating() == 0);
+    assert(scheduler.tick_repeating() == 0);
+    h.window.destroy();
+}
+
 private void gss_test_sync_now_reports_a_pushed_project() {
     var h = new GitSyncViewHarness("https://example.com/p1.git");
     var sync = gsv_button(h.view.widget, "Sync now");
@@ -485,6 +521,7 @@ public void register_git_sync_view_state_tests() {
     Test.add_func(prefix + "change-remote", gss_test_change_remote_edits_in_place_and_cancel_restores);
     Test.add_func(prefix + "change-project-leaves-edit", gss_test_changing_project_leaves_edit_mode);
     Test.add_func(prefix + "navigation", gss_test_navigation_returns_to_the_start_page_and_leaves_edit_mode);
+    Test.add_func(prefix + "visible-conflict-polling", gss_test_visible_conflicts_poll_and_refresh_changed_rows);
     Test.add_func(prefix + "sync/pushed", gss_test_sync_now_reports_a_pushed_project);
     Test.add_func(prefix + "sync/up-to-date", gss_test_sync_now_reports_an_up_to_date_project);
     Test.add_func(prefix + "sync/rejected", gss_test_sync_now_reports_a_rejected_push);
