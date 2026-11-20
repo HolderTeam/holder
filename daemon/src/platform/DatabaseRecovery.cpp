@@ -161,7 +161,21 @@ DatabaseRebuildReport rebuild_database(
   };
 
   auto report = holder::platform::rebuild_database_projection(request);
-  if (!dry_run) mark_database_rebuild_ready(paths);
+  if (!dry_run) {
+    try {
+      mark_database_rebuild_ready(paths);
+    } catch (const std::exception& error) {
+      const auto backup_message = report.backup_path.empty()
+                                      ? std::string("No previous database files were backed up.")
+                                      : "Previous database files are backed up at " +
+                                            report.backup_path.string() + ".";
+      throw std::runtime_error(
+          "Rebuilt database is already installed at " + paths.db_path().string() + ". " +
+          backup_message + " Could not update the database rebuild readiness marker: " +
+          error.what()
+      );
+    }
+  }
   return report;
 }
 

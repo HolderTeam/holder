@@ -239,6 +239,45 @@ TEST_CASE("CLI startup can retry a failed database rebuild", "[cli][database][re
   CHECK(preserved == corrupt);
 }
 
+TEST_CASE("CLI reports the installed rebuild when the readiness marker fails",
+    "[cli][database][recovery]") {
+  const auto dir = holder::test::make_temp_dir();
+  holder::test::EnvGuard data_env("XDG_DATA_HOME", (dir / "data").string());
+  holder::test::EnvGuard config_env("XDG_CONFIG_HOME", (dir / "config").string());
+  holder::test::EnvGuard cache_env("XDG_CACHE_HOME", (dir / "cache").string());
+  holder::test::EnvGuard roots_env("HOLDER_PROJECTS_ROOT", (dir / "projects").string());
+  holder::test::EnvGuard keys_env("HOLDER_TEST_KEYSTORE_DIR", (dir / "keys").string());
+  CwdGuard cwd(std::filesystem::path(__FILE__).parent_path().parent_path());
+  const auto paths = holder::core::Paths::resolve("holder");
+  const std::string start = "\"" + std::string(HOLDER_BIN_PATH) + "\" --reindex";
+  REQUIRE(run_command(start) == 0);
+
+  const auto marker = paths.database_rebuild_readiness_path();
+  REQUIRE(std::filesystem::remove(marker));
+  REQUIRE(std::filesystem::create_directory(marker));
+  const auto output = dir / "rebuild-output.txt";
+  const std::string rebuild = "\"" + std::string(HOLDER_CTL_PATH) +
+                              "\" database rebuild > \"" + output.string() + "\" 2>&1";
+  REQUIRE(run_command(rebuild) == 1);
+
+  const auto backups = paths.server_dir() / "database-backups";
+  const auto backup = std::filesystem::directory_iterator(backups);
+  REQUIRE(backup != std::filesystem::directory_iterator{});
+  REQUIRE(std::filesystem::is_regular_file(backup->path() / "holder.db"));
+  std::ifstream transcript_file(output);
+  REQUIRE(transcript_file);
+  const std::string transcript{std::istreambuf_iterator<char>(transcript_file), {}};
+  CHECK(transcript.find("Rebuilt database is already installed at " + paths.db_path().string()) !=
+        std::string::npos);
+  CHECK(transcript.find("Previous database files are backed up at " + backup->path().string()) !=
+        std::string::npos);
+  CHECK(transcript.find("Could not update the database rebuild readiness marker") != std::string::npos);
+  REQUIRE(std::filesystem::is_directory(marker));
+  REQUIRE(std::filesystem::remove(marker));
+  REQUIRE(run_command(start) == 0);
+  CHECK(std::filesystem::is_regular_file(marker));
+}
+
 TEST_CASE("CLI upgrades a v1 database and backfills card tags", "[cli][migrations]") {
   const auto dir = holder::test::make_temp_dir();
   const auto xdg_root = dir / "xdg";
