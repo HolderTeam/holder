@@ -4037,7 +4037,12 @@ app_views_test_groups = {
   'toolbox': '/app_views/toolbox',
   'workspace': '/app_views/workspace',
   'window': '/app_views/window',
-  'conflict-comparison': '/app_views/conflict_comparison',
+  'conflict-discard-draft': '/app_views/conflict_comparison/discard_draft',
+  'conflict-keep-original': '/app_views/conflict_comparison/keep_original',
+  'conflict-save-result': '/app_views/conflict_comparison/save_result',
+  'conflict-open-copy': '/app_views/conflict_comparison/open_copy',
+  'conflict-stale-cleanup': '/app_views/conflict_comparison/stale_cleanup',
+  'conflict-trash-copy': '/app_views/conflict_comparison/trash_copy',
   'lifetime': '/app-views/lifetime',
 }
 if terminal_backend == 'vte'
