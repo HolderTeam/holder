@@ -3,6 +3,7 @@
 #include "git/GitOps.h"
 #include "index/FtsIndexer.h"
 #include "model/Project.h"
+#include "model/ProjectSyncState.h"
 #include "platform/Db.h"
 
 namespace holder::sync {
@@ -40,7 +41,9 @@ void complete_recovery_manifest(
 // "<original title> (conflicted copy)": both full versions kept, nothing silently lost. A card
 // whose pre-merge content can't be read/decrypted/parsed is skipped. Failure to write a parsed
 // copy is reported as an error, with the pre-merge local commit still available for recovery.
-// Returns how many conflicts were preserved as new cards; merged cards are not counted.
+// Returns how many conflicts were preserved as new cards; merged cards are not counted. When
+// changes is given, the cards each step changed are added to it (hidden_cards_repaired is left
+// alone). A card the merge left exactly as the other device's version is not listed.
 int resolve_pull_conflicts(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
@@ -48,7 +51,8 @@ int resolve_pull_conflicts(
     holder::git::GitOps& git,
     const holder::git::NonFastForwardPullError& diverged,
     long long now,
-    int* preserved_count = nullptr
+    int* preserved_count = nullptr,
+    holder::model::PullChanges* changes = nullptr
 );
 
 } // namespace holder::sync

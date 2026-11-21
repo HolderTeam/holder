@@ -42,6 +42,7 @@ from .project import (
 )
 from .project_git import (
     ProjectGit,
+    PullChanges,
     PullPhase,
     PushPhase,
     RemoteCheck,
@@ -88,6 +89,7 @@ __all__ = [
     "ProjectGit",
     "ProjectIntelligence",
     "Provider",
+    "PullChanges",
     "PullPhase",
     "PushPhase",
     "RecoveryResult",

@@ -33,6 +33,7 @@ SYNC_STATE = {
     "pull_retry_count": 0,
     "next_pull_retry_at": None,
     "updated_at": None,
+    "last_pull_changes": None,
 }
 
 

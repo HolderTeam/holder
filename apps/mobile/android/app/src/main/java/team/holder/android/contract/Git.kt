@@ -39,6 +39,25 @@ enum class RemoteTestResultStatus(val value: String) {
     UNKNOWN_ERROR("unknown_error"),
 }
 
+/**
+ * The most recent pull that changed anything, kept until a later pull changes something. This device only;
+ * a rebuilt database starts without it.
+ */
+data class LastPullChanges(
+    /** Cards changed on both devices in different parts (title, place, text, links or milestones), now holding both changes. */
+    val mergedCardIds: List<String>,
+    /** Cards moved to Trash on this device while the other device edited them. They stay out of Trash with that edit and can be moved to Trash again. */
+    val keptOutOfTrashCardIds: List<String>,
+    /** Cards edited on this device while the other device moved them to Trash. They are back out of Trash with this device's edit. */
+    val restoredFromTrashCardIds: List<String>,
+    /** New cards holding this device's version of a card whose changes clashed with the other device's. The original holds the other device's version. */
+    val conflictCopyIds: List<String>,
+    /** Live cards the pull left under a missing or trashed parent, made reachable again. */
+    val hiddenCardsRepaired: Int,
+    /** When that pull happened. */
+    val pulledAt: Long,
+)
+
 /** A local card version preserved during a divergent pull. */
 data class ConflictCopy(
     /** The original card's identity, even if the card no longer exists. */
@@ -84,6 +103,8 @@ data class SyncState(
     val nextPullRetryAt: Long? = null,
     /** When this state was last recorded; null when nothing has been. */
     val updatedAt: Long? = null,
+    /** What the most recent pull that changed anything did; null when no pull has changed anything here. */
+    val lastPullChanges: LastPullChanges? = null,
     /** Live copies with a durable original association, newest first. Omitted when there are none. */
     val conflictCopies: List<ConflictCopy>? = null,
 )
@@ -140,6 +161,23 @@ data class ConflictResolutionResult(
     val cleanup: ConflictCopyCleanupReview,
 )
 
+/**
+ * What a pull changed on this device to bring two devices' versions of the same cards together. Each card
+ * change is its own commit, so card history can undo it.
+ */
+data class PullChanges(
+    /** Cards changed on both devices in different parts (title, place, text, links or milestones), now holding both changes. */
+    val mergedCardIds: List<String>,
+    /** Cards moved to Trash on this device while the other device edited them. They stay out of Trash with that edit and can be moved to Trash again. */
+    val keptOutOfTrashCardIds: List<String>,
+    /** Cards edited on this device while the other device moved them to Trash. They are back out of Trash with this device's edit. */
+    val restoredFromTrashCardIds: List<String>,
+    /** New cards holding this device's version of a card whose changes clashed with the other device's. The original holds the other device's version. */
+    val conflictCopyIds: List<String>,
+    /** Live cards the pull left under a missing or trashed parent, made reachable again. */
+    val hiddenCardsRepaired: Int,
+)
+
 /** What a pull did. */
 data class PullPhase(
     /** Whether a pull was tried. */
@@ -150,6 +188,8 @@ data class PullPhase(
     val conflictsResolved: Int,
     /** Live cards the pull left under a missing or trashed parent, made reachable again. */
     val hiddenCardsRepaired: Int,
+    /** What the pull changed to bring the two devices' versions together; all empty when nothing, or when the pull failed. */
+    val changes: PullChanges,
     /** Why the pull failed; null when it did not. */
     val errorMessage: String? = null,
 )

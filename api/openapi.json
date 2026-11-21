@@ -5754,7 +5754,6 @@
               "type": "integer",
               "maximum": 1000,
               "minimum": 1,
-              "format": "int32",
               "default": 100,
               "title": "Limit"
             }
@@ -5768,7 +5767,6 @@
               "maximum": 2147483647,
               "minimum": 0,
               "description": "How many of the ordered projects to skip.",
-              "format": "int32",
               "default": 0,
               "title": "Offset"
             },
@@ -6319,7 +6317,6 @@
               "maximum": 5000,
               "minimum": 1,
               "description": "At most 1000 when include_content is true.",
-              "format": "int32",
               "default": 200,
               "title": "Limit"
             },
@@ -9233,7 +9230,6 @@
               "type": "integer",
               "maximum": 2147483647,
               "minimum": 0,
-              "format": "int32",
               "default": 0,
               "title": "Push Interval Seconds"
             }
@@ -9246,7 +9242,6 @@
               "type": "integer",
               "maximum": 2147483647,
               "minimum": 0,
-              "format": "int32",
               "default": 0,
               "title": "Pull Interval Seconds"
             }
@@ -9493,7 +9488,6 @@
               "type": "integer",
               "maximum": 200,
               "minimum": 1,
-              "format": "int32",
               "default": 50,
               "title": "Limit"
             }
@@ -9648,7 +9642,6 @@
               "type": "integer",
               "maximum": 200,
               "minimum": 1,
-              "format": "int32",
               "default": 50,
               "title": "Limit"
             }
@@ -10251,7 +10244,6 @@
               "type": "integer",
               "maximum": 9223372036854775807,
               "minimum": -9223372036854775808,
-              "format": "int64",
               "title": "First Instant"
             }
           },
@@ -10263,7 +10255,6 @@
               "type": "integer",
               "maximum": 9223372036854775807,
               "minimum": -9223372036854775808,
-              "format": "int64",
               "title": "Last Instant"
             }
           },
@@ -11706,7 +11697,6 @@
               "type": "integer",
               "maximum": 2147483647,
               "minimum": 1,
-              "format": "int32",
               "default": 20,
               "title": "Limit"
             }
@@ -11719,7 +11709,6 @@
               "type": "integer",
               "maximum": 2147483647,
               "minimum": 0,
-              "format": "int32",
               "default": 0,
               "title": "Offset"
             }
@@ -11804,7 +11793,6 @@
               "type": "integer",
               "maximum": 2147483647,
               "minimum": 1,
-              "format": "int32",
               "default": 20,
               "title": "Limit"
             }
@@ -11817,7 +11805,6 @@
               "type": "integer",
               "maximum": 2147483647,
               "minimum": 0,
-              "format": "int32",
               "default": 0,
               "title": "Offset"
             }
@@ -16689,6 +16676,7 @@
           },
           "target_card_id": {
             "$ref": "#/components/schemas/CardId",
+            "title": "Target Card Id",
             "description": "The card to move into, before or after; required for those intents, and ignored by the others."
           },
           "parent_card_id": {
@@ -16700,6 +16688,7 @@
                 "type": "null"
               }
             ],
+            "title": "Parent Card Id",
             "description": "For left, right, to_start and to_end: the parent among whose children to place it, null for the root\ncards; omit for its current parent. Ignored by the other intents."
           }
         },
@@ -16767,6 +16756,7 @@
           },
           "card": {
             "$ref": "#/components/schemas/CardReferenceCandidate",
+            "title": "Card",
             "description": "The matching card for a resolved reference."
           },
           "candidates": {
@@ -16914,6 +16904,7 @@
                 "type": "null"
               }
             ],
+            "title": "Parent Card Id",
             "description": "The card's new parent; null makes it a root card."
           },
           "sort_key": {
@@ -17983,6 +17974,70 @@
         ]
       },
       "JsonValue": {},
+      "LastPullChanges": {
+        "properties": {
+          "merged_card_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Merged Card Ids",
+            "description": "Cards changed on both devices in different parts (title, place, text, links or milestones), now holding\nboth changes."
+          },
+          "kept_out_of_trash_card_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Kept Out Of Trash Card Ids",
+            "description": "Cards moved to Trash on this device while the other device edited them. They stay out of Trash with\nthat edit and can be moved to Trash again."
+          },
+          "restored_from_trash_card_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Restored From Trash Card Ids",
+            "description": "Cards edited on this device while the other device moved them to Trash. They are back out of Trash\nwith this device's edit."
+          },
+          "conflict_copy_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Conflict Copy Ids",
+            "description": "New cards holding this device's version of a card whose changes clashed with the other device's. The\noriginal holds the other device's version."
+          },
+          "hidden_cards_repaired": {
+            "type": "integer",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "format": "int32",
+            "title": "Hidden Cards Repaired",
+            "description": "Live cards the pull left under a missing or trashed parent, made reachable again."
+          },
+          "pulled_at": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Pulled At",
+            "description": "When that pull happened."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "merged_card_ids",
+          "kept_out_of_trash_card_ids",
+          "restored_from_trash_card_ids",
+          "conflict_copy_ids",
+          "hidden_cards_repaired",
+          "pulled_at"
+        ],
+        "title": "LastPullChanges",
+        "description": "The most recent pull that changed anything, kept until a later pull changes something. This device only;\na rebuilt database starts without it."
+      },
       "LastRevision": {
         "type": "string",
         "pattern": "^[0-9a-f]{40}$"
@@ -18497,10 +18552,12 @@
           },
           "date": {
             "$ref": "#/components/schemas/Day",
+            "title": "Date",
             "description": "The calendar day; present when the date is a day."
           },
           "datetime": {
             "$ref": "#/components/schemas/DateTime",
+            "title": "Datetime",
             "description": "The instant; present when the date is an instant."
           }
         },
@@ -18583,6 +18640,7 @@
                 "type": "null"
               }
             ],
+            "title": "Kind",
             "description": "What kind of milestone it is; null for none."
           },
           "description": {
@@ -18594,6 +18652,7 @@
                 "type": "null"
               }
             ],
+            "title": "Description",
             "description": "A note on the milestone; null for none."
           }
         },
@@ -18670,6 +18729,7 @@
           },
           "target_project_id": {
             "$ref": "#/components/schemas/ProjectId",
+            "title": "Target Project Id",
             "description": "The project of a card the link points at; omit for the card's own project. Only a card can be in another\nproject, which need not be on this device."
           },
           "kind": {
@@ -18752,6 +18812,7 @@
         "properties": {
           "project_id": {
             "$ref": "#/components/schemas/ProjectId",
+            "title": "Project Id",
             "description": "The project's ID, for imports; omit for a new one."
           },
           "name": {
@@ -18830,6 +18891,7 @@
         "properties": {
           "resource_id": {
             "$ref": "#/components/schemas/ResourceId",
+            "title": "Resource Id",
             "description": "The resource's ID, for imports; omit for a new one."
           },
           "type": {
@@ -18844,6 +18906,7 @@
           },
           "metadata": {
             "$ref": "#/components/schemas/ResourceMetadata",
+            "title": "Metadata",
             "description": "What is known about the resource; omit for nothing. A name without values is left out."
           },
           "created_at": {
@@ -18895,6 +18958,7 @@
           },
           "configuration": {
             "$ref": "#/components/schemas/LocationConfiguration",
+            "title": "Configuration",
             "description": "Portable non-secret provider configuration; empty when omitted."
           },
           "created_at": {
@@ -19573,6 +19637,7 @@
         "properties": {
           "name": {
             "$ref": "#/components/schemas/ProjectName",
+            "title": "Name",
             "description": "The project's name."
           },
           "git_remote_url": {
@@ -19584,6 +19649,7 @@
                 "type": "null"
               }
             ],
+            "title": "Git Remote Url",
             "description": "The Git remote to sync with; null for none."
           },
           "git_provider": {
@@ -19603,6 +19669,61 @@
         "type": "object",
         "title": "ProjectUpdate",
         "description": "A change to a project's settings. Each field left out keeps its value."
+      },
+      "PullChanges": {
+        "properties": {
+          "merged_card_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Merged Card Ids",
+            "description": "Cards changed on both devices in different parts (title, place, text, links or milestones), now holding\nboth changes."
+          },
+          "kept_out_of_trash_card_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Kept Out Of Trash Card Ids",
+            "description": "Cards moved to Trash on this device while the other device edited them. They stay out of Trash with\nthat edit and can be moved to Trash again."
+          },
+          "restored_from_trash_card_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Restored From Trash Card Ids",
+            "description": "Cards edited on this device while the other device moved them to Trash. They are back out of Trash\nwith this device's edit."
+          },
+          "conflict_copy_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Conflict Copy Ids",
+            "description": "New cards holding this device's version of a card whose changes clashed with the other device's. The\noriginal holds the other device's version."
+          },
+          "hidden_cards_repaired": {
+            "type": "integer",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "format": "int32",
+            "title": "Hidden Cards Repaired",
+            "description": "Live cards the pull left under a missing or trashed parent, made reachable again."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "merged_card_ids",
+          "kept_out_of_trash_card_ids",
+          "restored_from_trash_card_ids",
+          "conflict_copy_ids",
+          "hidden_cards_repaired"
+        ],
+        "title": "PullChanges",
+        "description": "What a pull changed on this device to bring two devices' versions of the same cards together. Each card\nchange is its own commit, so card history can undo it."
       },
       "PullPhase": {
         "properties": {
@@ -19638,6 +19759,10 @@
             "title": "Hidden Cards Repaired",
             "description": "Live cards the pull left under a missing or trashed parent, made reachable again."
           },
+          "changes": {
+            "$ref": "#/components/schemas/PullChanges",
+            "description": "What the pull changed to bring the two devices' versions together; all empty when nothing, or when the\npull failed."
+          },
           "error_message": {
             "anyOf": [
               {
@@ -19658,6 +19783,7 @@
           "status",
           "conflicts_resolved",
           "hidden_cards_repaired",
+          "changes",
           "error_message"
         ],
         "title": "PullPhase",
@@ -20013,6 +20139,7 @@
         "properties": {
           "remote_url": {
             "$ref": "#/components/schemas/GitRemoteUrl",
+            "title": "Remote Url",
             "description": "The Git remote to test; omit for the project's own."
           }
         },
@@ -20296,6 +20423,7 @@
         "properties": {
           "type": {
             "$ref": "#/components/schemas/ResourceType",
+            "title": "Type",
             "description": "What kind of thing the resource is."
           },
           "label": {
@@ -20306,6 +20434,7 @@
           },
           "metadata": {
             "$ref": "#/components/schemas/ResourceMetadata",
+            "title": "Metadata",
             "description": "Names whose values change: each name's values replace its old ones, an empty list removes the name, and\nnames left out are kept."
           },
           "updated_at": {
@@ -20342,6 +20471,7 @@
                 "type": "null"
               }
             ],
+            "title": "Caste",
             "description": "This machine's hardware caste, or null when it cannot be detected."
           },
           "runners": {
@@ -20796,6 +20926,7 @@
           },
           "configuration": {
             "$ref": "#/components/schemas/LocationConfiguration",
+            "title": "Configuration",
             "description": "Replacement configuration map."
           },
           "updated_at": {
@@ -21056,6 +21187,17 @@
             "title": "Updated At",
             "description": "When this state was last recorded; null when nothing has been."
           },
+          "last_pull_changes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastPullChanges"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the most recent pull that changed anything did; null when no pull has changed anything here."
+          },
           "conflict_copies": {
             "items": {
               "$ref": "#/components/schemas/ConflictCopy"
@@ -21082,7 +21224,8 @@
           "next_retry_at",
           "pull_retry_count",
           "next_pull_retry_at",
-          "updated_at"
+          "updated_at",
+          "last_pull_changes"
         ],
         "title": "SyncState",
         "description": "What this device last recorded about a project's sync: its last pull and push, what is waiting to go, and\nwhen it will retry."

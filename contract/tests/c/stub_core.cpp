@@ -531,7 +531,7 @@ SyncResult no_remote(holder_context& context, const std::string& project_id, boo
   return {project_id,
           SyncResultStatus::Failed,
           std::nullopt,
-          {pull, pull ? PullPhaseStatus::RemoteUnset : PullPhaseStatus::NotAttempted, 0, 0, std::nullopt},
+          {pull, pull ? PullPhaseStatus::RemoteUnset : PullPhaseStatus::NotAttempted, 0, 0, {}, std::nullopt},
           {push && !pull, push && !pull ? PushPhaseStatus::RemoteUnset : PushPhaseStatus::NotAttempted, 0, 0,
            std::nullopt, std::nullopt}};
 }
@@ -556,7 +556,7 @@ DueSyncResult sync_project_if_due(holder_context& context, std::string project_i
   (void)push_interval_seconds;
   (void)pull_interval_seconds;
   return {project_id, std::nullopt,
-          {false, PullPhaseStatus::NotAttempted, 0, 0, std::nullopt},
+          {false, PullPhaseStatus::NotAttempted, 0, 0, {}, std::nullopt},
           {false, PushPhaseStatus::NotAttempted, 0, 0, std::nullopt, std::nullopt}};
 }
 

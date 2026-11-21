@@ -106,6 +106,7 @@ RecoveryTokenGlobalImportResult import_global(
     }
     if (configured) {
       try {
+        holder::model::PullChanges changes;
         try {
           git.pull_remote_ff_only("origin");
         } catch (const holder::git::NonFastForwardPullError& diverged) {
@@ -115,13 +116,22 @@ RecoveryTokenGlobalImportResult import_global(
               restored_project,
               git,
               diverged,
-              now
+              now,
+              nullptr,
+              &changes
           );
         }
         holder::sync::reconcile_index_after_pull(context.db, &context.fts, restored_project);
         holder::sync::complete_recovery_manifest(context.db, git, restored_project, now);
         pull_status = RecoveryTokenGlobalImportResultPullStatus::Succeeded;
-        sync_repo.record_pull_result(metadata.project_id, "succeeded", true, std::nullopt, now);
+        sync_repo.record_pull_result(
+            metadata.project_id,
+            "succeeded",
+            true,
+            std::nullopt,
+            now,
+            &changes
+        );
       } catch (const std::exception& error) {
         pull_status = RecoveryTokenGlobalImportResultPullStatus::Failed;
         pull_error = error.what();

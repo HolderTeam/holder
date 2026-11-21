@@ -27,12 +27,15 @@ class ProjectSyncRepo {
       const std::optional<std::string>& error_message,
       long long now
   );
+  // A successful pull whose changes are not empty also becomes the project's last pull changes.
+  // Pulls that change nothing leave the previous ones in place.
   void record_pull_result(
       const std::string& project_id,
       const std::string& status,
       bool success,
       const std::optional<std::string>& error_message,
-      long long now
+      long long now,
+      const holder::model::PullChanges* changes = nullptr
   );
   void update_activity_counts(
       const std::string& project_id,

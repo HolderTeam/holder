@@ -1105,6 +1105,7 @@ TEST_CASE(
     seen = true;
   }
   REQUIRE(seen);
+  holder::model::PullChanges changes;
   CHECK(
       holder::sync::resolve_pull_conflicts(
           local_db,
@@ -1112,9 +1113,15 @@ TEST_CASE(
           local_project,
           local_git,
           diverged,
-          4
+          4,
+          nullptr,
+          &changes
       ) == 1
   );
+  CHECK(changes.merged_card_ids == std::vector<std::string>{kSharedCardId});
+  CHECK(changes.conflict_copy_ids.size() == 1);
+  CHECK(changes.kept_out_of_trash_card_ids.empty());
+  CHECK(changes.restored_from_trash_card_ids.empty());
   holder::sync::reconcile_index_after_pull(local_db, &local_fts, local_project);
 
   const auto cards = holder::card::CardRepo(local_db).list_all(project_id);
@@ -1195,6 +1202,7 @@ TEST_CASE(
     seen = true;
   }
   REQUIRE(seen);
+  holder::model::PullChanges changes;
   CHECK(
       holder::sync::resolve_pull_conflicts(
           local_db,
@@ -1202,9 +1210,14 @@ TEST_CASE(
           local_project,
           local_git,
           diverged,
-          4
+          4,
+          nullptr,
+          &changes
       ) == 0
   );
+  CHECK(changes.kept_out_of_trash_card_ids == std::vector<std::string>{kSharedCardId});
+  CHECK(changes.merged_card_ids.empty());
+  CHECK(changes.conflict_copy_ids.empty());
   // Before the fix the card existed both live and in Trash, and this rebuild failed.
   REQUIRE_NOTHROW(holder::sync::reconcile_index_after_pull(local_db, &local_fts, local_project));
 
@@ -1316,6 +1329,7 @@ TEST_CASE(
     seen = true;
   }
   REQUIRE(seen);
+  holder::model::PullChanges changes;
   CHECK(
       holder::sync::resolve_pull_conflicts(
           local_db,
@@ -1323,8 +1337,15 @@ TEST_CASE(
           local_project,
           local_git,
           diverged,
-          4
+          4,
+          nullptr,
+          &changes
       ) == expected_copies
+  );
+  CHECK(changes.conflict_copy_ids.size() == static_cast<std::size_t>(expected_copies));
+  CHECK(
+      changes.restored_from_trash_card_ids ==
+      (restored ? std::vector<std::string>{kSharedCardId} : std::vector<std::string>{})
   );
   REQUIRE_NOTHROW(holder::sync::reconcile_index_after_pull(local_db, &local_fts, local_project));
 

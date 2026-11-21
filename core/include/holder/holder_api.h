@@ -1245,6 +1245,28 @@ typedef struct holder_recovery_token_global_import_result {
   const char* pull_error; /* Why pulling failed, or null. May be NULL. */
 } holder_recovery_token_global_import_result;
 
+/* The most recent pull that changed anything, kept until a later pull changes something. This
+ * device only; a rebuilt database starts without it.
+ */
+typedef struct holder_last_pull_changes {
+  holder_string_list
+      merged_card_ids; /* Cards changed on both devices in different parts (title, place, text,
+                          links or milestones), now holding both changes. */
+  holder_string_list
+      kept_out_of_trash_card_ids; /* Cards moved to Trash on this device while the other device
+                                     edited them. They stay out of Trash with that edit and can be
+                                     moved to Trash again. */
+  holder_string_list restored_from_trash_card_ids; /* Cards edited on this device while the other
+                                                      device moved them to Trash. They are back out
+                                                      of Trash with this device's edit. */
+  holder_string_list conflict_copy_ids; /* New cards holding this device's version of a card whose
+                                           changes clashed with the other device's. The original
+                                           holds the other device's version. */
+  int32_t hidden_cards_repaired; /* Live cards the pull left under a missing or trashed parent, made
+                                    reachable again. */
+  int64_t pulled_at; /* When that pull happened. */
+} holder_last_pull_changes;
+
 /* Just enough to name a card, as in a reference or a backlink. */
 typedef struct holder_card_summary {
   const char* card_id; /* The card's ID. */
@@ -1298,6 +1320,9 @@ typedef struct holder_sync_state {
                                         May be NULL. */
   const int64_t*
       updated_at; /* When this state was last recorded; null when nothing has been. May be NULL. */
+  const holder_last_pull_changes*
+      last_pull_changes; /* What the most recent pull that changed anything did; null when no pull
+                            has changed anything here. May be NULL. */
   const holder_conflict_copy_list*
       conflict_copies; /* Live copies with a durable original association, newest first. Omitted
                           when there are none. NULL when absent. */
@@ -1353,6 +1378,27 @@ typedef struct holder_conflict_resolution_result {
       cleanup; /* The copy and effects to review before moving it to Trash. */
 } holder_conflict_resolution_result;
 
+/* What a pull changed on this device to bring two devices' versions of the same cards together.
+ * Each card change is its own commit, so card history can undo it.
+ */
+typedef struct holder_pull_changes {
+  holder_string_list
+      merged_card_ids; /* Cards changed on both devices in different parts (title, place, text,
+                          links or milestones), now holding both changes. */
+  holder_string_list
+      kept_out_of_trash_card_ids; /* Cards moved to Trash on this device while the other device
+                                     edited them. They stay out of Trash with that edit and can be
+                                     moved to Trash again. */
+  holder_string_list restored_from_trash_card_ids; /* Cards edited on this device while the other
+                                                      device moved them to Trash. They are back out
+                                                      of Trash with this device's edit. */
+  holder_string_list conflict_copy_ids; /* New cards holding this device's version of a card whose
+                                           changes clashed with the other device's. The original
+                                           holds the other device's version. */
+  int32_t hidden_cards_repaired; /* Live cards the pull left under a missing or trashed parent, made
+                                    reachable again. */
+} holder_pull_changes;
+
 /* How the pull ended. */
 typedef enum holder_pull_phase_status {
   HOLDER_PULL_PHASE_STATUS_NOT_ATTEMPTED = 1,
@@ -1371,6 +1417,8 @@ typedef struct holder_pull_phase {
       conflicts_resolved; /* Local card versions actually preserved as new cards by this pull. */
   int32_t hidden_cards_repaired; /* Live cards the pull left under a missing or trashed parent, made
                                     reachable again. */
+  holder_pull_changes changes; /* What the pull changed to bring the two devices' versions together;
+                                  all empty when nothing, or when the pull failed. */
   const char* error_message; /* Why the pull failed; null when it did not. May be NULL. */
 } holder_pull_phase;
 

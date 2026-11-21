@@ -786,6 +786,7 @@ holder_recovery_token_global_import_result to_c(
     holder_arena* arena,
     const contract::RecoveryTokenGlobalImportResult& value
 );
+holder_last_pull_changes to_c(holder_arena* arena, const contract::LastPullChanges& value);
 holder_card_summary to_c(holder_arena* arena, const contract::CardSummary& value);
 holder_card_summary_list to_c_list(
     holder_arena* arena,
@@ -811,6 +812,7 @@ holder_conflict_resolution_result to_c(
     holder_arena* arena,
     const contract::ConflictResolutionResult& value
 );
+holder_pull_changes to_c(holder_arena* arena, const contract::PullChanges& value);
 holder_pull_phase to_c(holder_arena* arena, const contract::PullPhase& value);
 holder_push_phase to_c(holder_arena* arena, const contract::PushPhase& value);
 holder_sync_result to_c(holder_arena* arena, const contract::SyncResult& value);
@@ -1654,6 +1656,17 @@ holder_recovery_token_global_import_result to_c(
   return out;
 }
 
+holder_last_pull_changes to_c(holder_arena* arena, const contract::LastPullChanges& value) {
+  holder_last_pull_changes out{};
+  out.merged_card_ids = copy_strings(arena, value.merged_card_ids);
+  out.kept_out_of_trash_card_ids = copy_strings(arena, value.kept_out_of_trash_card_ids);
+  out.restored_from_trash_card_ids = copy_strings(arena, value.restored_from_trash_card_ids);
+  out.conflict_copy_ids = copy_strings(arena, value.conflict_copy_ids);
+  out.hidden_cards_repaired = value.hidden_cards_repaired;
+  out.pulled_at = value.pulled_at;
+  return out;
+}
+
 holder_card_summary to_c(holder_arena* arena, const contract::CardSummary& value) {
   holder_card_summary out{};
   out.card_id = copy(arena, value.card_id);
@@ -1709,6 +1722,13 @@ holder_sync_state to_c(holder_arena* arena, const contract::SyncState& value) {
   out.pull_retry_count = value.pull_retry_count;
   out.next_pull_retry_at = copy_value<int64_t>(arena, value.next_pull_retry_at);
   out.updated_at = copy_value<int64_t>(arena, value.updated_at);
+  out.last_pull_changes = copy_optional<holder_last_pull_changes>(
+      arena,
+      value.last_pull_changes,
+      [&](const auto& item) {
+        return to_c(arena, item);
+      }
+  );
   out.conflict_copies = copy_optional<holder_conflict_copy_list>(
       arena,
       value.conflict_copies,
@@ -1776,12 +1796,23 @@ holder_conflict_resolution_result to_c(
   return out;
 }
 
+holder_pull_changes to_c(holder_arena* arena, const contract::PullChanges& value) {
+  holder_pull_changes out{};
+  out.merged_card_ids = copy_strings(arena, value.merged_card_ids);
+  out.kept_out_of_trash_card_ids = copy_strings(arena, value.kept_out_of_trash_card_ids);
+  out.restored_from_trash_card_ids = copy_strings(arena, value.restored_from_trash_card_ids);
+  out.conflict_copy_ids = copy_strings(arena, value.conflict_copy_ids);
+  out.hidden_cards_repaired = value.hidden_cards_repaired;
+  return out;
+}
+
 holder_pull_phase to_c(holder_arena* arena, const contract::PullPhase& value) {
   holder_pull_phase out{};
   out.attempted = value.attempted;
   out.status = to_c_enum(value.status);
   out.conflicts_resolved = value.conflicts_resolved;
   out.hidden_cards_repaired = value.hidden_cards_repaired;
+  out.changes = to_c(arena, value.changes);
   out.error_message = copy_text(arena, value.error_message);
   return out;
 }

@@ -20,6 +20,13 @@ def sync_data(*, succeeded=True):
             "status": "succeeded" if succeeded else "failed",
             "conflicts_resolved": 2 if succeeded else 0,
             "hidden_cards_repaired": 0,
+            "changes": {
+                "merged_card_ids": ["c-1"] if succeeded else [],
+                "kept_out_of_trash_card_ids": [],
+                "restored_from_trash_card_ids": ["c-2"] if succeeded else [],
+                "conflict_copy_ids": ["c-3", "c-4"] if succeeded else [],
+                "hidden_cards_repaired": 0,
+            },
             "error_message": None if succeeded else "Cannot pull",
         },
         "push": {
@@ -60,6 +67,13 @@ def test_git_operations_use_scoped_routes_and_preserve_phase_failures():
                 "status": "not_attempted",
                 "conflicts_resolved": 0,
                 "hidden_cards_repaired": 0,
+                "changes": {
+                    "merged_card_ids": [],
+                    "kept_out_of_trash_card_ids": [],
+                    "restored_from_trash_card_ids": [],
+                    "conflict_copy_ids": [],
+                    "hidden_cards_repaired": 0,
+                },
                 "error_message": None,
             }
             data["push"] = {
@@ -92,6 +106,10 @@ def test_git_operations_use_scoped_routes_and_preserve_phase_failures():
         assert (push.push.status, push.push.behind_count) == ("non_fast_forward", 2)
         pulled = project.git.pull()
         assert pulled.succeeded and pulled.pull.conflicts_resolved == 2
+        assert pulled.pull.changes.merged_card_ids == ("c-1",)
+        assert pulled.pull.changes.restored_from_trash_card_ids == ("c-2",)
+        assert pulled.pull.changes.conflict_copy_ids == ("c-3", "c-4")
+        assert pulled.pull.changes and not push.pull.changes
         assert not pulled.push.attempted
         synced = project.git.sync()
         assert isinstance(synced, SyncResult) and not synced.succeeded

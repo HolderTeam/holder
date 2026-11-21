@@ -129,6 +129,16 @@ RemoteTestResultStatus probe_status(holder::git::RemoteProbeStatus status) {
   return RemoteTestResultStatus::UnknownError;
 }
 
+PullChanges convert_pull_changes(const holder::model::PullChanges& changes) {
+  return {
+      changes.merged_card_ids,
+      changes.kept_out_of_trash_card_ids,
+      changes.restored_from_trash_card_ids,
+      changes.conflict_copy_ids,
+      changes.hidden_cards_repaired
+  };
+}
+
 SyncState state(holder_context& context, const std::string& project_id) {
   find(context, project_id);
   const auto sync = holder::project::ProjectSyncRepo(context.db)
@@ -163,6 +173,11 @@ SyncState state(holder_context& context, const std::string& project_id) {
       sync.pull_retry_count,
       sync.next_pull_retry_at,
       sync.updated_at > 0 ? std::optional<long long>(sync.updated_at) : std::nullopt,
+      sync.last_pull_changes ? std::optional(LastPullChanges{
+                                   convert_pull_changes(sync.last_pull_changes->changes),
+                                   sync.last_pull_changes->pulled_at
+                               })
+                             : std::nullopt,
       copies.empty() ? std::nullopt : std::optional(std::move(copies))
   };
 }
@@ -176,6 +191,7 @@ SyncResult convert_sync_result(const holder::sync::ProjectSyncResult& result) {
        pull_status(result.pull.status),
        result.pull.conflicts_resolved,
        result.pull.hidden_cards_repaired,
+       convert_pull_changes(result.pull.changes),
        result.pull.error_message},
       {result.push.attempted,
        result.push.attempted ? push_status(result.push.status) : PushPhaseStatus::NotAttempted,

@@ -661,6 +661,7 @@ jobject to_java_holder_recovery_snapshot_page(JNIEnv* env, const holder_recovery
 jobject to_java_holder_project_recovery_token_export_result(JNIEnv* env, const holder_project_recovery_token_export_result& value);
 jobject to_java_holder_project_recovery_token_import_result(JNIEnv* env, const holder_project_recovery_token_import_result& value);
 jobject to_java_holder_recovery_token_global_import_result(JNIEnv* env, const holder_recovery_token_global_import_result& value);
+jobject to_java_holder_last_pull_changes(JNIEnv* env, const holder_last_pull_changes& value);
 jobject to_java_holder_card_summary(JNIEnv* env, const holder_card_summary& value);
 jobject to_java_holder_conflict_copy(JNIEnv* env, const holder_conflict_copy& value);
 jobject to_java_holder_sync_state(JNIEnv* env, const holder_sync_state& value);
@@ -668,6 +669,7 @@ jobject to_java_holder_conflict_changed_line(JNIEnv* env, const holder_conflict_
 jobject to_java_holder_conflict_comparison(JNIEnv* env, const holder_conflict_comparison& value);
 jobject to_java_holder_conflict_copy_cleanup_review(JNIEnv* env, const holder_conflict_copy_cleanup_review& value);
 jobject to_java_holder_conflict_resolution_result(JNIEnv* env, const holder_conflict_resolution_result& value);
+jobject to_java_holder_pull_changes(JNIEnv* env, const holder_pull_changes& value);
 jobject to_java_holder_pull_phase(JNIEnv* env, const holder_pull_phase& value);
 jobject to_java_holder_push_phase(JNIEnv* env, const holder_push_phase& value);
 jobject to_java_holder_sync_result(JNIEnv* env, const holder_sync_result& value);
@@ -1588,6 +1590,26 @@ jobject to_java_holder_recovery_token_global_import_result(JNIEnv* env, const ho
   return env->NewObjectA(type, constructor, args);
 }
 
+jobject to_java_holder_last_pull_changes(JNIEnv* env, const holder_last_pull_changes& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/LastPullChanges");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;IJ)V");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[6] = {};
+  args[0].l = locals.add(to_java_list(env, (value.merged_card_ids).items, (value.merged_card_ids).count, [&](const auto& item) -> jobject { return string(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  args[1].l = locals.add(to_java_list(env, (value.kept_out_of_trash_card_ids).items, (value.kept_out_of_trash_card_ids).count, [&](const auto& item) -> jobject { return string(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  args[2].l = locals.add(to_java_list(env, (value.restored_from_trash_card_ids).items, (value.restored_from_trash_card_ids).count, [&](const auto& item) -> jobject { return string(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  args[3].l = locals.add(to_java_list(env, (value.conflict_copy_ids).items, (value.conflict_copy_ids).count, [&](const auto& item) -> jobject { return string(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  args[4].i = static_cast<jint>(value.hidden_cards_repaired);
+  args[5].j = static_cast<jlong>(value.pulled_at);
+  return env->NewObjectA(type, constructor, args);
+}
+
 jobject to_java_holder_card_summary(JNIEnv* env, const holder_card_summary& value) {
   static const jclass type = global_class(env, "team/holder/android/contract/CardSummary");
   if (!type) return nullptr;
@@ -1623,10 +1645,10 @@ jobject to_java_holder_conflict_copy(JNIEnv* env, const holder_conflict_copy& va
 jobject to_java_holder_sync_state(JNIEnv* env, const holder_sync_state& value) {
   static const jclass type = global_class(env, "team/holder/android/contract/SyncState");
   if (!type) return nullptr;
-  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;ILjava/lang/Long;ILjava/lang/Long;Ljava/lang/Long;Ljava/util/List;)V");
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;ILjava/lang/Long;ILjava/lang/Long;Ljava/lang/Long;Lteam/holder/android/contract/LastPullChanges;Ljava/util/List;)V");
   if (!constructor) return nullptr;
   Locals locals(env);
-  jvalue args[16] = {};
+  jvalue args[17] = {};
   args[0].l = locals.add(string(env, value.project_id));
   if (env->ExceptionCheck()) return nullptr;
   args[1].l = locals.add((value.last_commit_at ? box_int64(env, *value.last_commit_at) : nullptr));
@@ -1653,7 +1675,9 @@ jobject to_java_holder_sync_state(JNIEnv* env, const holder_sync_state& value) {
   if (env->ExceptionCheck()) return nullptr;
   args[14].l = locals.add((value.updated_at ? box_int64(env, *value.updated_at) : nullptr));
   if (env->ExceptionCheck()) return nullptr;
-  args[15].l = locals.add((value.conflict_copies ? to_java_list(env, value.conflict_copies->items, value.conflict_copies->count, [&](const auto& item) -> jobject { return to_java_holder_conflict_copy(env, item); }) : nullptr));
+  args[15].l = locals.add((value.last_pull_changes ? to_java_holder_last_pull_changes(env, *value.last_pull_changes) : nullptr));
+  if (env->ExceptionCheck()) return nullptr;
+  args[16].l = locals.add((value.conflict_copies ? to_java_list(env, value.conflict_copies->items, value.conflict_copies->count, [&](const auto& item) -> jobject { return to_java_holder_conflict_copy(env, item); }) : nullptr));
   if (env->ExceptionCheck()) return nullptr;
   return env->NewObjectA(type, constructor, args);
 }
@@ -1730,19 +1754,40 @@ jobject to_java_holder_conflict_resolution_result(JNIEnv* env, const holder_conf
   return env->NewObjectA(type, constructor, args);
 }
 
-jobject to_java_holder_pull_phase(JNIEnv* env, const holder_pull_phase& value) {
-  static const jclass type = global_class(env, "team/holder/android/contract/PullPhase");
+jobject to_java_holder_pull_changes(JNIEnv* env, const holder_pull_changes& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/PullChanges");
   if (!type) return nullptr;
-  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(ZLteam/holder/android/contract/PullPhaseStatus;IILjava/lang/String;)V");
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;I)V");
   if (!constructor) return nullptr;
   Locals locals(env);
   jvalue args[5] = {};
+  args[0].l = locals.add(to_java_list(env, (value.merged_card_ids).items, (value.merged_card_ids).count, [&](const auto& item) -> jobject { return string(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  args[1].l = locals.add(to_java_list(env, (value.kept_out_of_trash_card_ids).items, (value.kept_out_of_trash_card_ids).count, [&](const auto& item) -> jobject { return string(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  args[2].l = locals.add(to_java_list(env, (value.restored_from_trash_card_ids).items, (value.restored_from_trash_card_ids).count, [&](const auto& item) -> jobject { return string(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  args[3].l = locals.add(to_java_list(env, (value.conflict_copy_ids).items, (value.conflict_copy_ids).count, [&](const auto& item) -> jobject { return string(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  args[4].i = static_cast<jint>(value.hidden_cards_repaired);
+  return env->NewObjectA(type, constructor, args);
+}
+
+jobject to_java_holder_pull_phase(JNIEnv* env, const holder_pull_phase& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/PullPhase");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(ZLteam/holder/android/contract/PullPhaseStatus;IILteam/holder/android/contract/PullChanges;Ljava/lang/String;)V");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[6] = {};
   args[0].z = static_cast<jboolean>(value.attempted ? JNI_TRUE : JNI_FALSE);
   args[1].l = locals.add(to_java_holder_pull_phase_status(env, static_cast<int>(value.status)));
   if (env->ExceptionCheck()) return nullptr;
   args[2].i = static_cast<jint>(value.conflicts_resolved);
   args[3].i = static_cast<jint>(value.hidden_cards_repaired);
-  args[4].l = locals.add(string(env, value.error_message));
+  args[4].l = locals.add(to_java_holder_pull_changes(env, value.changes));
+  if (env->ExceptionCheck()) return nullptr;
+  args[5].l = locals.add(string(env, value.error_message));
   if (env->ExceptionCheck()) return nullptr;
   return env->NewObjectA(type, constructor, args);
 }

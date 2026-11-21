@@ -813,3 +813,72 @@ TEST_CASE(
   holder::card::CardRepo cards(local_db);
   CHECK(cards.get(trashed_id)->deleted_at.has_value());
 }
+
+TEST_CASE(
+    "ProjectSyncOperation reports and records what a diverged pull changed",
+    "[sync][operation]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  const auto remote_root = dir / "remote";
+  const auto local_root = dir / "local";
+  const std::string card_id = "11111111-1111-4111-8111-111111111111";
+
+  auto remote_db = holder::test::open_db_with_schema(dir / "remote.db");
+  holder::index::FtsIndexer remote_fts(remote_db);
+  create_project(remote_db, "proj-1", remote_root, std::nullopt);
+  holder::git::RealGitOps remote_git;
+  holder::card::CardStore remote_store(remote_db, &remote_fts, nullptr, &remote_git);
+  holder::model::Card card;
+  card.card_id = card_id;
+  card.project_id = "proj-1";
+  card.title = "Notes";
+  card.created_at = card.updated_at = 1;
+  remote_store.create(card, "base\n");
+
+  holder::git::GitRepo clone;
+  clone.open_or_init(local_root);
+  clone.set_remote("origin", remote_root.string());
+  clone.pull_remote_ff_only("origin");
+  auto local_db = holder::test::open_db_with_schema(dir / "local.db");
+  holder::index::FtsIndexer local_fts(local_db);
+  create_project(local_db, "proj-1", local_root, remote_root.string());
+  holder::store::Rebuilder(local_db, &local_fts)
+      .rebuild_project(holder::project::ProjectRepo(local_db).get("proj-1").value());
+
+  // This device renames the card while the other edits its text, so the pull merges them.
+  holder::git::RealGitOps local_git;
+  holder::card::CardStore(local_db, &local_fts, nullptr, &local_git)
+      .update_content(card_id, "base\n", std::string("Meeting notes"), 3);
+  remote_store.update_content(card_id, "edited elsewhere\n", std::nullopt, 2);
+
+  const holder::sync::ProjectSyncRequest request{
+      .pull = true,
+      .push = false,
+      .push_after_failed_pull = false,
+      .branch = "",
+      .set_upstream = true,
+      .now = 400
+  };
+  const auto result =
+      holder::sync::run_project_sync(local_db, &local_fts, local_git, "proj-1", request);
+
+  REQUIRE(result.succeeded());
+  CHECK(result.pull.changes.merged_card_ids == std::vector<std::string>{card_id});
+  CHECK(result.pull.changes.conflict_copy_ids.empty());
+  const auto state = holder::project::ProjectSyncRepo(local_db).get("proj-1");
+  REQUIRE(state.has_value());
+  REQUIRE(state->last_pull_changes.has_value());
+  CHECK(state->last_pull_changes->pulled_at == 400);
+  CHECK(state->last_pull_changes->changes.merged_card_ids == std::vector<std::string>{card_id});
+
+  // A later pull with nothing to bring together reports nothing and keeps the record.
+  auto later = request;
+  later.now = 500;
+  const auto quiet =
+      holder::sync::run_project_sync(local_db, &local_fts, local_git, "proj-1", later);
+  REQUIRE(quiet.succeeded());
+  CHECK(quiet.pull.changes.empty());
+  CHECK(
+      holder::project::ProjectSyncRepo(local_db).get("proj-1")->last_pull_changes->pulled_at == 400
+  );
+}
