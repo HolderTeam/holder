@@ -1029,3 +1029,122 @@ TEST_CASE("resolve_pull_conflicts reports a conflict copy it cannot create", "[s
   REQUIRE(cards.size() == 1);
   REQUIRE(cards.front().card_id == kSharedCardId);
 }
+
+TEST_CASE(
+    "resolve_pull_conflicts merges cards whose two versions changed different fields",
+    "[sync][merge]"
+) {
+  const auto dir = make_temp_dir();
+  EnvGuard keystore_env("HOLDER_TEST_KEYSTORE_DIR", (dir / "keystore").string());
+  const std::string project_id = "proj-merge";
+  const std::string clash_id = "22222222-2222-4222-8222-222222222222";
+  const auto remote_dir = dir / "remote";
+  const auto local_dir = dir / "local";
+
+  bool encrypted = false;
+  SECTION("in a plain project") {}
+  SECTION("in an encrypted project") { encrypted = true; }
+
+  auto remote_db = open_db_with_schema(dir / "remote.db");
+  holder::index::FtsIndexer remote_fts(remote_db);
+  holder::project::ProjectRepo remote_projects(remote_db);
+  holder::git::RealGitOps remote_git;
+  create_plain_project(remote_projects, project_id, remote_dir);
+  if (encrypted) {
+    remote_db.exec("UPDATE projects SET privacy_mode = 'encrypted_git'");
+    holder::privacy::ensure_encrypted_project_ready(
+        remote_git,
+        remote_projects,
+        project_id,
+        remote_dir.string(),
+        std::nullopt,
+        1,
+        []() {
+          return "test-key-merge";
+        }
+    );
+  }
+  const auto remote_project = remote_projects.get(project_id).value();
+  holder::card::CardStore remote_store(remote_db, &remote_fts, nullptr, &remote_git);
+  for (const std::string id : {std::string(kSharedCardId), clash_id}) {
+    holder::model::Card card;
+    card.card_id = id;
+    card.project_id = project_id;
+    card.title = id == kSharedCardId ? "Notes" : "Clash";
+    card.created_at = card.updated_at = 1;
+    remote_store.create(card, "base body\n");
+  }
+
+  holder::git::RealGitOps local_git;
+  local_git.open_or_init(local_dir);
+  local_git.set_remote("origin", remote_dir.string());
+  local_git.pull_remote_ff_only("origin");
+  auto local_db = open_db_with_schema(dir / "local.db");
+  holder::index::FtsIndexer local_fts(local_db);
+  holder::project::ProjectRepo local_projects(local_db);
+  auto local_project = remote_project;
+  local_project.root_path = local_dir.string();
+  local_projects.create(local_project);
+  holder::store::Rebuilder(local_db, &local_fts).rebuild_project(local_project);
+  holder::card::CardStore local_store(local_db, &local_fts, nullptr, &local_git);
+
+  // Notes: this device renames it and the other edits the body, so they combine.
+  // Clash: both edit the body differently, so it still becomes a conflict copy.
+  local_store.update_content(kSharedCardId, "base body\n", std::string("Meeting notes"), 3);
+  local_store.update_content(clash_id, "local body\n", std::nullopt, 3);
+  remote_store.update_content(kSharedCardId, "remote body\n", std::nullopt, 2);
+  remote_store.update_content(clash_id, "remote body\n", std::nullopt, 2);
+
+  holder::git::NonFastForwardPullError diverged("", "", "");
+  bool seen = false;
+  try {
+    local_git.pull_remote_ff_only("origin");
+  } catch (const holder::git::NonFastForwardPullError& error) {
+    diverged = error;
+    seen = true;
+  }
+  REQUIRE(seen);
+  CHECK(
+      holder::sync::resolve_pull_conflicts(
+          local_db,
+          &local_fts,
+          local_project,
+          local_git,
+          diverged,
+          4
+      ) == 1
+  );
+  holder::sync::reconcile_index_after_pull(local_db, &local_fts, local_project);
+
+  const auto cards = holder::card::CardRepo(local_db).list_all(project_id);
+  REQUIRE(cards.size() == 3);
+  const auto notes = holder::card::CardRepo(local_db).get(kSharedCardId);
+  REQUIRE(notes.has_value());
+  CHECK(notes->title == "Meeting notes");
+  CHECK(notes->updated_at == 3);
+  CHECK(std::ranges::count_if(cards, [](const auto& card) {
+          return card.title == "Clash (conflicted copy)";
+        }) == 1);
+  CHECK(std::ranges::none_of(cards, [](const auto& card) {
+    return card.title.starts_with("Notes") || card.title.starts_with("Meeting notes (");
+  }));
+
+  const auto path = holder::core::card_rel_path(kSharedCardId);
+  std::ifstream input(local_dir / path, std::ios::binary);
+  REQUIRE(input.is_open());
+  std::string bytes{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+  if (encrypted) {
+    CHECK(bytes.find("remote body") == std::string::npos);
+    bytes = holder::privacy::decrypt_project_blob(project_id, *local_project.project_key_id, bytes);
+  }
+  const auto merged = holder::core::parse_card_file(bytes);
+  CHECK(merged.card.title == "Meeting notes");
+  CHECK(merged.body == "remote body\n");
+
+  // The merge is a commit of its own in the card's history, so it can be undone.
+  holder::git::GitRepo repo;
+  repo.open_or_init(local_dir);
+  const auto history = repo.history_for_paths({path}, 1, std::nullopt);
+  REQUIRE(history.commits.size() == 1);
+  CHECK(history.commits[0].message.starts_with("Merge changes to 1 card made on two devices"));
+}

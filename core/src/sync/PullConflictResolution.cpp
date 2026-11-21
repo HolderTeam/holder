@@ -10,9 +10,11 @@
 #include "project/ProjectManifest.h"
 #include "project/ProjectRepo.h"
 #include "project/Rebuilder.h"
+#include "sync/CardMerge.h"
 
 #include <algorithm>
 #include <map>
+#include <optional>
 #include <set>
 #include <stdexcept>
 #include <vector>
@@ -86,6 +88,72 @@ int resolve_pull_conflicts(
       diverged.remote_oid_hex
   );
 
+  const bool encrypted = project.privacy_mode == "encrypted_git" &&
+                         project.project_key_id.has_value();
+  // A version that cannot be read or decrypted is treated as missing: the card keeps today's
+  // behaviour instead of being merged.
+  const auto read_version = [&](const std::string& commit, const std::string& path
+                            ) -> std::optional<holder::core::ParsedCardFile> {
+    if (commit.empty()) return std::nullopt;
+    const auto blob = git.read_blob_at(commit, path);
+    if (!blob.has_value()) return std::nullopt;
+    try {
+      const auto plain = encrypted ? holder::privacy::decrypt_project_blob(
+                                         project.project_id,
+                                         *project.project_key_id,
+                                         *blob
+                                     )
+                                   : *blob;
+      auto parsed = holder::core::parse_card_file(plain);
+      if (!parsed.has_front_matter) return std::nullopt;
+      return parsed;
+    } catch (const std::exception&) {
+      return std::nullopt;
+    }
+  };
+  const auto render = [](const holder::core::ParsedCardFile& card) {
+    return holder::core::render_card_front_matter(card.card, card.links, card.milestones) +
+           card.body;
+  };
+
+  // Cards whose two versions combine field by field are saved as one merged card instead of
+  // a conflict copy, in a commit of their own so card history can undo the merge.
+  std::vector<std::string> merged_paths;
+  std::set<std::string> handled_paths;
+  for (const auto& path : merge_result.conflicted_paths) {
+    const auto id = std::filesystem::path(path).stem().string();
+    if (!holder::identity::is_valid_uuid(id) || path != holder::core::card_rel_path(id)) continue;
+    const auto base = read_version(merge_result.merge_base_oid_hex, path);
+    const auto local = read_version(diverged.local_oid_hex, path);
+    const auto remote = read_version(diverged.remote_oid_hex, path);
+    if (!base || !local || !remote || local->card.card_id != id) continue;
+    const auto merged = merge_card_versions(*base, *local, *remote);
+    if (!merged) continue;
+    handled_paths.insert(path);
+    const auto plain = render(*merged);
+    if (plain == render(*remote)) continue; // The remote version, now checked out, is the result.
+    git.write_file(
+        path,
+        encrypted ? holder::privacy::encrypt_project_blob(
+                        project.project_id,
+                        *project.project_key_id,
+                        plain
+                    )
+                  : plain
+    );
+    git.stage_path(path);
+    merged_paths.push_back(path);
+  }
+  if (!merged_paths.empty()) {
+    if (encrypted)
+      holder::privacy::assert_encryption_index_paths_safe(project.root_path, merged_paths);
+    git.commit(
+        merged_paths.size() == 1 ? "Merge changes to 1 card made on two devices"
+                                 : "Merge changes to " + std::to_string(merged_paths.size()) +
+                                       " cards made on two devices"
+    );
+  }
+
   struct PendingCopy {
     std::string path;
     holder::core::ParsedCardFile snapshot;
@@ -94,6 +162,7 @@ int resolve_pull_conflicts(
   std::vector<PendingCopy> pending;
   std::map<std::string, std::string> copied_card_ids;
   for (const auto& path : merge_result.conflicted_paths) {
+    if (handled_paths.contains(path)) continue;
     const auto id = std::filesystem::path(path).stem().string();
     if (!holder::identity::is_valid_uuid(id) ||
         (path != holder::core::card_rel_path(id) && path != holder::core::card_trash_rel_path(id)))

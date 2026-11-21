@@ -236,6 +236,7 @@ class Scenario:
     local: Callable[[Context], None]               # Holder's side (becomes the copy).
     remote: Callable[[Context], None]              # Other machine (wins, stays the original).
     after: Callable[[Context, list], None] | None = None
+    copies: int = 1                                # Expected copies; 0 means merged automatically.
 
 
 PARAGRAPHS = "First paragraph.\n\nSecond paragraph.\n\nThird paragraph.\n"
@@ -360,6 +361,41 @@ def identical_remote(ctx: Context) -> None:
     ctx.other.push("Same edit elsewhere")
 
 
+def title_local(ctx: Context) -> None:
+    ctx.cards["card"].update(title="Meeting notes, Monday")
+
+
+def title_remote(ctx: Context) -> None:
+    ctx.other.set_body(ctx.cards["card"].id, PARAGRAPHS + "\nFourth paragraph, from the other machine.\n")
+    ctx.other.push("Edit Meeting notes elsewhere")
+
+
+def link_local(ctx: Context) -> None:
+    ctx.cards["card"].links.add(ctx.cards["target"].id, label="Borrow from")
+
+
+def both_move_local(ctx: Context) -> None:
+    ctx.cards["card"].move(parent=ctx.cards["folder"])
+
+
+def both_move_remote(ctx: Context) -> None:
+    # The other machine moves the card into a different place: after the folder, at the top level.
+    path, front, body = ctx.other._split(ctx.cards["card"].id)
+    lines = ["sort_key: 99" if line.startswith("sort_key: ") else line
+             for line in front.decode().split("\n")]
+    path.write_bytes("\n".join(lines).encode() + body)
+    ctx.other.push("Move Loose idea elsewhere")
+
+
+def trash_local(ctx: Context) -> None:
+    ctx.cards["card"].trash()
+
+
+def trash_remote(ctx: Context) -> None:
+    ctx.other.set_body(ctx.cards["card"].id, "An idea to file, edited on the other machine.\n")
+    ctx.other.push("Edit Loose idea elsewhere")
+
+
 SCENARIOS = [
     Scenario("basic", "Both sides edit the text; the other machine also renames the card.",
              one_card, basic_local, basic_remote),
@@ -373,15 +409,24 @@ SCENARIOS = [
              large_build, large_local, large_remote),
     Scenario("crlf", "CRLF line endings on both sides, to check line highlighting (#481).",
              crlf_build, crlf_local, crlf_remote),
+    Scenario("both-move", "Both machines move the card to different places.",
+             move_build, both_move_local, both_move_remote),
+    Scenario("trash-vs-edit", "This machine moves the card to Trash; the other edits it.",
+             move_build, trash_local, trash_remote),
+    # Merged automatically: the two machines changed different parts of the card.
     Scenario("move-vs-edit", "This machine only moves the card; the other edits its text.",
-             move_build, move_local, move_remote),
+             move_build, move_local, move_remote, copies=0),
     Scenario("identical-edit", "Both machines make the exact same text edit.",
-             one_card, identical_local, identical_remote),
+             one_card, identical_local, identical_remote, copies=0),
+    Scenario("title-vs-body", "This machine renames the card; the other adds a paragraph.",
+             one_card, title_local, title_remote, copies=0),
+    Scenario("link-vs-edit", "This machine adds a link; the other edits the text.",
+             extras, link_local, extras_remote, copies=0),
 ]
 BY_NAME = {s.name: s for s in SCENARIOS}
 
 
-def run_scenario(holder, root: Path, scenario: Scenario) -> None:
+def run_scenario(holder, root: Path, scenario: Scenario) -> bool:
     name = f"Conflict: {scenario.name}"
     for existing in holder.projects.filter(name=name):
         if existing.name == name:
@@ -409,15 +454,19 @@ def run_scenario(holder, root: Path, scenario: Scenario) -> None:
     scenario.local(ctx)    # Committed here, not pushed.
     scenario.remote(ctx)   # Committed and pushed from the other clone.
     result = project.git.pull()
-    if not result.succeeded or result.pull.conflicts_resolved == 0:
-        sys.exit(f"[{scenario.name}] expected a conflict copy; pull reported "
-                 f"{result.pull.status}, {result.pull.conflicts_resolved} conflicts, "
-                 f"{result.pull.error_message or 'no error'}")
+    if not result.succeeded:
+        print(f"  {scenario.name:<20} {'PULL FAILED':<21} {scenario.summary}\n"
+              f"  {'':<20} {result.pull.error_message or result.pull.status}")
+        return False
+    made = result.pull.conflicts_resolved
     copies = list(project.git.status().conflict_copies or [])
-    if scenario.after:
+    if scenario.after and copies:
         scenario.after(ctx, copies)
-    print(f"  {scenario.name:<20} {result.pull.conflicts_resolved} conflict cop"
-          f"{'y' if result.pull.conflicts_resolved == 1 else 'ies'}  {scenario.summary}")
+    outcome = "merged automatically" if made == 0 else f"{made} conflict cop{'y' if made == 1 else 'ies'}"
+    expected = made == scenario.copies or (scenario.copies > 0 and made > 0)
+    flag = "" if expected else f"  << UNEXPECTED, wanted {'a merge' if scenario.copies == 0 else 'a copy'}"
+    print(f"  {scenario.name:<20} {outcome:<21} {scenario.summary}{flag}")
+    return expected
 
 
 # --- Commands --------------------------------------------------------------------------------
@@ -435,11 +484,13 @@ def cmd_setup(args: argparse.Namespace) -> None:
     start_daemon(root, holderctl, holderd, args.port)
     print("Scenarios:")
     with connect(holderctl) as holder:
-        for scenario in chosen:
-            run_scenario(holder, root, scenario)
+        unexpected = [s.name for s in chosen if not run_scenario(holder, root, s)]
     print("\nOpen Desktop on the sandbox with:\n"
           f"  python3 {Path(__file__).relative_to(REPO)} desktop"
           + ("" if root == DEFAULT_ROOT else f" --root {root}"))
+    if unexpected:
+        sys.exit(f"\nUnexpected outcome for: {', '.join(unexpected)}. The daemon may predate or "
+                 "postdate the merge rules this script expects.")
 
 
 def cmd_desktop(args: argparse.Namespace) -> None:

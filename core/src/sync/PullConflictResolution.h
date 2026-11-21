@@ -31,12 +31,13 @@ void complete_recovery_manifest(
 
 // Called after GitRepo::merge_remote_taking_theirs_for_conflicts has already resolved a
 // diverged pull at the git level (remote wins for any card touched on both sides since the
-// merge-base). This preserves the pre-merge LOCAL version of each such card by re-creating it
-// as a brand new card titled "<original title> (conflicted copy)" -- the Dropbox-style
-// resolution: never a line-level merge, always both full versions kept, nothing silently lost.
-// A card whose pre-merge content can't be read/decrypted/parsed is skipped. Failure to write a
-// parsed copy is reported as an error, with the pre-merge local commit still available for
-// recovery. Returns how many conflicts were preserved as new cards.
+// merge-base). First, each such card whose two versions changed different fields is merged
+// field by field (see merge_card_versions) and saved in one commit, so card history can undo it.
+// Every other such card keeps its pre-merge LOCAL version as a brand new card titled
+// "<original title> (conflicted copy)": both full versions kept, nothing silently lost. A card
+// whose pre-merge content can't be read/decrypted/parsed is skipped. Failure to write a parsed
+// copy is reported as an error, with the pre-merge local commit still available for recovery.
+// Returns how many conflicts were preserved as new cards; merged cards are not counted.
 int resolve_pull_conflicts(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,

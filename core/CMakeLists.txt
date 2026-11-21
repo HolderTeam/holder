@@ -222,6 +222,7 @@ set(HOLDER_CORE_SOURCES
   src/resource/ResourceStore.cpp
   src/sync/ProjectSyncOperation.cpp
   src/sync/ProjectSyncPolicy.cpp
+  src/sync/CardMerge.cpp
   src/sync/PullConflictResolution.cpp
 )
 
