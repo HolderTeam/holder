@@ -210,6 +210,26 @@ class OtherMachine:
         lines = [f"title: {title}" if line.startswith("title: ") else line for line in lines]
         path.write_bytes("\n".join(lines).encode() + body)
 
+    def trash(self, card_id: str) -> None:
+        """Move a card to Trash the way Holder writes it: under trash/, with deleted_at set."""
+        path, front, body = self._split(card_id)
+        rel = path.relative_to(self.path).as_posix()
+        trash_rel = "trash/" + rel
+        now = int(time.time())
+        lines = []
+        for line in front.decode().split("\n"):
+            if line.startswith("rel_path: "):
+                line = f"rel_path: {trash_rel}"
+            elif line.startswith("deleted_at: "):
+                line = f"deleted_at: {now}"
+            elif line.startswith("updated_at: "):
+                line = f"updated_at: {now}"
+            lines.append(line)
+        (self.path / trash_rel).parent.mkdir(parents=True, exist_ok=True)
+        git("mv", rel, trash_rel, cwd=self.path)
+        (self.path / trash_rel).write_bytes("\n".join(lines).encode() + body)
+        git("add", trash_rel, cwd=self.path)
+
     def push(self, message: str) -> None:
         git("commit", "--quiet", "-am", message, cwd=self.path)
         result = subprocess.run(["git", *GIT_IDENTITY, "push", "--quiet"], cwd=self.path,
@@ -396,6 +416,15 @@ def trash_remote(ctx: Context) -> None:
     ctx.other.push("Edit Loose idea elsewhere")
 
 
+def edit_local(ctx: Context) -> None:
+    ctx.cards["card"].update(content="An idea to file, edited on this machine.\n")
+
+
+def trashed_remote(ctx: Context) -> None:
+    ctx.other.trash(ctx.cards["card"].id)
+    ctx.other.push("Delete card Loose idea")
+
+
 SCENARIOS = [
     Scenario("basic", "Both sides edit the text; the other machine also renames the card.",
              one_card, basic_local, basic_remote),
@@ -422,6 +451,9 @@ SCENARIOS = [
              extras, link_local, extras_remote, copies=0),
     Scenario("trash-vs-edit", "This machine moves the card to Trash; the other edits it. "
              "The edited card stays live.", move_build, trash_local, trash_remote, copies=0),
+    Scenario("edit-vs-trash", "This machine edits the card; the other moves it to Trash. "
+             "The card is restored with the edit.", move_build, edit_local, trashed_remote,
+             copies=0),
 ]
 BY_NAME = {s.name: s for s in SCENARIOS}
 

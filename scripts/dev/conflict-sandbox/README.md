@@ -44,7 +44,7 @@ These end in a conflict copy to compare:
 | `both-move` | Both machines moved the card to different places. |
 
 These end without a copy: the two machines changed different parts of the card, or (for
-`trash-vs-edit`) Holder keeps the edited version:
+`trash-vs-edit` and `edit-vs-trash`) Holder keeps the edited version:
 
 | Name | What happened |
 | --- | --- |
@@ -53,6 +53,7 @@ These end without a copy: the two machines changed different parts of the card, 
 | `title-vs-body` | This machine renamed the card; the other added a paragraph. |
 | `link-vs-edit` | This machine added a link; the other edited the text. |
 | `trash-vs-edit` | This machine moved the card to Trash while the other edited it. The edited card stays live and out of Trash, so it can be trashed again. |
+| `edit-vs-trash` | This machine edited the card while the other moved it to Trash. The card comes back out of Trash with this machine's edit. |
 
 Setup flags any scenario whose outcome differs from this and exits nonzero, so it doubles as a
 quick check of the merge rules against a daemon build.

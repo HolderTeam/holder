@@ -14,6 +14,8 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <set>
@@ -89,34 +91,6 @@ int resolve_pull_conflicts(
       diverged.remote_oid_hex
   );
 
-  // This device moved a card to Trash while the other device edited it. The merge kept the
-  // other device's edited file at the live path and also wrote this device's copy in Trash,
-  // leaving the card twice. Keep the edited card live and drop the Trash move, so nothing
-  // written on the other device is lost; the card can be moved to Trash again.
-  std::vector<std::string> kept_live_paths;
-  for (const auto& path : merge_result.conflicted_paths) {
-    const auto id = std::filesystem::path(path).stem().string();
-    if (!holder::identity::is_valid_uuid(id) || path != holder::core::card_rel_path(id)) continue;
-    const auto trash_path = holder::core::card_trash_rel_path(id);
-    if (git.read_blob_at(diverged.local_oid_hex, path).has_value() ||
-        !git.read_blob_at(diverged.remote_oid_hex, path).has_value() ||
-        !git.read_blob_at(diverged.local_oid_hex, trash_path).has_value() ||
-        git.read_blob_at(diverged.remote_oid_hex, trash_path).has_value())
-      continue;
-    const auto trash_file = git.repo_dir() / trash_path;
-    if (!std::filesystem::exists(trash_file)) continue;
-    std::filesystem::remove(trash_file);
-    git.remove_path(trash_path);
-    kept_live_paths.push_back(path);
-  }
-  if (!kept_live_paths.empty()) {
-    git.commit(
-        kept_live_paths.size() == 1 ? "Keep 1 card edited on another device out of Trash"
-                                    : "Keep " + std::to_string(kept_live_paths.size()) +
-                                          " cards edited on another device out of Trash"
-    );
-  }
-
   const bool encrypted = project.privacy_mode == "encrypted_git" &&
                          project.project_key_id.has_value();
   // A version that cannot be read or decrypted is treated as missing: the card keeps today's
@@ -145,10 +119,154 @@ int resolve_pull_conflicts(
            card.body;
   };
 
+  // This device moved a card to Trash while the other device edited it. The merge kept the
+  // other device's edited file at the live path and also wrote this device's copy in Trash,
+  // leaving the card twice. Keep the edited card live and drop the Trash move, so nothing
+  // written on the other device is lost; the card can be moved to Trash again.
+  std::vector<std::string> kept_live_paths;
+  for (const auto& path : merge_result.conflicted_paths) {
+    const auto id = std::filesystem::path(path).stem().string();
+    if (!holder::identity::is_valid_uuid(id) || path != holder::core::card_rel_path(id)) continue;
+    const auto trash_path = holder::core::card_trash_rel_path(id);
+    if (git.read_blob_at(diverged.local_oid_hex, path).has_value() ||
+        !git.read_blob_at(diverged.remote_oid_hex, path).has_value() ||
+        !git.read_blob_at(diverged.local_oid_hex, trash_path).has_value() ||
+        git.read_blob_at(diverged.remote_oid_hex, trash_path).has_value())
+      continue;
+    const auto trash_file = git.repo_dir() / trash_path;
+    if (!std::filesystem::exists(trash_file)) continue;
+    std::filesystem::remove(trash_file);
+    git.remove_path(trash_path);
+    kept_live_paths.push_back(path);
+  }
+  if (!kept_live_paths.empty()) {
+    git.commit(
+        kept_live_paths.size() == 1 ? "Keep 1 card edited on another device out of Trash"
+                                    : "Keep " + std::to_string(kept_live_paths.size()) +
+                                          " cards edited on another device out of Trash"
+    );
+  }
+
+  // The other device moved a card to Trash while this device edited it. The merge kept the
+  // other device's side, so the card sits in Trash and the edit is only in this device's
+  // history. Take the card back out of Trash with the edit, as Restore would, so nothing
+  // written on this device is lost; it can be moved to Trash again. The two versions are
+  // combined field by field, so a change the other device made before moving the card is kept
+  // too. When those changes clash, the card stays in Trash and this device's version becomes a
+  // conflict copy instead.
+  struct Restoration {
+    std::string path;
+    std::string trash_path;
+    holder::core::ParsedCardFile card;
+  };
+  std::vector<Restoration> restorations;
+  std::set<std::string> handled_paths;
+  for (const auto& path : merge_result.conflicted_paths) {
+    const auto id = std::filesystem::path(path).stem().string();
+    if (!holder::identity::is_valid_uuid(id) || path != holder::core::card_rel_path(id)) continue;
+    const auto trash_path = holder::core::card_trash_rel_path(id);
+    if (!git.read_blob_at(diverged.local_oid_hex, path).has_value() ||
+        git.read_blob_at(diverged.remote_oid_hex, path).has_value() ||
+        git.read_blob_at(diverged.local_oid_hex, trash_path).has_value() ||
+        !std::filesystem::exists(git.repo_dir() / trash_path))
+      continue;
+    const auto base = read_version(merge_result.merge_base_oid_hex, path);
+    const auto local = read_version(diverged.local_oid_hex, path);
+    const auto trashed = read_version(diverged.remote_oid_hex, trash_path);
+    if (!base || !local || !trashed || local->card.card_id != id || base->card.deleted_at ||
+        local->card.deleted_at || !trashed->card.deleted_at)
+      continue;
+    auto remote = *trashed;
+    remote.card.deleted_at.reset();
+    remote.card.rel_path = path;
+    auto merged = merge_card_versions(*base, *local, remote);
+    if (!merged) continue;
+    merged->card.updated_at = std::max(merged->card.updated_at, now);
+    restorations.push_back({path, trash_path, std::move(*merged)});
+    handled_paths.insert(path);
+  }
+  if (!restorations.empty()) {
+    std::map<std::string, const holder::core::ParsedCardFile*> restored_by_id;
+    for (const auto& restoration : restorations)
+      restored_by_id.emplace(restoration.card.card.card_id, &restoration.card);
+    // A card as it now stands in the working tree, live or in Trash; nullopt when missing.
+    const auto current_card = [&](const std::string& card_id
+                              ) -> std::optional<holder::core::ParsedCardFile> {
+      if (const auto restored = restored_by_id.find(card_id); restored != restored_by_id.end())
+        return *restored->second;
+      for (const auto& rel :
+           {holder::core::card_rel_path(card_id), holder::core::card_trash_rel_path(card_id)}) {
+        std::ifstream input(git.repo_dir() / rel, std::ios::binary);
+        if (!input.is_open()) continue;
+        const std::string raw{
+            std::istreambuf_iterator<char>(input),
+            std::istreambuf_iterator<char>()
+        };
+        try {
+          auto parsed = holder::core::parse_card_file(
+              encrypted ? holder::privacy::decrypt_project_blob(
+                              project.project_id,
+                              *project.project_key_id,
+                              raw
+                          )
+                        : raw
+          );
+          if (parsed.has_front_matter && parsed.card.card_id == card_id) return parsed;
+        } catch (const std::exception&) {
+        }
+        return std::nullopt;
+      }
+      return std::nullopt;
+    };
+    // Like Restore: the card goes under its nearest ancestor that is not in Trash, or to the top
+    // level, since the other device may have moved its parent to Trash too.
+    const auto reachable_parent = [&](const holder::core::ParsedCardFile& card) {
+      std::set<std::string> visited{card.card.card_id};
+      std::optional<std::string> candidate;
+      auto next = card.card.parent_card_id;
+      while (next) {
+        if (!visited.insert(*next).second) return std::optional<std::string>{};
+        const auto ancestor = current_card(*next);
+        if (!ancestor) return std::optional<std::string>{};
+        if (ancestor->card.deleted_at) {
+          candidate.reset();
+        } else if (!candidate) {
+          candidate = ancestor->card.card_id;
+        }
+        next = ancestor->card.parent_card_id;
+      }
+      return candidate;
+    };
+    std::vector<std::string> restored_paths;
+    for (auto& restoration : restorations) {
+      restoration.card.card.parent_card_id = reachable_parent(restoration.card);
+      const auto plain = render(restoration.card);
+      git.write_file(
+          restoration.path,
+          encrypted ? holder::privacy::encrypt_project_blob(
+                          project.project_id,
+                          *project.project_key_id,
+                          plain
+                      )
+                    : plain
+      );
+      git.stage_path(restoration.path);
+      std::filesystem::remove(git.repo_dir() / restoration.trash_path);
+      git.remove_path(restoration.trash_path);
+      restored_paths.push_back(restoration.path);
+    }
+    if (encrypted)
+      holder::privacy::assert_encryption_index_paths_safe(project.root_path, restored_paths);
+    git.commit(
+        restored_paths.size() == 1 ? "Restore 1 card edited here that another device moved to Trash"
+                                   : "Restore " + std::to_string(restored_paths.size()) +
+                                         " cards edited here that another device moved to Trash"
+    );
+  }
+
   // Cards whose two versions combine field by field are saved as one merged card instead of
   // a conflict copy, in a commit of their own so card history can undo the merge.
   std::vector<std::string> merged_paths;
-  std::set<std::string> handled_paths;
   for (const auto& path : merge_result.conflicted_paths) {
     const auto id = std::filesystem::path(path).stem().string();
     if (!holder::identity::is_valid_uuid(id) || path != holder::core::card_rel_path(id)) continue;
