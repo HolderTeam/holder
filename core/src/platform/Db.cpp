@@ -77,14 +77,14 @@ void Db::throw_sqlite(const std::string& what, int rc, sqlite3* db) {
   throw std::runtime_error(msg);
 }
 
-void Db::open(const std::filesystem::path& path) {
+void Db::open(const std::filesystem::path& path, DbOpen mode) {
   if (db_) close();
 
   path_ = path;
   int rc = sqlite3_open_v2(
       path.string().c_str(),
       &db_,
-      SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
+      SQLITE_OPEN_READWRITE | (mode == DbOpen::CreateIfMissing ? SQLITE_OPEN_CREATE : 0),
       nullptr
   );
 

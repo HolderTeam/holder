@@ -80,7 +80,7 @@ EventService::EventService(const std::filesystem::path& database) {
       try {
         if (!feed) {
           if (database.empty()) throw std::runtime_error("No database available for change feed");
-          db.open(database);
+          db.open(database, holder::platform::DbOpen::ExistingOnly);
           db.exec("PRAGMA query_only=ON");
           feed = std::make_unique<ChangeFeed>(db, state->changes);
         } else {

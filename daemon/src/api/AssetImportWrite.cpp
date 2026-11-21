@@ -37,7 +37,7 @@ void run_import(
 ) {
   try {
     holder::platform::Db job_db;
-    job_db.open(db_path);
+    job_db.open(db_path, holder::platform::DbOpen::ExistingOnly);
     auto provider = support::storage_provider(location, binding);
     holder::resource::AssetImportService importer(
         job_db,

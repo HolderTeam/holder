@@ -6,6 +6,12 @@
 
 namespace holder::platform {
 
+// Whether opening a database may create its file. Only the owner that sets the database up may
+// create it. Any other connection opened later must fail when the file is missing: SQLite would
+// otherwise create an empty database at the path, next to the WAL and shared-memory files of the
+// database that was there, which the owner's connection is still using.
+enum class DbOpen { CreateIfMissing, ExistingOnly };
+
 class Db {
  public:
   Db() = default;
@@ -17,8 +23,8 @@ class Db {
   Db(Db&& other) noexcept;
   Db& operator=(Db&& other) noexcept;
 
-  // Opens (and creates if missing) the DB file.
-  void open(const std::filesystem::path& path);
+  // Opens the DB file, creating it when missing unless mode is ExistingOnly.
+  void open(const std::filesystem::path& path, DbOpen mode = DbOpen::CreateIfMissing);
 
   // Close explicitly (optional; destructor does it).
   void close();

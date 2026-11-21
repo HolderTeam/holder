@@ -130,7 +130,7 @@ WorkerContext make_worker_context(
     const holder::core::SerialExecutor* ai_runtime_executor
 ) {
   WorkerContext context;
-  context.db.open(root_db.path());
+  context.db.open(root_db.path(), holder::platform::DbOpen::ExistingOnly);
 
   if (root_fts != nullptr) {
     context.fts = std::make_unique<holder::index::FtsIndexer>(context.db);
