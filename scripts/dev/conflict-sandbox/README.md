@@ -1,0 +1,72 @@
+# Conflict sandbox
+
+Builds a throwaway Holder full of Git conflict copies, so you can open Desktop and try
+**Git Sync → Compare versions** without setting up two machines.
+
+```sh
+python3 scripts/dev/conflict-sandbox/sandbox.py setup     # build every scenario
+python3 scripts/dev/conflict-sandbox/sandbox.py desktop   # open Desktop on the sandbox
+python3 scripts/dev/conflict-sandbox/sandbox.py reset     # stop it and delete everything
+```
+
+On Windows use `py` instead of `python3`.
+
+## What it does
+
+Everything lives in one sandbox folder (default `<temp>/holder-conflict-sandbox`, change it
+with `--root`):
+
+- Holder's data, config, cache and state point into the sandbox through `XDG_*` variables, and
+  project keys go to files there (`HOLDER_TEST_KEYSTORE_DIR`) instead of your keyring.
+- Its own `holderd` runs on port 11599 (`--port`), started directly rather than through a system
+  service, and stops itself after four idle hours. Your real daemon on 11499 is not touched.
+- For each scenario, one plain project, `Conflict: <scenario>`, with a local bare remote in
+  `remotes/` and an "other machine" clone in `other/`.
+
+For each scenario the script pushes the starting cards, then makes a change through Holder
+(committed, not pushed) and a conflicting change by editing the card file in the other clone
+with plain Git and pushing it. Holder's pull then finds the card changed on both sides: the
+other machine's version stays as the original, and this machine's version becomes
+`<title> (conflicted copy)`.
+
+## Scenarios
+
+| Name | What to look at |
+| --- | --- |
+| `basic` | Text edited on both sides; the other machine also renamed the card. |
+| `children` | A parent and child both conflict, so the copy has a child of its own. Cleanup shows where it would move. |
+| `original-under-copy` | The original has been moved under its copy, so **Move copy to Trash** is blocked. |
+| `copy-extras` | Tags, a link and a milestone only on the copy, and another card linking to the copy. |
+| `large-diff` | 1,200 different lines on each side: too large to highlight. |
+| `crlf` | CRLF line endings, to check that highlights land on the right lines. |
+| `move-vs-edit` | This machine only moved the card; the other edited its text. Still a conflict. |
+| `identical-edit` | Both machines made the same edit. Still a conflict, with nothing highlighted. |
+
+`setup basic crlf` builds only those. `list` prints them. Running `setup` again for a scenario
+that exists asks you to `reset` first.
+
+## Options and binaries
+
+By default the script uses `daemon/build/holderctl` and `holderd` (also `Debug/`, `Release/` and
+`RelWithDebInfo/` beneath it) and `apps/desktop/gtk/build/holder-desktop`. Override them with
+`--holderctl`, `--holderd` and `--desktop`, or `HOLDER_SANDBOX_HOLDERCTL`,
+`HOLDER_SANDBOX_HOLDERD` and `HOLDER_SANDBOX_DESKTOP`. Global options go before the command:
+`sandbox.py --root /tmp/sbx setup`.
+
+It needs `git` on `PATH` and Python 3.11+ with `httpx`, `attrs` and `typing-extensions`. It
+uses the Holder Python library from this checkout if it isn't installed.
+
+To use `holderctl` or your own scripts against the sandbox, load its environment:
+
+```sh
+eval "$(python3 scripts/dev/conflict-sandbox/sandbox.py env)"      # bash/zsh
+python3 scripts/dev/conflict-sandbox/sandbox.py env | Invoke-Expression   # PowerShell
+```
+
+## Troubleshooting
+
+- **"The other machine's push was rejected"**: the sandbox daemon's background sync pushed
+  first. Run `reset` and `setup` again.
+- **The daemon will not start**: check that port 11599 is free, or pass another `--port`. The
+  start log is in `<root>/cache/holder/`.
+- `reset` deletes only folders this script created (marked with `.holder-conflict-sandbox`).
