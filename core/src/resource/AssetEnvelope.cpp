@@ -160,6 +160,12 @@ FileDigest digest_file(const std::filesystem::path& path) {
   return {size, hash.finish()};
 }
 
+std::string digest_bytes(std::string_view bytes) {
+  Sha256 hash;
+  hash.update(bytes.data(), bytes.size());
+  return hash.finish();
+}
+
 StagedAsset stage_asset_file(
     const std::filesystem::path& source,
     const std::filesystem::path& destination,

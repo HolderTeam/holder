@@ -322,7 +322,10 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
             throw new ApiError.PROTOCOL("Missing data for card response");
         }
 
-        var data = root.get_object_member("data");
+        return parse_card_detail_data(root.get_object_member("data"));
+    }
+
+    internal static CardDetail parse_card_detail_data(Json.Object data) {
         string[] tags = {};
         if (data.has_member("tags")) {
             var tags_data = data.get_array_member("tags");

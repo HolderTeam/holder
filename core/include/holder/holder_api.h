@@ -515,6 +515,18 @@ typedef struct holder_recovery_token_import_request {
   const char* recovery_token; /* Serialized .hrk token JSON. */
 } holder_recovery_token_import_request;
 
+/* Title and body to keep on the original card. */
+typedef struct holder_conflict_resolution {
+  const char* review_token; /* The token returned with the reviewed comparison. */
+  const char* title; /* The replacement title. */
+  const char* content; /* The replacement card content, which can be empty. */
+} holder_conflict_resolution;
+
+/* Confirmation of the cleanup effects returned when the resolution was saved. */
+typedef struct holder_trash_conflict_copy_request {
+  const char* cleanup_token; /* The token returned with the cleanup review. */
+} holder_trash_conflict_copy_request;
+
 /* How to push. */
 typedef struct holder_push_options {
   const char* branch; /* The branch to push; omit for the repository's default. NULL when absent. */
@@ -1241,6 +1253,11 @@ typedef struct holder_card_summary {
                                 trash. May be NULL. */
 } holder_card_summary;
 
+typedef struct holder_card_summary_list {
+  const holder_card_summary* items;
+  size_t count;
+} holder_card_summary_list;
+
 /* A local card version preserved during a divergent pull. */
 typedef struct holder_conflict_copy {
   const char*
@@ -1285,6 +1302,56 @@ typedef struct holder_sync_state {
       conflict_copies; /* Live copies with a durable original association, newest first. Omitted
                           when there are none. NULL when absent. */
 } holder_sync_state;
+
+/* A highlighted line in a conflict comparison. */
+typedef struct holder_conflict_changed_line {
+  int32_t line; /* The one-based line number within this card's content. */
+} holder_conflict_changed_line;
+
+typedef struct holder_conflict_changed_line_list {
+  const holder_conflict_changed_line* items;
+  size_t count;
+} holder_conflict_changed_line_list;
+
+/* The two live cards in a recorded conflict pair, read together for review. */
+typedef struct holder_conflict_comparison {
+  holder_card original; /* The current state of the original card. */
+  holder_card copy_card; /* The current state of the preserved copy. */
+  holder_conflict_changed_line_list original_changed_lines; /* One-based lines of the original's
+                                                               content that differ from the copy. */
+  holder_conflict_changed_line_list
+      copy_changed_lines; /* One-based lines of the copy's content that differ from the original. */
+  bool truncated; /* Whether the bounded diff could only highlight part of the change. */
+  const char* review_token; /* An opaque token for both reviewed versions, required when saving a
+                               resolution. */
+} holder_conflict_comparison;
+
+/* What stays on the preserved copy or is affected if the copy moves to Trash. */
+typedef struct holder_conflict_copy_cleanup_review {
+  const char* cleanup_token; /* An opaque token for the saved result, preserved copy, and the
+                                reviewed cleanup effects. */
+  holder_link_list
+      copy_links; /* Outgoing links and attachments without an equivalent on the original. */
+  holder_milestone_list copy_milestones; /* Milestones without an equivalent kind, description and
+                                            dates on the original. */
+  holder_link_list backlinks; /* Live links on this device that point to the copy itself. */
+  holder_card_summary_list
+      children; /* Live children that would move up a level using the normal Trash behavior. */
+  const holder_card_summary* promotion_parent; /* Where children of the copy would move, or null for
+                                                  the project root. May be NULL. */
+  bool placement_differs; /* Whether the parent or position of the copy differs from that of the
+                             original. */
+  bool preserves_original; /* Whether moving the copy to Trash can leave the original's placement
+                              untouched. */
+  holder_string_list copy_tags; /* Tags present on the copy and absent from the saved original. */
+} holder_conflict_copy_cleanup_review;
+
+/* The durably saved original and a review for optional cleanup. */
+typedef struct holder_conflict_resolution_result {
+  holder_card card; /* The original after saving. */
+  holder_conflict_copy_cleanup_review
+      cleanup; /* The copy and effects to review before moving it to Trash. */
+} holder_conflict_resolution_result;
 
 /* How the pull ended. */
 typedef enum holder_pull_phase_status {
@@ -2666,6 +2733,58 @@ int holder_get_project_sync_state(
     const char* project_id,
     holder_arena* arena,
     const holder_sync_state** out_sync_state,
+    holder_error** out_error
+);
+
+/* Compare a preserved copy with its recorded original.
+ * Reads both saved cards together. A missing association, an original or copy in Trash, or a card
+ * that no longer exists is NotFound. A pair changed during the read is Conflict. The operation does
+ * not change either card. Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT,
+ * HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_compare_conflict_copy(
+    holder_context* context,
+    const char* project_id,
+    const char* copy_id,
+    holder_arena* arena,
+    const holder_conflict_comparison** out_conflict_comparison,
+    holder_error** out_error
+);
+
+/* Save reviewed text to the original card without changing the preserved copy.
+ * Holder verifies the token against both live cards before changing anything. A stale token is
+ * Conflict. A missing association or a card that is missing or in Trash is NotFound. Changes
+ * to the title and content make a new Git commit. The original's identity, hierarchy, links and
+ * milestones are retained. Saving the existing title and content makes no commit. The result
+ * includes a review for optional cleanup of the preserved copy.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_resolve_conflict_copy(
+    holder_context* context,
+    const char* project_id,
+    const char* copy_id,
+    const holder_conflict_resolution* resolution,
+    holder_arena* arena,
+    const holder_conflict_resolution_result** out_conflict_resolution_result,
+    holder_error** out_error
+);
+
+/* Move a reviewed conflict copy to Trash after choosing a result.
+ * Holder verifies the cleanup token against both live cards and the reviewed effects.
+ * A stale token or cleanup that would move the original is Conflict. A missing association
+ * or a card missing or in Trash is NotFound.
+ * The original is untouched. The copy can be restored and its live children move up a level.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_trash_conflict_copy(
+    holder_context* context,
+    const char* project_id,
+    const char* copy_id,
+    const holder_trash_conflict_copy_request* confirmation,
+    holder_arena* arena,
+    const holder_card_metadata** out_card_metadata,
     holder_error** out_error
 );
 

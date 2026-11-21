@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 namespace holder::resource {
 
@@ -19,6 +20,7 @@ struct StagedAsset {
 };
 
 FileDigest digest_file(const std::filesystem::path& path);
+std::string digest_bytes(std::string_view bytes);
 
 StagedAsset stage_asset_file(
     const std::filesystem::path& source,

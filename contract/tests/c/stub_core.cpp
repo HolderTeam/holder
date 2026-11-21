@@ -507,6 +507,25 @@ SyncState get_project_sync_state(holder_context& context, std::string project_id
   return state;
 }
 
+ConflictComparison compare_conflict_copy(holder_context& context, std::string project_id, std::string) {
+  project_named(context, project_id);
+  throw NotFound("card is not a preserved conflict copy");
+}
+
+ConflictResolutionResult resolve_conflict_copy(
+    holder_context& context, std::string project_id, std::string, const ConflictResolution&
+) {
+  project_named(context, project_id);
+  throw NotFound("card is not a preserved conflict copy");
+}
+
+CardMetadata trash_conflict_copy(
+    holder_context& context, std::string project_id, std::string, const TrashConflictCopyRequest&
+) {
+  project_named(context, project_id);
+  throw NotFound("card is not a preserved conflict copy");
+}
+
 SyncResult no_remote(holder_context& context, const std::string& project_id, bool pull, bool push) {
   project_named(context, project_id);
   return {project_id,

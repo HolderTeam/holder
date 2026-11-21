@@ -224,6 +224,7 @@ sources = [
   'src/views/adapters/card_action_dialog.vala',
   'src/views/adapters/project_create_dialog.vala',
   'src/views/adapters/recovery_dialog.vala',
+  'src/views/adapters/conflict_comparison_dialog.vala',
   'src/views/components/signal_scope.vala',
   'src/views/adapters/window_sidebar_events.vala',
   'src/views/adapters/window_selection_editor_events.vala',
@@ -4036,6 +4037,12 @@ app_views_test_groups = {
   'toolbox': '/app_views/toolbox',
   'workspace': '/app_views/workspace',
   'window': '/app_views/window',
+  'conflict-discard-draft': '/app_views/conflict_comparison/discard_draft',
+  'conflict-keep-original': '/app_views/conflict_comparison/keep_original',
+  'conflict-save-result': '/app_views/conflict_comparison/save_result',
+  'conflict-open-copy': '/app_views/conflict_comparison/open_copy',
+  'conflict-stale-cleanup': '/app_views/conflict_comparison/stale_cleanup',
+  'conflict-trash-copy': '/app_views/conflict_comparison/trash_copy',
   'lifetime': '/app-views/lifetime',
 }
 if terminal_backend == 'vte'

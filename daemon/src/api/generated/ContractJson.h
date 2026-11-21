@@ -1040,6 +1040,22 @@ template <> struct codec<holder::contract::SyncState> {
   static json encode(const holder::contract::SyncState& value);
   static holder::contract::SyncState decode(const json& value);
 };
+template <> struct codec<holder::contract::ConflictChangedLine> {
+  static json encode(const holder::contract::ConflictChangedLine& value);
+  static holder::contract::ConflictChangedLine decode(const json& value);
+};
+template <> struct codec<holder::contract::ConflictComparison> {
+  static json encode(const holder::contract::ConflictComparison& value);
+  static holder::contract::ConflictComparison decode(const json& value);
+};
+template <> struct codec<holder::contract::ConflictCopyCleanupReview> {
+  static json encode(const holder::contract::ConflictCopyCleanupReview& value);
+  static holder::contract::ConflictCopyCleanupReview decode(const json& value);
+};
+template <> struct codec<holder::contract::ConflictResolutionResult> {
+  static json encode(const holder::contract::ConflictResolutionResult& value);
+  static holder::contract::ConflictResolutionResult decode(const json& value);
+};
 template <> struct codec<holder::contract::PullPhase> {
   static json encode(const holder::contract::PullPhase& value);
   static holder::contract::PullPhase decode(const json& value);
@@ -1207,6 +1223,14 @@ template <> struct codec<holder::contract::RecoveryTokenExportRequest> {
 template <> struct codec<holder::contract::RecoveryTokenImportRequest> {
   static json encode(const holder::contract::RecoveryTokenImportRequest& value);
   static holder::contract::RecoveryTokenImportRequest decode(const json& value);
+};
+template <> struct codec<holder::contract::ConflictResolution> {
+  static json encode(const holder::contract::ConflictResolution& value);
+  static holder::contract::ConflictResolution decode(const json& value);
+};
+template <> struct codec<holder::contract::TrashConflictCopyRequest> {
+  static json encode(const holder::contract::TrashConflictCopyRequest& value);
+  static holder::contract::TrashConflictCopyRequest decode(const json& value);
 };
 template <> struct codec<holder::contract::PushOptions> {
   static json encode(const holder::contract::PushOptions& value);
@@ -4698,6 +4722,232 @@ inline holder::contract::SyncState codec<holder::contract::SyncState>::decode(co
   return out;
 }
 
+inline json codec<holder::contract::ConflictChangedLine>::encode(
+    const holder::contract::ConflictChangedLine& value
+) {
+  json result = json::object();
+  result["line"] = codec<std::int32_t>::encode(value.line);
+  return result;
+}
+inline holder::contract::ConflictChangedLine codec<holder::contract::ConflictChangedLine>::decode(
+    const json& value
+) {
+  if (!value.is_object()) throw std::invalid_argument("expected a ConflictChangedLine object");
+  for (auto it = value.begin(); it != value.end(); ++it)
+    if (it.key() != "line")
+      throw std::invalid_argument("ConflictChangedLine has no field " + it.key());
+  holder::contract::ConflictChangedLine out;
+  if (value.contains("line") && !value.at("line").is_null()) {
+    const auto& item = value.at("line");
+    out.line = check_range<std::int32_t>(
+        decode_field<std::int32_t>(item, "line"),
+        "line",
+        1,
+        std::numeric_limits<std::int32_t>::max()
+    );
+  } else {
+    throw std::invalid_argument("line is required and must not be null");
+  }
+  return out;
+}
+
+inline json codec<holder::contract::ConflictComparison>::encode(
+    const holder::contract::ConflictComparison& value
+) {
+  json result = json::object();
+  result["original"] = codec<holder::contract::Card>::encode(value.original);
+  result["copy_card"] = codec<holder::contract::Card>::encode(value.copy_card);
+  result["original_changed_lines"] =
+      codec<std::vector<holder::contract::ConflictChangedLine>>::encode(value.original_changed_lines
+      );
+  result["copy_changed_lines"] = codec<std::vector<holder::contract::ConflictChangedLine>>::encode(
+      value.copy_changed_lines
+  );
+  result["truncated"] = codec<bool>::encode(value.truncated);
+  result["review_token"] = codec<std::string>::encode(value.review_token);
+  return result;
+}
+inline holder::contract::ConflictComparison codec<holder::contract::ConflictComparison>::decode(
+    const json& value
+) {
+  if (!value.is_object()) throw std::invalid_argument("expected a ConflictComparison object");
+  for (auto it = value.begin(); it != value.end(); ++it)
+    if (it.key() != "original" && it.key() != "copy_card" && it.key() != "original_changed_lines" &&
+        it.key() != "copy_changed_lines" && it.key() != "truncated" && it.key() != "review_token")
+      throw std::invalid_argument("ConflictComparison has no field " + it.key());
+  holder::contract::ConflictComparison out;
+  if (value.contains("original") && !value.at("original").is_null()) {
+    const auto& item = value.at("original");
+    out.original = codec<holder::contract::Card>::decode(item);
+  } else {
+    throw std::invalid_argument("original is required and must not be null");
+  }
+  if (value.contains("copy_card") && !value.at("copy_card").is_null()) {
+    const auto& item = value.at("copy_card");
+    out.copy_card = codec<holder::contract::Card>::decode(item);
+  } else {
+    throw std::invalid_argument("copy_card is required and must not be null");
+  }
+  if (value.contains("original_changed_lines") && !value.at("original_changed_lines").is_null()) {
+    const auto& item = value.at("original_changed_lines");
+    out.original_changed_lines = decode_field<std::vector<holder::contract::ConflictChangedLine>>(
+        item,
+        "original_changed_lines"
+    );
+  } else {
+    throw std::invalid_argument("original_changed_lines is required and must not be null");
+  }
+  if (value.contains("copy_changed_lines") && !value.at("copy_changed_lines").is_null()) {
+    const auto& item = value.at("copy_changed_lines");
+    out.copy_changed_lines = decode_field<std::vector<holder::contract::ConflictChangedLine>>(
+        item,
+        "copy_changed_lines"
+    );
+  } else {
+    throw std::invalid_argument("copy_changed_lines is required and must not be null");
+  }
+  if (value.contains("truncated") && !value.at("truncated").is_null()) {
+    const auto& item = value.at("truncated");
+    out.truncated = decode_field<bool>(item, "truncated");
+  } else {
+    throw std::invalid_argument("truncated is required and must not be null");
+  }
+  if (value.contains("review_token") && !value.at("review_token").is_null()) {
+    const auto& item = value.at("review_token");
+    out.review_token = check_text(
+        decode_field<std::string>(item, "review_token"),
+        "review_token",
+        0,
+        std::numeric_limits<std::size_t>::max()
+    );
+  } else {
+    throw std::invalid_argument("review_token is required and must not be null");
+  }
+  return out;
+}
+
+inline json codec<holder::contract::ConflictCopyCleanupReview>::encode(
+    const holder::contract::ConflictCopyCleanupReview& value
+) {
+  json result = json::object();
+  result["cleanup_token"] = codec<std::string>::encode(value.cleanup_token);
+  result["copy_links"] = codec<std::vector<holder::contract::Link>>::encode(value.copy_links);
+  result["copy_milestones"] = codec<std::vector<holder::contract::Milestone>>::encode(
+      value.copy_milestones
+  );
+  result["backlinks"] = codec<std::vector<holder::contract::Link>>::encode(value.backlinks);
+  result["children"] = codec<std::vector<holder::contract::CardSummary>>::encode(value.children);
+  result["promotion_parent"] =
+      value.promotion_parent ? codec<holder::contract::CardSummary>::encode(*value.promotion_parent)
+                             : json(nullptr);
+  result["placement_differs"] = codec<bool>::encode(value.placement_differs);
+  result["preserves_original"] = codec<bool>::encode(value.preserves_original);
+  result["copy_tags"] = codec<std::vector<std::string>>::encode(value.copy_tags);
+  return result;
+}
+inline holder::contract::ConflictCopyCleanupReview codec<
+    holder::contract::ConflictCopyCleanupReview>::decode(const json& value) {
+  if (!value.is_object())
+    throw std::invalid_argument("expected a ConflictCopyCleanupReview object");
+  for (auto it = value.begin(); it != value.end(); ++it)
+    if (it.key() != "cleanup_token" && it.key() != "copy_links" && it.key() != "copy_milestones" &&
+        it.key() != "backlinks" && it.key() != "children" && it.key() != "promotion_parent" &&
+        it.key() != "placement_differs" && it.key() != "preserves_original" &&
+        it.key() != "copy_tags")
+      throw std::invalid_argument("ConflictCopyCleanupReview has no field " + it.key());
+  holder::contract::ConflictCopyCleanupReview out;
+  if (value.contains("cleanup_token") && !value.at("cleanup_token").is_null()) {
+    const auto& item = value.at("cleanup_token");
+    out.cleanup_token = check_text(
+        decode_field<std::string>(item, "cleanup_token"),
+        "cleanup_token",
+        0,
+        std::numeric_limits<std::size_t>::max()
+    );
+  } else {
+    throw std::invalid_argument("cleanup_token is required and must not be null");
+  }
+  if (value.contains("copy_links") && !value.at("copy_links").is_null()) {
+    const auto& item = value.at("copy_links");
+    out.copy_links = decode_field<std::vector<holder::contract::Link>>(item, "copy_links");
+  } else {
+    throw std::invalid_argument("copy_links is required and must not be null");
+  }
+  if (value.contains("copy_milestones") && !value.at("copy_milestones").is_null()) {
+    const auto& item = value.at("copy_milestones");
+    out.copy_milestones =
+        decode_field<std::vector<holder::contract::Milestone>>(item, "copy_milestones");
+  } else {
+    throw std::invalid_argument("copy_milestones is required and must not be null");
+  }
+  if (value.contains("backlinks") && !value.at("backlinks").is_null()) {
+    const auto& item = value.at("backlinks");
+    out.backlinks = decode_field<std::vector<holder::contract::Link>>(item, "backlinks");
+  } else {
+    throw std::invalid_argument("backlinks is required and must not be null");
+  }
+  if (value.contains("children") && !value.at("children").is_null()) {
+    const auto& item = value.at("children");
+    out.children = decode_field<std::vector<holder::contract::CardSummary>>(item, "children");
+  } else {
+    throw std::invalid_argument("children is required and must not be null");
+  }
+  if (value.contains("promotion_parent") && !value.at("promotion_parent").is_null()) {
+    const auto& item = value.at("promotion_parent");
+    out.promotion_parent = codec<holder::contract::CardSummary>::decode(item);
+  }
+  if (value.contains("placement_differs") && !value.at("placement_differs").is_null()) {
+    const auto& item = value.at("placement_differs");
+    out.placement_differs = decode_field<bool>(item, "placement_differs");
+  } else {
+    throw std::invalid_argument("placement_differs is required and must not be null");
+  }
+  if (value.contains("preserves_original") && !value.at("preserves_original").is_null()) {
+    const auto& item = value.at("preserves_original");
+    out.preserves_original = decode_field<bool>(item, "preserves_original");
+  } else {
+    throw std::invalid_argument("preserves_original is required and must not be null");
+  }
+  if (value.contains("copy_tags") && !value.at("copy_tags").is_null()) {
+    const auto& item = value.at("copy_tags");
+    out.copy_tags =
+        check_text_items(decode_field<std::vector<std::string>>(item, "copy_tags"), "copy_tags");
+  } else {
+    throw std::invalid_argument("copy_tags is required and must not be null");
+  }
+  return out;
+}
+
+inline json codec<holder::contract::ConflictResolutionResult>::encode(
+    const holder::contract::ConflictResolutionResult& value
+) {
+  json result = json::object();
+  result["card"] = codec<holder::contract::Card>::encode(value.card);
+  result["cleanup"] = codec<holder::contract::ConflictCopyCleanupReview>::encode(value.cleanup);
+  return result;
+}
+inline holder::contract::ConflictResolutionResult codec<
+    holder::contract::ConflictResolutionResult>::decode(const json& value) {
+  if (!value.is_object()) throw std::invalid_argument("expected a ConflictResolutionResult object");
+  for (auto it = value.begin(); it != value.end(); ++it)
+    if (it.key() != "card" && it.key() != "cleanup")
+      throw std::invalid_argument("ConflictResolutionResult has no field " + it.key());
+  holder::contract::ConflictResolutionResult out;
+  if (value.contains("card") && !value.at("card").is_null()) {
+    const auto& item = value.at("card");
+    out.card = codec<holder::contract::Card>::decode(item);
+  } else {
+    throw std::invalid_argument("card is required and must not be null");
+  }
+  if (value.contains("cleanup") && !value.at("cleanup").is_null()) {
+    const auto& item = value.at("cleanup");
+    out.cleanup = codec<holder::contract::ConflictCopyCleanupReview>::decode(item);
+  } else {
+    throw std::invalid_argument("cleanup is required and must not be null");
+  }
+  return out;
+}
+
 inline json codec<holder::contract::PullPhase>::encode(const holder::contract::PullPhase& value) {
   json result = json::object();
   result["attempted"] = codec<bool>::encode(value.attempted);
@@ -7218,6 +7468,79 @@ inline holder::contract::RecoveryTokenImportRequest codec<
     );
   } else {
     throw std::invalid_argument("recovery_token is required and must not be null");
+  }
+  return out;
+}
+
+inline json codec<holder::contract::ConflictResolution>::encode(
+    const holder::contract::ConflictResolution& value
+) {
+  json result = json::object();
+  result["review_token"] = codec<std::string>::encode(value.review_token);
+  result["title"] = codec<std::string>::encode(value.title);
+  result["content"] = codec<std::string>::encode(value.content);
+  return result;
+}
+inline holder::contract::ConflictResolution codec<holder::contract::ConflictResolution>::decode(
+    const json& value
+) {
+  if (!value.is_object()) throw std::invalid_argument("expected a ConflictResolution object");
+  for (auto it = value.begin(); it != value.end(); ++it)
+    if (it.key() != "review_token" && it.key() != "title" && it.key() != "content")
+      throw std::invalid_argument("ConflictResolution has no field " + it.key());
+  holder::contract::ConflictResolution out;
+  if (value.contains("review_token") && !value.at("review_token").is_null()) {
+    const auto& item = value.at("review_token");
+    out.review_token =
+        check_text(decode_field<std::string>(item, "review_token"), "review_token", 1, 256);
+  } else {
+    throw std::invalid_argument("review_token is required and must not be null");
+  }
+  if (value.contains("title") && !value.at("title").is_null()) {
+    const auto& item = value.at("title");
+    out.title = check_text(
+        decode_field<std::string>(item, "title"),
+        "title",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+  } else {
+    throw std::invalid_argument("title is required and must not be null");
+  }
+  if (value.contains("content") && !value.at("content").is_null()) {
+    const auto& item = value.at("content");
+    out.content = check_text(
+        decode_field<std::string>(item, "content"),
+        "content",
+        0,
+        std::numeric_limits<std::size_t>::max()
+    );
+  } else {
+    throw std::invalid_argument("content is required and must not be null");
+  }
+  return out;
+}
+
+inline json codec<holder::contract::TrashConflictCopyRequest>::encode(
+    const holder::contract::TrashConflictCopyRequest& value
+) {
+  json result = json::object();
+  result["cleanup_token"] = codec<std::string>::encode(value.cleanup_token);
+  return result;
+}
+inline holder::contract::TrashConflictCopyRequest codec<
+    holder::contract::TrashConflictCopyRequest>::decode(const json& value) {
+  if (!value.is_object()) throw std::invalid_argument("expected a TrashConflictCopyRequest object");
+  for (auto it = value.begin(); it != value.end(); ++it)
+    if (it.key() != "cleanup_token")
+      throw std::invalid_argument("TrashConflictCopyRequest has no field " + it.key());
+  holder::contract::TrashConflictCopyRequest out;
+  if (value.contains("cleanup_token") && !value.at("cleanup_token").is_null()) {
+    const auto& item = value.at("cleanup_token");
+    out.cleanup_token =
+        check_text(decode_field<std::string>(item, "cleanup_token"), "cleanup_token", 1, 256);
+  } else {
+    throw std::invalid_argument("cleanup_token is required and must not be null");
   }
   return out;
 }

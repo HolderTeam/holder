@@ -206,6 +206,15 @@ public interface IMilestoneApi : Object {
 }
 
 // Git history is a separate read-only capability so small API fakes need not implement it.
+public interface IConflictComparisonApi : Object {
+    public abstract async ConflictComparison compare_conflict_copy(string project_id, string copy_id) throws Error;
+    public abstract async ConflictResolutionResult resolve_conflict_copy(string project_id, string copy_id,
+                                                                         string review_token, string title,
+                                                                         string content) throws Error;
+    public abstract async void trash_conflict_copy(string project_id, string copy_id,
+                                                   string cleanup_token) throws Error;
+}
+
 public interface IHistoryApi : Object {
     public abstract async CardHistoryPage list_card_history(string project_id,
                                                             string card_id,

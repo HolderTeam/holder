@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi, IHistoryApi, IProjectHistoryApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi, IHistoryApi, IProjectHistoryApi, IConflictComparisonApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     private IApiHttpTransport transport; // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     private string base_url;
     private string auth_token;
@@ -84,6 +84,19 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
                                                           string? cursor = null,
                                                           string? kind = null) throws Error {
         return yield ApiClientCardsEndpoints.list_project_history(this, project_id, limit, cursor, kind);
+    }
+
+    public async ConflictComparison compare_conflict_copy(string project_id, string copy_id) throws Error {
+        return yield ApiClientGitEndpoints.compare_conflict_copy(this, project_id, copy_id);
+    }
+
+    public async ConflictResolutionResult resolve_conflict_copy(string project_id, string copy_id, string review_token,
+                                                               string title, string content) throws Error {
+        return yield ApiClientGitEndpoints.resolve_conflict_copy(this, project_id, copy_id, review_token, title, content);
+    }
+
+    public async void trash_conflict_copy(string project_id, string copy_id, string cleanup_token) throws Error {
+        yield ApiClientGitEndpoints.trash_conflict_copy(this, project_id, copy_id, cleanup_token);
     }
 
     public async CardHistoryComparison compare_card_history(string project_id,

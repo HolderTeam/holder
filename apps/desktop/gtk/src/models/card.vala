@@ -103,6 +103,47 @@ public class CardDetail : Object {
     }
 }
 
+public class ConflictComparison : Object {
+    public CardDetail original { get; construct; }
+    public CardDetail copy_card { get; construct; }
+    public string review_token { get; construct; }
+    public int[] original_changed_lines;
+    public int[] copy_changed_lines;
+    public bool truncated { get; construct; }
+
+    public ConflictComparison(CardDetail original, CardDetail copy_card, int[] original_changed_lines,
+                              int[] copy_changed_lines, bool truncated, string review_token) {
+        Object(original: original, copy_card: copy_card, truncated: truncated, review_token: review_token);
+        this.original_changed_lines = original_changed_lines;
+        this.copy_changed_lines = copy_changed_lines;
+    }
+}
+
+public class ConflictCopyCleanupReview : Object {
+    public string cleanup_token { get; construct; }
+    public string? promotion_parent;
+    public bool placement_differs;
+    public bool preserves_original;
+    public string[] copy_tags = {};
+    public CardLink[] copy_links = {};
+    public CardLink[] backlinks = {};
+    public string[] copy_milestones = {};
+    public string[] children = {};
+
+    public ConflictCopyCleanupReview(string cleanup_token) {
+        Object(cleanup_token: cleanup_token);
+    }
+}
+
+public class ConflictResolutionResult : Object {
+    public CardDetail card { get; construct; }
+    public ConflictCopyCleanupReview cleanup { get; construct; }
+
+    public ConflictResolutionResult(CardDetail card, ConflictCopyCleanupReview cleanup) {
+        Object(card: card, cleanup: cleanup);
+    }
+}
+
 public class CardTagOccurrence : Object {
     public string tag { get; construct; }
     public int byte_start { get; construct; }

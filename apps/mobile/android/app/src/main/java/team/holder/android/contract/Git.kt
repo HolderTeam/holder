@@ -88,6 +88,58 @@ data class SyncState(
     val conflictCopies: List<ConflictCopy>? = null,
 )
 
+/** A highlighted line in a conflict comparison. */
+data class ConflictChangedLine(
+    /** The one-based line number within this card's content. */
+    val line: Int,
+)
+
+/** The two live cards in a recorded conflict pair, read together for review. */
+data class ConflictComparison(
+    /** The current state of the original card. */
+    val original: Card,
+    /** The current state of the preserved copy. */
+    val copyCard: Card,
+    /** One-based lines of the original's content that differ from the copy. */
+    val originalChangedLines: List<ConflictChangedLine>,
+    /** One-based lines of the copy's content that differ from the original. */
+    val copyChangedLines: List<ConflictChangedLine>,
+    /** Whether the bounded diff could only highlight part of the change. */
+    val truncated: Boolean,
+    /** An opaque token for both reviewed versions, required when saving a resolution. */
+    val reviewToken: String,
+)
+
+/** What stays on the preserved copy or is affected if the copy moves to Trash. */
+data class ConflictCopyCleanupReview(
+    /** An opaque token for the saved result, preserved copy, and the reviewed cleanup effects. */
+    val cleanupToken: String,
+    /** Outgoing links and attachments without an equivalent on the original. */
+    val copyLinks: List<Link>,
+    /** Milestones without an equivalent kind, description and dates on the original. */
+    val copyMilestones: List<Milestone>,
+    /** Live links on this device that point to the copy itself. */
+    val backlinks: List<Link>,
+    /** Live children that would move up a level using the normal Trash behavior. */
+    val children: List<CardSummary>,
+    /** Where children of the copy would move, or null for the project root. */
+    val promotionParent: CardSummary? = null,
+    /** Whether the parent or position of the copy differs from that of the original. */
+    val placementDiffers: Boolean,
+    /** Whether moving the copy to Trash can leave the original's placement untouched. */
+    val preservesOriginal: Boolean,
+    /** Tags present on the copy and absent from the saved original. */
+    val copyTags: List<String>,
+)
+
+/** The durably saved original and a review for optional cleanup. */
+data class ConflictResolutionResult(
+    /** The original after saving. */
+    val card: Card,
+    /** The copy and effects to review before moving it to Trash. */
+    val cleanup: ConflictCopyCleanupReview,
+)
+
 /** What a pull did. */
 data class PullPhase(
     /** Whether a pull was tried. */
@@ -164,6 +216,22 @@ data class RemoteTestResult(
     val errorMessage: String? = null,
 )
 
+/** Title and body to keep on the original card. */
+data class ConflictResolution(
+    /** The token returned with the reviewed comparison. */
+    val reviewToken: String,
+    /** The replacement title. */
+    val title: String,
+    /** The replacement card content, which can be empty. */
+    val content: String,
+)
+
+/** Confirmation of the cleanup effects returned when the resolution was saved. */
+data class TrashConflictCopyRequest(
+    /** The token returned with the cleanup review. */
+    val cleanupToken: String,
+)
+
 /** How to push. */
 data class PushOptions(
     /** The branch to push; omit for the repository's default. */
@@ -189,6 +257,47 @@ object Git {
         contextHandle: Long,
         projectId: String,
     ): SyncState
+
+    /**
+     * Compare a preserved copy with its recorded original.
+     * Reads both saved cards together. A missing association, an original or copy in Trash, or a card
+     * that no longer exists is NotFound. A pair changed during the read is Conflict. The operation does not
+     * change either card.
+     */
+    external fun compareConflictCopy(
+        contextHandle: Long,
+        projectId: String,
+        copyId: String,
+    ): ConflictComparison
+
+    /**
+     * Save reviewed text to the original card without changing the preserved copy.
+     * Holder verifies the token against both live cards before changing anything. A stale token is
+     * Conflict. A missing association or a card that is missing or in Trash is NotFound. Changes
+     * to the title and content make a new Git commit. The original's identity, hierarchy, links and
+     * milestones are retained. Saving the existing title and content makes no commit. The result
+     * includes a review for optional cleanup of the preserved copy.
+     */
+    external fun resolveConflictCopy(
+        contextHandle: Long,
+        projectId: String,
+        copyId: String,
+        resolution: ConflictResolution,
+    ): ConflictResolutionResult
+
+    /**
+     * Move a reviewed conflict copy to Trash after choosing a result.
+     * Holder verifies the cleanup token against both live cards and the reviewed effects.
+     * A stale token or cleanup that would move the original is Conflict. A missing association
+     * or a card missing or in Trash is NotFound.
+     * The original is untouched. The copy can be restored and its live children move up a level.
+     */
+    external fun trashConflictCopy(
+        contextHandle: Long,
+        projectId: String,
+        copyId: String,
+        confirmation: TrashConflictCopyRequest,
+    ): CardMetadata
 
     /**
      * Pull a project's checked-out branch from its Git remote.

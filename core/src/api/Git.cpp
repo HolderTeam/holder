@@ -6,23 +6,32 @@
 #include "api/CoreErrors.h"
 
 #include "capi/Context.h"
+#include "card/CardHierarchy.h"
+#include "card/CardPaths.h"
 #include "card/CardRepo.h"
 #include "card/LinkRepo.h"
 #include "git/GitOps.h"
 #include "git/PushResult.h"
 #include "git/RemoteProbe.h"
+#include "history/CardHistory.h"
 #include "model/ProjectSyncState.h"
 #include "privacy/ProjectPrivacy.h"
 #include "project/ProjectRepo.h"
 #include "project/ProjectSyncRepo.h"
+#include "resource/AssetEnvelope.h"
 #include "sync/ProjectSyncOperation.h"
 #include "sync/ProjectSyncPolicy.h"
 
 #include <git2.h>
+#include <nlohmann/json.hpp>
 
+#include <algorithm>
+#include <filesystem>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <utility>
 
 namespace holder::contract {
@@ -291,11 +300,215 @@ RemoteTestResult test_remote(
   };
 }
 
+ConflictComparison read_conflict_pair(
+    holder_context& context,
+    const holder::model::Project& project,
+    const std::string& copy_id
+) {
+  const auto links =
+      holder::card::LinkRepo(context.db).list_conflict_copy_links(project.project_id);
+  const auto link = std::ranges::find(links, copy_id, &holder::model::CardLink::from_card_id);
+  if (link == links.end()) throw NotFound("card is not a preserved conflict copy: " + copy_id);
+  const auto root = std::filesystem::path(project.root_path);
+  const auto card_digest = [&](const CardMetadata& card) {
+    const auto rel_path = holder::core::card_rel_path(card.card_id);
+    if (card.rel_path != rel_path || !std::filesystem::is_regular_file(root / rel_path))
+      throw NotFound("card content missing: " + card.card_id);
+    return holder::resource::digest_file(root / rel_path).sha256;
+  };
+  // The bytes contain the stable IDs, text, placement and durable links and milestones.
+  // Unrelated commits do not invalidate a reviewed pair.
+  auto token = card_digest(get_card_metadata(context, project.project_id, link->to_card_id)) + ":" +
+               card_digest(get_card_metadata(context, project.project_id, copy_id));
+  auto original = get_card(context, project.project_id, link->to_card_id);
+  auto copy = get_card(context, project.project_id, copy_id);
+  if (token != card_digest(original) + ":" + card_digest(copy))
+    throw Conflict("The conflict pair changed while being read. Review both versions again.");
+  return {std::move(original), std::move(copy), {}, {}, false, std::move(token)};
+}
+
+bool same_link(const Link& original, const Link& copy) {
+  auto target = copy.target_id;
+  if (copy.target_type == LinkTargetType::Card &&
+      copy.target_project_id == copy.source_project_id && copy.target_id == copy.source_id)
+    target = original.source_id;
+  return original.target_project_id == copy.target_project_id &&
+         original.target_type == copy.target_type && original.target_id == target &&
+         original.kind == copy.kind && original.label == copy.label;
+}
+
+bool same_milestone(const Milestone& original, const Milestone& copy) {
+  return original.kind == copy.kind && original.description == copy.description &&
+         std::ranges::is_permutation(original.dates, copy.dates, [](const auto& a, const auto& b) {
+           return std::tie(a.role, a.date, a.datetime) == std::tie(b.role, b.date, b.datetime);
+         });
+}
+
+ConflictCopyCleanupReview cleanup_review(holder_context& context, const ConflictComparison& pair) {
+  const auto& project_id = pair.original.project_id;
+  const auto& original_id = pair.original.card_id;
+  const auto& copy_id = pair.copy_card.card_id;
+  ConflictCopyCleanupReview out{};
+
+  const auto original_links = list_card_links(context, project_id, original_id, true);
+  for (auto& link : list_card_links(context, project_id, copy_id, true)) {
+    if (link.kind != holder::model::kConflictCopyLinkKind &&
+        !std::ranges::any_of(original_links, [&](const auto& other) {
+          return same_link(other, link);
+        }))
+      out.copy_links.push_back(std::move(link));
+  }
+  auto original_milestones = list_card_milestones(context, project_id, original_id);
+  for (auto& milestone : list_card_milestones(context, project_id, copy_id)) {
+    const auto equivalent = std::ranges::find_if(original_milestones, [&](const auto& other) {
+      return same_milestone(other, milestone);
+    });
+    if (equivalent == original_milestones.end())
+      out.copy_milestones.push_back(std::move(milestone));
+    else
+      original_milestones.erase(equivalent);
+  }
+  for (auto& link : list_card_backlinks(
+           context,
+           project_id,
+           copy_id,
+           ListCardBacklinksScope::AllAvailable,
+           false
+       )) {
+    if (link.source_project_id != project_id || link.source_id != copy_id)
+      out.backlinks.push_back(std::move(link));
+  }
+  for (const auto& tag : pair.copy_card.tags) {
+    if (std::ranges::find(pair.original.tags, tag) == pair.original.tags.end())
+      out.copy_tags.push_back(tag);
+  }
+
+  holder::card::CardRepo cards(context.db);
+  auto store = card_store(context);
+  const auto copy_card = live_card(store, project_id, copy_id);
+  const auto promotion_parent_id = holder::card::reachable_card_parent(cards, copy_card);
+  if (promotion_parent_id) {
+    const auto parent = live_card(store, project_id, *promotion_parent_id);
+    out.promotion_parent = CardSummary{parent.card_id, parent.title, parent.deleted_at};
+  }
+  for (const auto& child : cards.list_children(project_id, copy_id)) {
+    if (!child.deleted_at) out.children.push_back({child.card_id, child.title, child.deleted_at});
+  }
+  out.placement_differs = pair.original.parent_card_id != pair.copy_card.parent_card_id ||
+                          pair.original.sort_key != pair.copy_card.sort_key;
+  const auto placements = holder::card::promoted_card_children(cards, copy_card, 0);
+  out.preserves_original = std::ranges::none_of(placements, [&](const auto& changed) {
+    return changed.card_id == original_id;
+  });
+
+  // The pair's file digests already cover outgoing links, milestones, placement and tags.
+  // Also guard the backlinks and the placement changes that Trash would apply to other cards.
+  using nlohmann::json;
+  auto effects = json::array();
+  effects.push_back({"conflict-copy-cleanup", project_id, original_id, copy_id, pair.review_token});
+  if (out.promotion_parent)
+    effects.push_back({out.promotion_parent->card_id, out.promotion_parent->title});
+  for (const auto& changed : placements) {
+    effects.push_back({changed.card_id, changed.title, changed.sort_key});
+  }
+  for (const auto& link : out.backlinks) {
+    effects.push_back(
+        {link.source_project_id,
+         link.source_type,
+         link.source_id,
+         link.kind,
+         link.label ? json(*link.label) : json(nullptr),
+         link.created_at}
+    );
+  }
+  out.cleanup_token = holder::resource::digest_bytes(effects.dump());
+  return out;
+}
+
 } // namespace
 
 SyncState get_project_sync_state(holder_context& context, std::string project_id) {
   return with_contract_errors([&] {
     return state(context, project_id);
+  });
+}
+
+ConflictComparison compare_conflict_copy(
+    holder_context& context,
+    std::string project_id,
+    std::string copy_id
+) {
+  const auto project = find(context, project_id);
+  const auto mutex = holder::git::repo_mutex_for(project.root_path);
+  std::unique_lock lock(*mutex);
+  auto result = read_conflict_pair(context, project, copy_id);
+  lock.unlock();
+  if (result.original.content == result.copy_card.content) return result;
+  const auto lines = holder::history::compare_card_text(
+      result.original.content,
+      result.copy_card.content,
+      result.truncated
+  );
+  for (const auto& line : lines) {
+    if (line.origin == '-') {
+      result.original_changed_lines.push_back({static_cast<std::int32_t>(line.old_line)});
+    } else if (line.origin == '+') {
+      result.copy_changed_lines.push_back({static_cast<std::int32_t>(line.new_line)});
+    }
+  }
+  return result;
+}
+
+ConflictResolutionResult resolve_conflict_copy(
+    holder_context& context,
+    std::string project_id,
+    std::string copy_id,
+    const ConflictResolution& resolution
+) {
+  return with_contract_errors([&] {
+    const auto project = find(context, project_id);
+    const auto mutex = holder::git::repo_mutex_for(project.root_path);
+    std::unique_lock lock(*mutex);
+    const auto reviewed = read_conflict_pair(context, project, copy_id);
+    if (resolution.review_token != reviewed.review_token)
+      throw Conflict(
+          "Either the original or the preserved copy changed. Review both versions again."
+      );
+    card_store(context).save_conflict_resolution(
+        project_id,
+        reviewed.original.card_id,
+        resolution.title,
+        resolution.content,
+        now_epoch_seconds()
+    );
+    auto saved = read_conflict_pair(context, project, copy_id);
+    auto cleanup = cleanup_review(context, saved);
+    return ConflictResolutionResult{std::move(saved.original), std::move(cleanup)};
+  });
+}
+
+CardMetadata trash_conflict_copy(
+    holder_context& context,
+    std::string project_id,
+    std::string copy_id,
+    const TrashConflictCopyRequest& confirmation
+) {
+  return with_contract_errors([&] {
+    const auto project = find(context, project_id);
+    const auto mutex = holder::git::repo_mutex_for(project.root_path);
+    std::unique_lock lock(*mutex);
+    const auto pair = read_conflict_pair(context, project, copy_id);
+    const auto cleanup = cleanup_review(context, pair);
+    if (cleanup.cleanup_token != confirmation.cleanup_token)
+      throw Conflict(
+          "The saved result, preserved copy or cleanup details changed. Review them again."
+      );
+    if (!cleanup.preserves_original)
+      throw Conflict(
+          "Moving the copy to Trash would also move the original. Move the original first."
+      );
+    card_store(context).trash(copy_id, now_epoch_seconds());
+    return get_card_any_state(context, project_id, copy_id);
   });
 }
 

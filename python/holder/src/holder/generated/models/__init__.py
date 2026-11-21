@@ -133,7 +133,14 @@ from .caste_recommended_model import CasteRecommendedModel
 from .caste_recommended_model_required_caste import CasteRecommendedModelRequiredCaste
 from .change_event_data import ChangeEventData
 from .change_event_data_entity import ChangeEventDataEntity
+from .conflict_changed_line import ConflictChangedLine
+from .conflict_comparison import ConflictComparison
+from .conflict_comparison_response import ConflictComparisonResponse
 from .conflict_copy import ConflictCopy
+from .conflict_copy_cleanup_review import ConflictCopyCleanupReview
+from .conflict_resolution import ConflictResolution
+from .conflict_resolution_result import ConflictResolutionResult
+from .conflict_resolution_result_response import ConflictResolutionResultResponse
 from .delete_projects_project_id_cards_card_id_children import (
     DeleteProjectsProjectIdCardsCardIdChildren,
 )
@@ -282,6 +289,7 @@ from .sync_state_response import SyncStateResponse
 from .tag_count import TagCount
 from .tag_count_list_response import TagCountListResponse
 from .tag_occurrence import TagOccurrence
+from .trash_conflict_copy_request import TrashConflictCopyRequest
 from .trash_delete_result import TrashDeleteResult
 from .trash_delete_result_response import TrashDeleteResultResponse
 from .trash_empty_result import TrashEmptyResult
@@ -421,7 +429,14 @@ __all__ = (
     "CasteRecommendedModelRequiredCaste",
     "ChangeEventData",
     "ChangeEventDataEntity",
+    "ConflictChangedLine",
+    "ConflictComparison",
+    "ConflictComparisonResponse",
     "ConflictCopy",
+    "ConflictCopyCleanupReview",
+    "ConflictResolution",
+    "ConflictResolutionResult",
+    "ConflictResolutionResultResponse",
     "DeleteProjectsProjectIdCardsCardIdChildren",
     "DueSyncResult",
     "DueSyncResultResponse",
@@ -552,6 +567,7 @@ __all__ = (
     "TagCount",
     "TagCountListResponse",
     "TagOccurrence",
+    "TrashConflictCopyRequest",
     "TrashDeleteResult",
     "TrashDeleteResultResponse",
     "TrashEmptyResult",

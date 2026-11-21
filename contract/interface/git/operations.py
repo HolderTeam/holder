@@ -6,9 +6,21 @@ from fastapi import Body, Path, Query
 
 from authoring import Contract, Int32
 
-from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
+from ..cards.models import CardId, CardMetadata
+from ..errors import Conflict, DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..projects.ids import ProjectId
-from .models import DueSyncResult, PushOptions, RemoteTest, RemoteTestResult, SyncResult, SyncState
+from .models import (
+    ConflictComparison,
+    ConflictResolution,
+    ConflictResolutionResult,
+    DueSyncResult,
+    PushOptions,
+    RemoteTest,
+    RemoteTestResult,
+    SyncResult,
+    SyncState,
+    TrashConflictCopyRequest,
+)
 
 
 def register(contract: Contract) -> None:
@@ -16,6 +28,49 @@ def register(contract: Contract) -> None:
     def get_project_sync_state(project_id: Annotated[ProjectId, Path()]) -> SyncState:
         """What this device last recorded about a project's sync."""
 
+    @contract.route("GET", "/projects/{project_id}/git/conflict-copies/{copy_id}/comparison",
+                    errors=[NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted])
+    def compare_conflict_copy(
+        project_id: Annotated[ProjectId, Path()],
+        copy_id: Annotated[CardId, Path()],
+    ) -> ConflictComparison:
+        """Compare a preserved copy with its recorded original.
+
+        Reads both saved cards together. A missing association, an original or copy in Trash, or a card
+        that no longer exists is NotFound. A pair changed during the read is Conflict. The operation does not
+        change either card.
+        """
+
+    @contract.route("POST", "/projects/{project_id}/git/conflict-copies/{copy_id}/resolution",
+                    errors=[NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted])
+    def resolve_conflict_copy(
+        project_id: Annotated[ProjectId, Path()],
+        copy_id: Annotated[CardId, Path()],
+        resolution: Annotated[ConflictResolution, Body()],
+    ) -> ConflictResolutionResult:
+        """Save reviewed text to the original card without changing the preserved copy.
+
+        Holder verifies the token against both live cards before changing anything. A stale token is
+        Conflict. A missing association or a card that is missing or in Trash is NotFound. Changes
+        to the title and content make a new Git commit. The original's identity, hierarchy, links and
+        milestones are retained. Saving the existing title and content makes no commit. The result
+        includes a review for optional cleanup of the preserved copy.
+        """
+
+    @contract.route("POST", "/projects/{project_id}/git/conflict-copies/{copy_id}/trash",
+                    errors=[NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted])
+    def trash_conflict_copy(
+        project_id: Annotated[ProjectId, Path()],
+        copy_id: Annotated[CardId, Path()],
+        confirmation: Annotated[TrashConflictCopyRequest, Body()],
+    ) -> CardMetadata:
+        """Move a reviewed conflict copy to Trash after choosing a result.
+
+        Holder verifies the cleanup token against both live cards and the reviewed effects.
+        A stale token or cleanup that would move the original is Conflict. A missing association
+        or a card missing or in Trash is NotFound.
+        The original is untouched. The copy can be restored and its live children move up a level.
+        """
 
     @contract.route("POST", "/projects/{project_id}/git/pull",
                     errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])

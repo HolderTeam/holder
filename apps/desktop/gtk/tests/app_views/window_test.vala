@@ -713,48 +713,312 @@ private Gtk.Button window_sync_button(WindowFixture f) {
     assert_not_reached();
 }
 
-private class WindowConflictApi : MainControllerFakeApi {
+private class WindowConflictApi : MainControllerFakeApi, HolderLinux.IConflictComparisonApi {
+    public int resolution_calls;
+    public int comparison_calls;
+    public int trash_copy_calls;
+    public bool reject_next_resolution;
+    public bool reject_next_trash;
+    public bool copy_trashed;
+    public string? resolved_title;
+    public string? resolved_content;
+
     public override async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
         var projects = yield base.list_projects();
-        projects[0].sync.conflict_copies.add(new HolderLinux.GitConflictCopy(
-            "c2", "Preserved edit", "c1", "Original", false));
+        if (!copy_trashed) {
+            projects[0].sync.conflict_copies.add(new HolderLinux.GitConflictCopy(
+                "c2", "Preserved edit", "c1", "Original", false));
+        }
         return projects;
+    }
+
+    public override async HolderLinux.CardDetail get_card(string project_id, string card_id) throws Error {
+        var card = yield base.get_card(project_id, card_id);
+        if (card_id == "c2") {
+            card.title = "Renamed preserved edit";
+            card.content = "# Renamed preserved edit\n\nWords from the other version";
+        } else if (card_id == "c1" && resolved_title != null && resolved_content != null) {
+            card.title = resolved_title;
+            card.content = resolved_content;
+        }
+        return card;
+    }
+
+    public async HolderLinux.ConflictComparison compare_conflict_copy(string project_id,
+                                                                       string copy_id) throws Error {
+        var original = yield get_card(project_id, "c1");
+        var copy = yield get_card(project_id, copy_id);
+        comparison_calls++;
+        return new HolderLinux.ConflictComparison(original, copy, { 1, 3 }, { 1, 3 }, false,
+                                                  "review-%d".printf(comparison_calls));
+    }
+
+    public async HolderLinux.ConflictResolutionResult resolve_conflict_copy(
+        string project_id, string copy_id, string review_token, string title, string content) throws Error {
+        resolution_calls++;
+        assert(project_id == "p1");
+        assert(copy_id == "c2");
+        assert(review_token == "review-%d".printf(comparison_calls));
+        if (reject_next_resolution) {
+            reject_next_resolution = false;
+            throw new HolderLinux.ApiError.HTTP("A reviewed version changed.");
+        }
+        resolved_title = title;
+        resolved_content = content;
+        var cleanup = new HolderLinux.ConflictCopyCleanupReview("cleanup-" + review_token);
+        cleanup.preserves_original = true;
+        cleanup.copy_tags = { "copy-only" };
+        cleanup.copy_milestones = { "Ship Friday" };
+        cleanup.children = { "Preserved checklist" };
+        return new HolderLinux.ConflictResolutionResult(yield get_card(project_id, "c1"), cleanup);
+    }
+
+    public async void trash_conflict_copy(string project_id, string copy_id, string cleanup_token) throws Error {
+        trash_copy_calls++;
+        assert(project_id == "p1" && copy_id == "c2");
+        assert(cleanup_token == "cleanup-review-%d".printf(comparison_calls));
+        if (reject_next_trash) {
+            reject_next_trash = false;
+            throw new HolderLinux.ApiError.HTTP("The cleanup details changed.");
+        }
+        copy_trashed = true;
+        include_card2 = false;
     }
 }
 
-private void test_opening_a_conflict_copy_saves_and_loads_the_requested_card() {
-    var f = new WindowFixture();
-    f.api = new WindowConflictApi();
-    f.api.include_card2 = true;
-    f.open_loaded();
-    f.open_card("c1");
-    var workspace = f.window.workspace_for_tests;
-    workspace.toolbox.show_tool("git");
-    Gtk.Button? copy = null;
-    assert(wait_for_condition(() => {
-        foreach (var widget in av_descendants(workspace.toolbox.widget)) {
-            var button = widget as Gtk.Button;
-            if (button != null && button.get_label() == "Copy “Preserved edit”") {
-                copy = button;
-                return true;
-            }
+private Gtk.Button comparison_button(Adw.Dialog dialog, string label) {
+    foreach (var widget in av_descendants(dialog)) {
+        var button = widget as Gtk.Button;
+        if (button != null && button.label == label) return button;
+    }
+    assert_not_reached();
+}
+
+private void wait_for_dialog_open_frames(Adw.Dialog dialog) {
+    // Libadwaita 1.5 on Ubuntu 24.04 can lose a synthetic close request before
+    // the sheet opens. The macOS CI display can skip these frame callbacks.
+    if (Environment.get_variable("HOLDER_DESKTOP_TEST_PLATFORM") == "darwin") return;
+    int frames = 0;
+    dialog.add_tick_callback((widget, clock) => ++frames < 2);
+    assert(wait_for_condition(() => frames == 2));
+}
+
+private Gtk.TextView conflict_result_editor(Adw.Dialog dialog) {
+    foreach (var widget in av_descendants(dialog)) {
+        var content = widget as Gtk.TextView;
+        if (content != null && content.editable) return content;
+    }
+    assert_not_reached();
+}
+
+private bool comparison_contains_text(Adw.Dialog dialog, string text) {
+    foreach (var widget in av_descendants(dialog)) {
+        var content = widget as Gtk.TextView;
+        if (content != null && content.get_buffer().text == text) {
+            assert(!content.get_editable());
+            var buffer = content.get_buffer();
+            var changed = buffer.get_tag_table().lookup("changed-line");
+            assert(changed != null);
+            Gtk.TextIter start;
+            buffer.get_start_iter(out start);
+            assert(start.has_tag(changed));
+            buffer.get_iter_at_line(out start, 1);
+            assert(!start.has_tag(changed));
+            buffer.get_iter_at_line(out start, 2);
+            assert(start.has_tag(changed));
+            return true;
         }
-        return false;
+    }
+    return false;
+}
+
+// Each conflict case uses a fresh window and runs in its own test process.
+private class ConflictWindowFixture : WindowFixture {
+    public WindowConflictApi conflict_api;
+    public Gtk.Button copy;
+    private Gtk.Button compare;
+
+    public ConflictWindowFixture(string selected_card = "c1") {
+        Gtk.Settings.get_default().gtk_enable_animations = false;
+        conflict_api = new WindowConflictApi();
+        api = conflict_api;
+        api.include_card2 = true;
+        open_loaded();
+        open_card(selected_card);
+        var toolbox = window.workspace_for_tests.toolbox;
+        toolbox.show_tool("git");
+        assert(wait_for_condition(() => {
+            foreach (var widget in av_descendants(toolbox.widget)) {
+                var button = widget as Gtk.Button;
+                if (button != null && button.label == "Copy “Preserved edit”") {
+                    copy = button;
+                } else if (button != null && button.label == "Compare versions") {
+                    compare = button;
+                }
+            }
+            return copy != null && compare != null;
+        }));
+    }
+
+    public Adw.Dialog open_comparison() {
+        compare.clicked();
+        assert(wait_for_condition(() => window.get_visible_dialog() != null));
+        var dialog = (!) window.get_visible_dialog();
+        wait_for_dialog_open_frames(dialog);
+        return dialog;
+    }
+
+    public Adw.Dialog review_cleanup() {
+        var comparison = open_comparison();
+        assert(wait_for_condition(() => conflict_api.comparison_calls == 1));
+        comparison_button(comparison, "Keep original").clicked();
+        assert(wait_for_condition(() => av_find_label(comparison,
+            "Saved to the original card. The preserved copy is still available.") != null));
+        comparison_button(comparison, "Review preserved copy…").clicked();
+        return comparison;
+    }
+}
+
+private void test_discarding_a_conflict_draft() {
+    var f = new ConflictWindowFixture();
+    var api = f.conflict_api;
+    Test.message("Comparing both versions and discarding a draft");
+    var comparison = f.open_comparison();
+    assert(wait_for_condition(() => {
+        var dialog = f.window.get_visible_dialog();
+        return dialog != null &&
+            comparison_contains_text(dialog, "# Card 1\n\nBody") &&
+            comparison_contains_text(dialog, "# Renamed preserved edit\n\nWords from the other version");
     }));
+    assert(f.api.update_card_calls == 0);
+    assert(f.controller().selected_card_id() == "c1");
+    assert(f.editor_text() == "# Card 1\n\nBody");
+    comparison_button(comparison, "Combine versions").clicked();
+    var combined_editor = conflict_result_editor(comparison);
+    assert(combined_editor.buffer.text == "# Card 1\n\nBody");
+    combined_editor.buffer.text = "Discard this draft";
+    assert(!comparison.close());
+    var discard = f.wait_for_dialog(comparison);
+    wait_for_dialog_open_frames(discard);
+    Test.message("Confirming discard");
+    av_answer(discard, "discard");
+    assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
+    assert(api.resolution_calls == 0);
+    assert(f.editor_text() == "# Card 1\n\nBody");
+    f.destroy();
+}
+
+private void test_keeping_the_original_and_preserved_copy() {
+    var f = new ConflictWindowFixture();
+    var api = f.conflict_api;
+    Test.message("Keeping the original and preserving the copy");
+    var comparison = f.review_cleanup();
+    assert(api.resolution_calls == 1);
+    assert(api.resolved_title == "Card 1");
+    assert(api.resolved_content == "# Card 1\n\nBody");
+    assert(av_find_label(comparison, "Review preserved copy") != null);
+    assert(av_find_label(comparison, "Ship Friday") != null);
+    assert(av_find_label(comparison, "Preserved checklist") != null);
+    comparison_button(comparison, "Keep copy").clicked();
+    assert(api.trash_copy_calls == 0);
+    comparison.close();
+    assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
+    f.destroy();
+}
+
+private void test_saving_after_refreshing_a_conflict_review() {
+    var f = new ConflictWindowFixture();
+    var api = f.conflict_api;
+    Test.message("Refreshing a stale review and saving the result");
+    var comparison = f.open_comparison();
+    comparison_button(comparison, "Start from copy").clicked();
+    Gtk.Entry? result_title = null;
+    foreach (var widget in av_descendants(comparison)) {
+        var title = widget as Gtk.Entry;
+        if (title != null) result_title = title;
+    }
+    var result_content = conflict_result_editor(comparison);
+    assert(result_title != null && result_title.text == "Renamed preserved edit");
+    assert(result_content.buffer.text == "# Renamed preserved edit\n\nWords from the other version");
+    assert(api.resolution_calls == 0);
+    string combined = "# Combined\n\nBoth versions";
+    ((!) result_title).text = "Combined";
+    result_content.buffer.text = combined;
+    api.reject_next_resolution = true;
+    comparison_button(comparison, "Save to original").clicked();
+    assert(wait_for_condition(() => av_find_label(comparison,
+        "Could not save the result.\nA reviewed version changed.") != null));
+    assert(f.editor_text() == "# Card 1\n\nBody");
+    comparison_button(comparison, "Refresh versions").clicked();
+    assert(wait_for_condition(() => av_find_label(comparison,
+        "Versions refreshed. Review both versions before saving.") != null));
+    assert(result_content.buffer.text == combined);
+    assert(((!) result_title).text == "Combined");
+    comparison_button(comparison, "Save to original").clicked();
+    assert(wait_for_condition(() => f.editor_text() == combined));
+    assert(api.resolved_title == "Combined");
+    assert(f.controller().selected_card_id() == "c1");
+    assert(f.api.update_card_calls == 0);
+    assert(av_find_label(comparison, "Saved to the original card. The preserved copy is still available.") != null);
+    comparison.close();
+    assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
+    f.destroy();
+}
+
+private void test_opening_the_preserved_card_after_a_failed_comparison() {
+    var f = new ConflictWindowFixture();
+    Test.message("Checking load failure and opening the preserved card");
+    f.api.fail_get_card_once = true;
+    var comparison = f.open_comparison();
+    assert(wait_for_condition(() => av_find_label(comparison,
+        "Could not load both card versions.\n" + f.api.get_card_failure_message) != null));
+    comparison.close();
+    assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
 
     const string draft = "# Card 1\n\nSave before opening the conflict";
-    workspace.editor_buffer.set_text(draft, -1);
+    f.window.workspace_for_tests.editor_buffer.set_text(draft, -1);
     f.api.fail_list_cards_once = true;
-    ((!) copy).clicked();
+    f.copy.clicked();
     assert(wait_for_condition(() => !f.api.fail_list_cards_once));
     assert(f.controller().selected_card_id() == "c1");
     assert(f.api.last_updated_content == draft);
 
-    ((!) copy).clicked();
+    f.copy.clicked();
     assert(wait_for_condition(() => {
         var card = f.controller().get_current_card();
         return card != null && card.card_id == "c2";
     }));
+    f.destroy();
+}
+
+private void test_stale_conflict_cleanup_leaves_the_preserved_copy() {
+    var f = new ConflictWindowFixture("c2");
+    var api = f.conflict_api;
+    Test.message("Confirming cleanup with a stale review");
+    var comparison = f.review_cleanup();
+    api.reject_next_trash = true;
+    comparison_button(comparison, "Move copy to Trash").clicked();
+    assert(wait_for_condition(() => av_find_label(comparison,
+        "Could not move the copy to Trash.\nThe cleanup details changed.\n" +
+        "Close this dialog and compare again for a fresh review.") != null));
+    assert(f.controller().selected_card_id() == "c2");
+    assert(!api.copy_trashed);
+    comparison.close();
+    assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
+    f.destroy();
+}
+
+private void test_confirmed_conflict_cleanup_removes_the_preserved_copy() {
+    var f = new ConflictWindowFixture("c2");
+    var api = f.conflict_api;
+    Test.message("Confirming cleanup with a fresh review");
+    var comparison = f.review_cleanup();
+    comparison_button(comparison, "Move copy to Trash").clicked();
+    assert(wait_for_condition(() => av_find_label(comparison,
+        "The preserved copy was moved to Trash. You can restore it from there.") != null));
+    assert(wait_for_condition(() => f.controller().selected_card_id() != "c2"));
+    assert(api.copy_trashed);
+    assert(api.resolved_content == "# Card 1\n\nBody");
     f.destroy();
 }
 
@@ -831,7 +1095,6 @@ private void test_sync_now_refreshes_remote_edits_and_deletions() {
 
     // A draft typed while the refreshed card is being read must win over that response.
     var editor_buffer = f.window.workspace_for_tests.editor_buffer;
-    var synced_content = api.pulled_content;
     api.reject_push = false;
     api.pulled_content = "# Card 1\n\nAnother remote edit";
     api.get_card_before_complete_hook = (card_id) => {
@@ -843,7 +1106,10 @@ private void test_sync_now_refreshes_remote_edits_and_deletions() {
     assert(wait_for_condition(() => f.editor_text() == "# Card 1\n\nLocal draft" && sync.get_sensitive()));
     assert(f.controller().has_unsaved_editor_changes());
     api.get_card_before_complete_hook = null;
-    editor_buffer.set_text(synced_content, -1);
+    // Restore the committed editor state before testing deletion of a clean card.
+    assert(wait_for_condition(() => !f.controller().is_editor_save_in_flight()));
+    f.controller().set_loaded_card_editor_state((!) f.controller().get_current_card());
+    assert(!f.controller().has_unsaved_editor_changes());
 
     api.list_cards_empty = true;
     sync.clicked();
@@ -1435,10 +1701,13 @@ private void test_an_asset_can_be_exported_where_the_user_chooses() {
     var f = new WindowFixture();
     var api = new WindowStorageApi();
     f.api = api;
+    // Give attachment refreshes the same resource that the test will export.
+    var resource = window_image_resource("r-export");
+    api.resources.add(resource);
+    api.card_links.add(new HolderLinux.CardLink("c1", resource.resource_id, "resource", "attachment", null, 1));
     f.open_loaded();
     f.open_card("c1");
     var workspace = f.window.workspace_for_tests;
-    var resource = window_image_resource("r-export");
     workspace.toolbox.asset_preview_requested(resource, resource.assets[0]);
     assert(wait_for_condition(() => f.preview_state() == "image"));
 
@@ -1450,16 +1719,22 @@ private void test_an_asset_can_be_exported_where_the_user_chooses() {
     var destination = Path.build_filename(av_temp_dir(), "exported.png");
     f.picker.chosen = File.new_for_path(destination);
     workspace.asset_preview.export_requested();
-    // Wait for the complete PNG. A toast can be queued behind earlier feedback.
+    assert(wait_for_condition(() => f.picker.asks == 2));
+    // Wait for the complete PNG or the reported export error. A toast can be queued.
+    bool exported_png = false;
     assert(wait_for_condition(() => {
+        if (f.debug_contains("ERROR: Failed to export Asset | ")) return true;
         try {
             uint8[] exported;
             FileUtils.get_data(destination, out exported);
-            return Base64.encode(exported) == WINDOW_PNG_BASE64;
+            exported_png = Base64.encode(exported) == WINDOW_PNG_BASE64;
+            return exported_png;
         } catch (FileError e) {
             return false;
         }
     }));
+    if (!exported_png) Test.message("%s", f.debug_log());
+    assert(exported_png);
     f.destroy();
 }
 
@@ -1694,7 +1969,12 @@ internal void register_window_tests() {
     av_add_test("/app_views/window/reported_state", test_the_window_shows_what_the_controller_reports);
     av_add_test("/app_views/window/sync_now_refresh", test_sync_now_refreshes_remote_edits_and_deletions);
     av_add_test("/app_views/window/sync_out_of_order_card_replies", test_newer_pull_wins_over_an_older_card_reply_or_error);
-    av_add_test("/app_views/window/sync_conflict_open", test_opening_a_conflict_copy_saves_and_loads_the_requested_card);
+    av_add_test("/app_views/conflict_comparison/discard_draft", test_discarding_a_conflict_draft);
+    av_add_test("/app_views/conflict_comparison/keep_original", test_keeping_the_original_and_preserved_copy);
+    av_add_test("/app_views/conflict_comparison/save_result", test_saving_after_refreshing_a_conflict_review);
+    av_add_test("/app_views/conflict_comparison/open_copy", test_opening_the_preserved_card_after_a_failed_comparison);
+    av_add_test("/app_views/conflict_comparison/stale_cleanup", test_stale_conflict_cleanup_leaves_the_preserved_copy);
+    av_add_test("/app_views/conflict_comparison/trash_copy", test_confirmed_conflict_cleanup_removes_the_preserved_copy);
     av_add_test("/app_views/window/sync_deletion_with_draft", test_pull_deletion_preserves_unsaved_editor_text);
     av_add_test("/app_views/window/sync_refresh_errors", test_pull_refresh_handles_missing_selection_and_errors);
     av_add_test("/app_views/window/startup_api_diagnostic", test_startup_health_error_shows_advice_and_logs_diagnostics);

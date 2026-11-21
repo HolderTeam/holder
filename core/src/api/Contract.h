@@ -361,6 +361,18 @@ struct RecoveryTokenImportRequest : RecoveryTokenExportRequest {
   std::string recovery_token; ///< Serialized .hrk token JSON.
 };
 
+/// Title and body to keep on the original card.
+struct ConflictResolution {
+  std::string review_token; ///< The token returned with the reviewed comparison.
+  std::string title; ///< The replacement title.
+  std::string content; ///< The replacement card content, which can be empty.
+};
+
+/// Confirmation of the cleanup effects returned when the resolution was saved.
+struct TrashConflictCopyRequest {
+  std::string cleanup_token; ///< The token returned with the cleanup review.
+};
+
 /// How to push.
 struct PushOptions {
   std::optional<std::string> branch; ///< The branch to push; omit for the repository's default.
@@ -881,6 +893,51 @@ struct SyncState {
   std::optional<std::vector<ConflictCopy>>
       conflict_copies; ///< Live copies with a durable original association, newest first. Omitted
                        ///< when there are none.
+};
+
+/// A highlighted line in a conflict comparison.
+struct ConflictChangedLine {
+  std::int32_t line{}; ///< The one-based line number within this card's content.
+};
+
+/// The two live cards in a recorded conflict pair, read together for review.
+struct ConflictComparison {
+  Card original; ///< The current state of the original card.
+  Card copy_card; ///< The current state of the preserved copy.
+  std::vector<ConflictChangedLine> original_changed_lines; ///< One-based lines of the original's
+                                                           ///< content that differ from the copy.
+  std::vector<ConflictChangedLine>
+      copy_changed_lines; ///< One-based lines of the copy's content that differ from the original.
+  bool truncated{}; ///< Whether the bounded diff could only highlight part of the change.
+  std::string review_token; ///< An opaque token for both reviewed versions, required when saving a
+                            ///< resolution.
+};
+
+/// What stays on the preserved copy or is affected if the copy moves to Trash.
+struct ConflictCopyCleanupReview {
+  std::string cleanup_token; ///< An opaque token for the saved result, preserved copy, and the
+                             ///< reviewed cleanup effects.
+  std::vector<Link>
+      copy_links; ///< Outgoing links and attachments without an equivalent on the original.
+  std::vector<Milestone> copy_milestones; ///< Milestones without an equivalent kind, description
+                                          ///< and dates on the original.
+  std::vector<Link> backlinks; ///< Live links on this device that point to the copy itself.
+  std::vector<CardSummary>
+      children; ///< Live children that would move up a level using the normal Trash behavior.
+  std::optional<CardSummary>
+      promotion_parent; ///< Where children of the copy would move, or null for the project root.
+  bool placement_differs{
+  }; ///< Whether the parent or position of the copy differs from that of the original.
+  bool preserves_original{
+  }; ///< Whether moving the copy to Trash can leave the original's placement untouched.
+  std::vector<std::string>
+      copy_tags; ///< Tags present on the copy and absent from the saved original.
+};
+
+/// The durably saved original and a review for optional cleanup.
+struct ConflictResolutionResult {
+  Card card; ///< The original after saving.
+  ConflictCopyCleanupReview cleanup; ///< The copy and effects to review before moving it to Trash.
 };
 
 /// How the pull ended.
@@ -1864,6 +1921,44 @@ RecoveryTokenGlobalImportResult import_recovery_token_global(
 /// What this device last recorded about a project's sync.
 /// @throws NotFound
 SyncState get_project_sync_state(holder_context& context, std::string project_id);
+
+/// Compare a preserved copy with its recorded original.
+/// Reads both saved cards together. A missing association, an original or copy in Trash, or a card
+/// that no longer exists is NotFound. A pair changed during the read is Conflict. The operation
+/// does not change either card.
+/// @throws NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted
+ConflictComparison compare_conflict_copy(
+    holder_context& context,
+    std::string project_id,
+    std::string copy_id
+);
+
+/// Save reviewed text to the original card without changing the preserved copy.
+/// Holder verifies the token against both live cards before changing anything. A stale token is
+/// Conflict. A missing association or a card that is missing or in Trash is NotFound. Changes
+/// to the title and content make a new Git commit. The original's identity, hierarchy, links and
+/// milestones are retained. Saving the existing title and content makes no commit. The result
+/// includes a review for optional cleanup of the preserved copy.
+/// @throws NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted
+ConflictResolutionResult resolve_conflict_copy(
+    holder_context& context,
+    std::string project_id,
+    std::string copy_id,
+    const ConflictResolution& resolution
+);
+
+/// Move a reviewed conflict copy to Trash after choosing a result.
+/// Holder verifies the cleanup token against both live cards and the reviewed effects.
+/// A stale token or cleanup that would move the original is Conflict. A missing association
+/// or a card missing or in Trash is NotFound.
+/// The original is untouched. The copy can be restored and its live children move up a level.
+/// @throws NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted
+CardMetadata trash_conflict_copy(
+    holder_context& context,
+    std::string project_id,
+    std::string copy_id,
+    const TrashConflictCopyRequest& confirmation
+);
 
 /// Pull a project's checked-out branch from its Git remote.
 /// Changes fast-forward, or merge card by card where both sides changed, and the project's index is
