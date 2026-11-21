@@ -244,6 +244,50 @@ private void test_git_sync_tool_view_opens_conflict_pairs_by_id() {
     assert(!panel.get_visible());
 }
 
+// Reports a conflict copy on p1 until the test marks it resolved.
+private class ConflictCopyFakeApi : MainControllerFakeApi {
+    public bool copy_present = true;
+
+    public override async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
+        var projects = yield base.list_projects();
+        foreach (var listed in projects) {
+            if (copy_present && listed.project_id == "p1") {
+                listed.sync.conflict_copies.add(new HolderLinux.GitConflictCopy(
+                    "copy-id", "Notes (conflicted copy)", "original-id", "Notes", false
+                ));
+            }
+        }
+        return projects;
+    }
+}
+
+private void test_git_sync_tool_view_refreshes_after_conflict_resolution() {
+    var selected = configured_project();
+    selected.sync.conflict_copies.add(new HolderLinux.GitConflictCopy(
+        "copy-id", "Notes (conflicted copy)", "original-id", "Notes", false
+    ));
+    var store = new GLib.ListStore(typeof(HolderLinux.Project));
+    store.append(selected);
+    var selection = new Gtk.SingleSelection(store);
+    var api = new ConflictCopyFakeApi();
+    var view = new HolderLinux.GitSyncToolView(false);
+    view.set_api_client(api);
+    view.set_project_selection(selection);
+
+    var panel = find_widget_with_name(view.widget, "git-conflict-copies");
+    assert(panel != null);
+    assert(wait_for_condition(() => api.list_projects_calls > 0));
+    assert(((!) panel).get_visible());
+    assert(find_button_with_label((!) panel, "Compare versions") != null);
+
+    // The page is not mapped, so only an explicit refresh can notice the copy has gone.
+    var calls = api.list_projects_calls;
+    api.copy_present = false;
+    view.refresh_after_conflict_resolution();
+    assert(wait_for_condition(() => api.list_projects_calls > calls && !((!) panel).get_visible()));
+    assert(find_button_with_label((!) panel, "Compare versions") == null);
+}
+
 private void test_git_sync_tool_view_sync_now_uses_configured_project() {
     var store = new GLib.ListStore(typeof(HolderLinux.Project));
     store.append(configured_project());
@@ -318,6 +362,8 @@ public static int main(string[] args) {
                   test_git_sync_tool_view_refreshes_remote_from_backend);
     Test.add_func("/holder/git-sync-tool-view/opens-conflict-pairs-by-id",
                   test_git_sync_tool_view_opens_conflict_pairs_by_id);
+    Test.add_func("/holder/git-sync-tool-view/refreshes-after-conflict-resolution",
+                  test_git_sync_tool_view_refreshes_after_conflict_resolution);
     Test.add_func("/holder/git-sync-tool-view/sync-now",
                   test_git_sync_tool_view_sync_now_uses_configured_project);
     Test.add_func("/holder/git-sync-tool-view/setup-success-is-persistent",
