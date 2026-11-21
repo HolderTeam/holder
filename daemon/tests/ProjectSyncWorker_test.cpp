@@ -898,3 +898,15 @@ TEST_CASE(
   CHECK(state->next_retry_at.has_value());
   CHECK_FALSE(holder::test::remote_has_local_head(fixture.local_dir, unavailable));
 }
+
+TEST_CASE("ProjectSyncWorker never creates a missing database", "[sync][worker]") {
+  // The daemon's own connection may still be using a database that was moved or deleted. A new
+  // empty file at the path would sit beside that database's WAL and shared-memory files, and the
+  // health monitor would see a healthy database and keep the daemon running.
+  const auto dir = holder::test::make_temp_dir();
+  const auto db_path = dir / "holder.db";
+  holder::sync::ProjectSyncWorker worker(db_path);
+  CHECK_THROWS(worker.run_final_push());
+  run_worker_for_seconds(db_path, 1);
+  CHECK_FALSE(std::filesystem::exists(db_path));
+}

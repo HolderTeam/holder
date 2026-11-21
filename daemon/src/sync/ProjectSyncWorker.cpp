@@ -117,7 +117,7 @@ long long ProjectSyncWorker::now_epoch_seconds() const {
 
 void ProjectSyncWorker::run_startup_pull_pass() {
   holder::platform::Db db;
-  db.open(db_path_);
+  db.open(db_path_, holder::platform::DbOpen::ExistingOnly);
   holder::index::FtsIndexer fts(db);
   holder::project::ProjectRepo projects(db);
   holder::project::ProjectSyncRepo sync(db);
@@ -181,7 +181,7 @@ void ProjectSyncWorker::run_startup_pull_pass() {
 
 void ProjectSyncWorker::run_startup_repair_pass() {
   holder::platform::Db db;
-  db.open(db_path_);
+  db.open(db_path_, holder::platform::DbOpen::ExistingOnly);
   holder::index::FtsIndexer fts(db);
   holder::card::CardStore store(db, &fts);
   for (const auto& project : holder::project::ProjectRepo(db).list()) {
@@ -216,7 +216,7 @@ int ProjectSyncWorker::run_final_push() { return run_push_cycle(true); }
 int ProjectSyncWorker::run_push_cycle(bool final_push) {
   int pushes_attempted = 0;
   holder::platform::Db db;
-  db.open(db_path_);
+  db.open(db_path_, holder::platform::DbOpen::ExistingOnly);
   holder::index::FtsIndexer fts(db);
   holder::project::ProjectRepo projects(db);
   holder::project::ProjectSyncRepo sync(db);

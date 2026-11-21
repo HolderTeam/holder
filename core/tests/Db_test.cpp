@@ -162,6 +162,24 @@ TEST_CASE("Db open failure throws sqlite open error", "[db]") {
   );
 }
 
+TEST_CASE("Db opened as existing-only never creates a missing database", "[db]") {
+  const auto dir = make_temp_dir();
+  const auto path = dir / "holder.db";
+
+  holder::platform::Db db;
+  REQUIRE_THROWS_WITH(
+      db.open(path, holder::platform::DbOpen::ExistingOnly),
+      Catch::Matchers::ContainsSubstring("sqlite open failed")
+  );
+  CHECK_FALSE(std::filesystem::exists(path));
+
+  holder::platform::Db owner;
+  owner.open(path);
+  owner.exec("CREATE TABLE t (x INTEGER);");
+  db.open(path, holder::platform::DbOpen::ExistingOnly);
+  db.exec("INSERT INTO t VALUES (1);");
+}
+
 TEST_CASE("Db exec failure includes sqlite message", "[db]") {
   const auto dir = make_temp_dir();
   const auto db_path = dir / "bad-sql.db";
