@@ -1148,3 +1148,83 @@ TEST_CASE(
   REQUIRE(history.commits.size() == 1);
   CHECK(history.commits[0].message.starts_with("Merge changes to 1 card made on two devices"));
 }
+
+TEST_CASE(
+    "resolve_pull_conflicts keeps a card edited on another device out of local Trash",
+    "[sync][trash]"
+) {
+  const auto dir = make_temp_dir();
+  const std::string project_id = "proj-trash";
+  const auto remote_dir = dir / "remote";
+  const auto local_dir = dir / "local";
+
+  auto remote_db = open_db_with_schema(dir / "remote.db");
+  holder::index::FtsIndexer remote_fts(remote_db);
+  holder::project::ProjectRepo remote_projects(remote_db);
+  holder::git::RealGitOps remote_git;
+  create_plain_project(remote_projects, project_id, remote_dir);
+  holder::card::CardStore remote_store(remote_db, &remote_fts, nullptr, &remote_git);
+  holder::model::Card card;
+  card.card_id = kSharedCardId;
+  card.project_id = project_id;
+  card.title = "Idea";
+  card.created_at = card.updated_at = 1;
+  remote_store.create(card, "base body\n");
+
+  holder::git::RealGitOps local_git;
+  local_git.open_or_init(local_dir);
+  local_git.set_remote("origin", remote_dir.string());
+  local_git.pull_remote_ff_only("origin");
+  auto local_db = open_db_with_schema(dir / "local.db");
+  holder::index::FtsIndexer local_fts(local_db);
+  holder::project::ProjectRepo local_projects(local_db);
+  create_plain_project(local_projects, project_id, local_dir);
+  const auto local_project = local_projects.get(project_id).value();
+  holder::store::Rebuilder(local_db, &local_fts).rebuild_project(local_project);
+
+  holder::card::CardStore(local_db, &local_fts, nullptr, &local_git).trash(kSharedCardId, 3);
+  remote_store.update_content(kSharedCardId, "edited elsewhere\n", std::nullopt, 2);
+
+  holder::git::NonFastForwardPullError diverged("", "", "");
+  bool seen = false;
+  try {
+    local_git.pull_remote_ff_only("origin");
+  } catch (const holder::git::NonFastForwardPullError& error) {
+    diverged = error;
+    seen = true;
+  }
+  REQUIRE(seen);
+  CHECK(
+      holder::sync::resolve_pull_conflicts(
+          local_db,
+          &local_fts,
+          local_project,
+          local_git,
+          diverged,
+          4
+      ) == 0
+  );
+  // Before the fix the card existed both live and in Trash, and this rebuild failed.
+  REQUIRE_NOTHROW(holder::sync::reconcile_index_after_pull(local_db, &local_fts, local_project));
+
+  CHECK_FALSE(std::filesystem::exists(local_dir / holder::core::card_trash_rel_path(kSharedCardId))
+  );
+  const auto cards = holder::card::CardRepo(local_db).list_all(project_id);
+  REQUIRE(cards.size() == 1);
+  CHECK(cards[0].card_id == kSharedCardId);
+  CHECK_FALSE(cards[0].deleted_at.has_value());
+  std::ifstream input(local_dir / holder::core::card_rel_path(kSharedCardId), std::ios::binary);
+  REQUIRE(input.is_open());
+  std::string bytes{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+  // Git's checkout wrote this file, so it has CRLF endings where the runner sets core.autocrlf.
+  std::erase(bytes, '\r');
+  CHECK(holder::core::parse_card_file(bytes).body == "edited elsewhere\n");
+
+  holder::git::GitRepo repo;
+  repo.open_or_init(local_dir);
+  const auto history =
+      repo.history_for_paths({holder::core::card_trash_rel_path(kSharedCardId)}, 1, std::nullopt);
+  REQUIRE(history.commits.size() == 1);
+  CHECK(history.commits[0].message.starts_with("Keep 1 card edited on another device out of Trash")
+  );
+}

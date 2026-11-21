@@ -42,9 +42,9 @@ These end in a conflict copy to compare:
 | `large-diff` | 1,200 different lines on each side: too large to highlight. |
 | `crlf` | CRLF line endings, to check that highlights land on the right lines. |
 | `both-move` | Both machines moved the card to different places. |
-| `trash-vs-edit` | This machine moved the card to Trash while the other edited it. Today the pull fails and the project stops syncing; it should end in a copy. |
 
-These two machines changed different parts of the card, so Holder merges them without a copy:
+These end without a copy: the two machines changed different parts of the card, or (for
+`trash-vs-edit`) Holder keeps the edited version:
 
 | Name | What happened |
 | --- | --- |
@@ -52,6 +52,7 @@ These two machines changed different parts of the card, so Holder merges them wi
 | `identical-edit` | Both machines made the same edit. |
 | `title-vs-body` | This machine renamed the card; the other added a paragraph. |
 | `link-vs-edit` | This machine added a link; the other edited the text. |
+| `trash-vs-edit` | This machine moved the card to Trash while the other edited it. The edited card stays live and out of Trash, so it can be trashed again. |
 
 Setup flags any scenario whose outcome differs from this and exits nonzero, so it doubles as a
 quick check of the merge rules against a daemon build.
