@@ -1215,7 +1215,9 @@ TEST_CASE(
   CHECK_FALSE(cards[0].deleted_at.has_value());
   std::ifstream input(local_dir / holder::core::card_rel_path(kSharedCardId), std::ios::binary);
   REQUIRE(input.is_open());
-  const std::string bytes{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+  std::string bytes{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+  // Git's checkout wrote this file, so it has CRLF endings where the runner sets core.autocrlf.
+  std::erase(bytes, '\r');
   CHECK(holder::core::parse_card_file(bytes).body == "edited elsewhere\n");
 
   holder::git::GitRepo repo;
