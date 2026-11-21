@@ -31,6 +31,8 @@ other machine's version stays as the original, and this machine's version become
 
 ## Scenarios
 
+These end in a conflict copy to compare:
+
 | Name | What to look at |
 | --- | --- |
 | `basic` | Text edited on both sides; the other machine also renamed the card. |
@@ -39,8 +41,20 @@ other machine's version stays as the original, and this machine's version become
 | `copy-extras` | Tags, a link and a milestone only on the copy, and another card linking to the copy. |
 | `large-diff` | 1,200 different lines on each side: too large to highlight. |
 | `crlf` | CRLF line endings, to check that highlights land on the right lines. |
-| `move-vs-edit` | This machine only moved the card; the other edited its text. Still a conflict. |
-| `identical-edit` | Both machines made the same edit. Still a conflict, with nothing highlighted. |
+| `both-move` | Both machines moved the card to different places. |
+| `trash-vs-edit` | This machine moved the card to Trash while the other edited it. Today the pull fails and the project stops syncing; it should end in a copy. |
+
+These two machines changed different parts of the card, so Holder merges them without a copy:
+
+| Name | What happened |
+| --- | --- |
+| `move-vs-edit` | This machine only moved the card; the other edited its text. |
+| `identical-edit` | Both machines made the same edit. |
+| `title-vs-body` | This machine renamed the card; the other added a paragraph. |
+| `link-vs-edit` | This machine added a link; the other edited the text. |
+
+Setup flags any scenario whose outcome differs from this and exits nonzero, so it doubles as a
+quick check of the merge rules against a daemon build.
 
 `setup basic crlf` builds only those. `list` prints them. Running `setup` again for a scenario
 that exists asks you to `reset` first.

@@ -121,6 +121,8 @@ class GitRepo {
     // read_blob_at(local_oid_hex, path), using the local_oid_hex from the
     // NonFastForwardPullError this followed.
     std::vector<std::string> conflicted_paths;
+    // The last commit both sides share, for reading each conflicted card's common version.
+    std::string merge_base_oid_hex;
   };
 
   // Resolves a diverged pull at the file level: remote's version wins for any path touched on

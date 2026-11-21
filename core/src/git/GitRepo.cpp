@@ -1329,7 +1329,7 @@ GitRepo::DivergedMergeResult GitRepo::merge_remote_taking_theirs_for_conflicts(
       local_only.size()
   ); // LCOV_EXCL_STOP
 
-  return {conflicted};
+  return {conflicted, oid_to_hex(merge_base_oid)};
 }
 
 std::optional<std::string> GitRepo::read_blob_at(
