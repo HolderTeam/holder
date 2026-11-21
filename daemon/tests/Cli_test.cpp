@@ -28,6 +28,8 @@
 
 #ifndef _WIN32
 #include <csignal>
+#include <cstring>
+#include <sys/wait.h>
 #include <unistd.h>
 #endif
 
@@ -46,6 +48,20 @@ class CwdGuard {
  private:
   std::filesystem::path prev_;
 };
+
+#ifndef _WIN32
+// How a child daemon ended, for failure messages: a signal points at a crash or abort rather
+// than an orderly exit.
+std::string describe_child_exit(int status) {
+  if (WIFEXITED(status)) return "exited with status " + std::to_string(WEXITSTATUS(status));
+  if (WIFSIGNALED(status)) {
+    const int signal = WTERMSIG(status);
+    return "killed by signal " + std::to_string(signal) + " (" + strsignal(signal) + ")" +
+           (WCOREDUMP(status) ? ", core dumped" : "");
+  }
+  return "stopped with wait status " + std::to_string(status);
+}
+#endif
 
 } // namespace
 
@@ -526,6 +542,7 @@ TEST_CASE("CLI normal run starts server and exits on SIGTERM", "[cli]") {
   REQUIRE(kill(pid, SIGTERM) == 0);
   int status = 0;
   REQUIRE(waitpid(pid, &status, 0) == pid);
+  INFO("daemon " << describe_child_exit(status));
   REQUIRE(WIFEXITED(status));
   REQUIRE(WEXITSTATUS(status) == 0);
 
@@ -599,6 +616,7 @@ TEST_CASE(
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
   REQUIRE(child.reaped);
+  INFO("daemon " << describe_child_exit(status));
   REQUIRE(WIFEXITED(status));
   CHECK(WEXITSTATUS(status) != 0);
 }
