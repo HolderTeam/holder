@@ -2898,12 +2898,12 @@ paths:
       - name: limit
         in: query
         required: false
-        schema: {type: integer, maximum: 1000, minimum: 1, default: 100, title: Limit}
+        schema: {type: integer, maximum: 1000, minimum: 1, format: int32, default: 100, title: Limit}
       - name: offset
         in: query
         required: false
         schema: {type: integer, maximum: 2147483647, minimum: 0, description: How many of the ordered
-            projects to skip., default: 0, title: Offset}
+            projects to skip., format: int32, default: 0, title: Offset}
         description: How many of the ordered projects to skip.
       - name: include_card_counts
         in: query
@@ -3225,7 +3225,7 @@ paths:
         in: query
         required: false
         schema: {type: integer, maximum: 5000, minimum: 1, description: At most 1000 when include_content
-            is true., default: 200, title: Limit}
+            is true., format: int32, default: 200, title: Limit}
         description: At most 1000 when include_content is true.
       - name: cursor
         in: query
@@ -4940,11 +4940,13 @@ paths:
       - name: push_interval_seconds
         in: query
         required: false
-        schema: {type: integer, maximum: 2147483647, minimum: 0, default: 0, title: Push Interval Seconds}
+        schema: {type: integer, maximum: 2147483647, minimum: 0, format: int32, default: 0, title: Push
+            Interval Seconds}
       - name: pull_interval_seconds
         in: query
         required: false
-        schema: {type: integer, maximum: 2147483647, minimum: 0, default: 0, title: Pull Interval Seconds}
+        schema: {type: integer, maximum: 2147483647, minimum: 0, format: int32, default: 0, title: Pull
+            Interval Seconds}
       responses:
         '200':
           description: Successful Response
@@ -5077,7 +5079,7 @@ paths:
       - name: limit
         in: query
         required: false
-        schema: {type: integer, maximum: 200, minimum: 1, default: 50, title: Limit}
+        schema: {type: integer, maximum: 200, minimum: 1, format: int32, default: 50, title: Limit}
       - name: cursor
         in: query
         required: false
@@ -5158,7 +5160,7 @@ paths:
       - name: limit
         in: query
         required: false
-        schema: {type: integer, maximum: 200, minimum: 1, default: 50, title: Limit}
+        schema: {type: integer, maximum: 200, minimum: 1, format: int32, default: 50, title: Limit}
       - name: cursor
         in: query
         required: false
@@ -5497,13 +5499,13 @@ paths:
       - name: first_instant
         in: query
         required: true
-        schema: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, title: First
-            Instant}
+        schema: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: First Instant}
       - name: last_instant
         in: query
         required: true
-        schema: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, title: Last
-            Instant}
+        schema: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Last Instant}
       - name: role
         in: query
         required: false
@@ -6288,11 +6290,11 @@ paths:
       - name: limit
         in: query
         required: false
-        schema: {type: integer, maximum: 2147483647, minimum: 1, default: 20, title: Limit}
+        schema: {type: integer, maximum: 2147483647, minimum: 1, format: int32, default: 20, title: Limit}
       - name: offset
         in: query
         required: false
-        schema: {type: integer, maximum: 2147483647, minimum: 0, default: 0, title: Offset}
+        schema: {type: integer, maximum: 2147483647, minimum: 0, format: int32, default: 0, title: Offset}
       responses:
         '200':
           description: Successful Response
@@ -6333,11 +6335,11 @@ paths:
       - name: limit
         in: query
         required: false
-        schema: {type: integer, maximum: 2147483647, minimum: 1, default: 20, title: Limit}
+        schema: {type: integer, maximum: 2147483647, minimum: 1, format: int32, default: 20, title: Limit}
       - name: offset
         in: query
         required: false
-        schema: {type: integer, maximum: 2147483647, minimum: 0, default: 0, title: Offset}
+        schema: {type: integer, maximum: 2147483647, minimum: 0, format: int32, default: 0, title: Offset}
       responses:
         '200':
           description: Successful Response
@@ -8461,13 +8463,12 @@ components:
             it the first or
 
             last of its siblings; up_level makes it its grandparent''s last child.'
-        target_card_id: {$ref: '#/components/schemas/CardId', title: Target Card Id, description: 'The
-            card to move into, before or after; required for those intents, and ignored by the others.'}
+        target_card_id: {$ref: '#/components/schemas/CardId', description: 'The card to move into, before
+            or after; required for those intents, and ignored by the others.'}
         parent_card_id:
           anyOf:
           - {$ref: '#/components/schemas/CardId'}
           - {type: 'null'}
-          title: Parent Card Id
           description: 'For left, right, to_start and to_end: the parent among whose children to place
             it, null for the root
 
@@ -8501,8 +8502,8 @@ components:
           description: The resolution outcome.
         match_kind: {type: string, title: Match Kind, description: 'How a reference matched: full_id,
             id_prefix or exact_title. Absent when no card matched.'}
-        card: {$ref: '#/components/schemas/CardReferenceCandidate', title: Card, description: The matching
-            card for a resolved reference.}
+        card: {$ref: '#/components/schemas/CardReferenceCandidate', description: The matching card for
+            a resolved reference.}
         candidates:
           items: {$ref: '#/components/schemas/CardReferenceCandidate'}
           type: array
@@ -8565,7 +8566,6 @@ components:
           anyOf:
           - {$ref: '#/components/schemas/CardId'}
           - {type: 'null'}
-          title: Parent Card Id
           description: The card's new parent; null makes it a root card.
         sort_key: {type: number, format: double, title: Sort Key, description: The card's new place among
             its siblings.}
@@ -9328,10 +9328,10 @@ components:
     MilestoneDate:
       properties:
         role: {$ref: '#/components/schemas/MilestoneRole', description: What the date is for.}
-        date: {$ref: '#/components/schemas/Day', title: Date, description: The calendar day; present when
-            the date is a day.}
-        datetime: {$ref: '#/components/schemas/DateTime', title: Datetime, description: The instant; present
-            when the date is an instant.}
+        date: {$ref: '#/components/schemas/Day', description: The calendar day; present when the date
+            is a day.}
+        datetime: {$ref: '#/components/schemas/DateTime', description: The instant; present when the date
+            is an instant.}
       additionalProperties: false
       type: object
       required: [role]
@@ -9368,13 +9368,11 @@ components:
           anyOf:
           - {$ref: '#/components/schemas/MilestoneText'}
           - {type: 'null'}
-          title: Kind
           description: What kind of milestone it is; null for none.
         description:
           anyOf:
           - {$ref: '#/components/schemas/MilestoneText'}
           - {type: 'null'}
-          title: Description
           description: A note on the milestone; null for none.
       additionalProperties: false
       type: object
@@ -9405,9 +9403,8 @@ components:
         target_type: {$ref: '#/components/schemas/LinkTargetType', description: What the link points at.}
         target_id: {$ref: '#/components/schemas/LinkTargetId', description: The ID of what the link points
             at.}
-        target_project_id: {$ref: '#/components/schemas/ProjectId', title: Target Project Id, description: 'The
-            project of a card the link points at; omit for the card''s own project. Only a card can be
-            in another
+        target_project_id: {$ref: '#/components/schemas/ProjectId', description: 'The project of a card
+            the link points at; omit for the card''s own project. Only a card can be in another
 
             project, which need not be on this device.'}
         kind: {$ref: '#/components/schemas/LinkKind', description: What the link means., default: ref}
@@ -9449,8 +9446,8 @@ components:
       description: A milestone to put on a card.
     NewProject:
       properties:
-        project_id: {$ref: '#/components/schemas/ProjectId', title: Project Id, description: 'The project''s
-            ID, for imports; omit for a new one.'}
+        project_id: {$ref: '#/components/schemas/ProjectId', description: 'The project''s ID, for imports;
+            omit for a new one.'}
         name: {$ref: '#/components/schemas/ProjectName', description: The project's name.}
         root_path: {type: string, title: Root Path, description: 'The directory for the project''s repository,
             an absolute path; omit for one under this device''s projects
@@ -9492,13 +9489,13 @@ components:
       description: A project to make.
     NewResource:
       properties:
-        resource_id: {$ref: '#/components/schemas/ResourceId', title: Resource Id, description: 'The resource''s
-            ID, for imports; omit for a new one.'}
+        resource_id: {$ref: '#/components/schemas/ResourceId', description: 'The resource''s ID, for imports;
+            omit for a new one.'}
         type: {$ref: '#/components/schemas/ResourceType', description: What kind of thing the resource
             is.}
         label: {type: string, minLength: 1, title: Label, description: The resource's name.}
-        metadata: {$ref: '#/components/schemas/ResourceMetadata', title: Metadata, description: What is
-            known about the resource; omit for nothing. A name without values is left out.}
+        metadata: {$ref: '#/components/schemas/ResourceMetadata', description: What is known about the
+            resource; omit for nothing. A name without values is left out.}
         created_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
           title: Created At, description: 'When the resource was made, for imports; omit for now.'}
         updated_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
@@ -9516,8 +9513,8 @@ components:
         project_id: {$ref: '#/components/schemas/ProjectId', description: The owning project.}
         name: {type: string, minLength: 1, title: Name, description: Display name.}
         provider: {$ref: '#/components/schemas/LocationProvider', description: Storage provider kind.}
-        configuration: {$ref: '#/components/schemas/LocationConfiguration', title: Configuration, description: Portable
-            non-secret provider configuration; empty when omitted.}
+        configuration: {$ref: '#/components/schemas/LocationConfiguration', description: Portable non-secret
+            provider configuration; empty when omitted.}
         created_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
           title: Created At, description: Imported creation time; current time when omitted.}
         updated_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
@@ -9787,12 +9784,11 @@ components:
       title: ProjectStorageLocationResponse
     ProjectUpdate:
       properties:
-        name: {$ref: '#/components/schemas/ProjectName', title: Name, description: The project's name.}
+        name: {$ref: '#/components/schemas/ProjectName', description: The project's name.}
         git_remote_url:
           anyOf:
           - {$ref: '#/components/schemas/GitRemoteUrl'}
           - {type: 'null'}
-          title: Git Remote Url
           description: The Git remote to sync with; null for none.
         git_provider:
           anyOf:
@@ -10025,8 +10021,8 @@ components:
       title: ReindexResultResponse
     RemoteTest:
       properties:
-        remote_url: {$ref: '#/components/schemas/GitRemoteUrl', title: Remote Url, description: The Git
-            remote to test; omit for the project's own.}
+        remote_url: {$ref: '#/components/schemas/GitRemoteUrl', description: The Git remote to test; omit
+            for the project's own.}
       additionalProperties: false
       type: object
       title: RemoteTest
@@ -10139,12 +10135,11 @@ components:
     ResourceType: {type: string, minLength: 1}
     ResourceUpdate:
       properties:
-        type: {$ref: '#/components/schemas/ResourceType', title: Type, description: What kind of thing
-            the resource is.}
+        type: {$ref: '#/components/schemas/ResourceType', description: What kind of thing the resource
+            is.}
         label: {type: string, minLength: 1, title: Label, description: The resource's name.}
-        metadata: {$ref: '#/components/schemas/ResourceMetadata', title: Metadata, description: 'Names
-            whose values change: each name''s values replace its old ones, an empty list removes the name,
-            and
+        metadata: {$ref: '#/components/schemas/ResourceMetadata', description: 'Names whose values change:
+            each name''s values replace its old ones, an empty list removes the name, and
 
             names left out are kept.'}
         updated_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
@@ -10162,7 +10157,6 @@ components:
           anyOf:
           - {$ref: '#/components/schemas/CasteInfo'}
           - {type: 'null'}
-          title: Caste
           description: This machine's hardware caste, or null when it cannot be detected.
         runners:
           items: {$ref: '#/components/schemas/AiRunner'}
@@ -10343,8 +10337,8 @@ components:
     StorageLocationUpdate:
       properties:
         name: {type: string, minLength: 1, title: Name, description: Replacement display name.}
-        configuration: {$ref: '#/components/schemas/LocationConfiguration', title: Configuration, description: Replacement
-            configuration map.}
+        configuration: {$ref: '#/components/schemas/LocationConfiguration', description: Replacement configuration
+            map.}
         updated_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
           title: Updated At, description: Update time; current time when omitted.}
       additionalProperties: false
