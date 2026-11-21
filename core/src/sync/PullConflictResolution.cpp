@@ -13,6 +13,7 @@
 #include "sync/CardMerge.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <map>
 #include <optional>
 #include <set>
@@ -87,6 +88,34 @@ int resolve_pull_conflicts(
       diverged.local_oid_hex,
       diverged.remote_oid_hex
   );
+
+  // This device moved a card to Trash while the other device edited it. The merge kept the
+  // other device's edited file at the live path and also wrote this device's copy in Trash,
+  // leaving the card twice. Keep the edited card live and drop the Trash move, so nothing
+  // written on the other device is lost; the card can be moved to Trash again.
+  std::vector<std::string> kept_live_paths;
+  for (const auto& path : merge_result.conflicted_paths) {
+    const auto id = std::filesystem::path(path).stem().string();
+    if (!holder::identity::is_valid_uuid(id) || path != holder::core::card_rel_path(id)) continue;
+    const auto trash_path = holder::core::card_trash_rel_path(id);
+    if (git.read_blob_at(diverged.local_oid_hex, path).has_value() ||
+        !git.read_blob_at(diverged.remote_oid_hex, path).has_value() ||
+        !git.read_blob_at(diverged.local_oid_hex, trash_path).has_value() ||
+        git.read_blob_at(diverged.remote_oid_hex, trash_path).has_value())
+      continue;
+    const auto trash_file = git.repo_dir() / trash_path;
+    if (!std::filesystem::exists(trash_file)) continue;
+    std::filesystem::remove(trash_file);
+    git.remove_path(trash_path);
+    kept_live_paths.push_back(path);
+  }
+  if (!kept_live_paths.empty()) {
+    git.commit(
+        kept_live_paths.size() == 1 ? "Keep 1 card edited on another device out of Trash"
+                                    : "Keep " + std::to_string(kept_live_paths.size()) +
+                                          " cards edited on another device out of Trash"
+    );
+  }
 
   const bool encrypted = project.privacy_mode == "encrypted_git" &&
                          project.project_key_id.has_value();

@@ -411,8 +411,6 @@ SCENARIOS = [
              crlf_build, crlf_local, crlf_remote),
     Scenario("both-move", "Both machines move the card to different places.",
              move_build, both_move_local, both_move_remote),
-    Scenario("trash-vs-edit", "This machine moves the card to Trash; the other edits it.",
-             move_build, trash_local, trash_remote),
     # Merged automatically: the two machines changed different parts of the card.
     Scenario("move-vs-edit", "This machine only moves the card; the other edits its text.",
              move_build, move_local, move_remote, copies=0),
@@ -422,6 +420,8 @@ SCENARIOS = [
              one_card, title_local, title_remote, copies=0),
     Scenario("link-vs-edit", "This machine adds a link; the other edits the text.",
              extras, link_local, extras_remote, copies=0),
+    Scenario("trash-vs-edit", "This machine moves the card to Trash; the other edits it. "
+             "The edited card stays live.", move_build, trash_local, trash_remote, copies=0),
 ]
 BY_NAME = {s.name: s for s in SCENARIOS}
 
