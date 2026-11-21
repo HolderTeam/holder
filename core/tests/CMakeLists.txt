@@ -182,6 +182,7 @@ add_executable(holder_core_tests
   ProjectSyncOperation_test.cpp
   ProjectSyncPolicy_test.cpp
   ProjectSyncRepo_test.cpp
+  CardMerge_test.cpp
   PullConflictResolution_test.cpp
   PushResult_test.cpp
   RealFs_test.cpp
