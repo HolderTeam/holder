@@ -31,8 +31,11 @@ void complete_recovery_manifest(
 
 // Called after GitRepo::merge_remote_taking_theirs_for_conflicts has already resolved a
 // diverged pull at the git level (remote wins for any card touched on both sides since the
-// merge-base). First, each such card whose two versions changed different fields is merged
-// field by field (see merge_card_versions) and saved in one commit, so card history can undo it.
+// merge-base). First, Trash moves are settled: a card this device moved to Trash while the other
+// device edited it stays live with the edit, and a card the other device moved to Trash while
+// this device edited it is restored with this device's edit. Then each such card whose two
+// versions changed different fields is merged field by field (see merge_card_versions). Each step
+// is saved in a commit of its own, so card history can undo it.
 // Every other such card keeps its pre-merge LOCAL version as a brand new card titled
 // "<original title> (conflicted copy)": both full versions kept, nothing silently lost. A card
 // whose pre-merge content can't be read/decrypted/parsed is skipped. Failure to write a parsed

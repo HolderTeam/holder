@@ -1,5 +1,6 @@
 #if __has_include(<catch2/catch_test_macros.hpp>)
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 #else
 #include <catch2/catch.hpp>
@@ -1227,4 +1228,136 @@ TEST_CASE(
   REQUIRE(history.commits.size() == 1);
   CHECK(history.commits[0].message.starts_with("Keep 1 card edited on another device out of Trash")
   );
+}
+
+TEST_CASE(
+    "resolve_pull_conflicts restores a card edited here that another device moved to Trash",
+    "[sync][trash]"
+) {
+  const auto dir = make_temp_dir();
+  EnvGuard keystore_env("HOLDER_TEST_KEYSTORE_DIR", (dir / "keystore").string());
+  const std::string project_id = "proj-restore";
+  const std::string folder_id = "33333333-3333-4333-8333-333333333333";
+  const auto remote_dir = dir / "remote";
+  const auto local_dir = dir / "local";
+  const bool encrypted = GENERATE(false, true);
+  INFO("encrypted: " << encrypted);
+
+  auto remote_db = open_db_with_schema(dir / "remote.db");
+  holder::index::FtsIndexer remote_fts(remote_db);
+  holder::project::ProjectRepo remote_projects(remote_db);
+  holder::git::RealGitOps remote_git;
+  create_plain_project(remote_projects, project_id, remote_dir);
+  if (encrypted) {
+    remote_db.exec("UPDATE projects SET privacy_mode = 'encrypted_git'");
+    holder::privacy::ensure_encrypted_project_ready(
+        remote_git,
+        remote_projects,
+        project_id,
+        remote_dir.string(),
+        std::nullopt,
+        1,
+        []() {
+          return "test-key-restore";
+        }
+    );
+  }
+  const auto remote_project = remote_projects.get(project_id).value();
+  holder::card::CardStore remote_store(remote_db, &remote_fts, nullptr, &remote_git);
+  holder::model::Card folder;
+  folder.card_id = folder_id;
+  folder.project_id = project_id;
+  folder.title = "Folder";
+  folder.created_at = folder.updated_at = 1;
+  remote_store.create(folder, "");
+  holder::model::Card idea;
+  idea.card_id = kSharedCardId;
+  idea.project_id = project_id;
+  idea.title = "Idea";
+  idea.parent_card_id = folder_id;
+  idea.created_at = idea.updated_at = 1;
+  remote_store.create(idea, "base body\n");
+
+  holder::git::RealGitOps local_git;
+  local_git.open_or_init(local_dir);
+  local_git.set_remote("origin", remote_dir.string());
+  local_git.pull_remote_ff_only("origin");
+  auto local_db = open_db_with_schema(dir / "local.db");
+  holder::index::FtsIndexer local_fts(local_db);
+  holder::project::ProjectRepo local_projects(local_db);
+  auto local_project = remote_project;
+  local_project.root_path = local_dir.string();
+  local_projects.create(local_project);
+  holder::store::Rebuilder(local_db, &local_fts).rebuild_project(local_project);
+  holder::card::CardStore(local_db, &local_fts, nullptr, &local_git)
+      .update_content(kSharedCardId, "edited here\n", std::nullopt, 3);
+
+  int expected_copies = 0;
+  bool restored = true;
+  std::optional<std::string> expected_parent = folder_id;
+  SECTION("the card alone") { remote_store.trash(kSharedCardId, 2); }
+  SECTION("together with its parent, so it goes to the top level") {
+    remote_store.trash(folder_id, 2, holder::card::TrashChildren::TrashSubtree);
+    expected_parent.reset();
+  }
+  SECTION("with a clashing edit first, so it stays in Trash beside a copy") {
+    remote_store.update_content(kSharedCardId, "edited elsewhere\n", std::nullopt, 2);
+    remote_store.trash(kSharedCardId, 2);
+    expected_copies = 1;
+    restored = false;
+  }
+
+  holder::git::NonFastForwardPullError diverged("", "", "");
+  bool seen = false;
+  try {
+    local_git.pull_remote_ff_only("origin");
+  } catch (const holder::git::NonFastForwardPullError& error) {
+    diverged = error;
+    seen = true;
+  }
+  REQUIRE(seen);
+  CHECK(
+      holder::sync::resolve_pull_conflicts(
+          local_db,
+          &local_fts,
+          local_project,
+          local_git,
+          diverged,
+          4
+      ) == expected_copies
+  );
+  REQUIRE_NOTHROW(holder::sync::reconcile_index_after_pull(local_db, &local_fts, local_project));
+
+  const auto card = holder::card::CardRepo(local_db).get(kSharedCardId);
+  REQUIRE(card.has_value());
+  const auto trash_file = local_dir / holder::core::card_trash_rel_path(kSharedCardId);
+  if (!restored) {
+    CHECK(card->deleted_at.has_value());
+    CHECK(std::filesystem::exists(trash_file));
+    return;
+  }
+  CHECK_FALSE(card->deleted_at.has_value());
+  CHECK(card->parent_card_id == expected_parent);
+  CHECK(card->updated_at == 4);
+  CHECK_FALSE(std::filesystem::exists(trash_file));
+  CHECK(holder::card::CardRepo(local_db).list_all(project_id).size() == 2);
+
+  std::ifstream input(local_dir / holder::core::card_rel_path(kSharedCardId), std::ios::binary);
+  REQUIRE(input.is_open());
+  std::string bytes{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+  if (encrypted) {
+    CHECK(bytes.find("edited here") == std::string::npos);
+    bytes = holder::privacy::decrypt_project_blob(project_id, *local_project.project_key_id, bytes);
+  }
+  std::erase(bytes, '\r');
+  CHECK(holder::core::parse_card_file(bytes).body == "edited here\n");
+
+  holder::git::GitRepo repo;
+  repo.open_or_init(local_dir);
+  const auto history =
+      repo.history_for_paths({holder::core::card_rel_path(kSharedCardId)}, 1, std::nullopt);
+  REQUIRE(history.commits.size() == 1);
+  CHECK(history.commits[0].message.starts_with(
+      "Restore 1 card edited here that another device moved to Trash"
+  ));
 }
