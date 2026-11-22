@@ -487,7 +487,7 @@ SCENARIOS = [
 BY_NAME = {s.name: s for s in SCENARIOS}
 
 
-def run_scenario(holder, root: Path, scenario: Scenario) -> bool:
+def run_scenario(holder, root: Path, scenario: Scenario, pending: bool = False) -> bool:
     name = f"Conflict: {scenario.name}"
     for existing in holder.projects.filter(name=name):
         if existing.name == name:
@@ -514,6 +514,11 @@ def run_scenario(holder, root: Path, scenario: Scenario) -> bool:
     ctx = Context(project, other, cards)
     scenario.local(ctx)    # Committed here, not pushed.
     scenario.remote(ctx)   # Committed and pushed from the other clone.
+    if pending:
+        # Left for Desktop's Sync now or the next background pull.
+        note = "  (its extra step runs only without --pending)" if scenario.after else ""
+        print(f"  {scenario.name:<20} {'waiting for a pull':<21} {scenario.summary}{note}")
+        return True
     result = project.git.pull()
     if not result.succeeded:
         print(f"  {scenario.name:<20} {'PULL FAILED':<21} {scenario.summary}\n"
@@ -545,10 +550,14 @@ def cmd_setup(args: argparse.Namespace) -> None:
     start_daemon(root, holderctl, holderd, args.port)
     print("Scenarios:")
     with connect(holderctl) as holder:
-        unexpected = [s.name for s in chosen if not run_scenario(holder, root, s)]
+        unexpected = [s.name for s in chosen if not run_scenario(holder, root, s, args.pending)]
     print("\nOpen Desktop on the sandbox with:\n"
           f"  python3 {Path(__file__).relative_to(REPO)} desktop"
           + ("" if root == DEFAULT_ROOT else f" --root {root}"))
+    if args.pending:
+        print("\nBoth machines have edited, and nothing is pulled yet. Open a 'Conflict: …' project "
+              "and click Sync now in Git Sync, or leave it open for the background pull (within "
+              "about five minutes of now). The conflict appears with its toast.")
     if unexpected:
         sys.exit(f"\nUnexpected outcome for: {', '.join(unexpected)}. The daemon may predate or "
                  "postdate the merge rules this script expects.")
@@ -578,54 +587,6 @@ def desktop_env(desktop: Path) -> dict[str, str]:
             break
     env["GSETTINGS_BACKEND"] = "keyfile"
     return env
-
-
-def cmd_toast(args: argparse.Namespace) -> None:
-    """Make a fresh conflict in an existing scenario project and pull it, so a Desktop that has
-    the project open announces it, as it would after a background pull."""
-    scenario = args.scenario
-    remote = args.root / "remotes" / f"{scenario}.git"
-    if not remote.is_dir():
-        sys.exit(f"No '{scenario}' scenario in {args.root}. Run setup {scenario} first.")
-    holderctl, holderd = daemon_binaries(args)
-    start_daemon(args.root, holderctl, holderd, args.port)
-    name = f"Conflict: {scenario}"
-    with connect(holderctl) as holder:
-        project = next((p for p in holder.projects.filter(name=name) if p.name == name), None)
-        if project is None:
-            sys.exit(f"Project '{name}' is missing. Run reset, then setup {scenario}.")
-        cards = [c for c in project.cards
-                 if not c.title.endswith(" (conflicted copy)") and c.content.count("\n") >= 3]
-        if not cards:
-            sys.exit(f"'{name}' has no card with at least four lines to edit.")
-        card = max(cards, key=lambda c: c.content.count("\n"))
-        stamp = time.strftime("%H:%M:%S")
-
-        # This machine edits the card's first line, committed here and not pushed.
-        lines = card.content.split("\n")
-        first = next(i for i, line in enumerate(lines) if line.strip())
-        lines[first] += f" Edited here at {stamp}."
-        card.update(content="\n".join(lines))
-
-        # The other machine edits the same line, or with --merge adds a line at the end.
-        other = OtherMachine(remote, args.root / "other" / scenario)
-        path, front, body = other._split(card.id)
-        theirs = body.decode().split("\n")
-        if args.merge:
-            theirs.append(f"Added on the other machine at {stamp}.")
-            theirs.append("")
-        else:
-            theirs[first] += f" Edited on the other machine at {stamp}."
-        path.write_bytes(front + "\n".join(theirs).encode())
-        other.push(f"Edit {card.title} elsewhere at {stamp}")
-
-        result = project.git.pull()
-        if not result.succeeded:
-            sys.exit(f"The pull failed: {result.pull.error_message or result.pull.status}")
-        made = result.pull.conflicts_resolved
-        print(f"Pulled into '{name}': " + (f"{made} conflict cop{'y' if made == 1 else 'ies'}."
-                                           if made else "merged automatically."))
-        print("Desktop shows a toast if this project is the one open, and Compare (or Review) opens it.")
 
 
 def cmd_env(args: argparse.Namespace) -> None:
@@ -673,18 +634,14 @@ def main() -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     setup = commands.add_parser("setup", help="start the sandbox daemon and build scenarios")
     setup.add_argument("scenarios", nargs="*", help="scenario names (default: all)")
+    setup.add_argument("--pending", action="store_true",
+                       help="stop before the pull, so it happens with Desktop open and shows its toast")
     setup.set_defaults(run=cmd_setup)
     commands.add_parser("desktop", help="open Desktop on the sandbox").set_defaults(run=cmd_desktop)
     commands.add_parser("env", help="print environment exports for your shell").set_defaults(run=cmd_env)
     commands.add_parser("stop", help="stop the sandbox daemon").set_defaults(run=cmd_stop)
     commands.add_parser("reset", help="stop the daemon and delete the sandbox").set_defaults(run=cmd_reset)
     commands.add_parser("list", help="list scenarios").set_defaults(run=cmd_list)
-    toast = commands.add_parser("toast", help="make a fresh conflict and pull it while Desktop is open")
-    toast.add_argument("scenario", nargs="?", default="basic",
-                       help="the scenario project to use (default basic; run setup for it first)")
-    toast.add_argument("--merge", action="store_true",
-                       help="edit lines apart, so the pull merges instead of keeping a copy")
-    toast.set_defaults(run=cmd_toast)
     args = parser.parse_args()
     args.root = args.root.expanduser().resolve()
     if args.command in ("setup", "desktop"):

@@ -65,19 +65,20 @@ that exists asks you to `reset` first.
 
 ## Seeing the toasts
 
-Setup pulls before Desktop opens, and Desktop only announces pulls it sees while running. To see
-the pull toast, open Desktop on the sandbox, select a scenario's project, then run:
+Setup pulls each scenario straight away, before Desktop is open, so the conflict is already there
+when Desktop starts and no toast is shown. To see it as a user would, stop before the pull:
 
 ```sh
-python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py toast            # a fresh conflict in "basic"
-python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py toast --merge    # edits lines apart: a merge
-python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py toast copy-extras
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py setup --pending basic
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py desktop
 ```
 
-Each run edits the card with the most lines on both sides, the other machine pushes, and the
-sandbox daemon pulls, as a background pull would. Desktop then shows "Pulled changes from another
-device…" with Compare. Resolving the conflict in the dialog shows the Undo toast. Run it as often
-as you like; the scenario has to exist (`setup <scenario>`) first.
+Both machines have made their edits, and nothing is pulled. Open "Conflict: basic" and click
+**Sync now** in Git Sync, or leave it open: the daemon's background pull comes within about five
+minutes of setup. The conflict appears, and Desktop shows "Pulled changes from another device…"
+with **Compare**. Use a merge scenario, such as `different-lines`, for the toast without a copy.
+To try again, `reset` and run setup again. With `--pending`, setup cannot check the outcome, and
+the extra step of `original-under-copy` and `copy-extras` is skipped.
 
 ## Options and binaries
 
