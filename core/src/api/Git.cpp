@@ -454,25 +454,27 @@ ConflictComparison compare_conflict_copy(
     std::string project_id,
     std::string copy_id
 ) {
-  const auto project = find(context, project_id);
-  const auto mutex = holder::git::repo_mutex_for(project.root_path);
-  std::unique_lock lock(*mutex);
-  auto result = read_conflict_pair(context, project, copy_id);
-  lock.unlock();
-  if (result.original.content == result.copy_card.content) return result;
-  const auto lines = holder::history::compare_card_text(
-      result.original.content,
-      result.copy_card.content,
-      result.truncated
-  );
-  for (const auto& line : lines) {
-    if (line.origin == '-') {
-      result.original_changed_lines.push_back({static_cast<std::int32_t>(line.old_line)});
-    } else if (line.origin == '+') {
-      result.copy_changed_lines.push_back({static_cast<std::int32_t>(line.new_line)});
+  return with_contract_errors([&] {
+    const auto project = find(context, project_id);
+    const auto mutex = holder::git::repo_mutex_for(project.root_path);
+    std::unique_lock lock(*mutex);
+    auto result = read_conflict_pair(context, project, copy_id);
+    lock.unlock();
+    if (result.original.content == result.copy_card.content) return result;
+    const auto lines = holder::history::compare_card_text(
+        result.original.content,
+        result.copy_card.content,
+        result.truncated
+    );
+    for (const auto& line : lines) {
+      if (line.origin == '-') {
+        result.original_changed_lines.push_back({static_cast<std::int32_t>(line.old_line)});
+      } else if (line.origin == '+') {
+        result.copy_changed_lines.push_back({static_cast<std::int32_t>(line.new_line)});
+      }
     }
-  }
-  return result;
+    return result;
+  });
 }
 
 ConflictResolutionResult resolve_conflict_copy(
