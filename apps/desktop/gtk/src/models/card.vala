@@ -119,16 +119,51 @@ public class ConflictComparison : Object {
     }
 }
 
+// A card the cleanup review names: a child of the copy, or where those children would move.
+public class ConflictCleanupCard : Object {
+    public string card_id { get; construct; }
+    public string title { get; construct; }
+
+    public ConflictCleanupCard(string card_id, string title) {
+        Object(card_id: card_id, title: title);
+    }
+}
+
+// One labelled date of a milestone, as the API gives it: a whole day or a moment.
+public class ConflictMilestoneDate : Object {
+    public string role { get; construct; }
+    public string? date { get; construct; }
+    public string? datetime { get; construct; }
+
+    public ConflictMilestoneDate(string role, string? date, string? datetime) {
+        Object(role: role, date: date, datetime: datetime);
+    }
+}
+
+// A milestone only the copy has. Unlike the calendar's Milestone, it keeps every date, whatever
+// its role, so nothing about it is lost before the user decides what to do with it.
+public class ConflictCleanupMilestone : Object {
+    public string milestone_id { get; construct; }
+    public string? kind { get; construct; }
+    public string? description { get; construct; }
+    public ConflictMilestoneDate[] dates = {};
+
+    public ConflictCleanupMilestone(string milestone_id, string? kind, string? description) {
+        Object(milestone_id: milestone_id, kind: kind, description: description);
+    }
+}
+
 public class ConflictCopyCleanupReview : Object {
     public string cleanup_token { get; construct; }
-    public string? promotion_parent;
+    // Where the copy's children would move; null for the project's top level.
+    public ConflictCleanupCard? promotion_parent;
     public bool placement_differs;
     public bool preserves_original;
     public string[] copy_tags = {};
     public CardLink[] copy_links = {};
     public CardLink[] backlinks = {};
-    public string[] copy_milestones = {};
-    public string[] children = {};
+    public ConflictCleanupMilestone[] copy_milestones = {};
+    public ConflictCleanupCard[] children = {};
 
     public ConflictCopyCleanupReview(string cleanup_token) {
         Object(cleanup_token: cleanup_token);

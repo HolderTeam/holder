@@ -54,20 +54,21 @@ public class ApiClientGitEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration 
             client.json_string_from_builder(body), null);
     }
 
-    private static ConflictCopyCleanupReview parse_cleanup_review(Json.Object data) throws Error {
+    // The review as the API gives it: wording belongs to the views that show it.
+    internal static ConflictCopyCleanupReview parse_cleanup_review(Json.Object data) throws Error {
         var token = data.get_string_member_with_default("cleanup_token", "");
         if (token == "") throw new ApiError.PROTOCOL("Missing cleanup review token");
         var review = new ConflictCopyCleanupReview(token);
         review.placement_differs = data.get_boolean_member("placement_differs");
         review.preserves_original = data.get_boolean_member("preserves_original");
         var parent = data.get_object_member("promotion_parent");
-        if (parent != null) review.promotion_parent = parent.get_string_member("title");
+        if (parent != null) review.promotion_parent = cleanup_card(parent);
         review.copy_links = cleanup_links(data.get_array_member("copy_links"));
         review.backlinks = cleanup_links(data.get_array_member("backlinks"));
         var children = data.get_array_member("children");
-        review.children = new string[children.get_length()];
+        review.children = new ConflictCleanupCard[children.get_length()];
         children.foreach_element((array, index, node) => {
-            review.children[index] = node.get_object().get_string_member("title");
+            review.children[index] = cleanup_card(node.get_object());
         });
         var tags = data.get_array_member("copy_tags");
         review.copy_tags = new string[tags.get_length()];
@@ -75,24 +76,29 @@ public class ApiClientGitEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration 
             review.copy_tags[index] = node.get_string();
         });
         var milestones = data.get_array_member("copy_milestones");
-        review.copy_milestones = new string[milestones.get_length()];
+        review.copy_milestones = new ConflictCleanupMilestone[milestones.get_length()];
         milestones.foreach_element((array, index, node) => {
-            var milestone = node.get_object();
-            var description = ApiParsersCommon.nullable_string_member_or_null(milestone, "description");
-            var kind = ApiParsersCommon.nullable_string_member_or_null(milestone, "kind");
-            var detail = new StringBuilder(description ?? kind ?? "Milestone");
-            if (description != null && kind != null) detail.append(" · " + kind);
-            milestone.get_array_member("dates").foreach_element((dates, date_index, date_node) => {
+            var item = node.get_object();
+            var milestone = new ConflictCleanupMilestone(
+                item.get_string_member("milestone_id"),
+                ApiParsersCommon.nullable_string_member_or_null(item, "kind"),
+                ApiParsersCommon.nullable_string_member_or_null(item, "description"));
+            var dates = item.get_array_member("dates");
+            milestone.dates = new ConflictMilestoneDate[dates.get_length()];
+            dates.foreach_element((array, date_index, date_node) => {
                 var date = date_node.get_object();
-                var value = ApiParsersCommon.nullable_string_member_or_null(date, "date") ??
-                            ApiParsersCommon.nullable_string_member_or_null(date, "datetime");
-                if (value != null) {
-                    detail.append("\n%s · %s".printf(date.get_string_member("role"), value));
-                }
+                milestone.dates[date_index] = new ConflictMilestoneDate(
+                    date.get_string_member("role"),
+                    ApiParsersCommon.nullable_string_member_or_null(date, "date"),
+                    ApiParsersCommon.nullable_string_member_or_null(date, "datetime"));
             });
-            review.copy_milestones[index] = detail.str;
+            review.copy_milestones[index] = milestone;
         });
         return review;
+    }
+
+    private static ConflictCleanupCard cleanup_card(Json.Object data) {
+        return new ConflictCleanupCard(data.get_string_member("card_id"), data.get_string_member("title"));
     }
 
     private static CardLink[] cleanup_links(Json.Array data) {

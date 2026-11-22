@@ -203,6 +203,41 @@ private void test_sync_result_without_changes_reads_as_empty() {
     assert(result.pull.changes.is_empty());
 }
 
+// The cleanup review keeps the API's structure; the dialog does the wording.
+private void test_cleanup_review_keeps_milestones_and_cards_whole() {
+    var parser = new Json.Parser();
+    try {
+        parser.load_from_data(
+            "{\"cleanup_token\":\"t1\",\"placement_differs\":true,\"preserves_original\":true," +
+            "\"promotion_parent\":{\"card_id\":\"p9\",\"title\":\"Parent\",\"deleted_at\":null}," +
+            "\"copy_links\":[],\"backlinks\":[],\"copy_tags\":[\"draft\"]," +
+            "\"children\":[{\"card_id\":\"k1\",\"title\":\"Child\",\"deleted_at\":null}]," +
+            "\"copy_milestones\":[{\"milestone_id\":\"m1\",\"kind\":\"deadline\",\"description\":\"Launch\"," +
+            "\"dates\":[{\"role\":\"due\",\"date\":\"2026-12-01\",\"datetime\":null}," +
+            "{\"role\":\"review\",\"date\":null,\"datetime\":\"2026-11-30T09:00:00Z\"}]}]}");
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    HolderLinux.ConflictCopyCleanupReview review;
+    try {
+        review = HolderLinux.ApiClientGitEndpoints.parse_cleanup_review(parser.get_root().get_object());
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    assert(review.cleanup_token == "t1" && review.placement_differs && review.preserves_original);
+    assert(review.promotion_parent != null);
+    assert(((!) review.promotion_parent).card_id == "p9" && ((!) review.promotion_parent).title == "Parent");
+    assert(review.children.length == 1 && review.children[0].card_id == "k1");
+    assert(review.copy_tags.length == 1 && review.copy_tags[0] == "draft");
+    assert(review.copy_milestones.length == 1);
+    var milestone = review.copy_milestones[0];
+    assert(milestone.milestone_id == "m1" && milestone.kind == "deadline" && milestone.description == "Launch");
+    assert(milestone.dates.length == 2);
+    assert(milestone.dates[0].role == "due" && milestone.dates[0].date == "2026-12-01");
+    assert(milestone.dates[0].datetime == null);
+    assert(milestone.dates[1].date == null && milestone.dates[1].datetime == "2026-11-30T09:00:00Z");
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -217,6 +252,8 @@ public static int main(string[] args) {
     Test.add_func("/api_client_git/missing_data_errors_for_test_remote_and_push",
                   test_missing_data_errors_for_test_remote_and_push);
     Test.add_func("/api_client_git/forced_sync_reads_both_phases", test_forced_sync_reads_both_phases);
+    Test.add_func("/api_client_git/cleanup_review_keeps_milestones_and_cards_whole",
+                  test_cleanup_review_keeps_milestones_and_cards_whole);
     Test.add_func("/api_client_git/sync_result_without_changes_reads_as_empty",
                   test_sync_result_without_changes_reads_as_empty);
 

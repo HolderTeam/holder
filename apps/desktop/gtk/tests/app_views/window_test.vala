@@ -768,8 +768,9 @@ private class WindowConflictApi : MainControllerFakeApi, HolderLinux.IConflictCo
         var cleanup = new HolderLinux.ConflictCopyCleanupReview("cleanup-" + review_token);
         cleanup.preserves_original = true;
         cleanup.copy_tags = { "copy-only" };
-        cleanup.copy_milestones = { "Ship Friday" };
-        cleanup.children = { "Preserved checklist" };
+        var milestone = new HolderLinux.ConflictCleanupMilestone("m1", null, "Ship Friday");
+        cleanup.copy_milestones = { milestone };
+        cleanup.children = { new HolderLinux.ConflictCleanupCard("c9", "Preserved checklist") };
         return new HolderLinux.ConflictResolutionResult(yield get_card(project_id, "c1"), cleanup);
     }
 

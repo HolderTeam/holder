@@ -217,13 +217,17 @@ internal class ConflictComparisonDialog : Adw.Dialog {
         foreach (var tag in cleanup.copy_tags) tags += "#" + tag;
         append_cleanup_group(groups, "Tags only on the copy", tags);
         append_cleanup_group(groups, "Links and attachments only on the copy", describe_links(cleanup.copy_links, cards, false));
-        append_cleanup_group(groups, "Milestones only on the copy", cleanup.copy_milestones);
+        string[] milestones = {};
+        foreach (var milestone in cleanup.copy_milestones) milestones += describe_milestone(milestone);
+        append_cleanup_group(groups, "Milestones only on the copy", milestones);
         append_cleanup_group(groups, "Links pointing to the copy", describe_links(cleanup.backlinks, cards, true));
         if (cleanup.children.length > 0) {
             var destination = cleanup.promotion_parent == null
                 ? "These cards would move to the project’s top level."
-                : "These cards would move under “%s”.".printf(cleanup.promotion_parent);
-            append_cleanup_group(groups, "Child cards", cleanup.children,
+                : "These cards would move under “%s”.".printf(((!) cleanup.promotion_parent).title);
+            string[] children = {};
+            foreach (var child in cleanup.children) children += child.title;
+            append_cleanup_group(groups, "Child cards", children,
                                  destination + " Restoring the copy keeps them there.");
         }
         if (tags.length == 0 && cleanup.copy_links.length == 0 && cleanup.copy_milestones.length == 0 &&
@@ -262,6 +266,17 @@ internal class ConflictComparisonDialog : Adw.Dialog {
         }
         layout.append(actions);
         return layout;
+    }
+
+    // "Launch · deadline", then one line per date: "due · 2026-12-01".
+    internal static string describe_milestone(ConflictCleanupMilestone milestone) {
+        var detail = new StringBuilder(milestone.description ?? milestone.kind ?? "Milestone");
+        if (milestone.description != null && milestone.kind != null) detail.append(" · " + (!) milestone.kind);
+        foreach (var date in milestone.dates) {
+            var value = date.date ?? date.datetime;
+            if (value != null) detail.append("\n%s · %s".printf(date.role, (!) value));
+        }
+        return detail.str;
     }
 
     private static Gtk.Label cleanup_label(string message) {
