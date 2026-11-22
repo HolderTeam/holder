@@ -58,6 +58,8 @@ class PullBlockedByLocalChanges : public std::runtime_error {
   using std::runtime_error::runtime_error;
 };
 
+enum class ChangeOrigin { ThisDevice, AnotherDevice, Unknown };
+
 class GitRepo {
  public:
   GitRepo();
@@ -173,6 +175,14 @@ class GitRepo {
 
   // Current commit OID, or nullopt for an unborn repository.
   std::optional<std::string> head_oid();
+
+  // Which device made the latest change to a file, as this clone's HEAD reflog records it. The
+  // change is the commit that introduced the file's current content: a merge that kept one
+  // parent's content is followed back to that parent. A commit this clone made ("commit…" in the
+  // reflog) is ThisDevice; one that arrived by a pull is AnotherDevice. A change older than the
+  // reflog, as after a fresh clone or once old entries expire, is Unknown, as is a file missing
+  // from HEAD. Content in the working tree that differs from HEAD is ThisDevice.
+  ChangeOrigin latest_change_origin(const std::filesystem::path& relative_path);
 
   // Test hook: invoke the internal credential callback and report whether a credential was
   // produced.

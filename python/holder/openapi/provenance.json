@@ -1,6 +1,6 @@
 {
   "source": "api/openapi.yaml",
-  "sha256": "36490c3a3b70e200ba25fae27d3d26b83e6cb3d12160d4b00e4c56593b41bad3",
+  "sha256": "b6204a2517e9a4b2fa55fd15dca0312c121b86856cc50f247b564b2da9f1a6d4",
   "generator": {
     "openapi-python-client": "https://github.com/zeth/openapi-python-client@e0abac2ad9c0df67197ef7401504cb21aab7c1af",
     "ruff": "0.16.10"

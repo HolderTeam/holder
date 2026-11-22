@@ -549,6 +549,28 @@ jobject to_java_holder_recovery_token_global_import_result_pull_status(JNIEnv* e
   return entry;
 }
 
+// ConflictComparisonOriginalEditedOn, from its C value, which counts from 1.
+jobject to_java_holder_conflict_comparison_original_edited_on(JNIEnv* env, int value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/ConflictComparisonOriginalEditedOn");
+  static const jmethodID values = env->GetStaticMethodID(type, "values", "()[Lteam/holder/android/contract/ConflictComparisonOriginalEditedOn;");
+  auto entries = static_cast<jobjectArray>(env->CallStaticObjectMethod(type, values));
+  if (!entries) return nullptr;
+  jobject entry = env->GetObjectArrayElement(entries, value - 1);
+  env->DeleteLocalRef(entries);
+  return entry;
+}
+
+// ConflictComparisonCopyEditedOn, from its C value, which counts from 1.
+jobject to_java_holder_conflict_comparison_copy_edited_on(JNIEnv* env, int value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/ConflictComparisonCopyEditedOn");
+  static const jmethodID values = env->GetStaticMethodID(type, "values", "()[Lteam/holder/android/contract/ConflictComparisonCopyEditedOn;");
+  auto entries = static_cast<jobjectArray>(env->CallStaticObjectMethod(type, values));
+  if (!entries) return nullptr;
+  jobject entry = env->GetObjectArrayElement(entries, value - 1);
+  env->DeleteLocalRef(entries);
+  return entry;
+}
+
 // PullPhaseStatus, from its C value, which counts from 1.
 jobject to_java_holder_pull_phase_status(JNIEnv* env, int value) {
   static const jclass type = global_class(env, "team/holder/android/contract/PullPhaseStatus");
@@ -1696,10 +1718,10 @@ jobject to_java_holder_conflict_changed_line(JNIEnv* env, const holder_conflict_
 jobject to_java_holder_conflict_comparison(JNIEnv* env, const holder_conflict_comparison& value) {
   static const jclass type = global_class(env, "team/holder/android/contract/ConflictComparison");
   if (!type) return nullptr;
-  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Lteam/holder/android/contract/Card;Lteam/holder/android/contract/Card;Ljava/util/List;Ljava/util/List;ZLjava/lang/String;)V");
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Lteam/holder/android/contract/Card;Lteam/holder/android/contract/Card;Ljava/util/List;Ljava/util/List;ZLteam/holder/android/contract/ConflictComparisonOriginalEditedOn;Lteam/holder/android/contract/ConflictComparisonCopyEditedOn;Ljava/lang/String;)V");
   if (!constructor) return nullptr;
   Locals locals(env);
-  jvalue args[6] = {};
+  jvalue args[8] = {};
   args[0].l = locals.add(to_java_holder_card(env, value.original));
   if (env->ExceptionCheck()) return nullptr;
   args[1].l = locals.add(to_java_holder_card(env, value.copy_card));
@@ -1709,7 +1731,11 @@ jobject to_java_holder_conflict_comparison(JNIEnv* env, const holder_conflict_co
   args[3].l = locals.add(to_java_list(env, (value.copy_changed_lines).items, (value.copy_changed_lines).count, [&](const auto& item) -> jobject { return to_java_holder_conflict_changed_line(env, item); }));
   if (env->ExceptionCheck()) return nullptr;
   args[4].z = static_cast<jboolean>(value.truncated ? JNI_TRUE : JNI_FALSE);
-  args[5].l = locals.add(string(env, value.review_token));
+  args[5].l = locals.add(to_java_holder_conflict_comparison_original_edited_on(env, static_cast<int>(value.original_edited_on)));
+  if (env->ExceptionCheck()) return nullptr;
+  args[6].l = locals.add(to_java_holder_conflict_comparison_copy_edited_on(env, static_cast<int>(value.copy_edited_on)));
+  if (env->ExceptionCheck()) return nullptr;
+  args[7].l = locals.add(string(env, value.review_token));
   if (env->ExceptionCheck()) return nullptr;
   return env->NewObjectA(type, constructor, args);
 }

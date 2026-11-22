@@ -1338,6 +1338,24 @@ typedef struct holder_conflict_changed_line_list {
   size_t count;
 } holder_conflict_changed_line_list;
 
+/* Which device made the latest change to the original. */
+typedef enum holder_conflict_comparison_original_edited_on {
+  HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_THIS_DEVICE = 1,
+  HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_ANOTHER_DEVICE = 2,
+  HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_UNKNOWN = 3,
+  HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_conflict_comparison_original_edited_on;
+
+/* Which device made the latest change to the preserved copy. */
+typedef enum holder_conflict_comparison_copy_edited_on {
+  HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_THIS_DEVICE = 1,
+  HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_ANOTHER_DEVICE = 2,
+  HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_UNKNOWN = 3,
+  HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_conflict_comparison_copy_edited_on;
+
 /* The two live cards in a recorded conflict pair, read together for review. */
 typedef struct holder_conflict_comparison {
   holder_card original; /* The current state of the original card. */
@@ -1347,6 +1365,10 @@ typedef struct holder_conflict_comparison {
   holder_conflict_changed_line_list
       copy_changed_lines; /* One-based lines of the copy's content that differ from the original. */
   bool truncated; /* Whether the bounded diff could only highlight part of the change. */
+  holder_conflict_comparison_original_edited_on
+      original_edited_on; /* Which device made the latest change to the original. */
+  holder_conflict_comparison_copy_edited_on
+      copy_edited_on; /* Which device made the latest change to the preserved copy. */
   const char* review_token; /* An opaque token for both reviewed versions, required when saving a
                                resolution. */
 } holder_conflict_comparison;

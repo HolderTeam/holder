@@ -505,6 +505,53 @@ template <> struct codec<holder::contract::RecoveryTokenGlobalImportResultPullSt
   }
 };
 
+template <> struct codec<holder::contract::ConflictComparisonOriginalEditedOn> {
+  static json encode(holder::contract::ConflictComparisonOriginalEditedOn value) {
+    switch (value) {
+    case holder::contract::ConflictComparisonOriginalEditedOn::ThisDevice:
+      return "this_device";
+    case holder::contract::ConflictComparisonOriginalEditedOn::AnotherDevice:
+      return "another_device";
+    case holder::contract::ConflictComparisonOriginalEditedOn::Unknown:
+      return "unknown";
+    }
+    throw std::invalid_argument("is not a known value");
+  }
+  static holder::contract::ConflictComparisonOriginalEditedOn decode(const json& value) {
+    if (!value.is_string()) throw std::invalid_argument("must be a string");
+    const auto& text = value.get_ref<const std::string&>();
+    if (text == "this_device")
+      return holder::contract::ConflictComparisonOriginalEditedOn::ThisDevice;
+    if (text == "another_device")
+      return holder::contract::ConflictComparisonOriginalEditedOn::AnotherDevice;
+    if (text == "unknown") return holder::contract::ConflictComparisonOriginalEditedOn::Unknown;
+    throw std::invalid_argument("must be one of this_device, another_device, unknown");
+  }
+};
+
+template <> struct codec<holder::contract::ConflictComparisonCopyEditedOn> {
+  static json encode(holder::contract::ConflictComparisonCopyEditedOn value) {
+    switch (value) {
+    case holder::contract::ConflictComparisonCopyEditedOn::ThisDevice:
+      return "this_device";
+    case holder::contract::ConflictComparisonCopyEditedOn::AnotherDevice:
+      return "another_device";
+    case holder::contract::ConflictComparisonCopyEditedOn::Unknown:
+      return "unknown";
+    }
+    throw std::invalid_argument("is not a known value");
+  }
+  static holder::contract::ConflictComparisonCopyEditedOn decode(const json& value) {
+    if (!value.is_string()) throw std::invalid_argument("must be a string");
+    const auto& text = value.get_ref<const std::string&>();
+    if (text == "this_device") return holder::contract::ConflictComparisonCopyEditedOn::ThisDevice;
+    if (text == "another_device")
+      return holder::contract::ConflictComparisonCopyEditedOn::AnotherDevice;
+    if (text == "unknown") return holder::contract::ConflictComparisonCopyEditedOn::Unknown;
+    throw std::invalid_argument("must be one of this_device, another_device, unknown");
+  }
+};
+
 template <> struct codec<holder::contract::PullPhaseStatus> {
   static json encode(holder::contract::PullPhaseStatus value) {
     switch (value) {
@@ -4860,6 +4907,11 @@ inline json codec<holder::contract::ConflictComparison>::encode(
       value.copy_changed_lines
   );
   result["truncated"] = codec<bool>::encode(value.truncated);
+  result["original_edited_on"] =
+      codec<holder::contract::ConflictComparisonOriginalEditedOn>::encode(value.original_edited_on);
+  result["copy_edited_on"] = codec<holder::contract::ConflictComparisonCopyEditedOn>::encode(
+      value.copy_edited_on
+  );
   result["review_token"] = codec<std::string>::encode(value.review_token);
   return result;
 }
@@ -4869,7 +4921,9 @@ inline holder::contract::ConflictComparison codec<holder::contract::ConflictComp
   if (!value.is_object()) throw std::invalid_argument("expected a ConflictComparison object");
   for (auto it = value.begin(); it != value.end(); ++it)
     if (it.key() != "original" && it.key() != "copy_card" && it.key() != "original_changed_lines" &&
-        it.key() != "copy_changed_lines" && it.key() != "truncated" && it.key() != "review_token")
+        it.key() != "copy_changed_lines" && it.key() != "truncated" &&
+        it.key() != "original_edited_on" && it.key() != "copy_edited_on" &&
+        it.key() != "review_token")
       throw std::invalid_argument("ConflictComparison has no field " + it.key());
   holder::contract::ConflictComparison out;
   if (value.contains("original") && !value.at("original").is_null()) {
@@ -4907,6 +4961,22 @@ inline holder::contract::ConflictComparison codec<holder::contract::ConflictComp
     out.truncated = decode_field<bool>(item, "truncated");
   } else {
     throw std::invalid_argument("truncated is required and must not be null");
+  }
+  if (value.contains("original_edited_on") && !value.at("original_edited_on").is_null()) {
+    const auto& item = value.at("original_edited_on");
+    out.original_edited_on = decode_field<holder::contract::ConflictComparisonOriginalEditedOn>(
+        item,
+        "original_edited_on"
+    );
+  } else {
+    throw std::invalid_argument("original_edited_on is required and must not be null");
+  }
+  if (value.contains("copy_edited_on") && !value.at("copy_edited_on").is_null()) {
+    const auto& item = value.at("copy_edited_on");
+    out.copy_edited_on =
+        decode_field<holder::contract::ConflictComparisonCopyEditedOn>(item, "copy_edited_on");
+  } else {
+    throw std::invalid_argument("copy_edited_on is required and must not be null");
   }
   if (value.contains("review_token") && !value.at("review_token").is_null()) {
     const auto& item = value.at("review_token");

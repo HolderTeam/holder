@@ -930,6 +930,12 @@ struct ConflictChangedLine {
   std::int32_t line{}; ///< The one-based line number within this card's content.
 };
 
+/// Which device made the latest change to the original.
+enum class ConflictComparisonOriginalEditedOn { ThisDevice, AnotherDevice, Unknown };
+
+/// Which device made the latest change to the preserved copy.
+enum class ConflictComparisonCopyEditedOn { ThisDevice, AnotherDevice, Unknown };
+
 /// The two live cards in a recorded conflict pair, read together for review.
 struct ConflictComparison {
   Card original; ///< The current state of the original card.
@@ -939,6 +945,10 @@ struct ConflictComparison {
   std::vector<ConflictChangedLine>
       copy_changed_lines; ///< One-based lines of the copy's content that differ from the original.
   bool truncated{}; ///< Whether the bounded diff could only highlight part of the change.
+  ConflictComparisonOriginalEditedOn
+      original_edited_on; ///< Which device made the latest change to the original.
+  ConflictComparisonCopyEditedOn
+      copy_edited_on; ///< Which device made the latest change to the preserved copy.
   std::string review_token; ///< An opaque token for both reviewed versions, required when saving a
                             ///< resolution.
 };

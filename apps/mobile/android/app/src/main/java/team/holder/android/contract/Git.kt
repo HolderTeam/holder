@@ -1,6 +1,20 @@
 // Generated from contract/interface by compiler. Do not edit; run make -C contract update.
 package team.holder.android.contract
 
+/** Which device made the latest change to the original. */
+enum class ConflictComparisonOriginalEditedOn(val value: String) {
+    THIS_DEVICE("this_device"),
+    ANOTHER_DEVICE("another_device"),
+    UNKNOWN("unknown"),
+}
+
+/** Which device made the latest change to the preserved copy. */
+enum class ConflictComparisonCopyEditedOn(val value: String) {
+    THIS_DEVICE("this_device"),
+    ANOTHER_DEVICE("another_device"),
+    UNKNOWN("unknown"),
+}
+
 /** How the pull ended. */
 enum class PullPhaseStatus(val value: String) {
     NOT_ATTEMPTED("not_attempted"),
@@ -127,6 +141,10 @@ data class ConflictComparison(
     val copyChangedLines: List<ConflictChangedLine>,
     /** Whether the bounded diff could only highlight part of the change. */
     val truncated: Boolean,
+    /** Which device made the latest change to the original. */
+    val originalEditedOn: ConflictComparisonOriginalEditedOn,
+    /** Which device made the latest change to the preserved copy. */
+    val copyEditedOn: ConflictComparisonCopyEditedOn,
     /** An opaque token for both reviewed versions, required when saving a resolution. */
     val reviewToken: String,
 )

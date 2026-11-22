@@ -16,6 +16,12 @@ type PushStatus = Literal["not_attempted", "pushed", "up_to_date", "auth_failed"
 non_fast_forward means the remote has changes to pull first."""
 
 
+type ConflictVersionEditedOn = Literal["this_device", "another_device", "unknown"]
+"""Which device made the latest change to one version of a conflict pair. Each device answers from its own Git log of
+the commits made in its copy of the project, so the two devices give opposite answers for the same version. unknown
+means this device's log cannot tell: the change is older than the log, as after a fresh clone."""
+
+
 class ConflictCopy(Record):
     """A local card version preserved during a divergent pull."""
 
@@ -47,6 +53,10 @@ class ConflictComparison(Record):
     """One-based lines of the copy's content that differ from the original."""
     truncated: bool
     """Whether the bounded diff could only highlight part of the change."""
+    original_edited_on: ConflictVersionEditedOn
+    """Which device made the latest change to the original."""
+    copy_edited_on: ConflictVersionEditedOn
+    """Which device made the latest change to the preserved copy."""
     review_token: str
     """An opaque token for both reviewed versions, required when saving a resolution."""
 

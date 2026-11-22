@@ -8676,11 +8676,16 @@ components:
           description: One-based lines of the copy's content that differ from the original.
         truncated: {type: boolean, title: Truncated, description: Whether the bounded diff could only
             highlight part of the change.}
+        original_edited_on: {$ref: '#/components/schemas/ConflictVersionEditedOn', description: Which
+            device made the latest change to the original.}
+        copy_edited_on: {$ref: '#/components/schemas/ConflictVersionEditedOn', description: Which device
+            made the latest change to the preserved copy.}
         review_token: {type: string, title: Review Token, description: 'An opaque token for both reviewed
             versions, required when saving a resolution.'}
       additionalProperties: false
       type: object
-      required: [original, copy_card, original_changed_lines, copy_changed_lines, truncated, review_token]
+      required: [original, copy_card, original_changed_lines, copy_changed_lines, truncated, original_edited_on,
+        copy_edited_on, review_token]
       title: ConflictComparison
       description: The two live cards in a recorded conflict pair, read together for review.
     ConflictComparisonResponse:
@@ -8779,6 +8784,9 @@ components:
       type: object
       required: [ok, data]
       title: ConflictResolutionResultResponse
+    ConflictVersionEditedOn:
+      type: string
+      enum: [this_device, another_device, unknown]
     DateTime: {type: string, maxLength: 25, minLength: 20}
     Day: {type: string, maxLength: 10, minLength: 10}
     DueSyncResult:

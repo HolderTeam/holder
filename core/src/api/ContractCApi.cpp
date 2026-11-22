@@ -489,6 +489,37 @@ holder_recovery_token_global_import_result_pull_status to_c_enum(
   // LCOV_EXCL_STOP
 }
 
+holder_conflict_comparison_original_edited_on to_c_enum(
+    contract::ConflictComparisonOriginalEditedOn value
+) {
+  switch (value) {
+  case contract::ConflictComparisonOriginalEditedOn::ThisDevice:
+    return HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_THIS_DEVICE;
+  case contract::ConflictComparisonOriginalEditedOn::AnotherDevice:
+    return HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_ANOTHER_DEVICE;
+  case contract::ConflictComparisonOriginalEditedOn::Unknown:
+    return HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_UNKNOWN;
+  }
+  // LCOV_EXCL_START - internal output enum: all declared values handled above.
+  throw std::logic_error("not a contract::ConflictComparisonOriginalEditedOn value");
+  // LCOV_EXCL_STOP
+}
+
+holder_conflict_comparison_copy_edited_on to_c_enum(contract::ConflictComparisonCopyEditedOn value
+) {
+  switch (value) {
+  case contract::ConflictComparisonCopyEditedOn::ThisDevice:
+    return HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_THIS_DEVICE;
+  case contract::ConflictComparisonCopyEditedOn::AnotherDevice:
+    return HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_ANOTHER_DEVICE;
+  case contract::ConflictComparisonCopyEditedOn::Unknown:
+    return HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_UNKNOWN;
+  }
+  // LCOV_EXCL_START - internal output enum: all declared values handled above.
+  throw std::logic_error("not a contract::ConflictComparisonCopyEditedOn value");
+  // LCOV_EXCL_STOP
+}
+
 holder_pull_phase_status to_c_enum(contract::PullPhaseStatus value) {
   switch (value) {
   case contract::PullPhaseStatus::NotAttempted:
@@ -1762,6 +1793,8 @@ holder_conflict_comparison to_c(holder_arena* arena, const contract::ConflictCom
   out.original_changed_lines = to_c_list(arena, value.original_changed_lines);
   out.copy_changed_lines = to_c_list(arena, value.copy_changed_lines);
   out.truncated = value.truncated;
+  out.original_edited_on = to_c_enum(value.original_edited_on);
+  out.copy_edited_on = to_c_enum(value.copy_edited_on);
   out.review_token = copy(arena, value.review_token);
   return out;
 }

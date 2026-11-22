@@ -1320,3 +1320,67 @@ TEST_CASE("GitRepo history reports malformed HEAD and missing parent trees", "[g
     );
   }
 }
+
+TEST_CASE("GitRepo latest_change_origin tells this clone's changes from pulled ones", "[git]") {
+  using holder::git::ChangeOrigin;
+  const auto dir = make_temp_dir();
+  const auto remote_dir = dir / "remote";
+  const auto local_dir = dir / "local";
+
+  holder::git::GitRepo remote_repo;
+  remote_repo.open_or_init(remote_dir);
+  remote_repo.write_file("cards/shared.md", "base");
+  remote_repo.write_file("cards/old.md", "made before the clone");
+  remote_repo.stage_paths({"cards/shared.md", "cards/old.md"});
+  remote_repo.commit("seed");
+
+  holder::git::GitRepo local_repo;
+  local_repo.open_or_init(local_dir);
+  local_repo.set_remote("origin", remote_dir.string());
+  local_repo.pull_remote_ff_only("origin");
+  // Everything the clone started from is older than its log: it cannot say who made it.
+  CHECK(local_repo.latest_change_origin("cards/old.md") == ChangeOrigin::Unknown);
+  CHECK(local_repo.latest_change_origin("cards/missing.md") == ChangeOrigin::Unknown);
+
+  // A fast-forward pull brings another device's change.
+  remote_repo.write_file("cards/pulled.md", "made on the other clone");
+  remote_repo.stage_path("cards/pulled.md");
+  remote_repo.commit("remote addition");
+  local_repo.pull_remote_ff_only("origin");
+  CHECK(local_repo.latest_change_origin("cards/pulled.md") == ChangeOrigin::AnotherDevice);
+
+  local_repo.write_file("cards/shared.md", "local edit");
+  local_repo.write_file("cards/local-only.md", "local");
+  local_repo.stage_paths({"cards/shared.md", "cards/local-only.md"});
+  local_repo.commit("local commit");
+  CHECK(local_repo.latest_change_origin("cards/shared.md") == ChangeOrigin::ThisDevice);
+
+  remote_repo.write_file("cards/shared.md", "remote edit");
+  remote_repo.write_file("cards/remote-only.md", "remote");
+  remote_repo.stage_paths({"cards/shared.md", "cards/remote-only.md"});
+  remote_repo.commit("remote commit");
+
+  std::string local_oid;
+  std::string remote_oid;
+  try {
+    local_repo.pull_remote_ff_only("origin");
+    FAIL("Expected non-fast-forward pull to throw");
+  } catch (const holder::git::NonFastForwardPullError& e) {
+    local_oid = e.local_oid_hex;
+    remote_oid = e.remote_oid_hex;
+  }
+  local_repo.merge_remote_taking_theirs_for_conflicts("origin", local_oid, remote_oid);
+
+  // The merge commit was made here, but it only kept the other clone's content.
+  CHECK(local_repo.latest_change_origin("cards/shared.md") == ChangeOrigin::AnotherDevice);
+  CHECK(local_repo.latest_change_origin("cards/remote-only.md") == ChangeOrigin::AnotherDevice);
+  CHECK(local_repo.latest_change_origin("cards/local-only.md") == ChangeOrigin::ThisDevice);
+  CHECK(local_repo.latest_change_origin("cards/old.md") == ChangeOrigin::Unknown);
+
+  // Unsaved content on disk is this device's, whatever HEAD says.
+  {
+    std::ofstream out(local_dir / "cards" / "old.md", std::ios::binary | std::ios::trunc);
+    out << "edited, not committed";
+  }
+  CHECK(local_repo.latest_change_origin("cards/old.md") == ChangeOrigin::ThisDevice);
+}

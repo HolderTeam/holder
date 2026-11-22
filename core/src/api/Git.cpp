@@ -11,6 +11,7 @@
 #include "card/CardRepo.h"
 #include "card/LinkRepo.h"
 #include "git/GitOps.h"
+#include "git/GitRepo.h"
 #include "git/PushResult.h"
 #include "git/RemoteProbe.h"
 #include "history/CardHistory.h"
@@ -340,7 +341,24 @@ ConflictComparison read_conflict_pair(
   auto copy = get_card(context, project.project_id, copy_id);
   if (token != card_digest(original) + ":" + card_digest(copy))
     throw Conflict("The conflict pair changed while being read. Review both versions again.");
-  return {std::move(original), std::move(copy), {}, {}, false, std::move(token)};
+  ConflictComparison out{};
+  out.original = std::move(original);
+  out.copy_card = std::move(copy);
+  out.review_token = std::move(token);
+  return out;
+}
+
+// Both edited-on enums list the same three answers in the same order.
+template <class EditedOn> EditedOn edited_on(holder::git::ChangeOrigin origin) {
+  switch (origin) {
+  case holder::git::ChangeOrigin::ThisDevice:
+    return EditedOn::ThisDevice;
+  case holder::git::ChangeOrigin::AnotherDevice:
+    return EditedOn::AnotherDevice;
+  case holder::git::ChangeOrigin::Unknown:
+  default:
+    return EditedOn::Unknown;
+  }
 }
 
 bool same_link(const Link& original, const Link& copy) {
@@ -459,6 +477,14 @@ ConflictComparison compare_conflict_copy(
     const auto mutex = holder::git::repo_mutex_for(project.root_path);
     std::unique_lock lock(*mutex);
     auto result = read_conflict_pair(context, project, copy_id);
+    holder::git::GitRepo repo;
+    repo.open_existing(project.root_path);
+    result.original_edited_on = edited_on<ConflictComparisonOriginalEditedOn>(
+        repo.latest_change_origin(holder::core::card_rel_path(result.original.card_id))
+    );
+    result.copy_edited_on = edited_on<ConflictComparisonCopyEditedOn>(
+        repo.latest_change_origin(holder::core::card_rel_path(result.copy_card.card_id))
+    );
     lock.unlock();
     if (result.original.content == result.copy_card.content) return result;
     const auto lines = holder::history::compare_card_text(

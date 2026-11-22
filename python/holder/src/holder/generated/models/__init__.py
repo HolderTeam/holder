@@ -141,6 +141,7 @@ from .conflict_copy_cleanup_review import ConflictCopyCleanupReview
 from .conflict_resolution import ConflictResolution
 from .conflict_resolution_result import ConflictResolutionResult
 from .conflict_resolution_result_response import ConflictResolutionResultResponse
+from .conflict_version_edited_on import ConflictVersionEditedOn
 from .delete_projects_project_id_cards_card_id_children import (
     DeleteProjectsProjectIdCardsCardIdChildren,
 )
@@ -439,6 +440,7 @@ __all__ = (
     "ConflictResolution",
     "ConflictResolutionResult",
     "ConflictResolutionResultResponse",
+    "ConflictVersionEditedOn",
     "DeleteProjectsProjectIdCardsCardIdChildren",
     "DueSyncResult",
     "DueSyncResultResponse",

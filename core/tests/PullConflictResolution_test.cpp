@@ -672,6 +672,22 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
   CHECK(std::string(pairs.at(parent.card_id).copy_card.card_id) == parent_copy->card_id);
   CHECK(std::string(pairs.at(child.card_id).copy_card.card_id) == child_copy->card_id);
 
+  // The original holds the version pulled from the other clone, and the copy holds this one's.
+  const holder_conflict_comparison* pulled = nullptr;
+  holder_error* pulled_error = nullptr;
+  REQUIRE(
+      holder_compare_conflict_copy(
+          &context,
+          project_id.c_str(),
+          parent_copy->card_id.c_str(),
+          arena.get(),
+          &pulled,
+          &pulled_error
+      ) == HOLDER_OK
+  );
+  CHECK(pulled->original_edited_on == HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_ANOTHER_DEVICE);
+  CHECK(pulled->copy_edited_on == HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_THIS_DEVICE);
+
   holder::card::CardStore store(local_db, &local_fts, nullptr, &local_git);
   store.update_content(child.card_id, "original update", "Renamed original", 4);
   store.update_content(child_copy->card_id, "preserved update", "Renamed copy", 5);
@@ -696,6 +712,11 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
   CHECK(std::string(comparison->copy_card.card_id) == child_copy->card_id);
   CHECK(std::string(comparison->original.content) == "original update");
   CHECK(std::string(comparison->copy_card.content) == "preserved update");
+  // Both were edited here after the pull.
+  CHECK(
+      comparison->original_edited_on == HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_THIS_DEVICE
+  );
+  CHECK(comparison->copy_edited_on == HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_THIS_DEVICE);
   REQUIRE(comparison->original_changed_lines.count == 1);
   CHECK(comparison->original_changed_lines.items[0].line == 1);
   REQUIRE(comparison->copy_changed_lines.count == 1);
