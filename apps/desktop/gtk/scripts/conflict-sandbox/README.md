@@ -36,7 +36,7 @@ These end in a conflict copy to compare:
 | Name | What to look at |
 | --- | --- |
 | `basic` | The same line edited on both sides; the other machine also renamed the card. |
-| `hamlet` | A demo. The card reads "To be, or not to be". This machine makes it "To be, or not to be, ay, there's the point," and adds "To die, to sleep, is that all? Ay, all:"; the other makes it "To be, or not to be, that is the question:" and adds "Whether 'tis nobler in the mind to suffer". |
+| `hamlet` | A demo. The card reads "Enter Hamlet." then "To be, or not to be"; the first line never changes. This machine makes it "To be, or not to be, ay, there's the point," and adds "To die, to sleep, is that all? Ay, all:"; the other makes it "To be, or not to be, that is the question:" and adds "Whether 'tis nobler in the mind to suffer". |
 | `children` | A parent and child both conflict, so the copy has a child of its own. Cleanup shows where it would move. |
 | `original-under-copy` | The original has been moved under its copy, so **Move copy to Trash** is blocked. |
 | `copy-extras` | Tags, a link and a milestone only on the copy, and another card linking to the copy. |

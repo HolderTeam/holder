@@ -451,18 +451,20 @@ def trashed_remote(ctx: Context) -> None:
 
 
 def hamlet_build(project) -> dict[str, object]:
-    return {"card": project.cards.create(title="Hamlet", content="To be, or not to be\n")}
+    return {"card": project.cards.create(title="Hamlet", content="Enter Hamlet.\nTo be, or not to be\n")}
 
 
 def hamlet_local(ctx: Context) -> None:
     # The first quarto's reading.
-    ctx.cards["card"].update(content="To be, or not to be, ay, there's the point,\n"
+    ctx.cards["card"].update(content="Enter Hamlet.\n"
+                                     "To be, or not to be, ay, there's the point,\n"
                                      "To die, to sleep, is that all? Ay, all:\n")
 
 
 def hamlet_remote(ctx: Context) -> None:
     # The Folio's.
-    ctx.other.set_body(ctx.cards["card"].id, "To be, or not to be, that is the question:\n"
+    ctx.other.set_body(ctx.cards["card"].id, "Enter Hamlet.\n"
+                                             "To be, or not to be, that is the question:\n"
                                              "Whether 'tis nobler in the mind to suffer\n")
     ctx.other.push("Edit Hamlet elsewhere")
 
