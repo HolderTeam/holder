@@ -398,6 +398,31 @@ private void test_pull_report_tracker_announces_each_new_report_once() {
     assert(tracker.take("p1", reported_state(make_changes(0, 1, 0, 0, 0), 110)) == null);
 }
 
+private HolderLinux.ProjectSyncState pulled_state(int64 at) {
+    return new HolderLinux.ProjectSyncState(null, null, at);
+}
+
+private void test_pull_watch_notices_pulls_that_moved_the_commit() {
+    var watch = new HolderLinux.GitPullWatch(100);
+    // Never pulled, or pulled before the window opened.
+    assert(!watch.pulled_new_commits("p1", new HolderLinux.ProjectSyncState(), "r1"));
+    assert(!watch.pulled_new_commits("p1", pulled_state(99), "r1"));
+
+    // The first pull seen has nothing to compare with, so it counts.
+    assert(watch.pulled_new_commits("p1", pulled_state(100), "r1"));
+    // The same pull again.
+    assert(!watch.pulled_new_commits("p1", pulled_state(100), "r2"));
+    // A later pull that left the commit where it was brought nothing.
+    assert(!watch.pulled_new_commits("p1", pulled_state(400), "r1"));
+    // A later pull that moved it.
+    assert(watch.pulled_new_commits("p1", pulled_state(700), "r2"));
+    // An unknown commit counts, and is not compared with next time.
+    assert(watch.pulled_new_commits("p1", pulled_state(1000), null));
+    assert(watch.pulled_new_commits("p1", pulled_state(1300), "r2"));
+    // Each project on its own.
+    assert(watch.pulled_new_commits("p2", pulled_state(1300), "r2"));
+}
+
 private void test_outcomes_for_sync_result() {
     var pull = new HolderLinux.GitPullPhase(true, "succeeded", 0, 0, "");
     var pushed = HolderLinux.GitSyncOutcomes.for_sync_result(
@@ -452,6 +477,8 @@ public static int main(string[] args) {
     Test.add_func("/git-sync-rules/pull-report/describes-every-change", test_pull_report_describes_every_change);
     Test.add_func("/git-sync-rules/pull-report/compare-or-review",
                   test_pull_report_offers_compare_for_one_copy_and_review_for_more);
+    Test.add_func("/git-sync-rules/pull-watch/moved-commit",
+                  test_pull_watch_notices_pulls_that_moved_the_commit);
     Test.add_func("/git-sync-rules/pull-report/each-report-once",
                   test_pull_report_tracker_announces_each_new_report_once);
     Test.add_func("/git-sync-rules/outcomes/incomplete-and-reconciled",

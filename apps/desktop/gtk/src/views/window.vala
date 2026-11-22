@@ -100,6 +100,10 @@ public class MainWindow : Adw.ApplicationWindow {
     private uint git_refresh_serial = 0;
     // Pull reports are announced once each; only pulls finished after the window opened are news.
     private GitPullReportTracker pull_reports = new GitPullReportTracker(new DateTime.now_utc().to_unix());
+    // Background pulls that may have brought cards this window does not show yet.
+    private GitPullWatch pull_watch = new GitPullWatch(new DateTime.now_utc().to_unix());
+    // Each project's current commit, as the daemon's change events last reported it.
+    private Gee.HashMap<string, string> project_revisions = new Gee.HashMap<string, string>();
     private bool pull_report_check_running = false;
     private bool pull_report_recheck = false;
     private ApiClient? diagnostic_client; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: declaration maps to generated finalizer cleanup
@@ -538,7 +542,12 @@ public class MainWindow : Adw.ApplicationWindow {
             // GCOVR_EXCL_STOP
             // LCOV_EXCL_STOP
         }
-        ((!) controller.presence).project_changed.connect((project_id) => {
+        ((!) controller.presence).project_changed.connect((project_id, git_revision) => {
+            if (git_revision != null) {
+                project_revisions.set(project_id, (!) git_revision);
+            } else {
+                project_revisions.unset(project_id);
+            }
             if (controller.selected_project_id() == project_id) {
                 check_pull_report.begin(project_id, true);
             }
@@ -1470,8 +1479,10 @@ public class MainWindow : Adw.ApplicationWindow {
 
     // Reads the selected project's sync state back and announces a pull that changed something:
     // after Sync now (whose own toast leaves that to this), and when the daemon reports a change to
-    // the project, as after a background pull, which also refreshes the cards it changed. One check
-    // runs at a time; a change reported meanwhile is checked again once it finishes.
+    // the project, as after a background pull. A background pull that brought new commits, even a
+    // plain fast-forward with nothing to report, also refreshes the cards; Sync now refreshes them
+    // itself. One check runs at a time; a change reported meanwhile is checked again once it
+    // finishes.
     private async void check_pull_report(string project_id, bool refresh_cards) {
         if (pull_report_check_running) {
             pull_report_recheck = true;
@@ -1509,14 +1520,15 @@ public class MainWindow : Adw.ApplicationWindow {
         if (controller.get_api_client() != api || controller.selected_project_id() != project_id) {
             return;
         }
+        // Asked after Sync now too, so the pull it made is not taken for a new one later.
+        var pulled = pull_watch.pulled_new_commits(project_id, state, project_revisions.get(project_id));
         var notice = pull_reports.take(project_id, state);
-        if (notice == null) {
-            return;
-        }
-        if (refresh_cards) {
+        if (refresh_cards && (pulled || notice != null)) {
             refresh_cards_after_git_change.begin(project_id);
         }
-        show_pull_notice(project_id, (!) notice);
+        if (notice != null) {
+            show_pull_notice(project_id, (!) notice);
+        }
     }
 
     private void show_pull_notice(string project_id, GitPullNotice notice) {

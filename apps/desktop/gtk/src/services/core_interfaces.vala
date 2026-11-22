@@ -272,8 +272,8 @@ public interface IPresence : Object {
     // Never fails; the backend copes without it.
     public abstract void leave(uint timeout_ms);
     // The daemon reported a change to this project's own records, its sync state among them, as
-    // when a background pull finishes.
-    public signal void project_changed(string project_id);
+    // when a background pull finishes. git_revision is the project's current commit, when known.
+    public signal void project_changed(string project_id, string? git_revision);
 }
 
 // One project's recorded sync state, read on its own. A separate capability so small API fakes

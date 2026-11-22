@@ -264,12 +264,14 @@ private void test_logs_once_when_events_arrive() {
 private void test_passes_on_project_changes_only() {
     var f = new Fixture();
     string[] changed = {};
-    f.presence.project_changed.connect((project_id) => {
+    string[] revisions = {};
+    f.presence.project_changed.connect((project_id, git_revision) => {
         changed += project_id;
+        revisions += git_revision ?? "(none)";
     });
     f.transport.enqueue_stream(200,
         "event: ready\ndata: {\"project_id\":\"p0\"}\n\n" +
-        "id: 1\nevent: project.changed\ndata: {\"entity\":\"project\",\"project_id\":\"p1\"}\n\n" +
+        "id: 1\nevent: project.changed\ndata: {\"entity\":\"project\",\"project_id\":\"p1\",\"git_revision\":\"abc\"}\n\n" +
         ": heartbeat\n\n" +
         "event: card.changed\ndata: {\"entity\":\"card\",\"project_id\":\"p2\"}\n\n" +
         // Data after a blank line belongs to no event.
@@ -283,6 +285,7 @@ private void test_passes_on_project_changes_only() {
 
     assert(wait_for_condition(() => f.scheduler.pending_one_shots() == 1));
     assert(changed.length == 2 && changed[0] == "p1" && changed[1] == "p4");
+    assert(revisions[0] == "abc" && revisions[1] == "(none)");
     assert(count_lines(f.log, "PRESENCE ignored an unreadable project event") == 1);
     f.presence.stop();
 }
