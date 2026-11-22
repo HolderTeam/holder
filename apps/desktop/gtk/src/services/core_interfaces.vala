@@ -271,6 +271,15 @@ public interface IPresence : Object {
     // The app is closing: say goodbye to the backend, waiting at most timeout_ms, then let go.
     // Never fails; the backend copes without it.
     public abstract void leave(uint timeout_ms);
+    // The daemon reported a change to this project's own records, its sync state among them, as
+    // when a background pull finishes.
+    public signal void project_changed(string project_id);
+}
+
+// One project's recorded sync state, read on its own. A separate capability so small API fakes
+// need not implement it.
+public interface IProjectSyncStatusApi : Object {
+    public abstract async ProjectSyncState get_project_sync_status(string project_id) throws Error;
 }
 
 public interface IClock : Object {

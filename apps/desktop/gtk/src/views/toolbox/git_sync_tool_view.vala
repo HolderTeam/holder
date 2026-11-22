@@ -660,7 +660,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             var outcome = yield controller.sync_now_flow(api, project.project_id);
             if (outcome.error_title.length > 0) {
                 error_reported(outcome.error_title, outcome.error_details);
-            } else {
+            } else if (outcome.toast_message.length > 0) {
                 toast_requested(outcome.toast_message);
             }
             if (outcome.pull_succeeded) {

@@ -91,6 +91,8 @@ public class GitPullPhase : Object {
     public int conflicts_resolved { get; construct; }
     public int hidden_cards_repaired { get; construct; }
     public string error_message { get; construct; }
+    // What the pull changed; empty when it failed or changed nothing.
+    public GitPullChanges changes { get; set; default = new GitPullChanges(); }
 
     public GitPullPhase(bool attempted, string status, int conflicts_resolved,
                         int hidden_cards_repaired, string error_message) {

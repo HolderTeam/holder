@@ -21,14 +21,19 @@ public class ApiParsersGit { // LCOV_EXCL_LINE: declaration-only coverage artifa
         if (pull == null || push == null) {
             throw new ApiError.PROTOCOL("Missing pull or push phase for git sync response");
         }
+        var pull_phase = new GitPullPhase(
+            pull.get_boolean_member_with_default("attempted", false),
+            ApiParsersCommon.string_member_or_empty(pull, "status"),
+            (int) pull.get_int_member_with_default("conflicts_resolved", 0),
+            (int) pull.get_int_member_with_default("hidden_cards_repaired", 0),
+            ApiParsersCommon.string_member_or_empty(pull, "error_message")
+        );
+        var changes = ApiParsersCommon.object_member_or_null(pull, "changes");
+        if (changes != null) {
+            pull_phase.changes = ApiParsersCommon.parse_pull_changes((!) changes);
+        }
         return new GitSyncResult(
-            new GitPullPhase(
-                pull.get_boolean_member_with_default("attempted", false),
-                ApiParsersCommon.string_member_or_empty(pull, "status"),
-                (int) pull.get_int_member_with_default("conflicts_resolved", 0),
-                (int) pull.get_int_member_with_default("hidden_cards_repaired", 0),
-                ApiParsersCommon.string_member_or_empty(pull, "error_message")
-            ),
+            pull_phase,
             push.get_boolean_member_with_default("attempted", false),
             parse_git_push_result(data)
         );

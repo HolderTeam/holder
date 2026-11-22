@@ -261,6 +261,32 @@ private void test_logs_once_when_events_arrive() {
     f.presence.stop();
 }
 
+private void test_passes_on_project_changes_only() {
+    var f = new Fixture();
+    string[] changed = {};
+    f.presence.project_changed.connect((project_id) => {
+        changed += project_id;
+    });
+    f.transport.enqueue_stream(200,
+        "event: ready\ndata: {\"project_id\":\"p0\"}\n\n" +
+        "id: 1\nevent: project.changed\ndata: {\"entity\":\"project\",\"project_id\":\"p1\"}\n\n" +
+        ": heartbeat\n\n" +
+        "event: card.changed\ndata: {\"entity\":\"card\",\"project_id\":\"p2\"}\n\n" +
+        // Data after a blank line belongs to no event.
+        "data: {\"project_id\":\"p3\"}\n\n" +
+        "event: project.changed\ndata: not json\n\n" +
+        "event: project.changed\ndata: [1]\n\n" +
+        "event: project.changed\ndata: {\"project_id\":null}\n\n" +
+        "event: project.changed\ndata: {\"project_id\":\"p4\"}\n\n");
+
+    f.presence.start();
+
+    assert(wait_for_condition(() => f.scheduler.pending_one_shots() == 1));
+    assert(changed.length == 2 && changed[0] == "p1" && changed[1] == "p4");
+    assert(count_lines(f.log, "PRESENCE ignored an unreadable project event") == 1);
+    f.presence.stop();
+}
+
 private void test_logs_events_and_heartbeats_separately_each_once() {
     var f = new Fixture();
     f.transport.enqueue_stream(
@@ -429,6 +455,7 @@ public static int main(string[] args) {
     Test.init(ref args);
 
     Test.add_func("/presence_stream/holds_the_events_stream", test_holds_the_events_stream_with_the_bearer_token);
+    Test.add_func("/presence_stream/passes_on_project_changes_only", test_passes_on_project_changes_only);
     Test.add_func("/presence_stream/retries_with_growing_delay", test_retries_with_a_growing_delay_when_the_connection_fails);
     Test.add_func("/presence_stream/delay_is_capped", test_delay_is_capped);
     Test.add_func("/presence_stream/failing_status_is_retried", test_a_failing_status_is_retried_and_not_reported_connected);

@@ -3,9 +3,10 @@ namespace HolderLinux {
 // Holds the daemon's GET /events stream open for as long as the app runs. The daemon treats an
 // open event stream as "a client is here", so a daemon that was started to stop itself when
 // unused (holderctl ensure --idle-exit) stays up under an open window and goes away soon after
-// the last one closes. Nothing here reads the events; the stream is only held, and read so the
-// connection stays healthy. If the connection drops, for example because the daemon restarted
-// with a new port and token, it looks the daemon up again and reconnects with a growing delay.
+// the last one closes. Of the events it reads, it passes on only project changes
+// (project_changed); the rest are read so the connection stays healthy. If the connection drops,
+// for example because the daemon restarted with a new port and token, it looks the daemon up
+// again and reconnects with a growing delay.
 public class PresenceStream : Object, IPresence {
     internal const uint RETRY_MIN_MS = 1000;
     internal const uint RETRY_MAX_MS = 10000;
@@ -141,11 +142,19 @@ public class PresenceStream : Object, IPresence {
             // event line alone says nothing about heartbeats.
             bool saw_event = false;
             bool saw_heartbeat = false;
+            string event_name = "";
             while (true) {
                 size_t length = 0;
                 var line = yield lines.read_line_async(Priority.DEFAULT, token, out length);
                 if (line == null) {
                     break;
+                }
+                if (line == "") {
+                    event_name = "";
+                } else if (line.has_prefix("event:")) {
+                    event_name = line.substring(6).strip();
+                } else if (line.has_prefix("data:") && event_name == "project.changed") {
+                    announce_project_change(line.substring(5).strip());
                 }
                 if (line.has_prefix(":")) {
                     if (!saw_heartbeat) {
@@ -170,6 +179,24 @@ public class PresenceStream : Object, IPresence {
         }
         set_connected(false);
         schedule_retry();
+    }
+
+    // A project.changed event's data names the project.
+    private void announce_project_change(string data) {
+        try {
+            var parser = new Json.Parser();
+            parser.load_from_data(data);
+            var root = parser.get_root();
+            if (root == null || root.get_node_type() != Json.NodeType.OBJECT) {
+                return;
+            }
+            var project_id = ApiParsersCommon.nullable_string_member_or_null(root.get_object(), "project_id");
+            if (project_id != null && ((!) project_id).length > 0) {
+                project_changed((!) project_id);
+            }
+        } catch (Error e) {
+            debug_log_requested("PRESENCE ignored an unreadable project event: %s".printf(e.message));
+        }
     }
 
     private void schedule_retry() {

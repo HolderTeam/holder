@@ -41,6 +41,23 @@ private void test_list_projects_and_create_project() {
     assert(transport.last_uri.contains("/projects"));
 }
 
+private void test_get_project_sync_status_reads_one_project() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p 1\",\"unpushed_commits_count\":2," +
+                                "\"last_pull_changes\":{\"pulled_at\":9,\"merged_card_ids\":[\"m1\"]}}}");
+    var client = make_client(transport);
+    HolderLinux.ProjectSyncState? state = null;
+    client.get_project_sync_status.begin("p 1", (obj, res) => {
+        try { state = client.get_project_sync_status.end(res); } catch (Error e) { assert_not_reached(); }
+    });
+    assert(wait_for_condition(() => state != null));
+    assert(transport.last_method == "GET");
+    assert(transport.last_uri.has_suffix("/projects/p%201/git/sync-status"));
+    assert(state.unpushed_commits_count == 2);
+    assert(state.last_pull_changes_at == 9);
+    assert(((!) state.last_pull_changes).merged_card_ids[0] == "m1");
+}
+
 private void test_export_and_import_project_recovery_token() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -143,6 +160,8 @@ private void test_import_recovery_token_missing_data_is_protocol_error() {
 public static int main(string[] args) {
     Test.init(ref args);
 
+    Test.add_func("/api_client_projects/get_project_sync_status_reads_one_project",
+                  test_get_project_sync_status_reads_one_project);
     Test.add_func("/api_client_projects/list_projects_and_create_project",
                   test_list_projects_and_create_project);
     Test.add_func("/api_client_projects/export_and_import_project_recovery_token",
