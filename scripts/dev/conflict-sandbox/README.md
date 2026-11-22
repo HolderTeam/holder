@@ -63,6 +63,22 @@ quick check of the merge rules against a daemon build.
 `setup basic crlf` builds only those. `list` prints them. Running `setup` again for a scenario
 that exists asks you to `reset` first.
 
+## Seeing the toasts
+
+Setup pulls before Desktop opens, and Desktop only announces pulls it sees while running. To see
+the pull toast, open Desktop on the sandbox, select a scenario's project, then run:
+
+```sh
+python3 scripts/dev/conflict-sandbox/sandbox.py toast            # a fresh conflict in "basic"
+python3 scripts/dev/conflict-sandbox/sandbox.py toast --merge    # edits lines apart: a merge
+python3 scripts/dev/conflict-sandbox/sandbox.py toast copy-extras
+```
+
+Each run edits the card with the most lines on both sides, the other machine pushes, and the
+sandbox daemon pulls, as a background pull would. Desktop then shows "Pulled changes from another
+device…" with Compare. Resolving the conflict in the dialog shows the Undo toast. Run it as often
+as you like; the scenario has to exist (`setup <scenario>`) first.
+
 ## Options and binaries
 
 By default the script uses `daemon/build/holderctl` and `holderd` (also `Debug/`, `Release/` and
@@ -82,6 +98,11 @@ python3 scripts/dev/conflict-sandbox/sandbox.py env | Invoke-Expression   # Powe
 ```
 
 ## Troubleshooting
+
+- **"Settings schema 'team.holder.Holder' does not contain a key named …"**: an older Holder
+  schema is installed on the machine. `desktop` puts the build's own schema first, so update this
+  script. Desktop run that way keeps its preferences in `<root>/config`, apart from your own, and
+  `reset` deletes them.
 
 - **"The other machine's push was rejected"**: the sandbox daemon's background sync pushed
   first. Run `reset` and `setup` again.

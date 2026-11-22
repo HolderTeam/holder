@@ -561,7 +561,71 @@ def cmd_desktop(args: argparse.Namespace) -> None:
     desktop = find_binary("desktop", args.desktop, "HOLDER_SANDBOX_DESKTOP",
                           [build / f"holder-desktop{EXE}", build / "src" / f"holder-desktop{EXE}"])
     print(f"Starting {desktop}. Open a 'Conflict: …' project, then Git Sync → Compare versions.")
-    subprocess.run([str(desktop)], env=os.environ.copy(), check=False)
+    subprocess.run([str(desktop)], env=desktop_env(desktop), check=False)
+
+
+def desktop_env(desktop: Path) -> dict[str, str]:
+    """Desktop's environment: the sandbox's, with this build's settings schema and the sandbox's
+    own settings. A Holder schema installed elsewhere may be older than the build, and GLib aborts
+    when the build asks it for a key it lacks; GSETTINGS_SCHEMA_DIR is searched first. The keyfile
+    backend keeps preferences under the sandbox's config folder, so they never touch your own
+    Desktop's and reset deletes them."""
+    env = os.environ.copy()
+    for data in (desktop.parent / "data", desktop.parent.parent / "data"):
+        if (data / "gschemas.compiled").is_file():
+            existing = env.get("GSETTINGS_SCHEMA_DIR")
+            env["GSETTINGS_SCHEMA_DIR"] = str(data) + (os.pathsep + existing if existing else "")
+            break
+    env["GSETTINGS_BACKEND"] = "keyfile"
+    return env
+
+
+def cmd_toast(args: argparse.Namespace) -> None:
+    """Make a fresh conflict in an existing scenario project and pull it, so a Desktop that has
+    the project open announces it, as it would after a background pull."""
+    scenario = args.scenario
+    remote = args.root / "remotes" / f"{scenario}.git"
+    if not remote.is_dir():
+        sys.exit(f"No '{scenario}' scenario in {args.root}. Run setup {scenario} first.")
+    holderctl, holderd = daemon_binaries(args)
+    start_daemon(args.root, holderctl, holderd, args.port)
+    name = f"Conflict: {scenario}"
+    with connect(holderctl) as holder:
+        project = next((p for p in holder.projects.filter(name=name) if p.name == name), None)
+        if project is None:
+            sys.exit(f"Project '{name}' is missing. Run reset, then setup {scenario}.")
+        cards = [c for c in project.cards
+                 if not c.title.endswith(" (conflicted copy)") and c.content.count("\n") >= 3]
+        if not cards:
+            sys.exit(f"'{name}' has no card with at least four lines to edit.")
+        card = max(cards, key=lambda c: c.content.count("\n"))
+        stamp = time.strftime("%H:%M:%S")
+
+        # This machine edits the card's first line, committed here and not pushed.
+        lines = card.content.split("\n")
+        first = next(i for i, line in enumerate(lines) if line.strip())
+        lines[first] += f" Edited here at {stamp}."
+        card.update(content="\n".join(lines))
+
+        # The other machine edits the same line, or with --merge adds a line at the end.
+        other = OtherMachine(remote, args.root / "other" / scenario)
+        path, front, body = other._split(card.id)
+        theirs = body.decode().split("\n")
+        if args.merge:
+            theirs.append(f"Added on the other machine at {stamp}.")
+            theirs.append("")
+        else:
+            theirs[first] += f" Edited on the other machine at {stamp}."
+        path.write_bytes(front + "\n".join(theirs).encode())
+        other.push(f"Edit {card.title} elsewhere at {stamp}")
+
+        result = project.git.pull()
+        if not result.succeeded:
+            sys.exit(f"The pull failed: {result.pull.error_message or result.pull.status}")
+        made = result.pull.conflicts_resolved
+        print(f"Pulled into '{name}': " + (f"{made} conflict cop{'y' if made == 1 else 'ies'}."
+                                           if made else "merged automatically."))
+        print("Desktop shows a toast if this project is the one open, and Compare (or Review) opens it.")
 
 
 def cmd_env(args: argparse.Namespace) -> None:
@@ -615,6 +679,12 @@ def main() -> None:
     commands.add_parser("stop", help="stop the sandbox daemon").set_defaults(run=cmd_stop)
     commands.add_parser("reset", help="stop the daemon and delete the sandbox").set_defaults(run=cmd_reset)
     commands.add_parser("list", help="list scenarios").set_defaults(run=cmd_list)
+    toast = commands.add_parser("toast", help="make a fresh conflict and pull it while Desktop is open")
+    toast.add_argument("scenario", nargs="?", default="basic",
+                       help="the scenario project to use (default basic; run setup for it first)")
+    toast.add_argument("--merge", action="store_true",
+                       help="edit lines apart, so the pull merges instead of keeping a copy")
+    toast.set_defaults(run=cmd_toast)
     args = parser.parse_args()
     args.root = args.root.expanduser().resolve()
     if args.command in ("setup", "desktop"):
