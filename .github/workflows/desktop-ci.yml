@@ -465,6 +465,9 @@ jobs:
             --prefix=/
           meson compile -C build-macos
           accessible_runtime="$(python3 scripts/accessible_runtime.py prepare)"
+          # The runner's display is virtual, without a real GPU: draw in software, as the Linux
+          # jobs do, rather than through GTK's GL renderer.
+          GSK_RENDERER=cairo \
           HOLDER_DESKTOP_TEST_ACCESSIBLE_RUNTIME="$accessible_runtime" \
             meson test -C build-macos --print-errorlogs
 
