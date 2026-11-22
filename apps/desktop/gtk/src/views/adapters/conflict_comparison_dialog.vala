@@ -53,10 +53,8 @@ internal class ConflictComparisonDialog : Adw.Dialog {
             margin_top = 12,
             margin_bottom = 12
         };
-        versions.append(version_view("Original", comparison.original,
-                                     comparison.original_changed_lines, "rgba(224,66,55,0.16)"));
-        versions.append(version_view("Preserved copy", comparison.copy_card,
-                                     comparison.copy_changed_lines, "rgba(46,160,93,0.20)"));
+        versions.append(version_view("Original", comparison.original, comparison.original_changed_lines));
+        versions.append(version_view("Preserved copy", comparison.copy_card, comparison.copy_changed_lines));
         if (comparison.truncated) {
             var note = new Gtk.Label("Some changes are too large to highlight. Both versions are shown in full.") {
                 wrap = true,
@@ -379,8 +377,7 @@ internal class ConflictComparisonDialog : Adw.Dialog {
         dialog.present(this);
     }
 
-    private static Gtk.Widget version_view(string role, CardDetail card, int[] changed_lines,
-                                           string highlight_color) {
+    private static Gtk.Widget version_view(string role, CardDetail card, int[] changed_lines) {
         var column = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         var label = new Gtk.Label(role) { xalign = 0.0f };
         label.add_css_class("heading");
@@ -402,10 +399,8 @@ internal class ConflictComparisonDialog : Adw.Dialog {
         content.update_property(Gtk.AccessibleProperty.LABEL, role + " card content", -1);
         var buffer = content.get_buffer();
         buffer.set_text(card.content);
-        var color = Gdk.RGBA();
-        color.parse(highlight_color);
-        var changed = buffer.create_tag("changed-line", "paragraph-background-rgba", color,
-                                        "underline", Pango.Underline.SINGLE);
+        var changed = buffer.create_tag("changed-line", "underline", Pango.Underline.SINGLE);
+        follow_accent(column, content, changed);
         // Core's line numbers, not the buffer's: they differ after a lone "\r" or U+2029.
         var ranges = ConflictLineRanges.of(card.content, changed_lines);
         for (var i = 0; i + 1 < ranges.length; i += 2) {
@@ -420,6 +415,36 @@ internal class ConflictComparisonDialog : Adw.Dialog {
         column.append(scroll);
         return column;
     }
+
+    // Both versions are equals, so both mark their changed lines the same way: the theme's accent
+    // colour, faint enough to read through, plus the underline so colour is not the only cue.
+    // An invisible label styled with libadwaita's "accent" class reports that colour for the
+    // current light or dark theme; the tag follows theme changes while the view is shown.
+    private static void follow_accent(Gtk.Box column, Gtk.TextView content, Gtk.TextTag changed) {
+        var accent = new Gtk.Label("") { visible = false };
+        accent.add_css_class("accent");
+        column.append(accent);
+        var style = Adw.StyleManager.get_default();
+        ulong watch = 0;
+        content.map.connect(() => {
+            highlight_with(changed, accent.get_color(), style.high_contrast);
+            if (watch == 0) {
+                watch = style.notify.connect(() => {
+                    highlight_with(changed, accent.get_color(), style.high_contrast);
+                });
+            }
+        });
+        content.unmap.connect(() => {
+            if (watch != 0) style.disconnect(watch);
+            watch = 0;
+        });
+    }
+
+    internal static void highlight_with(Gtk.TextTag changed, Gdk.RGBA accent, bool high_contrast) {
+        accent.alpha = high_contrast ? 0.35f : 0.18f;
+        changed.paragraph_background_rgba = accent;
+    }
+
 }
 
 }

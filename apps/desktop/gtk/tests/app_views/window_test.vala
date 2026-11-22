@@ -857,6 +857,19 @@ private Gtk.TextView conflict_result_editor(Adw.Dialog dialog) {
     assert_not_reached();
 }
 
+// The accent colour as the theme gives it to a widget beside this version's text.
+private Gdk.RGBA expected_accent(Gtk.Widget content) {
+    var accent = new Gtk.Label("");
+    accent.add_css_class("accent");
+    var parent = content.get_parent();
+    while (!(parent is Gtk.Box)) parent = parent.get_parent();
+    var column = (Gtk.Box) parent;
+    column.append(accent);
+    var color = accent.get_color();
+    column.remove(accent);
+    return color;
+}
+
 private bool comparison_contains_text(Adw.Dialog dialog, string text) {
     foreach (var widget in av_descendants(dialog)) {
         var content = widget as Gtk.TextView;
@@ -865,6 +878,14 @@ private bool comparison_contains_text(Adw.Dialog dialog, string text) {
             var buffer = content.get_buffer();
             var changed = buffer.get_tag_table().lookup("changed-line");
             assert(changed != null);
+            // The theme's accent colour, faint, in both panes alike.
+            assert(changed.paragraph_background_set);
+            var expected = expected_accent(content);
+            var highlight = changed.paragraph_background_rgba;
+            assert(Math.fabs(highlight.alpha - 0.18) < 0.001 || Math.fabs(highlight.alpha - 0.35) < 0.001);
+            assert(Math.fabs(highlight.red - expected.red) < 0.001);
+            assert(Math.fabs(highlight.green - expected.green) < 0.001);
+            assert(Math.fabs(highlight.blue - expected.blue) < 0.001);
             Gtk.TextIter start;
             buffer.get_start_iter(out start);
             assert(start.has_tag(changed));
