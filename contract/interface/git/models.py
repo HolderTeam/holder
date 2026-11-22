@@ -5,8 +5,8 @@ from typing import Annotated, Literal
 from authoring import MISSING, Field, Int32, Record, Timestamp
 
 from ..cards.models import Card, CardId, CardSummary
-from ..links.models import Link
-from ..milestones.models import Milestone
+from ..links.models import Link, LinkKind, LinkTargetId, LinkTargetType
+from ..milestones.models import Milestone, MilestoneId
 from ..projects.ids import ProjectId
 from ..projects.models import GitRemoteUrl
 
@@ -113,11 +113,68 @@ class ConflictResolutionResult(Record):
     """The copy and effects to review before moving it to Trash."""
 
 
+class ConflictCopyLinkTarget(Record):
+    """One of the copy's own links, as the cleanup review listed it in copy_links."""
+
+    target_project_id: ProjectId
+    """The project of what the link points at."""
+    target_type: LinkTargetType
+    """What the link points at."""
+    target_id: LinkTargetId
+    """The ID of what the link points at."""
+    kind: LinkKind
+    """What the link means."""
+
+
+class ConflictCopyBacklinkSource(Record):
+    """A card's link to the copy, as the cleanup review listed it in backlinks."""
+
+    source_project_id: ProjectId
+    """The project of the card the link is from."""
+    source_id: CardId
+    """The card the link is from."""
+    kind: LinkKind
+    """What the link means."""
+
+
+class ConflictCopyMilestoneChoice(Record):
+    """One milestone from the cleanup review's copy_milestones."""
+
+    milestone_id: MilestoneId
+    """The milestone's ID on the copy."""
+
+
+class ConflictCopyTagChoice(Record):
+    """One tag from the cleanup review's copy_tags."""
+
+    tag: Annotated[str, Field(min_length=1)]
+    """The tag, without its #."""
+
+
+class ConflictCopyChildChoice(Record):
+    """One card from the cleanup review's children."""
+
+    card_id: CardId
+    """The child's ID."""
+
+
 class TrashConflictCopyRequest(Record):
-    """Confirmation of the cleanup effects returned when the resolution was saved."""
+    """Confirmation of the cleanup effects returned when the resolution was saved, and which of the copy's own
+    details to carry over to the original first. Everything named must be in the reviewed cleanup; anything not
+    carried over stays with the copy in Trash."""
 
     cleanup_token: Annotated[str, Field(min_length=1, max_length=256)]
     """The token returned with the cleanup review."""
+    carry_links: list[ConflictCopyLinkTarget] | MISSING = MISSING
+    """Links from copy_links to make on the original, with their labels."""
+    carry_milestones: list[ConflictCopyMilestoneChoice] | MISSING = MISSING
+    """Milestones from copy_milestones to put on the original, as new milestones with the same dates."""
+    carry_tags: list[ConflictCopyTagChoice] | MISSING = MISSING
+    """Tags from copy_tags to add to the original."""
+    adopt_children: list[ConflictCopyChildChoice] | MISSING = MISSING
+    """Children of the copy to move under the original instead of up a level."""
+    retarget_backlinks: list[ConflictCopyBacklinkSource] | MISSING = MISSING
+    """Card links from backlinks to point at the original instead of the copy."""
 
 
 class PullChanges(Record):

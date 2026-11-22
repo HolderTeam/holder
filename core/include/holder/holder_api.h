@@ -528,9 +528,91 @@ typedef struct holder_separate_conflict_copy_request {
   const char* title; /* The copy's new title, usually without the "(conflicted copy)" suffix. */
 } holder_separate_conflict_copy_request;
 
-/* Confirmation of the cleanup effects returned when the resolution was saved. */
+/* What the link points at. */
+typedef enum holder_conflict_copy_link_target_target_type {
+  HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_CARD = 1,
+  HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_AI_MESSAGE = 2,
+  HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_AI_THREAD = 3,
+  HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_RESOURCE = 4,
+  HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_conflict_copy_link_target_target_type;
+
+/* One of the copy's own links, as the cleanup review listed it in copy_links. */
+typedef struct holder_conflict_copy_link_target {
+  const char* target_project_id; /* The project of what the link points at. */
+  holder_conflict_copy_link_target_target_type target_type; /* What the link points at. */
+  const char* target_id; /* The ID of what the link points at. */
+  const char* kind; /* What the link means. */
+} holder_conflict_copy_link_target;
+
+typedef struct holder_conflict_copy_link_target_list {
+  const holder_conflict_copy_link_target* items;
+  size_t count;
+} holder_conflict_copy_link_target_list;
+
+/* One milestone from the cleanup review's copy_milestones. */
+typedef struct holder_conflict_copy_milestone_choice {
+  const char* milestone_id; /* The milestone's ID on the copy. */
+} holder_conflict_copy_milestone_choice;
+
+typedef struct holder_conflict_copy_milestone_choice_list {
+  const holder_conflict_copy_milestone_choice* items;
+  size_t count;
+} holder_conflict_copy_milestone_choice_list;
+
+/* One tag from the cleanup review's copy_tags. */
+typedef struct holder_conflict_copy_tag_choice {
+  const char* tag; /* The tag, without its #. */
+} holder_conflict_copy_tag_choice;
+
+typedef struct holder_conflict_copy_tag_choice_list {
+  const holder_conflict_copy_tag_choice* items;
+  size_t count;
+} holder_conflict_copy_tag_choice_list;
+
+/* One card from the cleanup review's children. */
+typedef struct holder_conflict_copy_child_choice {
+  const char* card_id; /* The child's ID. */
+} holder_conflict_copy_child_choice;
+
+typedef struct holder_conflict_copy_child_choice_list {
+  const holder_conflict_copy_child_choice* items;
+  size_t count;
+} holder_conflict_copy_child_choice_list;
+
+/* A card's link to the copy, as the cleanup review listed it in backlinks. */
+typedef struct holder_conflict_copy_backlink_source {
+  const char* source_project_id; /* The project of the card the link is from. */
+  const char* source_id; /* The card the link is from. */
+  const char* kind; /* What the link means. */
+} holder_conflict_copy_backlink_source;
+
+typedef struct holder_conflict_copy_backlink_source_list {
+  const holder_conflict_copy_backlink_source* items;
+  size_t count;
+} holder_conflict_copy_backlink_source_list;
+
+/* Confirmation of the cleanup effects returned when the resolution was saved, and which of the
+ * copy's own details to carry over to the original first. Everything named must be in the reviewed
+ * cleanup; anything not carried over stays with the copy in Trash.
+ */
 typedef struct holder_trash_conflict_copy_request {
   const char* cleanup_token; /* The token returned with the cleanup review. */
+  const holder_conflict_copy_link_target_list*
+      carry_links; /* Links from copy_links to make on the original, with their labels. NULL when
+                      absent. */
+  const holder_conflict_copy_milestone_choice_list*
+      carry_milestones; /* Milestones from copy_milestones to put on the original, as new milestones
+                           with the same dates. NULL when absent. */
+  const holder_conflict_copy_tag_choice_list*
+      carry_tags; /* Tags from copy_tags to add to the original. NULL when absent. */
+  const holder_conflict_copy_child_choice_list*
+      adopt_children; /* Children of the copy to move under the original instead of up a level. NULL
+                         when absent. */
+  const holder_conflict_copy_backlink_source_list*
+      retarget_backlinks; /* Card links from backlinks to point at the original instead of the copy.
+                             NULL when absent. */
 } holder_trash_conflict_copy_request;
 
 /* How to push. */
@@ -2866,9 +2948,12 @@ int holder_separate_conflict_copy(
 
 /* Move a reviewed conflict copy to Trash after choosing a result.
  * Holder verifies the cleanup token against both live cards and the reviewed effects.
- * A stale token or cleanup that would move the original is Conflict. A missing association
- * or a card missing or in Trash is NotFound.
- * The original is untouched. The copy can be restored and its live children move up a level.
+ * A stale token, cleanup that would move the original, or a detail to carry over that the review
+ * did not list is Conflict. A missing association or a card missing or in Trash is NotFound.
+ * Holder first carries the chosen details over to the original: links, milestones and tags are
+ * added to it, chosen children move under it, and chosen card links to the copy point at it
+ * instead. Each is its own change. The original is otherwise untouched. The copy can be restored,
+ * and its other live children move up a level.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE,
  * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */

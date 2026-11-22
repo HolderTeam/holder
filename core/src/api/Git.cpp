@@ -459,6 +459,119 @@ ConflictCopyCleanupReview cleanup_review(holder_context& context, const Conflict
   return out;
 }
 
+// The four link target enums list the same types in the same order.
+template <class To, class From> To link_type(From type) {
+  switch (type) {
+  case From::Card:
+    return To::Card;
+  case From::AiMessage:
+    return To::AiMessage;
+  case From::AiThread:
+    return To::AiThread;
+  case From::Resource:
+  default:
+    return To::Resource;
+  }
+}
+
+template <class Items, class Match> const auto& reviewed(const Items& items, Match match) {
+  const auto found = std::ranges::find_if(items, match);
+  if (found == items.end())
+    throw Conflict("A detail to carry over is not in the reviewed cleanup. Review it again.");
+  return *found;
+}
+
+// Carries the chosen copy-only details over to the original before the copy goes to Trash. Every
+// choice is checked against the review first, so a bad one changes nothing.
+void carry_over(
+    holder_context& context,
+    const std::string& project_id,
+    const std::string& original_id,
+    const std::string& copy_id,
+    const ConflictCopyCleanupReview& cleanup,
+    const TrashConflictCopyRequest& request
+) {
+  const auto links = request.carry_links.value_or(std::vector<ConflictCopyLinkTarget>{});
+  const auto milestones = request.carry_milestones.value_or(
+      std::vector<ConflictCopyMilestoneChoice>{}
+  );
+  const auto tags = request.carry_tags.value_or(std::vector<ConflictCopyTagChoice>{});
+  const auto children = request.adopt_children.value_or(std::vector<ConflictCopyChildChoice>{});
+  const auto backlinks = request.retarget_backlinks.value_or(
+      std::vector<ConflictCopyBacklinkSource>{}
+  );
+
+  std::vector<NewLink> new_links;
+  for (const auto& choice : links) {
+    const auto& link = reviewed(cleanup.copy_links, [&](const Link& item) {
+      return item.target_project_id == choice.target_project_id &&
+             item.target_type == link_type<LinkTargetType>(choice.target_type) &&
+             item.target_id == choice.target_id && item.kind == choice.kind;
+    });
+    NewLink made;
+    made.target_type = link_type<NewLinkTargetType>(link.target_type);
+    made.target_id = link.target_id;
+    if (link.target_project_id != project_id) made.target_project_id = link.target_project_id;
+    made.kind = link.kind;
+    made.label = link.label;
+    new_links.push_back(std::move(made));
+  }
+  std::vector<NewMilestone> new_milestones;
+  for (const auto& choice : milestones) {
+    const auto& milestone = reviewed(cleanup.copy_milestones, [&](const Milestone& item) {
+      return item.milestone_id == choice.milestone_id;
+    });
+    new_milestones.push_back({milestone.dates, milestone.kind, milestone.description});
+  }
+  for (const auto& choice : tags)
+    reviewed(cleanup.copy_tags, [&](const std::string& item) {
+      return item == choice.tag;
+    });
+  for (const auto& choice : children)
+    reviewed(cleanup.children, [&](const CardSummary& item) {
+      return item.card_id == choice.card_id;
+    });
+  std::vector<Link> moved_backlinks;
+  for (const auto& choice : backlinks) {
+    moved_backlinks.push_back(reviewed(cleanup.backlinks, [&](const Link& item) {
+      return item.source_type == LinkSourceType::Card &&
+             item.source_project_id == choice.source_project_id &&
+             item.source_id == choice.source_id && item.kind == choice.kind;
+    }));
+  }
+
+  for (const auto& link : new_links)
+    add_card_link(context, project_id, original_id, link);
+  for (const auto& milestone : new_milestones)
+    add_card_milestone(context, project_id, original_id, milestone);
+  for (const auto& choice : tags)
+    add_card_tag(context, project_id, original_id, choice.tag);
+  for (const auto& choice : children) {
+    CardMove into;
+    into.intent = CardMoveIntent::Into;
+    into.target_card_id = original_id;
+    move_card(context, project_id, choice.card_id, into);
+  }
+  for (const auto& link : moved_backlinks) {
+    NewLink to_original;
+    to_original.target_type = NewLinkTargetType::Card;
+    to_original.target_id = original_id;
+    if (link.source_project_id != project_id) to_original.target_project_id = project_id;
+    to_original.kind = link.kind;
+    to_original.label = link.label;
+    add_card_link(context, link.source_project_id, link.source_id, to_original);
+    remove_card_link(
+        context,
+        link.source_project_id,
+        link.source_id,
+        RemoveCardLinkTargetType::Card,
+        copy_id,
+        link.kind,
+        link.source_project_id == project_id ? std::nullopt : std::optional<std::string>{project_id}
+    );
+  }
+}
+
 } // namespace
 
 SyncState get_project_sync_state(holder_context& context, std::string project_id) {
@@ -572,6 +685,7 @@ CardMetadata trash_conflict_copy(
       throw Conflict(
           "Moving the copy to Trash would also move the original. Move the original first."
       );
+    carry_over(context, project_id, pair.original.card_id, copy_id, cleanup, confirmation);
     card_store(context).trash(copy_id, now_epoch_seconds());
     return get_card_any_state(context, project_id, copy_id);
   });

@@ -736,6 +736,11 @@ bool from_java_holder_recovery_token_export_request(JNIEnv* env, jobject object,
 bool from_java_holder_recovery_token_import_request(JNIEnv* env, jobject object, holder_recovery_token_import_request& out, Keep& keep);
 bool from_java_holder_conflict_resolution(JNIEnv* env, jobject object, holder_conflict_resolution& out, Keep& keep);
 bool from_java_holder_separate_conflict_copy_request(JNIEnv* env, jobject object, holder_separate_conflict_copy_request& out, Keep& keep);
+bool from_java_holder_conflict_copy_link_target(JNIEnv* env, jobject object, holder_conflict_copy_link_target& out, Keep& keep);
+bool from_java_holder_conflict_copy_milestone_choice(JNIEnv* env, jobject object, holder_conflict_copy_milestone_choice& out, Keep& keep);
+bool from_java_holder_conflict_copy_tag_choice(JNIEnv* env, jobject object, holder_conflict_copy_tag_choice& out, Keep& keep);
+bool from_java_holder_conflict_copy_child_choice(JNIEnv* env, jobject object, holder_conflict_copy_child_choice& out, Keep& keep);
+bool from_java_holder_conflict_copy_backlink_source(JNIEnv* env, jobject object, holder_conflict_copy_backlink_source& out, Keep& keep);
 bool from_java_holder_trash_conflict_copy_request(JNIEnv* env, jobject object, holder_trash_conflict_copy_request& out, Keep& keep);
 bool from_java_holder_push_options(JNIEnv* env, jobject object, holder_push_options& out, Keep& keep);
 bool from_java_holder_remote_test(JNIEnv* env, jobject object, holder_remote_test& out, Keep& keep);
@@ -3071,16 +3076,196 @@ bool from_java_holder_separate_conflict_copy_request(JNIEnv* env, jobject object
   return !env->ExceptionCheck();
 }
 
+bool from_java_holder_conflict_copy_link_target(JNIEnv* env, jobject object, holder_conflict_copy_link_target& out, Keep& keep) {
+  static const jclass type = global_class(env, "team/holder/android/contract/ConflictCopyLinkTarget");
+  if (!type) return false;
+  static const jfieldID field_target_project_id = env->GetFieldID(type, "targetProjectId", "Ljava/lang/String;");
+  static const jfieldID field_target_type = env->GetFieldID(type, "targetType", "Lteam/holder/android/contract/ConflictCopyLinkTargetTargetType;");
+  static const jfieldID field_target_id = env->GetFieldID(type, "targetId", "Ljava/lang/String;");
+  static const jfieldID field_kind = env->GetFieldID(type, "kind", "Ljava/lang/String;");
+  out = holder_conflict_copy_link_target{};
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_target_project_id));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.target_project_id)) return false;
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_target_type));
+    if (env->ExceptionCheck()) return false;
+    out.target_type = item ? static_cast<holder_conflict_copy_link_target_target_type>(ordinal(env, item) + 1) : static_cast<holder_conflict_copy_link_target_target_type>(0);
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_target_id));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.target_id)) return false;
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_kind));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.kind)) return false;
+  }
+  return !env->ExceptionCheck();
+}
+
+bool from_java_holder_conflict_copy_milestone_choice(JNIEnv* env, jobject object, holder_conflict_copy_milestone_choice& out, Keep& keep) {
+  static const jclass type = global_class(env, "team/holder/android/contract/ConflictCopyMilestoneChoice");
+  if (!type) return false;
+  static const jfieldID field_milestone_id = env->GetFieldID(type, "milestoneId", "Ljava/lang/String;");
+  out = holder_conflict_copy_milestone_choice{};
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_milestone_id));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.milestone_id)) return false;
+  }
+  return !env->ExceptionCheck();
+}
+
+bool from_java_holder_conflict_copy_tag_choice(JNIEnv* env, jobject object, holder_conflict_copy_tag_choice& out, Keep& keep) {
+  static const jclass type = global_class(env, "team/holder/android/contract/ConflictCopyTagChoice");
+  if (!type) return false;
+  static const jfieldID field_tag = env->GetFieldID(type, "tag", "Ljava/lang/String;");
+  out = holder_conflict_copy_tag_choice{};
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_tag));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.tag)) return false;
+  }
+  return !env->ExceptionCheck();
+}
+
+bool from_java_holder_conflict_copy_child_choice(JNIEnv* env, jobject object, holder_conflict_copy_child_choice& out, Keep& keep) {
+  static const jclass type = global_class(env, "team/holder/android/contract/ConflictCopyChildChoice");
+  if (!type) return false;
+  static const jfieldID field_card_id = env->GetFieldID(type, "cardId", "Ljava/lang/String;");
+  out = holder_conflict_copy_child_choice{};
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_card_id));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.card_id)) return false;
+  }
+  return !env->ExceptionCheck();
+}
+
+bool from_java_holder_conflict_copy_backlink_source(JNIEnv* env, jobject object, holder_conflict_copy_backlink_source& out, Keep& keep) {
+  static const jclass type = global_class(env, "team/holder/android/contract/ConflictCopyBacklinkSource");
+  if (!type) return false;
+  static const jfieldID field_source_project_id = env->GetFieldID(type, "sourceProjectId", "Ljava/lang/String;");
+  static const jfieldID field_source_id = env->GetFieldID(type, "sourceId", "Ljava/lang/String;");
+  static const jfieldID field_kind = env->GetFieldID(type, "kind", "Ljava/lang/String;");
+  out = holder_conflict_copy_backlink_source{};
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_source_project_id));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.source_project_id)) return false;
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_source_id));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.source_id)) return false;
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_kind));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.kind)) return false;
+  }
+  return !env->ExceptionCheck();
+}
+
 bool from_java_holder_trash_conflict_copy_request(JNIEnv* env, jobject object, holder_trash_conflict_copy_request& out, Keep& keep) {
   static const jclass type = global_class(env, "team/holder/android/contract/TrashConflictCopyRequest");
   if (!type) return false;
   static const jfieldID field_cleanup_token = env->GetFieldID(type, "cleanupToken", "Ljava/lang/String;");
+  static const jfieldID field_carry_links = env->GetFieldID(type, "carryLinks", "Ljava/util/List;");
+  static const jfieldID field_carry_milestones = env->GetFieldID(type, "carryMilestones", "Ljava/util/List;");
+  static const jfieldID field_carry_tags = env->GetFieldID(type, "carryTags", "Ljava/util/List;");
+  static const jfieldID field_adopt_children = env->GetFieldID(type, "adoptChildren", "Ljava/util/List;");
+  static const jfieldID field_retarget_backlinks = env->GetFieldID(type, "retargetBacklinks", "Ljava/util/List;");
   out = holder_trash_conflict_copy_request{};
   {
     Locals locals(env);
     jobject item = locals.add(env->GetObjectField(object, field_cleanup_token));
     if (env->ExceptionCheck()) return false;
     if (!c_text(env, static_cast<jstring>(item), keep, out.cleanup_token)) return false;
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_carry_links));
+    if (env->ExceptionCheck()) return false;
+    if (item) {
+      auto* held = keep.make<holder_conflict_copy_link_target_list>();
+      if (!from_java_list(env, item, keep, (*held).items, (*held).count,
+                          [&](jobject item, auto& element) { return from_java_holder_conflict_copy_link_target(env, item, element, keep); }))
+        return false;
+      out.carry_links = held;
+    } else {
+      out.carry_links = nullptr;
+    }
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_carry_milestones));
+    if (env->ExceptionCheck()) return false;
+    if (item) {
+      auto* held = keep.make<holder_conflict_copy_milestone_choice_list>();
+      if (!from_java_list(env, item, keep, (*held).items, (*held).count,
+                          [&](jobject item, auto& element) { return from_java_holder_conflict_copy_milestone_choice(env, item, element, keep); }))
+        return false;
+      out.carry_milestones = held;
+    } else {
+      out.carry_milestones = nullptr;
+    }
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_carry_tags));
+    if (env->ExceptionCheck()) return false;
+    if (item) {
+      auto* held = keep.make<holder_conflict_copy_tag_choice_list>();
+      if (!from_java_list(env, item, keep, (*held).items, (*held).count,
+                          [&](jobject item, auto& element) { return from_java_holder_conflict_copy_tag_choice(env, item, element, keep); }))
+        return false;
+      out.carry_tags = held;
+    } else {
+      out.carry_tags = nullptr;
+    }
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_adopt_children));
+    if (env->ExceptionCheck()) return false;
+    if (item) {
+      auto* held = keep.make<holder_conflict_copy_child_choice_list>();
+      if (!from_java_list(env, item, keep, (*held).items, (*held).count,
+                          [&](jobject item, auto& element) { return from_java_holder_conflict_copy_child_choice(env, item, element, keep); }))
+        return false;
+      out.adopt_children = held;
+    } else {
+      out.adopt_children = nullptr;
+    }
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_retarget_backlinks));
+    if (env->ExceptionCheck()) return false;
+    if (item) {
+      auto* held = keep.make<holder_conflict_copy_backlink_source_list>();
+      if (!from_java_list(env, item, keep, (*held).items, (*held).count,
+                          [&](jobject item, auto& element) { return from_java_holder_conflict_copy_backlink_source(env, item, element, keep); }))
+        return false;
+      out.retarget_backlinks = held;
+    } else {
+      out.retarget_backlinks = nullptr;
+    }
   }
   return !env->ExceptionCheck();
 }

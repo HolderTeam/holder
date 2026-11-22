@@ -2528,10 +2528,172 @@ contract::SeparateConflictCopyRequest from_c(const holder_separate_conflict_copy
   return out;
 }
 
+contract::ConflictCopyLinkTarget from_c(const holder_conflict_copy_link_target& value) {
+  contract::ConflictCopyLinkTarget out;
+  out.target_project_id =
+      text(value.target_project_id, "conflict_copy_link_target.target_project_id", 1, SIZE_MAX);
+  switch (value.target_type) {
+  case HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_CARD:
+    out.target_type = contract::ConflictCopyLinkTargetTargetType::Card;
+    break;
+  case HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_AI_MESSAGE:
+    out.target_type = contract::ConflictCopyLinkTargetTargetType::AiMessage;
+    break;
+  case HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_AI_THREAD:
+    out.target_type = contract::ConflictCopyLinkTargetTargetType::AiThread;
+    break;
+  case HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_RESOURCE:
+    out.target_type = contract::ConflictCopyLinkTargetTargetType::Resource;
+    break;
+  default:
+    throw ArgumentError(
+        "conflict_copy_link_target.target_type is not a holder_conflict_copy_link_target_target_type value"
+    );
+  }
+  out.target_id = text(value.target_id, "conflict_copy_link_target.target_id", 1, SIZE_MAX);
+  out.kind = text(value.kind, "conflict_copy_link_target.kind", 1, SIZE_MAX);
+  return out;
+}
+
+std::vector<contract::ConflictCopyLinkTarget> from_c_list(
+    const holder_conflict_copy_link_target_list& values,
+    const char* name
+) {
+  require(
+      values.items != nullptr || values.count == 0,
+      std::string(name) + ".items must not be null"
+  );
+  std::vector<contract::ConflictCopyLinkTarget> out;
+  out.reserve(values.count);
+  for (std::size_t i = 0; i < values.count; ++i)
+    out.push_back(from_c(values.items[i]));
+  return out;
+}
+
+contract::ConflictCopyMilestoneChoice from_c(const holder_conflict_copy_milestone_choice& value) {
+  contract::ConflictCopyMilestoneChoice out;
+  out.milestone_id =
+      text(value.milestone_id, "conflict_copy_milestone_choice.milestone_id", 1, SIZE_MAX);
+  return out;
+}
+
+std::vector<contract::ConflictCopyMilestoneChoice> from_c_list(
+    const holder_conflict_copy_milestone_choice_list& values,
+    const char* name
+) {
+  require(
+      values.items != nullptr || values.count == 0,
+      std::string(name) + ".items must not be null"
+  );
+  std::vector<contract::ConflictCopyMilestoneChoice> out;
+  out.reserve(values.count);
+  for (std::size_t i = 0; i < values.count; ++i)
+    out.push_back(from_c(values.items[i]));
+  return out;
+}
+
+contract::ConflictCopyTagChoice from_c(const holder_conflict_copy_tag_choice& value) {
+  contract::ConflictCopyTagChoice out;
+  out.tag = text(value.tag, "conflict_copy_tag_choice.tag", 1, SIZE_MAX);
+  return out;
+}
+
+std::vector<contract::ConflictCopyTagChoice> from_c_list(
+    const holder_conflict_copy_tag_choice_list& values,
+    const char* name
+) {
+  require(
+      values.items != nullptr || values.count == 0,
+      std::string(name) + ".items must not be null"
+  );
+  std::vector<contract::ConflictCopyTagChoice> out;
+  out.reserve(values.count);
+  for (std::size_t i = 0; i < values.count; ++i)
+    out.push_back(from_c(values.items[i]));
+  return out;
+}
+
+contract::ConflictCopyChildChoice from_c(const holder_conflict_copy_child_choice& value) {
+  contract::ConflictCopyChildChoice out;
+  out.card_id = text(value.card_id, "conflict_copy_child_choice.card_id", 1, SIZE_MAX);
+  return out;
+}
+
+std::vector<contract::ConflictCopyChildChoice> from_c_list(
+    const holder_conflict_copy_child_choice_list& values,
+    const char* name
+) {
+  require(
+      values.items != nullptr || values.count == 0,
+      std::string(name) + ".items must not be null"
+  );
+  std::vector<contract::ConflictCopyChildChoice> out;
+  out.reserve(values.count);
+  for (std::size_t i = 0; i < values.count; ++i)
+    out.push_back(from_c(values.items[i]));
+  return out;
+}
+
+contract::ConflictCopyBacklinkSource from_c(const holder_conflict_copy_backlink_source& value) {
+  contract::ConflictCopyBacklinkSource out;
+  out.source_project_id =
+      text(value.source_project_id, "conflict_copy_backlink_source.source_project_id", 1, SIZE_MAX);
+  out.source_id = text(value.source_id, "conflict_copy_backlink_source.source_id", 1, SIZE_MAX);
+  out.kind = text(value.kind, "conflict_copy_backlink_source.kind", 1, SIZE_MAX);
+  return out;
+}
+
+std::vector<contract::ConflictCopyBacklinkSource> from_c_list(
+    const holder_conflict_copy_backlink_source_list& values,
+    const char* name
+) {
+  require(
+      values.items != nullptr || values.count == 0,
+      std::string(name) + ".items must not be null"
+  );
+  std::vector<contract::ConflictCopyBacklinkSource> out;
+  out.reserve(values.count);
+  for (std::size_t i = 0; i < values.count; ++i)
+    out.push_back(from_c(values.items[i]));
+  return out;
+}
+
 contract::TrashConflictCopyRequest from_c(const holder_trash_conflict_copy_request& value) {
   contract::TrashConflictCopyRequest out;
   out.cleanup_token =
       text(value.cleanup_token, "trash_conflict_copy_request.cleanup_token", 1, 256);
+  out.carry_links =
+      (value.carry_links
+           ? std::optional<std::vector<contract::ConflictCopyLinkTarget>>(
+                 from_c_list(*value.carry_links, "trash_conflict_copy_request.carry_links")
+             )
+           : std::nullopt);
+  out.carry_milestones =
+      (value.carry_milestones
+           ? std::optional<std::vector<contract::ConflictCopyMilestoneChoice>>(from_c_list(
+                 *value.carry_milestones,
+                 "trash_conflict_copy_request.carry_milestones"
+             ))
+           : std::nullopt);
+  out.carry_tags =
+      (value.carry_tags
+           ? std::optional<std::vector<contract::ConflictCopyTagChoice>>(
+                 from_c_list(*value.carry_tags, "trash_conflict_copy_request.carry_tags")
+             )
+           : std::nullopt);
+  out.adopt_children =
+      (value.adopt_children
+           ? std::optional<std::vector<contract::ConflictCopyChildChoice>>(
+                 from_c_list(*value.adopt_children, "trash_conflict_copy_request.adopt_children")
+             )
+           : std::nullopt);
+  out.retarget_backlinks =
+      (value.retarget_backlinks
+           ? std::optional<std::vector<contract::ConflictCopyBacklinkSource>>(from_c_list(
+                 *value.retarget_backlinks,
+                 "trash_conflict_copy_request.retarget_backlinks"
+             ))
+           : std::nullopt);
   return out;
 }
 

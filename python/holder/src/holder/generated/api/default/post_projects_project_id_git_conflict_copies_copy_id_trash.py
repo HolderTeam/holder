@@ -101,15 +101,21 @@ def sync_detailed(
     """Move a reviewed conflict copy to Trash after choosing a result.
 
      Holder verifies the cleanup token against both live cards and the reviewed effects.
-    A stale token or cleanup that would move the original is Conflict. A missing association
-    or a card missing or in Trash is NotFound.
-    The original is untouched. The copy can be restored and its live children move up a level.
+    A stale token, cleanup that would move the original, or a detail to carry over that the review
+    did not list is Conflict. A missing association or a card missing or in Trash is NotFound.
+    Holder first carries the chosen details over to the original: links, milestones and tags are
+    added to it, chosen children move under it, and chosen card links to the copy point at it
+    instead. Each is its own change. The original is otherwise untouched. The copy can be restored,
+    and its other live children move up a level.
 
     Args:
         project_id (str):
         copy_id (str):
         body (TrashConflictCopyRequest): Confirmation of the cleanup effects returned when the
-            resolution was saved.
+            resolution was saved, and which of the copy's own
+            details to carry over to the original first. Everything named must be in the reviewed
+            cleanup; anything not
+            carried over stays with the copy in Trash.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -142,15 +148,21 @@ def sync(
     """Move a reviewed conflict copy to Trash after choosing a result.
 
      Holder verifies the cleanup token against both live cards and the reviewed effects.
-    A stale token or cleanup that would move the original is Conflict. A missing association
-    or a card missing or in Trash is NotFound.
-    The original is untouched. The copy can be restored and its live children move up a level.
+    A stale token, cleanup that would move the original, or a detail to carry over that the review
+    did not list is Conflict. A missing association or a card missing or in Trash is NotFound.
+    Holder first carries the chosen details over to the original: links, milestones and tags are
+    added to it, chosen children move under it, and chosen card links to the copy point at it
+    instead. Each is its own change. The original is otherwise untouched. The copy can be restored,
+    and its other live children move up a level.
 
     Args:
         project_id (str):
         copy_id (str):
         body (TrashConflictCopyRequest): Confirmation of the cleanup effects returned when the
-            resolution was saved.
+            resolution was saved, and which of the copy's own
+            details to carry over to the original first. Everything named must be in the reviewed
+            cleanup; anything not
+            carried over stays with the copy in Trash.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -178,15 +190,21 @@ async def asyncio_detailed(
     """Move a reviewed conflict copy to Trash after choosing a result.
 
      Holder verifies the cleanup token against both live cards and the reviewed effects.
-    A stale token or cleanup that would move the original is Conflict. A missing association
-    or a card missing or in Trash is NotFound.
-    The original is untouched. The copy can be restored and its live children move up a level.
+    A stale token, cleanup that would move the original, or a detail to carry over that the review
+    did not list is Conflict. A missing association or a card missing or in Trash is NotFound.
+    Holder first carries the chosen details over to the original: links, milestones and tags are
+    added to it, chosen children move under it, and chosen card links to the copy point at it
+    instead. Each is its own change. The original is otherwise untouched. The copy can be restored,
+    and its other live children move up a level.
 
     Args:
         project_id (str):
         copy_id (str):
         body (TrashConflictCopyRequest): Confirmation of the cleanup effects returned when the
-            resolution was saved.
+            resolution was saved, and which of the copy's own
+            details to carry over to the original first. Everything named must be in the reviewed
+            cleanup; anything not
+            carried over stays with the copy in Trash.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -217,15 +235,21 @@ async def asyncio(
     """Move a reviewed conflict copy to Trash after choosing a result.
 
      Holder verifies the cleanup token against both live cards and the reviewed effects.
-    A stale token or cleanup that would move the original is Conflict. A missing association
-    or a card missing or in Trash is NotFound.
-    The original is untouched. The copy can be restored and its live children move up a level.
+    A stale token, cleanup that would move the original, or a detail to carry over that the review
+    did not list is Conflict. A missing association or a card missing or in Trash is NotFound.
+    Holder first carries the chosen details over to the original: links, milestones and tags are
+    added to it, chosen children move under it, and chosen card links to the copy point at it
+    instead. Each is its own change. The original is otherwise untouched. The copy can be restored,
+    and its other live children move up a level.
 
     Args:
         project_id (str):
         copy_id (str):
         body (TrashConflictCopyRequest): Confirmation of the cleanup effects returned when the
-            resolution was saved.
+            resolution was saved, and which of the copy's own
+            details to carry over to the original first. Everything named must be in the reviewed
+            cleanup; anything not
+            carried over stays with the copy in Trash.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

@@ -137,7 +137,12 @@ from .conflict_changed_line import ConflictChangedLine
 from .conflict_comparison import ConflictComparison
 from .conflict_comparison_response import ConflictComparisonResponse
 from .conflict_copy import ConflictCopy
+from .conflict_copy_backlink_source import ConflictCopyBacklinkSource
+from .conflict_copy_child_choice import ConflictCopyChildChoice
 from .conflict_copy_cleanup_review import ConflictCopyCleanupReview
+from .conflict_copy_link_target import ConflictCopyLinkTarget
+from .conflict_copy_milestone_choice import ConflictCopyMilestoneChoice
+from .conflict_copy_tag_choice import ConflictCopyTagChoice
 from .conflict_resolution import ConflictResolution
 from .conflict_resolution_result import ConflictResolutionResult
 from .conflict_resolution_result_response import ConflictResolutionResultResponse
@@ -437,7 +442,12 @@ __all__ = (
     "ConflictComparison",
     "ConflictComparisonResponse",
     "ConflictCopy",
+    "ConflictCopyBacklinkSource",
+    "ConflictCopyChildChoice",
     "ConflictCopyCleanupReview",
+    "ConflictCopyLinkTarget",
+    "ConflictCopyMilestoneChoice",
+    "ConflictCopyTagChoice",
     "ConflictResolution",
     "ConflictResolutionResult",
     "ConflictResolutionResultResponse",
