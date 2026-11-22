@@ -4,9 +4,9 @@ Builds a throwaway Holder full of Git conflict copies, so you can open Desktop a
 **Git Sync → Compare versions** without setting up two machines.
 
 ```sh
-python3 scripts/dev/conflict-sandbox/sandbox.py setup     # build every scenario
-python3 scripts/dev/conflict-sandbox/sandbox.py desktop   # open Desktop on the sandbox
-python3 scripts/dev/conflict-sandbox/sandbox.py reset     # stop it and delete everything
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py setup     # build every scenario
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py desktop   # open Desktop on the sandbox
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py reset     # stop it and delete everything
 ```
 
 On Windows use `py` instead of `python3`.
@@ -69,9 +69,9 @@ Setup pulls before Desktop opens, and Desktop only announces pulls it sees while
 the pull toast, open Desktop on the sandbox, select a scenario's project, then run:
 
 ```sh
-python3 scripts/dev/conflict-sandbox/sandbox.py toast            # a fresh conflict in "basic"
-python3 scripts/dev/conflict-sandbox/sandbox.py toast --merge    # edits lines apart: a merge
-python3 scripts/dev/conflict-sandbox/sandbox.py toast copy-extras
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py toast            # a fresh conflict in "basic"
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py toast --merge    # edits lines apart: a merge
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py toast copy-extras
 ```
 
 Each run edits the card with the most lines on both sides, the other machine pushes, and the
@@ -93,8 +93,8 @@ uses the Holder Python library from this checkout if it isn't installed.
 To use `holderctl` or your own scripts against the sandbox, load its environment:
 
 ```sh
-eval "$(python3 scripts/dev/conflict-sandbox/sandbox.py env)"      # bash/zsh
-python3 scripts/dev/conflict-sandbox/sandbox.py env | Invoke-Expression   # PowerShell
+eval "$(python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py env)"      # bash/zsh
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py env | Invoke-Expression   # PowerShell
 ```
 
 ## Troubleshooting

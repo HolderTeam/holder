@@ -5,11 +5,11 @@ Everything lives under one sandbox folder: its own Holder data, config, cache an
 its own daemon on its own port, and a local bare Git remote plus an "other machine" clone for
 each scenario. Your real Holder data, daemon and keyring are never touched.
 
-    python3 scripts/dev/conflict-sandbox/sandbox.py setup          # every scenario
-    python3 scripts/dev/conflict-sandbox/sandbox.py setup basic crlf
-    python3 scripts/dev/conflict-sandbox/sandbox.py desktop        # open Desktop on the sandbox
-    python3 scripts/dev/conflict-sandbox/sandbox.py env            # exports for your own shell
-    python3 scripts/dev/conflict-sandbox/sandbox.py stop | reset | list
+    python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py setup          # every scenario
+    python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py setup basic crlf
+    python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py desktop        # open Desktop on the sandbox
+    python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py env            # exports for your own shell
+    python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py stop | reset | list
 
 See README.md next to this file.
 """
@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
+REPO = Path(__file__).resolve().parents[5]
 EXE = ".exe" if os.name == "nt" else ""
 DEFAULT_ROOT = Path(tempfile.gettempdir()) / "holder-conflict-sandbox"
 DEFAULT_PORT = 11599  # The real daemon defaults to 11499; never share it.
