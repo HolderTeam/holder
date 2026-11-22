@@ -1467,7 +1467,7 @@ public class MainWindow : Adw.ApplicationWindow {
                 toast.button_clicked.connect(() => {
                     restore_conflict_copy.begin(api, project_id, copy_id);
                 });
-                activity_feedback.add_toast_with_action(toast);
+                activity_feedback.enqueue_toast(toast);
             }
         } catch (Error e) {
             if (conflict_comparison_is_current(dialog, api, project_id)) {
@@ -1598,7 +1598,7 @@ public class MainWindow : Adw.ApplicationWindow {
             });
         }
         log_debug_line("PULL_REPORT %s: %s".printf(project_id, notice.message));
-        activity_feedback.add_toast_with_action(toast);
+        activity_feedback.enqueue_toast(toast);
     }
 
     private async void refresh_cards_after_git_change(string project_id,

@@ -71,10 +71,10 @@ internal class WindowActivityFeedback : Object {
     }
 
     public void add_toast(string msg) {
-        toast_overlay.add_toast(new Adw.Toast(msg));
+        enqueue_toast(new Adw.Toast(msg));
     }
 
-    public void add_toast_with_action(Adw.Toast toast) {
+    public void enqueue_toast(Adw.Toast toast) {
         toast_overlay.add_toast(toast);
     }
 
