@@ -1081,7 +1081,7 @@ TEST_CASE("Listener stop cancels in-flight writer response and returns promptly"
   auto db = open_db_with_schema(db_path);
   std::atomic<int> route_started{0};
 
-  const std::string payload(std::size_t{8} * 1024 * 1024, 'x');
+  const std::string payload(std::size_t{2} * 1024 * 1024, 'x');
   HookedSecretStore secrets;
   // The preferred location ID is the response's large payload.
   secrets.on_get = [&route_started, &payload](const std::string&) {
@@ -1129,7 +1129,7 @@ TEST_CASE("Listener stop cancels in-flight writer response and returns promptly"
     SKIP(std::string("Socket bind not available in test environment: ") + ex.what());
   }
 
-  // A non-reading client with a tiny receive window keeps the 8 MiB response in the writer.
+  // A non-reading client with a tiny receive window keeps the response in the writer.
   // Windows also needs a zero send buffer: otherwise its overlapped sends complete at once.
   listener.set_accepted_send_buffer_size_for_test(0);
 
