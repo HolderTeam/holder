@@ -1,5 +1,7 @@
 #include "sync/CardMerge.h"
 
+#include <git2.h>
+
 #include <algorithm>
 #include <map>
 #include <string>
@@ -102,7 +104,43 @@ std::optional<std::vector<T>> merge_items(
   return out;
 }
 
+// libgit2 keeps a process-wide reference count; take one for good, as GitRepo does.
+void ensure_libgit2_initialized() {
+  static const int once = git_libgit2_init();
+  (void)once;
+}
+
 } // namespace
+
+std::optional<std::string> merge_body_lines(
+    const std::string& base,
+    const std::string& local,
+    const std::string& remote
+) {
+  ensure_libgit2_initialized();
+  const auto input = [](const std::string& text) {
+    git_merge_file_input in = GIT_MERGE_FILE_INPUT_INIT;
+    in.ptr = text.data();
+    in.size = text.size();
+    return in;
+  };
+  const auto ancestor = input(base);
+  const auto ours = input(local);
+  const auto theirs = input(remote);
+  git_merge_file_options options = GIT_MERGE_FILE_OPTIONS_INIT;
+  options.flags = GIT_MERGE_FILE_DEFAULT;
+  git_merge_file_result result{};
+  if (git_merge_file(&result, &ancestor, &ours, &theirs, &options) < 0) {
+    // LCOV_EXCL_START - libgit2 fails here only when it cannot allocate.
+    git_merge_file_result_free(&result);
+    return std::nullopt;
+    // LCOV_EXCL_STOP
+  }
+  std::optional<std::string> merged;
+  if (result.automergeable) merged.emplace(result.ptr, result.len);
+  git_merge_file_result_free(&result);
+  return merged;
+}
 
 std::optional<ParsedCardFile> merge_card_versions(
     const ParsedCardFile& base,
@@ -132,8 +170,13 @@ std::optional<ParsedCardFile> merge_card_versions(
   const auto local_place = placement(local);
   const auto remote_place = placement(remote);
   const auto* place = pick(base_place, local_place, remote_place, equal<decltype(base_place)>);
-  const auto* body = pick(base.body, local.body, remote.body, equal<std::string>);
-  if (title == nullptr || place == nullptr || body == nullptr) return std::nullopt;
+  if (title == nullptr || place == nullptr) return std::nullopt;
+  std::optional<std::string> body;
+  if (const auto* side = pick(base.body, local.body, remote.body, equal<std::string>))
+    body = *side;
+  else
+    body = merge_body_lines(base.body, local.body, remote.body);
+  if (!body) return std::nullopt;
 
   auto links =
       merge_items<CardLink, LinkKey>(base.links, local.links, remote.links, link_key, same_link);
@@ -153,7 +196,7 @@ std::optional<ParsedCardFile> merge_card_versions(
   merged.card.parent_card_id = place->first;
   merged.card.sort_key = place->second;
   merged.card.updated_at = std::max(local.card.updated_at, remote.card.updated_at);
-  merged.body = *body;
+  merged.body = std::move(*body);
   merged.links = std::move(*links);
   merged.milestones = std::move(*milestones);
   return merged;

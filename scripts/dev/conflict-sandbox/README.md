@@ -35,13 +35,14 @@ These end in a conflict copy to compare:
 
 | Name | What to look at |
 | --- | --- |
-| `basic` | Text edited on both sides; the other machine also renamed the card. |
+| `basic` | The same line edited on both sides; the other machine also renamed the card. |
 | `children` | A parent and child both conflict, so the copy has a child of its own. Cleanup shows where it would move. |
 | `original-under-copy` | The original has been moved under its copy, so **Move copy to Trash** is blocked. |
 | `copy-extras` | Tags, a link and a milestone only on the copy, and another card linking to the copy. |
 | `large-diff` | 1,200 different lines on each side: too large to highlight. |
-| `crlf` | CRLF line endings, to check that highlights land on the right lines. |
+| `crlf` | CRLF line endings, to check that highlights land on the right lines. Both sides edited line two; the other also edited line four. |
 | `both-move` | Both machines moved the card to different places. |
+| `neighbouring-lines` | This machine edited a line; the other added a line just below it. Edits that touch neighbouring lines are not merged. |
 
 These end without a copy: the two machines changed different parts of the card, or (for
 `trash-vs-edit` and `edit-vs-trash`) Holder keeps the edited version:
@@ -51,6 +52,7 @@ These end without a copy: the two machines changed different parts of the card, 
 | `move-vs-edit` | This machine only moved the card; the other edited its text. |
 | `identical-edit` | Both machines made the same edit. |
 | `title-vs-body` | This machine renamed the card; the other added a paragraph. |
+| `different-lines` | Both machines edited the text, on lines apart from each other: both edits are kept. |
 | `link-vs-edit` | This machine added a link; the other edited the text. |
 | `trash-vs-edit` | This machine moved the card to Trash while the other edited it. The edited card stays live and out of Trash, so it can be trashed again. |
 | `edit-vs-trash` | This machine edited the card while the other moved it to Trash. The card comes back out of Trash with this machine's edit. |

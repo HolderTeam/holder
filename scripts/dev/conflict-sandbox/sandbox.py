@@ -274,7 +274,10 @@ def basic_local(ctx: Context) -> None:
 def basic_remote(ctx: Context) -> None:
     card = ctx.cards["card"]
     ctx.other.set_title(card.id, "Meeting notes (agenda)")
-    ctx.other.set_body(card.id, PARAGRAPHS + "\nFourth paragraph, added on the other machine.\n")
+    # The same line as this machine's edit, so the two cannot be merged line by line.
+    ctx.other.set_body(card.id, PARAGRAPHS.replace("Second paragraph.",
+                                                   "Second paragraph, rewritten on the other machine.")
+                       + "\nFourth paragraph, added on the other machine.\n")
     ctx.other.push("Edit Meeting notes elsewhere")
 
 
@@ -351,7 +354,8 @@ def crlf_local(ctx: Context) -> None:
 
 
 def crlf_remote(ctx: Context) -> None:
-    ctx.other.set_body(ctx.cards["card"].id, CRLF.replace("Line four", "Line four, edited there"))
+    ctx.other.set_body(ctx.cards["card"].id, CRLF.replace("Line two", "Line two, edited there")
+                       .replace("Line four", "Line four, edited there"))
     ctx.other.push("Edit Windows notes elsewhere")
 
 
@@ -390,6 +394,27 @@ def title_remote(ctx: Context) -> None:
     ctx.other.push("Edit Meeting notes elsewhere")
 
 
+def lines_local(ctx: Context) -> None:
+    ctx.cards["card"].update(content=PARAGRAPHS.replace("First paragraph.", "First paragraph, edited here."))
+
+
+def lines_remote(ctx: Context) -> None:
+    ctx.other.set_body(ctx.cards["card"].id,
+                       PARAGRAPHS.replace("Third paragraph.", "Third paragraph, edited there.")
+                       + "\nFourth paragraph, added there.\n")
+    ctx.other.push("Edit other lines of Meeting notes elsewhere")
+
+
+def neighbour_local(ctx: Context) -> None:
+    ctx.cards["card"].update(content=PARAGRAPHS.replace("Second paragraph.", "Second paragraph, edited here."))
+
+
+def neighbour_remote(ctx: Context) -> None:
+    ctx.other.set_body(ctx.cards["card"].id,
+                       PARAGRAPHS.replace("Second paragraph.\n", "Second paragraph.\nA line added just below it.\n"))
+    ctx.other.push("Add a line to Meeting notes elsewhere")
+
+
 def link_local(ctx: Context) -> None:
     ctx.cards["card"].links.add(ctx.cards["target"].id, label="Borrow from")
 
@@ -426,7 +451,7 @@ def trashed_remote(ctx: Context) -> None:
 
 
 SCENARIOS = [
-    Scenario("basic", "Both sides edit the text; the other machine also renames the card.",
+    Scenario("basic", "Both sides edit the same line; the other machine also renames the card.",
              one_card, basic_local, basic_remote),
     Scenario("children", "A parent and its child conflict, so the copy has a child of its own.",
              family, family_local, family_remote),
@@ -440,6 +465,8 @@ SCENARIOS = [
              crlf_build, crlf_local, crlf_remote),
     Scenario("both-move", "Both machines move the card to different places.",
              move_build, both_move_local, both_move_remote),
+    Scenario("neighbouring-lines", "This machine edits a line; the other adds a line just below it.",
+             one_card, neighbour_local, neighbour_remote),
     # Merged automatically: the two machines changed different parts of the card.
     Scenario("move-vs-edit", "This machine only moves the card; the other edits its text.",
              move_build, move_local, move_remote, copies=0),
@@ -447,6 +474,8 @@ SCENARIOS = [
              one_card, identical_local, identical_remote, copies=0),
     Scenario("title-vs-body", "This machine renames the card; the other adds a paragraph.",
              one_card, title_local, title_remote, copies=0),
+    Scenario("different-lines", "Both machines edit the text, on different lines.",
+             one_card, lines_local, lines_remote, copies=0),
     Scenario("link-vs-edit", "This machine adds a link; the other edits the text.",
              extras, link_local, extras_remote, copies=0),
     Scenario("trash-vs-edit", "This machine moves the card to Trash; the other edits it. "
