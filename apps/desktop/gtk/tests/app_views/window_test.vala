@@ -899,8 +899,9 @@ private bool comparison_contains_text(Adw.Dialog dialog, string text) {
             var buffer = content.get_buffer();
             var changed = buffer.get_tag_table().lookup("changed-line");
             assert(changed != null);
-            // The theme's accent colour, faint, in both panes alike.
-            assert(changed.paragraph_background_set);
+            // The theme's accent colour, faint, in both panes alike. It is set once the view is
+            // shown, so until then keep waiting.
+            if (!changed.paragraph_background_set) return false;
             var expected = expected_accent(content);
             var highlight = changed.paragraph_background_rgba;
             assert(Math.fabs(highlight.alpha - 0.18) < 0.001 || Math.fabs(highlight.alpha - 0.35) < 0.001);
