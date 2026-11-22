@@ -282,6 +282,7 @@ from .search_card import SearchCard
 from .search_card_list_response import SearchCardListResponse
 from .search_message import SearchMessage
 from .search_message_list_response import SearchMessageListResponse
+from .separate_conflict_copy_request import SeparateConflictCopyRequest
 from .storage_location_list_response import StorageLocationListResponse
 from .storage_location_update import StorageLocationUpdate
 from .sync_result import SyncResult
@@ -563,6 +564,7 @@ __all__ = (
     "SearchCardListResponse",
     "SearchMessage",
     "SearchMessageListResponse",
+    "SeparateConflictCopyRequest",
     "StorageLocationListResponse",
     "StorageLocationUpdate",
     "SyncResult",

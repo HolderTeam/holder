@@ -1283,6 +1283,10 @@ template <> struct codec<holder::contract::ConflictResolution> {
   static json encode(const holder::contract::ConflictResolution& value);
   static holder::contract::ConflictResolution decode(const json& value);
 };
+template <> struct codec<holder::contract::SeparateConflictCopyRequest> {
+  static json encode(const holder::contract::SeparateConflictCopyRequest& value);
+  static holder::contract::SeparateConflictCopyRequest decode(const json& value);
+};
 template <> struct codec<holder::contract::TrashConflictCopyRequest> {
   static json encode(const holder::contract::TrashConflictCopyRequest& value);
   static holder::contract::TrashConflictCopyRequest decode(const json& value);
@@ -7760,6 +7764,43 @@ inline holder::contract::ConflictResolution codec<holder::contract::ConflictReso
     );
   } else {
     throw std::invalid_argument("content is required and must not be null");
+  }
+  return out;
+}
+
+inline json codec<holder::contract::SeparateConflictCopyRequest>::encode(
+    const holder::contract::SeparateConflictCopyRequest& value
+) {
+  json result = json::object();
+  result["review_token"] = codec<std::string>::encode(value.review_token);
+  result["title"] = codec<std::string>::encode(value.title);
+  return result;
+}
+inline holder::contract::SeparateConflictCopyRequest codec<
+    holder::contract::SeparateConflictCopyRequest>::decode(const json& value) {
+  if (!value.is_object())
+    throw std::invalid_argument("expected a SeparateConflictCopyRequest object");
+  for (auto it = value.begin(); it != value.end(); ++it)
+    if (it.key() != "review_token" && it.key() != "title")
+      throw std::invalid_argument("SeparateConflictCopyRequest has no field " + it.key());
+  holder::contract::SeparateConflictCopyRequest out;
+  if (value.contains("review_token") && !value.at("review_token").is_null()) {
+    const auto& item = value.at("review_token");
+    out.review_token =
+        check_text(decode_field<std::string>(item, "review_token"), "review_token", 1, 256);
+  } else {
+    throw std::invalid_argument("review_token is required and must not be null");
+  }
+  if (value.contains("title") && !value.at("title").is_null()) {
+    const auto& item = value.at("title");
+    out.title = check_text(
+        decode_field<std::string>(item, "title"),
+        "title",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+  } else {
+    throw std::invalid_argument("title is required and must not be null");
   }
   return out;
 }

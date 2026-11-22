@@ -531,6 +531,27 @@ ConflictResolutionResult resolve_conflict_copy(
   });
 }
 
+Card separate_conflict_copy(
+    holder_context& context,
+    std::string project_id,
+    std::string copy_id,
+    const SeparateConflictCopyRequest& request
+) {
+  return with_contract_errors([&] {
+    const auto project = find(context, project_id);
+    const auto mutex = holder::git::repo_mutex_for(project.root_path);
+    std::unique_lock lock(*mutex);
+    const auto reviewed = read_conflict_pair(context, project, copy_id);
+    if (request.review_token != reviewed.review_token)
+      throw Conflict(
+          "Either the original or the preserved copy changed. Review both versions again."
+      );
+    card_store(context)
+        .separate_conflict_copy(project_id, copy_id, request.title, now_epoch_seconds());
+    return get_card(context, project_id, copy_id);
+  });
+}
+
 CardMetadata trash_conflict_copy(
     holder_context& context,
     std::string project_id,

@@ -368,6 +368,12 @@ struct ConflictResolution {
   std::string content; ///< The replacement card content, which can be empty.
 };
 
+/// The reviewed pair and the title the preserved copy keeps as a card of its own.
+struct SeparateConflictCopyRequest {
+  std::string review_token; ///< The token returned with the reviewed comparison.
+  std::string title; ///< The copy's new title, usually without the "(conflicted copy)" suffix.
+};
+
 /// Confirmation of the cleanup effects returned when the resolution was saved.
 struct TrashConflictCopyRequest {
   std::string cleanup_token; ///< The token returned with the cleanup review.
@@ -1987,6 +1993,20 @@ ConflictResolutionResult resolve_conflict_copy(
     std::string project_id,
     std::string copy_id,
     const ConflictResolution& resolution
+);
+
+/// Keep a preserved copy as an ordinary card instead of resolving it into the original.
+/// Holder verifies the token against both live cards before changing anything. A stale token is
+/// Conflict. A missing association or a card that is missing or in Trash is NotFound. The copy
+/// takes the new title and loses its recorded association with the original, in one Git commit, so
+/// it is no longer listed as a conflict copy. Both cards keep their content, place, links and
+/// milestones.
+/// @throws NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted
+Card separate_conflict_copy(
+    holder_context& context,
+    std::string project_id,
+    std::string copy_id,
+    const SeparateConflictCopyRequest& request
 );
 
 /// Move a reviewed conflict copy to Trash after choosing a result.

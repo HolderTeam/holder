@@ -735,6 +735,7 @@ bool from_java_holder_recovery_snapshot_restore(JNIEnv* env, jobject object, hol
 bool from_java_holder_recovery_token_export_request(JNIEnv* env, jobject object, holder_recovery_token_export_request& out, Keep& keep);
 bool from_java_holder_recovery_token_import_request(JNIEnv* env, jobject object, holder_recovery_token_import_request& out, Keep& keep);
 bool from_java_holder_conflict_resolution(JNIEnv* env, jobject object, holder_conflict_resolution& out, Keep& keep);
+bool from_java_holder_separate_conflict_copy_request(JNIEnv* env, jobject object, holder_separate_conflict_copy_request& out, Keep& keep);
 bool from_java_holder_trash_conflict_copy_request(JNIEnv* env, jobject object, holder_trash_conflict_copy_request& out, Keep& keep);
 bool from_java_holder_push_options(JNIEnv* env, jobject object, holder_push_options& out, Keep& keep);
 bool from_java_holder_remote_test(JNIEnv* env, jobject object, holder_remote_test& out, Keep& keep);
@@ -3049,6 +3050,27 @@ bool from_java_holder_conflict_resolution(JNIEnv* env, jobject object, holder_co
   return !env->ExceptionCheck();
 }
 
+bool from_java_holder_separate_conflict_copy_request(JNIEnv* env, jobject object, holder_separate_conflict_copy_request& out, Keep& keep) {
+  static const jclass type = global_class(env, "team/holder/android/contract/SeparateConflictCopyRequest");
+  if (!type) return false;
+  static const jfieldID field_review_token = env->GetFieldID(type, "reviewToken", "Ljava/lang/String;");
+  static const jfieldID field_title = env->GetFieldID(type, "title", "Ljava/lang/String;");
+  out = holder_separate_conflict_copy_request{};
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_review_token));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.review_token)) return false;
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_title));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.title)) return false;
+  }
+  return !env->ExceptionCheck();
+}
+
 bool from_java_holder_trash_conflict_copy_request(JNIEnv* env, jobject object, holder_trash_conflict_copy_request& out, Keep& keep) {
   static const jclass type = global_class(env, "team/holder/android/contract/TrashConflictCopyRequest");
   if (!type) return false;
@@ -4467,6 +4489,30 @@ Java_team_holder_android_contract_Git_resolveConflictCopy(JNIEnv* env, jobject, 
       arena.value, &out, &error);
   if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
   return to_java_holder_conflict_resolution_result(env, (*out));
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_contract_Git_separateConflictCopy(JNIEnv* env, jobject, jlong context_handle, jstring a_project_id, jstring a_copy_id, jobject a_request) {
+  if (!context_handle) { fail(env, "context is required"); return nullptr; }
+  Keep keep;
+  const char* p_project_id = nullptr;
+  if (!c_text(env, a_project_id, keep, p_project_id)) return nullptr;
+  const char* p_copy_id = nullptr;
+  if (!c_text(env, a_copy_id, keep, p_copy_id)) return nullptr;
+  if (!a_request) { fail(env, "request is required"); return nullptr; }
+  auto* p_request = keep.make<holder_separate_conflict_copy_request>();
+  if (!from_java_holder_separate_conflict_copy_request(env, a_request, *p_request, keep)) return nullptr;
+  Arena arena;
+  if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
+  const holder_card* out = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_separate_conflict_copy(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      p_project_id,
+      p_copy_id,
+      p_request,
+      arena.value, &out, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
+  return to_java_holder_card(env, (*out));
 }
 
 extern "C" JNIEXPORT jobject JNICALL

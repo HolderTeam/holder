@@ -8822,6 +8822,112 @@
         }
       }
     },
+    "/projects/{project_id}/git/conflict-copies/{copy_id}/separation": {
+      "post": {
+        "summary": "Keep a preserved copy as an ordinary card instead of resolving it into the original.",
+        "description": "Holder verifies the token against both live cards before changing anything. A stale token is\nConflict. A missing association or a card that is missing or in Trash is NotFound. The copy takes\nthe new title and loses its recorded association with the original, in one Git commit, so it is\nno longer listed as a conflict copy. Both cards keep their content, place, links and milestones.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "copy_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CardId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeparateConflictCopyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The thing asked for does not exist, or is in the trash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash, or removing a tag that a card would still carry in its prose. An encrypted project's key is not on this device; the project's recovery token restores it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. Unexpected failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/projects/{project_id}/git/conflict-copies/{copy_id}/trash": {
       "post": {
         "summary": "Move a reviewed conflict copy to Trash after choosing a result.",
@@ -20889,6 +20995,31 @@
           "data"
         ],
         "title": "SearchMessageListResponse"
+      },
+      "SeparateConflictCopyRequest": {
+        "properties": {
+          "review_token": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Review Token",
+            "description": "The token returned with the reviewed comparison."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Title",
+            "description": "The copy's new title, usually without the \"(conflicted copy)\" suffix."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "review_token",
+          "title"
+        ],
+        "title": "SeparateConflictCopyRequest",
+        "description": "The reviewed pair and the title the preserved copy keeps as a card of its own."
       },
       "StorageLocationListResponse": {
         "properties": {

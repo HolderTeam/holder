@@ -6,7 +6,7 @@ from fastapi import Body, Path, Query
 
 from authoring import Contract, Int32
 
-from ..cards.models import CardId, CardMetadata
+from ..cards.models import Card, CardId, CardMetadata
 from ..errors import Conflict, DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..projects.ids import ProjectId
 from .models import (
@@ -17,6 +17,7 @@ from .models import (
     PushOptions,
     RemoteTest,
     RemoteTestResult,
+    SeparateConflictCopyRequest,
     SyncResult,
     SyncState,
     TrashConflictCopyRequest,
@@ -55,6 +56,21 @@ def register(contract: Contract) -> None:
         to the title and content make a new Git commit. The original's identity, hierarchy, links and
         milestones are retained. Saving the existing title and content makes no commit. The result
         includes a review for optional cleanup of the preserved copy.
+        """
+
+    @contract.route("POST", "/projects/{project_id}/git/conflict-copies/{copy_id}/separation",
+                    errors=[NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted])
+    def separate_conflict_copy(
+        project_id: Annotated[ProjectId, Path()],
+        copy_id: Annotated[CardId, Path()],
+        request: Annotated[SeparateConflictCopyRequest, Body()],
+    ) -> Card:
+        """Keep a preserved copy as an ordinary card instead of resolving it into the original.
+
+        Holder verifies the token against both live cards before changing anything. A stale token is
+        Conflict. A missing association or a card that is missing or in Trash is NotFound. The copy takes
+        the new title and loses its recorded association with the original, in one Git commit, so it is
+        no longer listed as a conflict copy. Both cards keep their content, place, links and milestones.
         """
 
     @contract.route("POST", "/projects/{project_id}/git/conflict-copies/{copy_id}/trash",

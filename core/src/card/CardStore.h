@@ -143,6 +143,14 @@ class CardStore {
       const std::string& content,
       long long updated_at
   );
+  // Keeps a preserved conflict copy as an ordinary card: it takes title and loses its
+  // conflict-copy link, in one commit. Its body, place, other links and milestones are unchanged.
+  void separate_conflict_copy(
+      const std::string& project_id,
+      const std::string& copy_id,
+      const std::string& title,
+      long long updated_at
+  );
   void move(
       const std::string& card_id,
       bool has_parent_card_id,

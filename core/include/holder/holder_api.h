@@ -522,6 +522,12 @@ typedef struct holder_conflict_resolution {
   const char* content; /* The replacement card content, which can be empty. */
 } holder_conflict_resolution;
 
+/* The reviewed pair and the title the preserved copy keeps as a card of its own. */
+typedef struct holder_separate_conflict_copy_request {
+  const char* review_token; /* The token returned with the reviewed comparison. */
+  const char* title; /* The copy's new title, usually without the "(conflicted copy)" suffix. */
+} holder_separate_conflict_copy_request;
+
 /* Confirmation of the cleanup effects returned when the resolution was saved. */
 typedef struct holder_trash_conflict_copy_request {
   const char* cleanup_token; /* The token returned with the cleanup review. */
@@ -2837,6 +2843,24 @@ int holder_resolve_conflict_copy(
     const holder_conflict_resolution* resolution,
     holder_arena* arena,
     const holder_conflict_resolution_result** out_conflict_resolution_result,
+    holder_error** out_error
+);
+
+/* Keep a preserved copy as an ordinary card instead of resolving it into the original.
+ * Holder verifies the token against both live cards before changing anything. A stale token is
+ * Conflict. A missing association or a card that is missing or in Trash is NotFound. The copy takes
+ * the new title and loses its recorded association with the original, in one Git commit, so it is
+ * no longer listed as a conflict copy. Both cards keep their content, place, links and milestones.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_separate_conflict_copy(
+    holder_context* context,
+    const char* project_id,
+    const char* copy_id,
+    const holder_separate_conflict_copy_request* request,
+    holder_arena* arena,
+    const holder_card** out_card,
     holder_error** out_error
 );
 

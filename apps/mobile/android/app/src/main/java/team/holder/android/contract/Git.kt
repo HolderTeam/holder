@@ -284,6 +284,14 @@ data class ConflictResolution(
     val content: String,
 )
 
+/** The reviewed pair and the title the preserved copy keeps as a card of its own. */
+data class SeparateConflictCopyRequest(
+    /** The token returned with the reviewed comparison. */
+    val reviewToken: String,
+    /** The copy's new title, usually without the "(conflicted copy)" suffix. */
+    val title: String,
+)
+
 /** Confirmation of the cleanup effects returned when the resolution was saved. */
 data class TrashConflictCopyRequest(
     /** The token returned with the cleanup review. */
@@ -342,6 +350,20 @@ object Git {
         copyId: String,
         resolution: ConflictResolution,
     ): ConflictResolutionResult
+
+    /**
+     * Keep a preserved copy as an ordinary card instead of resolving it into the original.
+     * Holder verifies the token against both live cards before changing anything. A stale token is
+     * Conflict. A missing association or a card that is missing or in Trash is NotFound. The copy takes
+     * the new title and loses its recorded association with the original, in one Git commit, so it is
+     * no longer listed as a conflict copy. Both cards keep their content, place, links and milestones.
+     */
+    external fun separateConflictCopy(
+        contextHandle: Long,
+        projectId: String,
+        copyId: String,
+        request: SeparateConflictCopyRequest,
+    ): Card
 
     /**
      * Move a reviewed conflict copy to Trash after choosing a result.

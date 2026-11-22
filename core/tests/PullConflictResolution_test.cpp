@@ -955,6 +955,54 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
   store.restore(parent_copy->card_id, 9);
   CHECK(store.get_content(*store.get(parent_copy->card_id)) == "# Local notes\n\n#copy-only");
   CHECK(conflict_pairs(context).contains(parent.card_id));
+
+  // Keeping the restored copy as a card of its own needs a current review too.
+  const holder_conflict_comparison* review = nullptr;
+  holder_error* review_error = nullptr;
+  REQUIRE(
+      holder_compare_conflict_copy(
+          &context,
+          project_id.c_str(),
+          parent_copy->card_id.c_str(),
+          arena.get(),
+          &review,
+          &review_error
+      ) == HOLDER_OK
+  );
+  const auto copy_links_before =
+      holder::card::LinkRepo(local_db).list_outgoing(project_id, parent_copy->card_id).size();
+  const auto separate = [&](const char* token) {
+    const holder_separate_conflict_copy_request request{token, "Local notes"};
+    const holder_card* kept = nullptr;
+    holder_error* error = nullptr;
+    return holder_separate_conflict_copy(
+        &context,
+        project_id.c_str(),
+        parent_copy->card_id.c_str(),
+        &request,
+        arena.get(),
+        &kept,
+        &error
+    );
+  };
+  CHECK(separate(stale_token.c_str()) == HOLDER_ERROR_CONFLICT);
+  CHECK(conflict_pairs(context).contains(parent.card_id));
+  REQUIRE(separate(review->review_token) == HOLDER_OK);
+  CHECK_FALSE(conflict_pairs(context).contains(parent.card_id));
+  const auto kept = store.get(parent_copy->card_id);
+  REQUIRE(kept.has_value());
+  CHECK(kept->title == "Local notes");
+  CHECK_FALSE(kept->deleted_at.has_value());
+  CHECK(store.get_content(*kept) == "# Local notes\n\n#copy-only");
+  // Only the conflict association went; the copy's own links stay.
+  CHECK(
+      holder::card::LinkRepo(local_db).list_outgoing(project_id, parent_copy->card_id).size() ==
+      copy_links_before - 1
+  );
+  // The files say so too: a rebuilt index still has no pair.
+  holder::store::Rebuilder(local_db, &local_fts).rebuild_project(local_project);
+  CHECK_FALSE(conflict_pairs(context).contains(parent.card_id));
+  CHECK(conflict_pairs(context).contains(child.card_id));
 }
 
 TEST_CASE("resolve_pull_conflicts rejects a project that no longer exists", "[sync]") {

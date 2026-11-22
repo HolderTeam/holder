@@ -2520,6 +2520,14 @@ contract::ConflictResolution from_c(const holder_conflict_resolution& value) {
   return out;
 }
 
+contract::SeparateConflictCopyRequest from_c(const holder_separate_conflict_copy_request& value) {
+  contract::SeparateConflictCopyRequest out;
+  out.review_token =
+      text(value.review_token, "separate_conflict_copy_request.review_token", 1, 256);
+  out.title = text(value.title, "separate_conflict_copy_request.title", 1, SIZE_MAX);
+  return out;
+}
+
 contract::TrashConflictCopyRequest from_c(const holder_trash_conflict_copy_request& value) {
   contract::TrashConflictCopyRequest out;
   out.cleanup_token =
@@ -4165,6 +4173,32 @@ int holder_resolve_conflict_copy(
         contract::resolve_conflict_copy(*context, project_id_value, copy_id_value, resolution_value)
     );
     *out_conflict_resolution_result = out;
+  });
+}
+
+int holder_separate_conflict_copy(
+    holder_context* context,
+    const char* project_id,
+    const char* copy_id,
+    const holder_separate_conflict_copy_request* request,
+    holder_arena* arena,
+    const holder_card** out_card,
+    holder_error** out_error
+) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card != nullptr, "out_card must not be null");
+    *out_card = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto copy_id_value = text(copy_id, "copy_id", 1, SIZE_MAX);
+    require(request != nullptr, "request must not be null");
+    const auto request_value = from_c(*request);
+    auto* out = make<holder_card>(arena);
+    *out = to_c(
+        arena,
+        contract::separate_conflict_copy(*context, project_id_value, copy_id_value, request_value)
+    );
+    *out_card = out;
   });
 }
 

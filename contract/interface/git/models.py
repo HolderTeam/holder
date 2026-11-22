@@ -72,6 +72,15 @@ class ConflictResolution(Record):
     """The replacement card content, which can be empty."""
 
 
+class SeparateConflictCopyRequest(Record):
+    """The reviewed pair and the title the preserved copy keeps as a card of its own."""
+
+    review_token: Annotated[str, Field(min_length=1, max_length=256)]
+    """The token returned with the reviewed comparison."""
+    title: Annotated[str, Field(min_length=1)]
+    """The copy's new title, usually without the "(conflicted copy)" suffix."""
+
+
 class ConflictCopyCleanupReview(Record):
     """What stays on the preserved copy or is affected if the copy moves to Trash."""
 
