@@ -450,9 +450,28 @@ def trashed_remote(ctx: Context) -> None:
     ctx.other.push("Delete card Loose idea")
 
 
+def hamlet_build(project) -> dict[str, object]:
+    return {"card": project.cards.create(title="Hamlet", content="To be, or not to be\n")}
+
+
+def hamlet_local(ctx: Context) -> None:
+    # The first quarto's reading.
+    ctx.cards["card"].update(content="To be, or not to be, ay, there's the point,\n"
+                                     "To die, to sleep, is that all? Ay, all:\n")
+
+
+def hamlet_remote(ctx: Context) -> None:
+    # The Folio's.
+    ctx.other.set_body(ctx.cards["card"].id, "To be, or not to be, that is the question:\n"
+                                             "Whether 'tis nobler in the mind to suffer\n")
+    ctx.other.push("Edit Hamlet elsewhere")
+
+
 SCENARIOS = [
     Scenario("basic", "Both sides edit the same line; the other machine also renames the card.",
              one_card, basic_local, basic_remote),
+    Scenario("hamlet", "A demo: the same line of Hamlet rewritten two ways, each adding a second line.",
+             hamlet_build, hamlet_local, hamlet_remote),
     Scenario("children", "A parent and its child conflict, so the copy has a child of its own.",
              family, family_local, family_remote),
     Scenario("original-under-copy", "The original is moved under its copy; Trash is blocked.",
