@@ -406,12 +406,13 @@ internal class ConflictComparisonDialog : Adw.Dialog {
         color.parse(highlight_color);
         var changed = buffer.create_tag("changed-line", "paragraph-background-rgba", color,
                                         "underline", Pango.Underline.SINGLE);
-        foreach (var line in changed_lines) {
-            if (line < 1 || line > buffer.get_line_count()) continue;
+        // Core's line numbers, not the buffer's: they differ after a lone "\r" or U+2029.
+        var ranges = ConflictLineRanges.of(card.content, changed_lines);
+        for (var i = 0; i + 1 < ranges.length; i += 2) {
             Gtk.TextIter start;
-            buffer.get_iter_at_line(out start, line - 1);
-            var end = start;
-            end.forward_line();
+            Gtk.TextIter end;
+            buffer.get_iter_at_offset(out start, ranges[i]);
+            buffer.get_iter_at_offset(out end, ranges[i + 1]);
             buffer.apply_tag(changed, start, end);
         }
         var scroll = new Gtk.ScrolledWindow() { vexpand = true, has_frame = true };

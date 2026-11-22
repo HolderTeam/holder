@@ -204,4 +204,29 @@ public class GitPullWatch : Object {
     }
 }
 
+// Where core's numbered lines sit in a card's text. Core ends a line only at "\n", as Git does.
+// A GTK text buffer also breaks lines at a lone "\r" and at U+2029, so its line numbers can
+// drift from core's; these ranges are character offsets a buffer can use instead.
+public class ConflictLineRanges : Object { // LCOV_EXCL_LINE: declaration-only coverage artifact
+    // Start and end offsets, in pairs, of each 1-based line that exists in content. A range
+    // includes the line's "\n".
+    public static int[] of(string content, int[] lines) {
+        int[] starts = { 0 };
+        int offset = 0;
+        int index = 0;
+        unichar c;
+        while (content.get_next_char(ref index, out c)) {
+            offset++;
+            if (c == '\n') starts += offset;
+        }
+        int[] ranges = {};
+        foreach (var line in lines) {
+            if (line < 1 || line > starts.length) continue;
+            ranges += starts[line - 1];
+            ranges += line < starts.length ? starts[line] : offset;
+        }
+        return ranges;
+    }
+}
+
 }
