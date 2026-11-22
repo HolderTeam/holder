@@ -53,6 +53,8 @@ public class CardLink : Object {
     public int64 created_at { get; construct; }
     public string source_project_id { get; construct; }
     public string target_project_id { get; construct; }
+    // What the link is from: "card" or "ai_message". Only a backlink can be from an AI message.
+    public string source_type = "card";
 
     public CardLink(string from_card_id,
                     string to_card_id,
@@ -103,6 +105,13 @@ public class CardDetail : Object {
     }
 }
 
+// Which device made the latest change to one version, as this device's Git log tells it.
+public enum ConflictEditedOn {
+    THIS_DEVICE,
+    ANOTHER_DEVICE,
+    UNKNOWN
+}
+
 public class ConflictComparison : Object {
     public CardDetail original { get; construct; }
     public CardDetail copy_card { get; construct; }
@@ -110,6 +119,8 @@ public class ConflictComparison : Object {
     public int[] original_changed_lines;
     public int[] copy_changed_lines;
     public bool truncated { get; construct; }
+    public ConflictEditedOn original_edited_on = ConflictEditedOn.UNKNOWN;
+    public ConflictEditedOn copy_edited_on = ConflictEditedOn.UNKNOWN;
 
     public ConflictComparison(CardDetail original, CardDetail copy_card, int[] original_changed_lines,
                               int[] copy_changed_lines, bool truncated, string review_token) {
@@ -167,6 +178,22 @@ public class ConflictCopyCleanupReview : Object {
 
     public ConflictCopyCleanupReview(string cleanup_token) {
         Object(cleanup_token: cleanup_token);
+    }
+}
+
+// Which of the copy's own details, from its cleanup review, to carry over to the original before
+// the copy goes to Trash. Anything left out stays with the copy.
+public class ConflictCarryOver : Object {
+    public CardLink[] links = {};
+    public string[] milestone_ids = {};
+    public string[] tags = {};
+    public string[] child_ids = {};
+    // Card links to the copy, to point at the original instead.
+    public CardLink[] backlinks = {};
+
+    public bool is_empty() {
+        return links.length == 0 && milestone_ids.length == 0 && tags.length == 0 && child_ids.length == 0 &&
+               backlinks.length == 0;
     }
 }
 

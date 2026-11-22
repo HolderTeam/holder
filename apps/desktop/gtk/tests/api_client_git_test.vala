@@ -203,6 +203,83 @@ private void test_sync_result_without_changes_reads_as_empty() {
     assert(result.pull.changes.is_empty());
 }
 
+private const string CARD_C1 = "{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"One\",\"content\":\"a\",\"updated_at\":10}";
+private const string CARD_C2 = "{\"card_id\":\"c2\",\"project_id\":\"p1\",\"title\":\"Two\",\"content\":\"b\",\"updated_at\":11}";
+
+// The comparison says which device made each version; an older daemon that does not is unknown.
+private void test_comparison_reads_which_device_edited_each_version() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"original\":" + CARD_C1 + ",\"copy_card\":" + CARD_C2 +
+        ",\"original_changed_lines\":[{\"line\":1}],\"copy_changed_lines\":[{\"line\":1}],\"truncated\":false," +
+        "\"original_edited_on\":\"another_device\",\"copy_edited_on\":\"this_device\",\"review_token\":\"r1\"}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"original\":" + CARD_C1 + ",\"copy_card\":" + CARD_C2 +
+        ",\"original_changed_lines\":[],\"copy_changed_lines\":[],\"truncated\":false,\"review_token\":\"r2\"}}");
+    var client = make_client(transport);
+    HolderLinux.ConflictComparison? first = null;
+    HolderLinux.ConflictComparison? second = null;
+    bool done = false;
+    client.compare_conflict_copy.begin("p1", "c2", (obj, res) => {
+        try { first = client.compare_conflict_copy.end(res); } catch (Error e) { first = null; }
+        client.compare_conflict_copy.begin("p1", "c2", (obj2, res2) => {
+            try { second = client.compare_conflict_copy.end(res2); } catch (Error e) { second = null; }
+            done = true;
+        });
+    });
+    assert(wait_for_condition(() => done));
+    assert(first != null && second != null);
+    assert(first.original_edited_on == HolderLinux.ConflictEditedOn.ANOTHER_DEVICE);
+    assert(first.copy_edited_on == HolderLinux.ConflictEditedOn.THIS_DEVICE);
+    assert(second.original_edited_on == HolderLinux.ConflictEditedOn.UNKNOWN);
+    assert(second.copy_edited_on == HolderLinux.ConflictEditedOn.UNKNOWN);
+}
+
+private void test_separate_conflict_copy_posts_the_review_and_title() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":" + CARD_C2 + "}");
+    var client = make_client(transport);
+    HolderLinux.CardDetail? kept = null;
+    bool done = false;
+    client.separate_conflict_copy.begin("p1", "c2", "r1", "Two", (obj, res) => {
+        try { kept = client.separate_conflict_copy.end(res); } catch (Error e) { kept = null; }
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+    assert(kept != null && kept.card_id == "c2");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/projects/p1/git/conflict-copies/c2/separation"));
+}
+
+// Nothing chosen sends only the token; each chosen detail goes in its own list.
+private void test_trash_request_names_the_details_to_carry_over() {
+    var client = make_client(new FakeApiHttpTransport());
+    assert(HolderLinux.ApiClientGitEndpoints.trash_request_body(client, "t1", null) == "{\"cleanup_token\":\"t1\"}");
+    assert(HolderLinux.ApiClientGitEndpoints.trash_request_body(client, "t1", new HolderLinux.ConflictCarryOver()) ==
+           "{\"cleanup_token\":\"t1\"}");
+    var carry = new HolderLinux.ConflictCarryOver();
+    carry.links = { new HolderLinux.CardLink("c2", "c5", "card", "see", null, 0, "p1", "p1") };
+    carry.milestone_ids = { "m1" };
+    carry.tags = { "draft" };
+    carry.child_ids = { "c9" };
+    carry.backlinks = { new HolderLinux.CardLink("c7", "c2", "card", "ref", null, 0, "p1", "p1") };
+    var parser = new Json.Parser();
+    try {
+        parser.load_from_data(HolderLinux.ApiClientGitEndpoints.trash_request_body(client, "t1", carry));
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    var body = parser.get_root().get_object();
+    assert(body.get_string_member("cleanup_token") == "t1");
+    var link = body.get_array_member("carry_links").get_object_element(0);
+    assert(link.get_string_member("target_id") == "c5" && link.get_string_member("target_type") == "card");
+    assert(link.get_string_member("target_project_id") == "p1" && link.get_string_member("kind") == "see");
+    assert(body.get_array_member("carry_milestones").get_object_element(0).get_string_member("milestone_id") == "m1");
+    assert(body.get_array_member("carry_tags").get_object_element(0).get_string_member("tag") == "draft");
+    assert(body.get_array_member("adopt_children").get_object_element(0).get_string_member("card_id") == "c9");
+    var backlink = body.get_array_member("retarget_backlinks").get_object_element(0);
+    assert(backlink.get_string_member("source_id") == "c7" && backlink.get_string_member("kind") == "ref");
+    assert(backlink.get_string_member("source_project_id") == "p1");
+}
+
 // The cleanup review keeps the API's structure; the dialog does the wording.
 private void test_cleanup_review_keeps_milestones_and_cards_whole() {
     var parser = new Json.Parser();
@@ -252,6 +329,12 @@ public static int main(string[] args) {
     Test.add_func("/api_client_git/missing_data_errors_for_test_remote_and_push",
                   test_missing_data_errors_for_test_remote_and_push);
     Test.add_func("/api_client_git/forced_sync_reads_both_phases", test_forced_sync_reads_both_phases);
+    Test.add_func("/api_client_git/comparison_reads_which_device_edited_each_version",
+                  test_comparison_reads_which_device_edited_each_version);
+    Test.add_func("/api_client_git/separate_conflict_copy_posts_the_review_and_title",
+                  test_separate_conflict_copy_posts_the_review_and_title);
+    Test.add_func("/api_client_git/trash_request_names_the_details_to_carry_over",
+                  test_trash_request_names_the_details_to_carry_over);
     Test.add_func("/api_client_git/cleanup_review_keeps_milestones_and_cards_whole",
                   test_cleanup_review_keeps_milestones_and_cards_whole);
     Test.add_func("/api_client_git/sync_result_without_changes_reads_as_empty",

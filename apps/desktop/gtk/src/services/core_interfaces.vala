@@ -211,8 +211,12 @@ public interface IConflictComparisonApi : Object {
     public abstract async ConflictResolutionResult resolve_conflict_copy(string project_id, string copy_id,
                                                                          string review_token, string title,
                                                                          string content) throws Error;
+    // carry_over names the copy's own details to put on the original first; null carries nothing.
     public abstract async void trash_conflict_copy(string project_id, string copy_id,
-                                                   string cleanup_token) throws Error;
+                                                   string cleanup_token, ConflictCarryOver? carry_over) throws Error;
+    // Keeps the copy as an ordinary card with the given title, no longer paired with the original.
+    public abstract async CardDetail separate_conflict_copy(string project_id, string copy_id,
+                                                            string review_token, string title) throws Error;
 }
 
 public interface IHistoryApi : Object {

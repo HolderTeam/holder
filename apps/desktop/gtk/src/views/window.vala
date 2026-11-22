@@ -1372,7 +1372,8 @@ public class MainWindow : Adw.ApplicationWindow {
         if (api == null || controller.selected_project_id() != project_id) {
             return;
         }
-        var dialog = new ConflictComparisonDialog();
+        var dialog = new ConflictComparisonDialog(
+            settings != null && settings.get_boolean(AppSettings.KEY_CONFLICT_COMBINE_MARKERS));
         dialog.present(this);
         var comparison_api = api as IConflictComparisonApi;
         if (comparison_api == null) {
@@ -1386,8 +1387,11 @@ public class MainWindow : Adw.ApplicationWindow {
             save_conflict_resolution.begin(source, api, comparison_api, project_id, original_id, copy_id,
                                            token, title, content);
         });
-        dialog.copy_trash_requested.connect((source, token) => {
-            trash_reviewed_conflict_copy.begin(source, api, comparison_api, project_id, copy_id, token);
+        dialog.copy_trash_requested.connect((source, token, carry_over) => {
+            trash_reviewed_conflict_copy.begin(source, api, comparison_api, project_id, copy_id, token, carry_over);
+        });
+        dialog.separation_requested.connect((source, token, title) => {
+            separate_reviewed_conflict_copy.begin(source, api, comparison_api, project_id, copy_id, token, title);
         });
         load_conflict_comparison.begin(dialog, api, comparison_api, project_id, original_id, copy_id);
     }
@@ -1444,23 +1448,71 @@ public class MainWindow : Adw.ApplicationWindow {
 
     private async void trash_reviewed_conflict_copy(ConflictComparisonDialog dialog, IHolderApi api,
                                                      IConflictComparisonApi comparison_api, string project_id,
-                                                     string copy_id, string token) {
+                                                     string copy_id, string token, ConflictCarryOver? carry_over) {
         if (!conflict_comparison_is_current(dialog, api, project_id)) return;
         if (controller.selected_card_id() == copy_id &&
             (controller.has_unsaved_editor_changes() || controller.is_editor_save_in_flight())) {
-            dialog.show_copy_trash_error("Save any edits to the copy in the main editor first.");
+            dialog.show_copy_trash_error("Save any edits to the other version in the main editor first.");
             return;
         }
         try {
-            yield comparison_api.trash_conflict_copy(project_id, copy_id, token);
+            yield comparison_api.trash_conflict_copy(project_id, copy_id, token, carry_over);
             if (conflict_comparison_is_current(dialog, api, project_id)) {
-                dialog.show_copy_trashed();
+                dialog.force_close();
                 toolbox.git_sync_tool.refresh_after_conflict_resolution();
-                refresh_cards_after_git_change.begin(project_id, "Could not refresh cards after moving the copy to Trash");
+                refresh_cards_after_git_change.begin(project_id, "Could not refresh cards after resolving the conflict");
+                var toast = new Adw.Toast("Conflict resolved. The other version is in Trash.");
+                toast.set_button_label("Undo");
+                toast.set_timeout(10);
+                toast.button_clicked.connect(() => {
+                    restore_conflict_copy.begin(api, project_id, copy_id);
+                });
+                activity_feedback.add_toast_with_action(toast);
             }
         } catch (Error e) {
             if (conflict_comparison_is_current(dialog, api, project_id)) {
                 dialog.show_copy_trash_error(e.message + "\nClose this dialog and compare again for a fresh review.");
+            }
+        }
+    }
+
+    // Undo for a resolved conflict: the other version comes back out of Trash, paired again.
+    private async void restore_conflict_copy(IHolderApi api, string project_id, string copy_id) {
+        if (controller.get_api_client() != api || controller.selected_project_id() != project_id) return;
+        try {
+            yield api.restore_trash_item(project_id, "card", copy_id);
+            toolbox.git_sync_tool.refresh_after_conflict_resolution();
+            refresh_trash_tool();
+            yield refresh_cards_after_git_change(project_id, "Could not refresh cards after restoring the other version");
+        } catch (Error e) {
+            show_error("Could not restore the other version", e.message);
+        }
+    }
+
+    private async void separate_reviewed_conflict_copy(ConflictComparisonDialog dialog, IHolderApi api,
+                                                        IConflictComparisonApi comparison_api, string project_id,
+                                                        string copy_id, string token, string title) {
+        if (!conflict_comparison_is_current(dialog, api, project_id)) return;
+        if (controller.selected_card_id() == copy_id &&
+            (controller.has_unsaved_editor_changes() || controller.is_editor_save_in_flight())) {
+            dialog.show_resolution_error("Save any edits in the main editor before keeping both cards.", false);
+            return;
+        }
+        try {
+            var kept = yield comparison_api.separate_conflict_copy(project_id, copy_id, token, title);
+            if (conflict_comparison_is_current(dialog, api, project_id)) {
+                if (kept.card_id != copy_id || kept.project_id != project_id) {
+                    dialog.show_separation_error("The kept card could not be verified.");
+                    return;
+                }
+                dialog.force_close();
+                toolbox.git_sync_tool.refresh_after_conflict_resolution();
+                refresh_cards_after_git_change.begin(project_id, "Could not refresh cards after keeping both");
+                add_toast("Kept both versions as separate cards.");
+            }
+        } catch (Error e) {
+            if (conflict_comparison_is_current(dialog, api, project_id)) {
+                dialog.show_separation_error(e.message);
             }
         }
     }
