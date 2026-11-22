@@ -36,6 +36,9 @@ public static int main(string[] args) {
         return 0;
     }
     Adw.init();
+    // Sheets, dialogs and stacks then switch at once instead of waiting out their animations,
+    // which on runners without a real display can take seconds of skipped frames.
+    Gtk.Settings.get_default().gtk_enable_animations = false;
     av_use_source_markdown_language();
     av_shadow_github_cli();
 
