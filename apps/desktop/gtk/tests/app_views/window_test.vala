@@ -990,20 +990,27 @@ private void assert_conflict_labels(int64 now, int64 earlier_today, int64 last_w
     assert(HolderLinux.ConflictComparisonDialog.title_without_suffix("Notes") == "Notes");
 }
 
-// The "Keep this version" button under the first (0) or second (1) version.
+// The "Keep this version" button under the first (0) or second (1) version, once it is drawn:
+// the versions appear a little after the comparison is read.
 private void keep_version(Adw.Dialog dialog, int index) {
-    int seen = 0;
-    foreach (var widget in av_descendants(dialog)) {
-        var button = widget as Gtk.Button;
-        if (button != null && button.label == "Keep this version" && button.is_drawable()) {
-            if (seen++ == index) {
-                button.clicked();
-                return;
+    Gtk.Button? found = null;
+    assert(wait_for_condition(() => {
+        int seen = 0;
+        foreach (var widget in av_descendants(dialog)) {
+            var button = widget as Gtk.Button;
+            if (button != null && button.label == "Keep this version" && button.is_drawable() &&
+                button.is_sensitive() && seen++ == index) {
+                found = button;
+                return true;
             }
         }
-    }
-    assert_not_reached();
+        return false;
+    }));
+    ((!) found).clicked();
 }
+
+// Toasts come after the dialog's close animation, which slow runners take their time over.
+private const uint TOAST_WAIT_MS = 20000;
 
 private void test_discarding_a_conflict_draft() {
     var f = new ConflictWindowFixture();
@@ -1115,7 +1122,7 @@ private void test_keeping_the_other_version_moves_the_copy_to_trash() {
     assert(api.resolved_title == "Renamed preserved edit");
     assert(api.resolved_content == "# Renamed preserved edit\n\nWords from the other version");
     assert(api.copy_trashed && api.carried == null);
-    assert(wait_for_condition(() => f.has_toast("Conflict resolved. The other version is in Trash.")));
+    assert(wait_for_condition(() => f.has_toast("Conflict resolved. The other version is in Trash."), TOAST_WAIT_MS));
     var undo = toast_button(f, "Undo");
     assert(undo != null);
     ((!) undo).clicked();
@@ -1137,7 +1144,7 @@ private void test_keeping_both_versions_as_separate_cards() {
     assert(wait_for_condition(() => f.window.get_visible_dialog() == null));
     assert(api.separate_calls == 1 && api.separated_title == "Renamed preserved edit");
     assert(api.resolution_calls == 0 && api.trash_copy_calls == 0);
-    assert(wait_for_condition(() => f.has_toast("Kept both versions as separate cards.")));
+    assert(wait_for_condition(() => f.has_toast("Kept both versions as separate cards."), TOAST_WAIT_MS));
     f.destroy();
 }
 
@@ -1203,7 +1210,7 @@ private void test_confirmed_conflict_cleanup_removes_the_preserved_copy() {
     assert(carried.tags.length == 0);
     assert(carried.milestone_ids.length == 1 && carried.milestone_ids[0] == "m1");
     assert(carried.child_ids.length == 1 && carried.child_ids[0] == "c9");
-    assert(wait_for_condition(() => f.has_toast("Conflict resolved. The other version is in Trash.")));
+    assert(wait_for_condition(() => f.has_toast("Conflict resolved. The other version is in Trash."), TOAST_WAIT_MS));
     f.destroy();
 }
 

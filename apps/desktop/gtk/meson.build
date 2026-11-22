@@ -4059,7 +4059,8 @@ foreach group, path : app_views_test_groups
     suite: 'app-views',
     # GUI tests share display focus and the clipboard.
     is_parallel: false,
-    timeout: 60,
+    # The conflict dialog groups take most of a minute on the macOS runners.
+    timeout: 120,
     # Keep per-case timings in macOS CI output even when tests pass.
     verbose: host_machine.system() == 'darwin',
   )
