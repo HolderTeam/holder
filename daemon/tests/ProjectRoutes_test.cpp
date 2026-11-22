@@ -515,7 +515,8 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
           {"next_retry_at", nullptr},
           {"pull_retry_count", 0},
           {"next_pull_retry_at", nullptr},
-          {"updated_at", nullptr}}}
+          {"updated_at", nullptr},
+          {"last_pull_changes", nullptr}}}
     };
     REQUIRE(payload == expected);
   }

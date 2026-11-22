@@ -147,6 +147,7 @@ ProjectSyncResult run_project_sync(
   if (request.pull) {
     const auto record_pull_failure = [&](const std::exception& ex) {
       result.pull.status = PullPhaseStatus::Failed;
+      result.pull.changes = {};
       result.pull.error_message = ex.what();
       sync.record_pull_result(
           project_id,
@@ -170,7 +171,8 @@ ProjectSyncResult run_project_sync(
             git,
             diverged,
             request.now,
-            &result.pull.conflicts_resolved
+            &result.pull.conflicts_resolved,
+            &result.pull.changes
         );
       }
       // A failed rebuild or recovery completion needs attention before we can
@@ -180,13 +182,15 @@ ProjectSyncResult run_project_sync(
       complete_recovery_manifest(db, git, project, request.now);
       result.pull.hidden_cards_repaired =
           repair_hierarchy_after_pull(db, fts, project, request.now);
+      result.pull.changes.hidden_cards_repaired = result.pull.hidden_cards_repaired;
       result.pull.status = PullPhaseStatus::Succeeded;
       sync.record_pull_result(
           project_id,
           pull_phase_status_name(result.pull.status),
           true,
           std::nullopt,
-          request.now
+          request.now,
+          &result.pull.changes
       );
     } catch (const holder::git::PullBlockedByLocalChanges& ex) {
       allow_push_after_pull_failure = false;

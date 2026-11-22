@@ -3,6 +3,7 @@
 #include "git/GitOps.h"
 #include "git/PushResult.h"
 #include "index/FtsIndexer.h"
+#include "model/ProjectSyncState.h"
 #include "platform/Db.h"
 
 #include <optional>
@@ -26,6 +27,10 @@ struct PullPhaseResult {
   // Live cards a pulled change left hidden (their parent missing or trashed), made reachable
   // again by CardStore::repair_hierarchy after the index was rebuilt.
   int hidden_cards_repaired = 0;
+  // What the pull changed to bring the two devices' versions together. Empty when the pull
+  // failed; a successful pull that changed something also records it as the project's last pull
+  // changes.
+  holder::model::PullChanges changes;
   std::optional<std::string> error_message;
 };
 

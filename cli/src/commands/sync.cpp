@@ -223,6 +223,22 @@ int command_sync(const holder::core::Paths& paths, int argc, char* argv[]) {
               << "\nUse sync status to see the card IDs.\n";
         // LCOV_EXCL_STOP
       }
+      if (pull.contains("changes") && pull.at("changes").is_object()) {
+        // LCOV_EXCL_START: presentation-only lines; what a pull changes is tested at the API
+        // owner.
+        const auto& changes = pull.at("changes");
+        const auto count = [&](const char* key) {
+          return changes.contains(key) && changes.at(key).is_array() ? changes.at(key).size()
+                                                                     : std::size_t{0};
+        };
+        if (const auto n = count("merged_card_ids"); n != 0)
+          human << "Cards merged from both devices: " << n << "\n";
+        if (const auto n = count("kept_out_of_trash_card_ids"); n != 0)
+          human << "Cards kept out of Trash (edited on another device): " << n << "\n";
+        if (const auto n = count("restored_from_trash_card_ids"); n != 0)
+          human << "Cards restored from Trash (edited here): " << n << "\n";
+        // LCOV_EXCL_STOP
+      }
       if (action == "now") {
         human << "Push: "
               << (push.at("attempted").get<bool>() ? json_string(push, "status") : "not_attempted")

@@ -848,6 +848,33 @@ struct RecoveryTokenGlobalImportResult : ProjectRecoveryTokenImportResult {
   std::optional<std::string> pull_error; ///< Why pulling failed, or null.
 };
 
+/// What a pull changed on this device to bring two devices' versions of the same cards together.
+/// Each card change is its own commit, so card history can undo it.
+struct PullChanges {
+  std::vector<std::string>
+      merged_card_ids; ///< Cards changed on both devices in different parts (title, place, text,
+                       ///< links or milestones), now holding both changes.
+  std::vector<std::string>
+      kept_out_of_trash_card_ids; ///< Cards moved to Trash on this device while the other device
+                                  ///< edited them. They stay out of Trash with that edit and can be
+                                  ///< moved to Trash again.
+  std::vector<std::string>
+      restored_from_trash_card_ids; ///< Cards edited on this device while the other device moved
+                                    ///< them to Trash. They are back out of Trash with this
+                                    ///< device's edit.
+  std::vector<std::string> conflict_copy_ids; ///< New cards holding this device's version of a card
+                                              ///< whose changes clashed with the other device's.
+                                              ///< The original holds the other device's version.
+  std::int32_t hidden_cards_repaired{
+  }; ///< Live cards the pull left under a missing or trashed parent, made reachable again.
+};
+
+/// The most recent pull that changed anything, kept until a later pull changes something. This
+/// device only; a rebuilt database starts without it.
+struct LastPullChanges : PullChanges {
+  long long pulled_at{}; ///< When that pull happened.
+};
+
 /// Just enough to name a card, as in a reference or a backlink.
 struct CardSummary {
   std::string card_id; ///< The card's ID.
@@ -890,6 +917,9 @@ struct SyncState {
       next_pull_retry_at; ///< When a pull will next be tried; null when none is waiting.
   std::optional<long long>
       updated_at; ///< When this state was last recorded; null when nothing has been.
+  std::optional<LastPullChanges>
+      last_pull_changes; ///< What the most recent pull that changed anything did; null when no pull
+                         ///< has changed anything here.
   std::optional<std::vector<ConflictCopy>>
       conflict_copies; ///< Live copies with a durable original association, newest first. Omitted
                        ///< when there are none.
@@ -951,6 +981,8 @@ struct PullPhase {
   }; ///< Local card versions actually preserved as new cards by this pull.
   std::int32_t hidden_cards_repaired{
   }; ///< Live cards the pull left under a missing or trashed parent, made reachable again.
+  PullChanges changes; ///< What the pull changed to bring the two devices' versions together; all
+                       ///< empty when nothing, or when the pull failed.
   std::optional<std::string> error_message; ///< Why the pull failed; null when it did not.
 };
 

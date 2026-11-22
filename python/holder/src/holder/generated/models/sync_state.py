@@ -10,6 +10,7 @@ from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.conflict_copy import ConflictCopy
+    from ..models.last_pull_changes import LastPullChanges
 
 
 T = TypeVar("T", bound="SyncState")
@@ -36,6 +37,8 @@ class SyncState:
             pull_retry_count (int): Failed pulls in a row.
             next_pull_retry_at (int | None): When a pull will next be tried; null when none is waiting.
             updated_at (int | None): When this state was last recorded; null when nothing has been.
+            last_pull_changes (LastPullChanges | None): What the most recent pull that changed anything did; null when no
+                pull has changed anything here.
             conflict_copies (list[ConflictCopy] | Unset): Live copies with a durable original association, newest first.
                 Omitted when there are none.
     """
@@ -55,9 +58,12 @@ class SyncState:
     pull_retry_count: int
     next_pull_retry_at: int | None
     updated_at: int | None
+    last_pull_changes: LastPullChanges | None
     conflict_copies: list[ConflictCopy] | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.last_pull_changes import LastPullChanges
+
         project_id = self.project_id
 
         last_commit_at: int | None
@@ -98,6 +104,12 @@ class SyncState:
         updated_at: int | None
         updated_at = self.updated_at
 
+        last_pull_changes: dict[str, Any] | None
+        if isinstance(self.last_pull_changes, LastPullChanges):
+            last_pull_changes = self.last_pull_changes.to_dict()
+        else:
+            last_pull_changes = self.last_pull_changes
+
         conflict_copies: list[dict[str, Any]] | Unset = UNSET
         if not isinstance(self.conflict_copies, Unset):
             conflict_copies = []
@@ -124,6 +136,7 @@ class SyncState:
                 "pull_retry_count": pull_retry_count,
                 "next_pull_retry_at": next_pull_retry_at,
                 "updated_at": updated_at,
+                "last_pull_changes": last_pull_changes,
             }
         )
         if conflict_copies is not UNSET:
@@ -134,6 +147,7 @@ class SyncState:
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         from ..models.conflict_copy import ConflictCopy
+        from ..models.last_pull_changes import LastPullChanges
 
         d = dict(src_dict)
         project_id = d.pop("project_id")
@@ -216,6 +230,21 @@ class SyncState:
 
         updated_at = _parse_updated_at(d.pop("updated_at"))
 
+        def _parse_last_pull_changes(data: object) -> LastPullChanges | None:
+            if data is None:
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                last_pull_changes_type_0 = LastPullChanges.from_dict(data)
+
+                return last_pull_changes_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(LastPullChanges | None, data)
+
+        last_pull_changes = _parse_last_pull_changes(d.pop("last_pull_changes"))
+
         _conflict_copies = d.pop("conflict_copies", UNSET)
         conflict_copies: list[ConflictCopy] | Unset = UNSET
         if _conflict_copies is not UNSET:
@@ -241,6 +270,7 @@ class SyncState:
             pull_retry_count=pull_retry_count,
             next_pull_retry_at=next_pull_retry_at,
             updated_at=updated_at,
+            last_pull_changes=last_pull_changes,
             conflict_copies=conflict_copies,
         )
 

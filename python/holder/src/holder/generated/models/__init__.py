@@ -186,6 +186,7 @@ from .history_affected_object import HistoryAffectedObject
 from .history_affected_path import HistoryAffectedPath
 from .history_author import HistoryAuthor
 from .history_object_kind import HistoryObjectKind
+from .last_pull_changes import LastPullChanges
 from .link import Link
 from .link_kind_labels import LinkKindLabels
 from .link_kind_labels_list_response import LinkKindLabelsListResponse
@@ -239,6 +240,7 @@ from .project_response import ProjectResponse
 from .project_storage_location import ProjectStorageLocation
 from .project_storage_location_response import ProjectStorageLocationResponse
 from .project_update import ProjectUpdate
+from .pull_changes import PullChanges
 from .pull_phase import PullPhase
 from .pull_phase_status import PullPhaseStatus
 from .push_options import PushOptions
@@ -472,6 +474,7 @@ __all__ = (
     "HistoryAffectedPath",
     "HistoryAuthor",
     "HistoryObjectKind",
+    "LastPullChanges",
     "Link",
     "LinkKindLabels",
     "LinkKindLabelsListResponse",
@@ -521,6 +524,7 @@ __all__ = (
     "ProjectStorageLocation",
     "ProjectStorageLocationResponse",
     "ProjectUpdate",
+    "PullChanges",
     "PullPhase",
     "PullPhaseStatus",
     "PushOptions",

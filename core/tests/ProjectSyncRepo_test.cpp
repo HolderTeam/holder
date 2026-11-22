@@ -122,6 +122,61 @@ TEST_CASE("ProjectSyncRepo records pull status and errors", "[sync][repo]") {
   REQUIRE_FALSE(ok->next_pull_retry_at.has_value());
 }
 
+TEST_CASE("ProjectSyncRepo keeps the last pull that changed something", "[sync][repo]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::project::ProjectRepo projects(db);
+  holder::model::Project project;
+  project.project_id = "proj-1";
+  project.name = "Project";
+  project.root_path = (dir / "repo").string();
+  project.created_at = 1;
+  project.updated_at = 1;
+  projects.create(project);
+
+  holder::project::ProjectSyncRepo sync(db);
+  holder::model::PullChanges nothing;
+  sync.record_pull_result("proj-1", "succeeded", true, std::nullopt, 100, &nothing);
+  CHECK_FALSE(sync.get("proj-1")->last_pull_changes.has_value());
+
+  holder::model::PullChanges changes;
+  changes.merged_card_ids = {"merged"};
+  changes.kept_out_of_trash_card_ids = {"kept"};
+  changes.restored_from_trash_card_ids = {"restored-1", "restored-2"};
+  changes.conflict_copy_ids = {"copy"};
+  changes.hidden_cards_repaired = 3;
+  sync.record_pull_result("proj-1", "succeeded", true, std::nullopt, 200, &changes);
+
+  // Later pulls that change nothing, or fail, leave it in place.
+  sync.record_pull_result("proj-1", "succeeded", true, std::nullopt, 300, &nothing);
+  sync.record_pull_result("proj-1", "succeeded", true, std::nullopt, 350);
+  sync.record_pull_result("proj-1", "failed", false, std::string("offline"), 400, &changes);
+
+  const auto last = sync.get("proj-1")->last_pull_changes;
+  REQUIRE(last.has_value());
+  CHECK(last->pulled_at == 200);
+  CHECK(last->changes.merged_card_ids == std::vector<std::string>{"merged"});
+  CHECK(last->changes.kept_out_of_trash_card_ids == std::vector<std::string>{"kept"});
+  CHECK(
+      last->changes.restored_from_trash_card_ids ==
+      std::vector<std::string>{"restored-1", "restored-2"}
+  );
+  CHECK(last->changes.conflict_copy_ids == std::vector<std::string>{"copy"});
+  CHECK(last->changes.hidden_cards_repaired == 3);
+
+  holder::model::PullChanges repaired;
+  repaired.hidden_cards_repaired = 1;
+  sync.record_pull_result("proj-1", "succeeded", true, std::nullopt, 500, &repaired);
+  const auto replaced = sync.get("proj-1")->last_pull_changes;
+  REQUIRE(replaced.has_value());
+  CHECK(replaced->pulled_at == 500);
+  CHECK(replaced->changes.merged_card_ids.empty());
+
+  // An unreadable value is only a notice not shown.
+  db.exec("UPDATE project_sync_state SET last_pull_changes = 'not json';");
+  CHECK_FALSE(sync.get("proj-1")->last_pull_changes.has_value());
+}
+
 TEST_CASE("ProjectSyncRepo stores uncommitted and unpushed counters", "[sync][repo]") {
   const auto dir = holder::test::make_temp_dir();
   const auto db_path = dir / "holder.db";

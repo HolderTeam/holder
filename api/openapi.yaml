@@ -9048,6 +9048,54 @@ components:
       type: string
       enum: [card, resource, location, ai_data, project_settings, unknown]
     JsonValue: {}
+    LastPullChanges:
+      properties:
+        merged_card_ids:
+          items: {type: string}
+          type: array
+          title: Merged Card Ids
+          description: 'Cards changed on both devices in different parts (title, place, text, links or
+            milestones), now holding
+
+            both changes.'
+        kept_out_of_trash_card_ids:
+          items: {type: string}
+          type: array
+          title: Kept Out Of Trash Card Ids
+          description: 'Cards moved to Trash on this device while the other device edited them. They stay
+            out of Trash with
+
+            that edit and can be moved to Trash again.'
+        restored_from_trash_card_ids:
+          items: {type: string}
+          type: array
+          title: Restored From Trash Card Ids
+          description: 'Cards edited on this device while the other device moved them to Trash. They are
+            back out of Trash
+
+            with this device''s edit.'
+        conflict_copy_ids:
+          items: {type: string}
+          type: array
+          title: Conflict Copy Ids
+          description: 'New cards holding this device''s version of a card whose changes clashed with
+            the other device''s. The
+
+            original holds the other device''s version.'
+        hidden_cards_repaired: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32,
+          title: Hidden Cards Repaired, description: 'Live cards the pull left under a missing or trashed
+            parent, made reachable again.'}
+        pulled_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Pulled At, description: When that pull happened.}
+      additionalProperties: false
+      type: object
+      required: [merged_card_ids, kept_out_of_trash_card_ids, restored_from_trash_card_ids, conflict_copy_ids,
+        hidden_cards_repaired, pulled_at]
+      title: LastPullChanges
+      description: 'The most recent pull that changed anything, kept until a later pull changes something.
+        This device only;
+
+        a rebuilt database starts without it.'
     LastRevision: {type: string, pattern: '^[0-9a-f]{40}$'}
     Link:
       properties:
@@ -9752,6 +9800,52 @@ components:
       type: object
       title: ProjectUpdate
       description: A change to a project's settings. Each field left out keeps its value.
+    PullChanges:
+      properties:
+        merged_card_ids:
+          items: {type: string}
+          type: array
+          title: Merged Card Ids
+          description: 'Cards changed on both devices in different parts (title, place, text, links or
+            milestones), now holding
+
+            both changes.'
+        kept_out_of_trash_card_ids:
+          items: {type: string}
+          type: array
+          title: Kept Out Of Trash Card Ids
+          description: 'Cards moved to Trash on this device while the other device edited them. They stay
+            out of Trash with
+
+            that edit and can be moved to Trash again.'
+        restored_from_trash_card_ids:
+          items: {type: string}
+          type: array
+          title: Restored From Trash Card Ids
+          description: 'Cards edited on this device while the other device moved them to Trash. They are
+            back out of Trash
+
+            with this device''s edit.'
+        conflict_copy_ids:
+          items: {type: string}
+          type: array
+          title: Conflict Copy Ids
+          description: 'New cards holding this device''s version of a card whose changes clashed with
+            the other device''s. The
+
+            original holds the other device''s version.'
+        hidden_cards_repaired: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32,
+          title: Hidden Cards Repaired, description: 'Live cards the pull left under a missing or trashed
+            parent, made reachable again.'}
+      additionalProperties: false
+      type: object
+      required: [merged_card_ids, kept_out_of_trash_card_ids, restored_from_trash_card_ids, conflict_copy_ids,
+        hidden_cards_repaired]
+      title: PullChanges
+      description: 'What a pull changed on this device to bring two devices'' versions of the same cards
+        together. Each card
+
+        change is its own commit, so card history can undo it.'
     PullPhase:
       properties:
         attempted: {type: boolean, title: Attempted, description: Whether a pull was tried.}
@@ -9766,6 +9860,10 @@ components:
         hidden_cards_repaired: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32,
           title: Hidden Cards Repaired, description: 'Live cards the pull left under a missing or trashed
             parent, made reachable again.'}
+        changes: {$ref: '#/components/schemas/PullChanges', description: 'What the pull changed to bring
+            the two devices'' versions together; all empty when nothing, or when the
+
+            pull failed.'}
         error_message:
           anyOf:
           - {type: string}
@@ -9774,7 +9872,7 @@ components:
           description: Why the pull failed; null when it did not.
       additionalProperties: false
       type: object
-      required: [attempted, status, conflicts_resolved, hidden_cards_repaired, error_message]
+      required: [attempted, status, conflicts_resolved, hidden_cards_repaired, changes, error_message]
       title: PullPhase
       description: What a pull did.
     PushOptions:
@@ -10349,6 +10447,12 @@ components:
           - {type: 'null'}
           title: Updated At
           description: When this state was last recorded; null when nothing has been.
+        last_pull_changes:
+          anyOf:
+          - {$ref: '#/components/schemas/LastPullChanges'}
+          - {type: 'null'}
+          description: What the most recent pull that changed anything did; null when no pull has changed
+            anything here.
         conflict_copies:
           items: {$ref: '#/components/schemas/ConflictCopy'}
           type: array
@@ -10359,7 +10463,7 @@ components:
       type: object
       required: [project_id, last_commit_at, last_push_at, last_pull_at, uncommitted_changes_count, unpushed_commits_count,
         last_push_status, last_pull_status, last_sync_error, last_sync_error_at, retry_count, next_retry_at,
-        pull_retry_count, next_pull_retry_at, updated_at]
+        pull_retry_count, next_pull_retry_at, updated_at, last_pull_changes]
       title: SyncState
       description: 'What this device last recorded about a project''s sync: its last pull and push, what
         is waiting to go, and

@@ -78,8 +78,13 @@ int resolve_pull_conflicts(
     holder::git::GitOps& git,
     const holder::git::NonFastForwardPullError& diverged,
     long long now,
-    int* preserved_count
+    int* preserved_count,
+    holder::model::PullChanges* changes
 ) {
+  const auto note = [&](std::vector<std::string> holder::model::PullChanges::*list,
+                        const std::string& card_id) {
+    if (changes != nullptr) (changes->*list).push_back(card_id);
+  };
   const auto current_project = holder::project::ProjectRepo(db).get(project.project_id);
   if (!current_project.has_value()) {
     throw std::runtime_error("project not found: " + project.project_id);
@@ -138,6 +143,7 @@ int resolve_pull_conflicts(
     std::filesystem::remove(trash_file);
     git.remove_path(trash_path);
     kept_live_paths.push_back(path);
+    note(&holder::model::PullChanges::kept_out_of_trash_card_ids, id);
   }
   if (!kept_live_paths.empty()) {
     git.commit(
@@ -254,6 +260,10 @@ int resolve_pull_conflicts(
       std::filesystem::remove(git.repo_dir() / restoration.trash_path);
       git.remove_path(restoration.trash_path);
       restored_paths.push_back(restoration.path);
+      note(
+          &holder::model::PullChanges::restored_from_trash_card_ids,
+          restoration.card.card.card_id
+      );
     }
     if (encrypted)
       holder::privacy::assert_encryption_index_paths_safe(project.root_path, restored_paths);
@@ -290,6 +300,7 @@ int resolve_pull_conflicts(
     );
     git.stage_path(path);
     merged_paths.push_back(path);
+    note(&holder::model::PullChanges::merged_card_ids, id);
   }
   if (!merged_paths.empty()) {
     if (encrypted)
@@ -405,6 +416,7 @@ int resolve_pull_conflicts(
         resolved++;
         if (preserved_count) *preserved_count = resolved;
         created_card_ids.insert(duplicate.card_id);
+        note(&holder::model::PullChanges::conflict_copy_ids, duplicate.card_id);
         made_progress = true;
       } catch (const std::exception& ex) {
         throw std::runtime_error(

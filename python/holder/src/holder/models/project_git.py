@@ -48,12 +48,33 @@ class RemoteCheck:
 
 
 @dataclass(frozen=True)
+class PullChanges:
+    """What a pull changed to bring two devices' versions of the same cards together."""
+
+    merged_card_ids: tuple[str, ...] = ()
+    kept_out_of_trash_card_ids: tuple[str, ...] = ()
+    restored_from_trash_card_ids: tuple[str, ...] = ()
+    conflict_copy_ids: tuple[str, ...] = ()
+    hidden_cards_repaired: int = 0
+
+    def __bool__(self) -> bool:
+        return bool(
+            self.merged_card_ids
+            or self.kept_out_of_trash_card_ids
+            or self.restored_from_trash_card_ids
+            or self.conflict_copy_ids
+            or self.hidden_cards_repaired
+        )
+
+
+@dataclass(frozen=True)
 class PullPhase:
     attempted: bool
     status: str
     conflicts_resolved: int
     hidden_cards_repaired: int
     error_message: str | None
+    changes: PullChanges = PullChanges()
 
 
 @dataclass(frozen=True)
@@ -178,6 +199,13 @@ class ProjectGit:
                 data.pull.conflicts_resolved,
                 data.pull.hidden_cards_repaired,
                 _optional(data.pull.error_message),
+                PullChanges(
+                    tuple(data.pull.changes.merged_card_ids),
+                    tuple(data.pull.changes.kept_out_of_trash_card_ids),
+                    tuple(data.pull.changes.restored_from_trash_card_ids),
+                    tuple(data.pull.changes.conflict_copy_ids),
+                    data.pull.changes.hidden_cards_repaired,
+                ),
             ),
             PushPhase(
                 data.push.attempted,

@@ -101,6 +101,34 @@ class TrashConflictCopyRequest(Record):
     """The token returned with the cleanup review."""
 
 
+class PullChanges(Record):
+    """What a pull changed on this device to bring two devices' versions of the same cards together. Each card
+    change is its own commit, so card history can undo it."""
+
+    merged_card_ids: list[str]
+    """Cards changed on both devices in different parts (title, place, text, links or milestones), now holding
+    both changes."""
+    kept_out_of_trash_card_ids: list[str]
+    """Cards moved to Trash on this device while the other device edited them. They stay out of Trash with
+    that edit and can be moved to Trash again."""
+    restored_from_trash_card_ids: list[str]
+    """Cards edited on this device while the other device moved them to Trash. They are back out of Trash
+    with this device's edit."""
+    conflict_copy_ids: list[str]
+    """New cards holding this device's version of a card whose changes clashed with the other device's. The
+    original holds the other device's version."""
+    hidden_cards_repaired: Int32
+    """Live cards the pull left under a missing or trashed parent, made reachable again."""
+
+
+class LastPullChanges(PullChanges):
+    """The most recent pull that changed anything, kept until a later pull changes something. This device only;
+    a rebuilt database starts without it."""
+
+    pulled_at: Timestamp
+    """When that pull happened."""
+
+
 class SyncState(Record):
     """What this device last recorded about a project's sync: its last pull and push, what is waiting to go, and
     when it will retry."""
@@ -135,6 +163,8 @@ class SyncState(Record):
     """When a pull will next be tried; null when none is waiting."""
     updated_at: Timestamp | None
     """When this state was last recorded; null when nothing has been."""
+    last_pull_changes: LastPullChanges | None
+    """What the most recent pull that changed anything did; null when no pull has changed anything here."""
     conflict_copies: list[ConflictCopy] | MISSING = MISSING
     """Live copies with a durable original association, newest first. Omitted when there are none."""
 
@@ -150,6 +180,9 @@ class PullPhase(Record):
     """Local card versions actually preserved as new cards by this pull."""
     hidden_cards_repaired: Int32
     """Live cards the pull left under a missing or trashed parent, made reachable again."""
+    changes: PullChanges
+    """What the pull changed to bring the two devices' versions together; all empty when nothing, or when the
+    pull failed."""
     error_message: str | None
     """Why the pull failed; null when it did not."""
 

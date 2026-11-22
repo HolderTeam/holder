@@ -1028,6 +1028,10 @@ template <> struct codec<holder::contract::RecoveryTokenGlobalImportResult> {
   static json encode(const holder::contract::RecoveryTokenGlobalImportResult& value);
   static holder::contract::RecoveryTokenGlobalImportResult decode(const json& value);
 };
+template <> struct codec<holder::contract::LastPullChanges> {
+  static json encode(const holder::contract::LastPullChanges& value);
+  static holder::contract::LastPullChanges decode(const json& value);
+};
 template <> struct codec<holder::contract::CardSummary> {
   static json encode(const holder::contract::CardSummary& value);
   static holder::contract::CardSummary decode(const json& value);
@@ -1055,6 +1059,10 @@ template <> struct codec<holder::contract::ConflictCopyCleanupReview> {
 template <> struct codec<holder::contract::ConflictResolutionResult> {
   static json encode(const holder::contract::ConflictResolutionResult& value);
   static holder::contract::ConflictResolutionResult decode(const json& value);
+};
+template <> struct codec<holder::contract::PullChanges> {
+  static json encode(const holder::contract::PullChanges& value);
+  static holder::contract::PullChanges decode(const json& value);
 };
 template <> struct codec<holder::contract::PullPhase> {
   static json encode(const holder::contract::PullPhase& value);
@@ -4481,6 +4489,85 @@ inline holder::contract::RecoveryTokenGlobalImportResult codec<
   return out;
 }
 
+inline json codec<holder::contract::LastPullChanges>::encode(
+    const holder::contract::LastPullChanges& value
+) {
+  json result = json::object();
+  result["merged_card_ids"] = codec<std::vector<std::string>>::encode(value.merged_card_ids);
+  result["kept_out_of_trash_card_ids"] = codec<std::vector<std::string>>::encode(
+      value.kept_out_of_trash_card_ids
+  );
+  result["restored_from_trash_card_ids"] = codec<std::vector<std::string>>::encode(
+      value.restored_from_trash_card_ids
+  );
+  result["conflict_copy_ids"] = codec<std::vector<std::string>>::encode(value.conflict_copy_ids);
+  result["hidden_cards_repaired"] = codec<std::int32_t>::encode(value.hidden_cards_repaired);
+  result["pulled_at"] = codec<long long>::encode(value.pulled_at);
+  return result;
+}
+inline holder::contract::LastPullChanges codec<holder::contract::LastPullChanges>::decode(
+    const json& value
+) {
+  if (!value.is_object()) throw std::invalid_argument("expected a LastPullChanges object");
+  for (auto it = value.begin(); it != value.end(); ++it)
+    if (it.key() != "merged_card_ids" && it.key() != "kept_out_of_trash_card_ids" &&
+        it.key() != "restored_from_trash_card_ids" && it.key() != "conflict_copy_ids" &&
+        it.key() != "hidden_cards_repaired" && it.key() != "pulled_at")
+      throw std::invalid_argument("LastPullChanges has no field " + it.key());
+  holder::contract::LastPullChanges out;
+  if (value.contains("merged_card_ids") && !value.at("merged_card_ids").is_null()) {
+    const auto& item = value.at("merged_card_ids");
+    out.merged_card_ids = check_text_items(
+        decode_field<std::vector<std::string>>(item, "merged_card_ids"),
+        "merged_card_ids"
+    );
+  } else {
+    throw std::invalid_argument("merged_card_ids is required and must not be null");
+  }
+  if (value.contains("kept_out_of_trash_card_ids") &&
+      !value.at("kept_out_of_trash_card_ids").is_null()) {
+    const auto& item = value.at("kept_out_of_trash_card_ids");
+    out.kept_out_of_trash_card_ids = check_text_items(
+        decode_field<std::vector<std::string>>(item, "kept_out_of_trash_card_ids"),
+        "kept_out_of_trash_card_ids"
+    );
+  } else {
+    throw std::invalid_argument("kept_out_of_trash_card_ids is required and must not be null");
+  }
+  if (value.contains("restored_from_trash_card_ids") &&
+      !value.at("restored_from_trash_card_ids").is_null()) {
+    const auto& item = value.at("restored_from_trash_card_ids");
+    out.restored_from_trash_card_ids = check_text_items(
+        decode_field<std::vector<std::string>>(item, "restored_from_trash_card_ids"),
+        "restored_from_trash_card_ids"
+    );
+  } else {
+    throw std::invalid_argument("restored_from_trash_card_ids is required and must not be null");
+  }
+  if (value.contains("conflict_copy_ids") && !value.at("conflict_copy_ids").is_null()) {
+    const auto& item = value.at("conflict_copy_ids");
+    out.conflict_copy_ids = check_text_items(
+        decode_field<std::vector<std::string>>(item, "conflict_copy_ids"),
+        "conflict_copy_ids"
+    );
+  } else {
+    throw std::invalid_argument("conflict_copy_ids is required and must not be null");
+  }
+  if (value.contains("hidden_cards_repaired") && !value.at("hidden_cards_repaired").is_null()) {
+    const auto& item = value.at("hidden_cards_repaired");
+    out.hidden_cards_repaired = decode_field<std::int32_t>(item, "hidden_cards_repaired");
+  } else {
+    throw std::invalid_argument("hidden_cards_repaired is required and must not be null");
+  }
+  if (value.contains("pulled_at") && !value.at("pulled_at").is_null()) {
+    const auto& item = value.at("pulled_at");
+    out.pulled_at = decode_field<long long>(item, "pulled_at");
+  } else {
+    throw std::invalid_argument("pulled_at is required and must not be null");
+  }
+  return out;
+}
+
 inline json codec<holder::contract::CardSummary>::encode(const holder::contract::CardSummary& value
 ) {
   json result = json::object();
@@ -4602,6 +4689,11 @@ inline json codec<holder::contract::SyncState>::encode(const holder::contract::S
                                      : json(nullptr);
   result["updated_at"] = value.updated_at ? codec<long long>::encode(*value.updated_at)
                                           : json(nullptr);
+  result["last_pull_changes"] = value.last_pull_changes
+                                    ? codec<holder::contract::LastPullChanges>::encode(
+                                          *value.last_pull_changes
+                                      )
+                                    : json(nullptr);
   if (value.conflict_copies)
     result["conflict_copies"] = codec<std::vector<holder::contract::ConflictCopy>>::encode(
         *value.conflict_copies
@@ -4618,7 +4710,7 @@ inline holder::contract::SyncState codec<holder::contract::SyncState>::decode(co
         it.key() != "last_sync_error_at" && it.key() != "retry_count" &&
         it.key() != "next_retry_at" && it.key() != "pull_retry_count" &&
         it.key() != "next_pull_retry_at" && it.key() != "updated_at" &&
-        it.key() != "conflict_copies")
+        it.key() != "last_pull_changes" && it.key() != "conflict_copies")
       throw std::invalid_argument("SyncState has no field " + it.key());
   holder::contract::SyncState out;
   if (value.contains("project_id") && !value.at("project_id").is_null()) {
@@ -4711,6 +4803,10 @@ inline holder::contract::SyncState codec<holder::contract::SyncState>::decode(co
   if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
     const auto& item = value.at("updated_at");
     out.updated_at = decode_field<long long>(item, "updated_at");
+  }
+  if (value.contains("last_pull_changes") && !value.at("last_pull_changes").is_null()) {
+    const auto& item = value.at("last_pull_changes");
+    out.last_pull_changes = codec<holder::contract::LastPullChanges>::decode(item);
   }
   if (value.contains("conflict_copies") && !value.at("conflict_copies").is_null()) {
     const auto& item = value.at("conflict_copies");
@@ -4948,12 +5044,83 @@ inline holder::contract::ConflictResolutionResult codec<
   return out;
 }
 
+inline json codec<holder::contract::PullChanges>::encode(const holder::contract::PullChanges& value
+) {
+  json result = json::object();
+  result["merged_card_ids"] = codec<std::vector<std::string>>::encode(value.merged_card_ids);
+  result["kept_out_of_trash_card_ids"] = codec<std::vector<std::string>>::encode(
+      value.kept_out_of_trash_card_ids
+  );
+  result["restored_from_trash_card_ids"] = codec<std::vector<std::string>>::encode(
+      value.restored_from_trash_card_ids
+  );
+  result["conflict_copy_ids"] = codec<std::vector<std::string>>::encode(value.conflict_copy_ids);
+  result["hidden_cards_repaired"] = codec<std::int32_t>::encode(value.hidden_cards_repaired);
+  return result;
+}
+inline holder::contract::PullChanges codec<holder::contract::PullChanges>::decode(const json& value
+) {
+  if (!value.is_object()) throw std::invalid_argument("expected a PullChanges object");
+  for (auto it = value.begin(); it != value.end(); ++it)
+    if (it.key() != "merged_card_ids" && it.key() != "kept_out_of_trash_card_ids" &&
+        it.key() != "restored_from_trash_card_ids" && it.key() != "conflict_copy_ids" &&
+        it.key() != "hidden_cards_repaired")
+      throw std::invalid_argument("PullChanges has no field " + it.key());
+  holder::contract::PullChanges out;
+  if (value.contains("merged_card_ids") && !value.at("merged_card_ids").is_null()) {
+    const auto& item = value.at("merged_card_ids");
+    out.merged_card_ids = check_text_items(
+        decode_field<std::vector<std::string>>(item, "merged_card_ids"),
+        "merged_card_ids"
+    );
+  } else {
+    throw std::invalid_argument("merged_card_ids is required and must not be null");
+  }
+  if (value.contains("kept_out_of_trash_card_ids") &&
+      !value.at("kept_out_of_trash_card_ids").is_null()) {
+    const auto& item = value.at("kept_out_of_trash_card_ids");
+    out.kept_out_of_trash_card_ids = check_text_items(
+        decode_field<std::vector<std::string>>(item, "kept_out_of_trash_card_ids"),
+        "kept_out_of_trash_card_ids"
+    );
+  } else {
+    throw std::invalid_argument("kept_out_of_trash_card_ids is required and must not be null");
+  }
+  if (value.contains("restored_from_trash_card_ids") &&
+      !value.at("restored_from_trash_card_ids").is_null()) {
+    const auto& item = value.at("restored_from_trash_card_ids");
+    out.restored_from_trash_card_ids = check_text_items(
+        decode_field<std::vector<std::string>>(item, "restored_from_trash_card_ids"),
+        "restored_from_trash_card_ids"
+    );
+  } else {
+    throw std::invalid_argument("restored_from_trash_card_ids is required and must not be null");
+  }
+  if (value.contains("conflict_copy_ids") && !value.at("conflict_copy_ids").is_null()) {
+    const auto& item = value.at("conflict_copy_ids");
+    out.conflict_copy_ids = check_text_items(
+        decode_field<std::vector<std::string>>(item, "conflict_copy_ids"),
+        "conflict_copy_ids"
+    );
+  } else {
+    throw std::invalid_argument("conflict_copy_ids is required and must not be null");
+  }
+  if (value.contains("hidden_cards_repaired") && !value.at("hidden_cards_repaired").is_null()) {
+    const auto& item = value.at("hidden_cards_repaired");
+    out.hidden_cards_repaired = decode_field<std::int32_t>(item, "hidden_cards_repaired");
+  } else {
+    throw std::invalid_argument("hidden_cards_repaired is required and must not be null");
+  }
+  return out;
+}
+
 inline json codec<holder::contract::PullPhase>::encode(const holder::contract::PullPhase& value) {
   json result = json::object();
   result["attempted"] = codec<bool>::encode(value.attempted);
   result["status"] = codec<holder::contract::PullPhaseStatus>::encode(value.status);
   result["conflicts_resolved"] = codec<std::int32_t>::encode(value.conflicts_resolved);
   result["hidden_cards_repaired"] = codec<std::int32_t>::encode(value.hidden_cards_repaired);
+  result["changes"] = codec<holder::contract::PullChanges>::encode(value.changes);
   result["error_message"] = value.error_message ? codec<std::string>::encode(*value.error_message)
                                                 : json(nullptr);
   return result;
@@ -4962,7 +5129,7 @@ inline holder::contract::PullPhase codec<holder::contract::PullPhase>::decode(co
   if (!value.is_object()) throw std::invalid_argument("expected a PullPhase object");
   for (auto it = value.begin(); it != value.end(); ++it)
     if (it.key() != "attempted" && it.key() != "status" && it.key() != "conflicts_resolved" &&
-        it.key() != "hidden_cards_repaired" && it.key() != "error_message")
+        it.key() != "hidden_cards_repaired" && it.key() != "changes" && it.key() != "error_message")
       throw std::invalid_argument("PullPhase has no field " + it.key());
   holder::contract::PullPhase out;
   if (value.contains("attempted") && !value.at("attempted").is_null()) {
@@ -4988,6 +5155,12 @@ inline holder::contract::PullPhase codec<holder::contract::PullPhase>::decode(co
     out.hidden_cards_repaired = decode_field<std::int32_t>(item, "hidden_cards_repaired");
   } else {
     throw std::invalid_argument("hidden_cards_repaired is required and must not be null");
+  }
+  if (value.contains("changes") && !value.at("changes").is_null()) {
+    const auto& item = value.at("changes");
+    out.changes = codec<holder::contract::PullChanges>::decode(item);
+  } else {
+    throw std::invalid_argument("changes is required and must not be null");
   }
   if (value.contains("error_message") && !value.at("error_message").is_null()) {
     const auto& item = value.at("error_message");

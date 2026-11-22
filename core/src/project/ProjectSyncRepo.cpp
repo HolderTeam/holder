@@ -1,5 +1,6 @@
 #include "project/ProjectSyncRepo.h"
 
+#include <nlohmann/json.hpp>
 #include <sqlite3.h>
 
 #include <array>
@@ -104,6 +105,43 @@ std::set<std::string> table_columns(sqlite3* db, const std::string& table_name) 
   return columns;
 }
 
+// Stored as JSON: it is a notice for this device, read and written whole.
+std::string encode_last_pull_changes(const holder::model::LastPullChanges& last) {
+  const auto& c = last.changes;
+  return nlohmann::json{
+      {"pulled_at", last.pulled_at},
+      {"merged_card_ids", c.merged_card_ids},
+      {"kept_out_of_trash_card_ids", c.kept_out_of_trash_card_ids},
+      {"restored_from_trash_card_ids", c.restored_from_trash_card_ids},
+      {"conflict_copy_ids", c.conflict_copy_ids},
+      {"hidden_cards_repaired", c.hidden_cards_repaired},
+  }
+      .dump();
+}
+
+// An unreadable value only means a notice is not shown, so it reads as none.
+std::optional<holder::model::LastPullChanges> decode_last_pull_changes(
+    const std::optional<std::string>& text
+) {
+  if (!text.has_value()) return std::nullopt;
+  try {
+    const auto json = nlohmann::json::parse(*text);
+    holder::model::LastPullChanges last;
+    last.pulled_at = json.at("pulled_at").get<long long>();
+    auto& c = last.changes;
+    c.merged_card_ids = json.value("merged_card_ids", std::vector<std::string>{});
+    c.kept_out_of_trash_card_ids =
+        json.value("kept_out_of_trash_card_ids", std::vector<std::string>{});
+    c.restored_from_trash_card_ids =
+        json.value("restored_from_trash_card_ids", std::vector<std::string>{});
+    c.conflict_copy_ids = json.value("conflict_copy_ids", std::vector<std::string>{});
+    c.hidden_cards_repaired = json.value("hidden_cards_repaired", 0);
+    return last;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
 } // namespace
 
 ProjectSyncRepo::ProjectSyncRepo(holder::platform::Db& db)
@@ -127,7 +165,8 @@ void ProjectSyncRepo::ensure_table() {
            " next_retry_at INTEGER NULL,"
            " pull_retry_count INTEGER NOT NULL DEFAULT 0,"
            " next_pull_retry_at INTEGER NULL,"
-           " updated_at INTEGER NOT NULL DEFAULT 0"
+           " updated_at INTEGER NOT NULL DEFAULT 0,"
+           " last_pull_changes TEXT NULL"
            ");");
 
   const auto cols = table_columns(db_.handle(), "project_sync_state");
@@ -139,6 +178,9 @@ void ProjectSyncRepo::ensure_table() {
   if (cols.find("next_pull_retry_at") == cols.end()) {
     db_.exec("ALTER TABLE project_sync_state ADD COLUMN next_pull_retry_at INTEGER NULL;");
   }
+  if (cols.find("last_pull_changes") == cols.end()) {
+    db_.exec("ALTER TABLE project_sync_state ADD COLUMN last_pull_changes TEXT NULL;");
+  }
 }
 
 std::optional<holder::model::ProjectSyncState> ProjectSyncRepo::get(const std::string& project_id
@@ -147,7 +189,7 @@ std::optional<holder::model::ProjectSyncState> ProjectSyncRepo::get(const std::s
       "SELECT project_id, last_commit_at, last_push_at, last_pull_at,"
       " uncommitted_changes_count, unpushed_commits_count,"
       " last_push_status, last_pull_status, last_sync_error, last_sync_error_at, retry_count,"
-      " next_retry_at, pull_retry_count, next_pull_retry_at, updated_at"
+      " next_retry_at, pull_retry_count, next_pull_retry_at, updated_at, last_pull_changes"
       " FROM project_sync_state WHERE project_id = ?;";
 
   sqlite3_stmt* stmt = nullptr;
@@ -174,6 +216,7 @@ std::optional<holder::model::ProjectSyncState> ProjectSyncRepo::get(const std::s
     state.pull_retry_count = sqlite3_column_int(stmt, 12);
     state.next_pull_retry_at = read_int64_optional(stmt, 13);
     state.updated_at = sqlite3_column_int64(stmt, 14);
+    state.last_pull_changes = decode_last_pull_changes(read_text_optional(stmt, 15));
     sqlite3_finalize(stmt);
     return state;
   }
@@ -190,8 +233,8 @@ void ProjectSyncRepo::upsert(const holder::model::ProjectSyncState& state) {
       " project_id, last_commit_at, last_push_at, last_pull_at,"
       " uncommitted_changes_count, unpushed_commits_count,"
       " last_push_status, last_pull_status, last_sync_error, last_sync_error_at, retry_count,"
-      " next_retry_at, pull_retry_count, next_pull_retry_at, updated_at)"
-      " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      " next_retry_at, pull_retry_count, next_pull_retry_at, updated_at, last_pull_changes)"
+      " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       " ON CONFLICT(project_id) DO UPDATE SET"
       " last_commit_at=excluded.last_commit_at,"
       " last_push_at=excluded.last_push_at,"
@@ -206,7 +249,8 @@ void ProjectSyncRepo::upsert(const holder::model::ProjectSyncState& state) {
       " next_retry_at=excluded.next_retry_at,"
       " pull_retry_count=excluded.pull_retry_count,"
       " next_pull_retry_at=excluded.next_pull_retry_at,"
-      " updated_at=excluded.updated_at;";
+      " updated_at=excluded.updated_at,"
+      " last_pull_changes=excluded.last_pull_changes;";
 
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -228,6 +272,12 @@ void ProjectSyncRepo::upsert(const holder::model::ProjectSyncState& state) {
   bind_int(stmt, 13, state.pull_retry_count);
   bind_int64_optional(stmt, 14, state.next_pull_retry_at);
   bind_int64(stmt, 15, state.updated_at);
+  bind_text_optional(
+      stmt,
+      16,
+      state.last_pull_changes ? std::optional(encode_last_pull_changes(*state.last_pull_changes))
+                              : std::nullopt
+  );
 
   const int rc = sqlite3_step(stmt);
   sqlite3_finalize(stmt);
@@ -283,12 +333,15 @@ void ProjectSyncRepo::record_pull_result(
     const std::string& status,
     bool success,
     const std::optional<std::string>& error_message,
-    long long now
+    long long now,
+    const holder::model::PullChanges* changes
 ) {
   holder::model::ProjectSyncState state =
       get(project_id).value_or(holder::model::ProjectSyncState{});
   state.project_id = project_id;
   state.last_pull_status = status;
+  if (success && changes != nullptr && !changes->empty())
+    state.last_pull_changes = holder::model::LastPullChanges{now, *changes};
   state.updated_at = now;
   if (success) {
     state.last_pull_at = now;
