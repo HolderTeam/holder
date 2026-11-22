@@ -471,6 +471,34 @@ void test_conflict_line_ranges_follow_core_numbering() {
     assert_ranges(HolderLinux.ConflictLineRanges.of("only", { 0, 2, 1 }), { 0, 4 });
 }
 
+string combine_plain(string a, int[] a_changed, string b, int[] b_changed) {
+    return HolderLinux.ConflictCombiner.combine(a, a_changed, b, b_changed, false, "A", "B");
+}
+
+// Both versions, shared lines once, each clash with version a's lines first.
+void test_conflict_combiner_keeps_both_versions() {
+    // A clash in the middle.
+    assert(combine_plain("one\ntwo\nthree", { 2 }, "one\nTWO\nthree", { 2 }) == "one\ntwo\nTWO\nthree");
+    // At the start and at the end, with a trailing newline on both.
+    assert(combine_plain("a\nb\nc\n", { 1, 3 }, "A\nb\nC\n", { 1, 3 }) == "a\nA\nb\nc\nC\n");
+    // A line only one version has.
+    assert(combine_plain("a\nc", {}, "a\nb\nc", { 2 }) == "a\nb\nc");
+    // Several lines on one side against one on the other.
+    assert(combine_plain("x\n1\n2\ny", { 2, 3 }, "x\nboth\ny", { 2 }) == "x\n1\n2\nboth\ny");
+    // CRLF lines keep their "\r".
+    assert(combine_plain("a\r\nb\r\n", { 2 }, "a\r\nB\r\n", { 2 }) == "a\r\nb\r\nB\r\n");
+    // Nothing differs.
+    assert(combine_plain("same\n", {}, "same\n", {}) == "same\n");
+    // Empty versions.
+    assert(combine_plain("", {}, "new", { 1 }) == "new");
+    // Git conflict markers around each clash, with the labels given.
+    assert(HolderLinux.ConflictCombiner.combine("one\ntwo\nthree", { 2 }, "one\nTWO\nthree", { 2 }, true,
+                                                "this device", "another device") ==
+           "one\n<<<<<<< this device\ntwo\n=======\nTWO\n>>>>>>> another device\nthree");
+    assert(HolderLinux.ConflictCombiner.combine("a\nc", {}, "a\nb\nc", { 2 }, true, "A", "B") ==
+           "a\n<<<<<<< A\n=======\nb\n>>>>>>> B\nc");
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -500,6 +528,8 @@ public static int main(string[] args) {
                   test_pull_watch_notices_pulls_that_moved_the_commit);
     Test.add_func("/git-sync-rules/pull-report/each-report-once",
                   test_pull_report_tracker_announces_each_new_report_once);
+    Test.add_func("/git-sync-rules/conflict-combiner/keeps-both-versions",
+                  test_conflict_combiner_keeps_both_versions);
     Test.add_func("/git-sync-rules/conflict-line-ranges/core-numbering",
                   test_conflict_line_ranges_follow_core_numbering);
     Test.add_func("/git-sync-rules/outcomes/incomplete-and-reconciled",

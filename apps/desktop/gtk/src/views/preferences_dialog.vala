@@ -12,6 +12,7 @@ public class PreferencesDialog : Adw.PreferencesDialog {
     internal Adw.ActionRow custom_font_choice_row { get; private set; }
     internal Adw.SwitchRow inline_image_previews_row { get; private set; }
     internal Adw.SwitchRow no_plaintext_recovery_row { get; private set; }
+    internal Adw.SwitchRow conflict_markers_row { get; private set; }
 
     public signal void inline_image_previews_changed(bool enabled);
 
@@ -244,6 +245,25 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         });
         recovery_group.add(no_plaintext_recovery_row);
         page.add(recovery_group);
+
+        var sync_group = new Adw.PreferencesGroup();
+        sync_group.set_title("Sync");
+        conflict_markers_row = new Adw.SwitchRow();
+        conflict_markers_row.set_title("Git conflict markers");
+        conflict_markers_row.set_subtitle(
+            // Rows read their subtitle as markup.
+            Markup.escape_text("When combining two versions of a card, mark each clash with <<<<<<< and >>>>>>> lines instead of placing the versions one after the other.")
+        );
+        conflict_markers_row.set_active(
+            settings != null ? settings.get_boolean(AppSettings.KEY_CONFLICT_COMBINE_MARKERS) : false
+        );
+        conflict_markers_row.notify["active"].connect((row, pspec) => {
+            if (settings != null) {
+                settings.set_boolean(AppSettings.KEY_CONFLICT_COMBINE_MARKERS, ((Adw.SwitchRow) row).get_active());
+            }
+        });
+        sync_group.add(conflict_markers_row);
+        page.add(sync_group);
         add(page);
     }
 

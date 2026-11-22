@@ -14,6 +14,7 @@ public class AppSettings : Object {
     public const string KEY_TRIM_TWO_SPACE_HARD_BREAKS = "trim-two-space-hard-breaks";
     public const string KEY_TRIM_WHITESPACE_IN_CODE_BLOCKS = "trim-whitespace-in-code-blocks";
     public const string KEY_NO_PLAINTEXT_RECOVERY_FILES = "no-plaintext-recovery-files";
+    public const string KEY_CONFLICT_COMBINE_MARKERS = "conflict-combine-markers";
     public const string KEY_WINDOW_WIDTH = "window-width";
     public const string KEY_WINDOW_HEIGHT = "window-height";
     public const string KEY_WINDOW_MAXIMIZED = "window-maximized";
