@@ -280,9 +280,8 @@ bool dispatch_resource_contract_route(
     try {
       contract_http::check_query_names(contract_http::decode_query(query), {});
       const auto job_id = contract_http::decode_uri_component(match[1].str(), false);
-      const auto result = get_import_job(
-          contract_json::check_text(job_id, "job_id", 0, std::numeric_limits<std::size_t>::max())
-      );
+      contract_json::validate_text(job_id, "job_id", 0, std::numeric_limits<std::size_t>::max());
+      const auto result = get_import_job(job_id);
       res = support::json_response(
           http::status::ok,
           {{"ok", true}, {"data", import_job_data(result.data)}}

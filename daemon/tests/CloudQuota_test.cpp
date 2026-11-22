@@ -118,7 +118,7 @@ TEST_CASE("CloudQuota cooldown supports configurable base/cap", "[cloud_quota]")
       provider,
       model,
       "timeout",
-      0,
+      1'700'000'000,
       cap / 2 + 1,
       cap
   );
