@@ -5075,7 +5075,8 @@ sidebar_pane_test_exe = executable(
   install: false,
 )
 
-test('holder-gtk-sidebar-pane-tests', sidebar_pane_test_exe)
+# The sidebar context-menu tests grab the shared display while a popover is open.
+test('holder-gtk-sidebar-pane-tests', sidebar_pane_test_exe, is_parallel: false)
 
 preferences_dialog_test_exe = executable(
   'holder-gtk-preferences-dialog-tests',
