@@ -15,14 +15,14 @@ std::string history_url(const std::string& project) {
   std::string encoded;
   constexpr char hex[] = "0123456789ABCDEF";
   for (const char ch : project) {
-    const auto byte = static_cast<unsigned char>(ch);
+    const unsigned int byte = static_cast<unsigned char>(ch);
     if ((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
         (byte >= '0' && byte <= '9') || byte == '-' || byte == '_' || byte == '.')
       encoded.push_back(static_cast<char>(byte));
     else {
       encoded += '%';
-      encoded += hex[byte >> 4];
-      encoded += hex[byte & 15];
+      encoded += hex[byte >> 4U];
+      encoded += hex[byte & 15U];
     }
   }
   return "/projects/" + encoded + "/history";

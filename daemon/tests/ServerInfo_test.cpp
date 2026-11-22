@@ -40,7 +40,7 @@ bool is_hex(const std::string& s) {
 mode_t mode_bits(const std::filesystem::path& path) {
   struct stat st {};
   REQUIRE(::stat(path.c_str(), &st) == 0);
-  return st.st_mode & 0777;
+  return static_cast<mode_t>(st.st_mode & 0777U);
 }
 #endif
 

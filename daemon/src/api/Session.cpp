@@ -31,8 +31,8 @@ namespace http = boost::beast::http;
 
 // Allow 8,192 cursor characters at up to 12 wire bytes per character (four UTF-8
 // bytes, each percent encoded), plus the path, parameter names, and filters.
-constexpr std::size_t request_target_limit = 128 * 1024;
-constexpr std::size_t request_header_limit = 16 * 1024;
+constexpr std::size_t request_target_limit = std::size_t{128} * 1024;
+constexpr std::size_t request_header_limit = std::size_t{16} * 1024;
 constexpr std::size_t request_line_limit = request_target_limit + 64;
 
 template <typename T> void ignore_result(T&&) noexcept {}
@@ -42,13 +42,8 @@ std::string generate_uuid_v4() {
     try {
       const auto seed = static_cast<unsigned int>(std::stoul(seed_env));
       static std::mutex mutex;
-      static std::mt19937 rng;
-      static bool seeded = false;
       std::lock_guard<std::mutex> lock(mutex);
-      if (!seeded) {
-        rng.seed(seed);
-        seeded = true;
-      }
+      static std::mt19937 rng(seed);
       boost::uuids::basic_random_generator<std::mt19937> gen(&rng);
       return boost::uuids::to_string(gen());
     } catch (const std::exception& ex) {

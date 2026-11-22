@@ -133,7 +133,7 @@ std::filesystem::path seed_real_card(
     const std::string& title,
     const std::string& content
 ) {
-  const auto seed_db_path = repo_dir.string() + "-seed.db";
+  std::filesystem::path seed_db_path = repo_dir.string() + "-seed.db";
   auto db = holder::test::open_db_with_schema(seed_db_path);
   holder::index::FtsIndexer fts(db);
   holder::project::ProjectRepo projects(db);

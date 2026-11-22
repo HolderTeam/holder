@@ -175,7 +175,8 @@ TEST_CASE(
 
   SECTION("A target one byte over 128 KiB receives 414") {
     rejected(
-        "GET /" + std::string(128 * 1024, 'x') + " HTTP/1.1\r\nHost: localhost\r\n\r\n",
+        "GET /" + std::string(std::size_t{128} * 1024, 'x') +
+            " HTTP/1.1\r\nHost: localhost\r\n\r\n",
         http::status::uri_too_long,
         "uri_too_long"
     );
@@ -193,7 +194,7 @@ TEST_CASE(
     const std::string line = "GET /health HTTP/1.1\r\n";
     const std::string fields = "Host: localhost\r\nAuthorization: Bearer " + token +
                                "\r\nX-Padding: ";
-    const std::string padding(16 * 1024 - fields.size() - 4, 'x');
+    const std::string padding(std::size_t{16} * 1024 - fields.size() - 4, 'x');
     boost::asio::io_context ioc;
     auto socket = connect_test_socket(ioc, bound.bind, bound.port);
     write_raw_request(socket, line + fields + padding + "\r\n\r\n");

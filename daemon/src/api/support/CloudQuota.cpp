@@ -144,8 +144,9 @@ long long failure_cooldown_seconds(
   const long long safe_base = std::max(1LL, base_seconds);
   const long long safe_cap = std::max(safe_base, cap_seconds);
   const long long bounded = std::min(failure_count - 1, 5LL);
-  const long long raw = safe_base * (1LL << bounded);
-  return std::min(raw, safe_cap);
+  const auto multiplier = static_cast<long long>(1ULL << static_cast<unsigned int>(bounded));
+  if (safe_base > safe_cap / multiplier) return safe_cap;
+  return safe_base * multiplier;
 }
 
 } // namespace

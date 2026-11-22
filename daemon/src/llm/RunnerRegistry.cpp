@@ -46,9 +46,7 @@ std::optional<ParsedBaseUrl> parse_http_base_url(const std::optional<std::string
 
   const auto slash = value.find('/');
   if (slash != std::string_view::npos) {
-    if (slash != value.size()) {
-      value = value.substr(0, slash);
-    }
+    value = value.substr(0, slash);
   }
   if (value.empty()) {
     return std::nullopt;

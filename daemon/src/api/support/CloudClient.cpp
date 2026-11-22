@@ -52,14 +52,14 @@ std::string url_encode_component(const std::string& in) {
   std::string out;
   out.reserve(in.size() * 3);
   for (const char raw_ch : in) {
-    const unsigned char ch = static_cast<unsigned char>(raw_ch);
+    const unsigned int ch = static_cast<unsigned char>(raw_ch);
     if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') ||
         ch == '-' || ch == '_' || ch == '.' || ch == '~') {
       out.push_back(static_cast<char>(ch));
     } else {
       out.push_back('%');
-      out.push_back(kHex[(ch >> 4) & 0x0F]);
-      out.push_back(kHex[ch & 0x0F]);
+      out.push_back(kHex[(ch >> 4U) & 0x0FU]);
+      out.push_back(kHex[ch & 0x0FU]);
     }
   }
   return out;
@@ -176,32 +176,27 @@ std::optional<std::string> classify_error_from_body(
 
   try {
     const auto parsed = nlohmann::json::parse(response_body);
+    if (!parsed.contains("error") || !parsed["error"].is_object()) return code;
+    const auto& err = parsed["error"];
 
     if (provider_kind == "generic_responses") {
-      if (parsed.contains("error") && parsed["error"].is_object()) {
-        const auto& err = parsed["error"];
-        if (err.contains("code") && err["code"].is_string() &&
-            err["code"].get<std::string>() == "insufficient_quota") {
-          return std::string("quota_exceeded");
-        }
-        if (err.contains("type") && err["type"].is_string() &&
-            err["type"].get<std::string>() == "insufficient_quota") {
-          return std::string("quota_exceeded");
-        }
+      if (err.contains("code") && err["code"].is_string() &&
+          err["code"].get<std::string>() == "insufficient_quota") {
+        return std::string("quota_exceeded");
+      }
+      if (err.contains("type") && err["type"].is_string() &&
+          err["type"].get<std::string>() == "insufficient_quota") {
+        return std::string("quota_exceeded");
       }
     }
 
-    if (provider_kind == "mechatropic_messages") {
-      if (parsed.contains("error") && parsed["error"].is_object()) {
-        const auto& err = parsed["error"];
-        if (err.contains("message") && err["message"].is_string()) {
-          const std::string msg = err["message"].get<std::string>();
-          if (contains_insensitive(msg, "credit balance is too low") ||
-              contains_insensitive(msg, "purchase credits") ||
-              contains_insensitive(msg, "plans & billing")) {
-            return std::string("quota_exceeded");
-          }
-        }
+    if (provider_kind == "mechatropic_messages" && err.contains("message") &&
+        err["message"].is_string()) {
+      const std::string msg = err["message"].get<std::string>();
+      if (contains_insensitive(msg, "credit balance is too low") ||
+          contains_insensitive(msg, "purchase credits") ||
+          contains_insensitive(msg, "plans & billing")) {
+        return std::string("quota_exceeded");
       }
     }
   } catch (const std::exception& ex) {
@@ -333,7 +328,7 @@ CloudResponseParse parse_cloud_response(
       text = parse_mechatropic_messages_text(parsed);
     }
     if (text.has_value()) {
-      out.text = text;
+      out.text = std::move(text);
       return out;
     }
     out.error_code = "malformed_response";

@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <stdexcept>
+#include <utility>
 
 namespace holder::storage::google {
 namespace {
@@ -28,7 +29,7 @@ void set_google_endpoint_for_tests(std::optional<boost::asio::ip::tcp::endpoint>
   if (endpoint && !endpoint->address().is_loopback())
     throw std::invalid_argument("Google test endpoint must be loopback");
   std::lock_guard<std::mutex> lock(endpoint_mutex);
-  test_endpoint = endpoint;
+  test_endpoint = std::move(endpoint);
 }
 
 } // namespace holder::storage::google

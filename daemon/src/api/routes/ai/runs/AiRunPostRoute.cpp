@@ -607,7 +607,7 @@ RouteDispatchResult execute_cloud_post_path(
                                                 ? compaction_state->updated_at
                                                 : 0;
           const long long since_last_refresh = (last_refresh_at > 0) ? (now - last_refresh_at)
-                                                                     : (1LL << 30);
+                                                                     : 1'073'741'824LL;
           const bool forced_refresh = context_tokens >= force_refresh_tokens;
 
           if (!forced_refresh && last_refresh_at > 0 &&

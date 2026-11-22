@@ -1,5 +1,7 @@
 InheritParentConfig: true
+# Keep fixture commands and expected output readable as single expressions.
 Checks: >
   -bugprone-chained-comparison,
   -bugprone-unchecked-optional-access,
-  -bugprone-unused-return-value
+  -bugprone-unused-return-value,
+  -performance-inefficient-string-concatenation

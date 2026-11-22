@@ -49,6 +49,8 @@ inline std::string normalize_system_command(std::string cmd) {
 
 inline int run_system_command(const std::string& cmd) {
   const auto normalized = normalize_system_command(cmd);
+  // Test fixtures use shell redirections and pipelines.
+  // NOLINTNEXTLINE(bugprone-command-processor)
   const int rc = std::system(normalized.c_str());
 #ifdef _WIN32
   return rc;

@@ -111,8 +111,15 @@ namespace {
 
 // Daemon-only contract routes use the same URL and JSON checks as core-backed routes.
 // Their implementations need daemon services or a live socket, so they are dispatched here.
-const std::regex import_job_path("^/imports/([^/]+)$");
-const std::regex asset_content_path("^/resources/([^/]+)/assets/([^/]+)/content$");
+const std::regex& import_job_path() {
+  static const std::regex pattern("^/imports/([^/]+)$");
+  return pattern;
+}
+
+const std::regex& asset_content_path() {
+  static const std::regex pattern("^/resources/([^/]+)/assets/([^/]+)/content$");
+  return pattern;
+}
 
 nlohmann::json import_job_data(const AssetImportJob& job) {
   const auto optional_string = [](const std::optional<std::string>& value) -> nlohmann::json {
@@ -269,7 +276,7 @@ bool dispatch_resource_contract_route(
     }
     return true;
   }
-  if (method == "GET" && std::regex_match(route_path, match, import_job_path)) {
+  if (method == "GET" && std::regex_match(route_path, match, import_job_path())) {
     try {
       contract_http::check_query_names(contract_http::decode_query(query), {});
       const auto job_id = contract_http::decode_uri_component(match[1].str(), false);
@@ -292,19 +299,24 @@ bool dispatch_resource_contract_route(
     }
     return true;
   }
-  if (method == "GET" && std::regex_match(route_path, match, asset_content_path)) {
+  if (method == "GET" && std::regex_match(route_path, match, asset_content_path())) {
     try {
       const auto values = contract_http::decode_query(query);
       contract_http::check_query_names(values, {"placement_id"});
       const auto resource_id = contract_http::decode_uri_component(match[1].str(), false);
       const auto asset_id = contract_http::decode_uri_component(match[2].str(), false);
-      contract_json::check_text(
+      contract_json::validate_text(
           resource_id,
           "resource_id",
           0,
           std::numeric_limits<std::size_t>::max()
       );
-      contract_json::check_text(asset_id, "asset_id", 0, std::numeric_limits<std::size_t>::max());
+      contract_json::validate_text(
+          asset_id,
+          "asset_id",
+          0,
+          std::numeric_limits<std::size_t>::max()
+      );
       std::optional<std::string> placement_id;
       if (const auto found = values.find("placement_id"); found != values.end())
         placement_id = contract_json::check_text(
@@ -414,7 +426,7 @@ bool dispatch_misc_contract_route(
       contract_http::check_query_names(values, {"project_id"});
       const auto found = values.find("project_id");
       if (found == values.end()) throw std::invalid_argument("missing query parameter: project_id");
-      contract_json::check_text(
+      contract_json::validate_text(
           found->second,
           "project_id",
           1,
@@ -474,7 +486,7 @@ bool dispatch_misc_contract_route(
       contract_http::check_query_names(values, {"project_id"});
       std::optional<std::string> project_id;
       if (const auto found = values.find("project_id"); found != values.end()) {
-        contract_json::check_text(
+        contract_json::validate_text(
             found->second,
             "project_id",
             1,
@@ -577,8 +589,8 @@ std::string allowed_methods(const std::string& path) {
   const auto route_path = path.substr(0, path.find('?'));
   if (route_path == "/imports") methods.emplace("POST");
   std::smatch match;
-  if (std::regex_match(route_path, match, import_job_path) ||
-      std::regex_match(route_path, match, asset_content_path))
+  if (std::regex_match(route_path, match, import_job_path()) ||
+      std::regex_match(route_path, match, asset_content_path()))
     methods.emplace("GET");
   std::string allow;
   for (const auto& method : methods)

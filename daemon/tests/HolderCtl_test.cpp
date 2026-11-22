@@ -3797,7 +3797,9 @@ TEST_CASE("holderctl recovery-token exports and imports encrypted project tokens
 #ifndef _WIN32
   struct stat file_stat {};
   REQUIRE(::stat(token_path.c_str(), &file_stat) == 0);
-  REQUIRE((file_stat.st_mode & (S_IRWXG | S_IRWXO)) == 0);
+  constexpr auto group_or_other = static_cast<unsigned int>(S_IRWXG) |
+                                  static_cast<unsigned int>(S_IRWXO);
+  REQUIRE((file_stat.st_mode & group_or_other) == 0);
 #endif
 
   const auto import_out = xdg_root / "import.out";

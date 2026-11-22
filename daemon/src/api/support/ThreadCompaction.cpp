@@ -256,7 +256,7 @@ std::string build_compacted_context(
         ++count;
       }
       if (count > 0) {
-        facts_block += "\n";
+        facts_block += '\n';
         facts_block =
             truncate_bytes_tail(facts_block, std::min(max_bytes, static_cast<size_t>(1200)));
         prefix += facts_block;
@@ -269,12 +269,7 @@ std::string build_compacted_context(
   bool tail_compacted = false;
   std::string tail =
       compact_context_tail(context_json, static_cast<long long>(remaining / 4), &tail_compacted);
-  if (tail_compacted) {
-    if (compacted) *compacted = true;
-  }
-  if (!prefix.empty()) {
-    if (compacted) *compacted = true;
-  }
+  if (compacted && (tail_compacted || !prefix.empty())) *compacted = true;
 
   std::string out = prefix + tail;
   if (out.size() > max_bytes) {
@@ -314,7 +309,7 @@ void roll_thread_compaction_state(
       compact_context_tail(context_json, /*allowed_context_tokens=*/800, nullptr);
   std::string rolling = next.rolling_summary.value_or("");
   if (!context_tail.empty()) {
-    if (!rolling.empty()) rolling += "\n";
+    if (!rolling.empty()) rolling += '\n';
     rolling += context_tail;
     if (rolling.size() > 6000) {
       rolling = truncate_bytes_tail(rolling, 6000);
@@ -350,7 +345,7 @@ std::string build_structured_summary_refresh_prompt(
   if (current_summary.has_value() && !current_summary->empty()) {
     prompt += "\nCurrent summary:\n";
     prompt += current_summary.value();
-    prompt += "\n";
+    prompt += '\n';
   }
   prompt += "\nNew context:\n";
   prompt += new_context;
@@ -453,7 +448,7 @@ SummaryValidationResult normalize_and_validate_rolling_summary(
       normalized += line + "\n";
       ++emitted;
     }
-    normalized += "\n";
+    normalized += '\n';
   }
 
   if (max_summary_chars > 0 && normalized.size() > static_cast<size_t>(max_summary_chars)) {

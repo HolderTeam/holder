@@ -161,6 +161,7 @@ def generate_codec(types: CoreTypes, api_header: str) -> str:
              "#include <optional>",
              "#include <stdexcept>",
              "#include <string>",
+             "#include <string_view>",
              "#include <vector>",
              SUPPORT.rstrip(), ""]
     enums: dict[str, Slot] = {}

@@ -51,14 +51,14 @@ std::string url_encode(const std::string& value) {
   std::string out;
   out.reserve(value.size() * 3);
   for (const char raw_ch : value) {
-    const auto ch = static_cast<unsigned char>(raw_ch);
+    const unsigned int ch = static_cast<unsigned char>(raw_ch);
     if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') ||
         ch == '-' || ch == '_' || ch == '.' || ch == '~') {
       out.push_back(static_cast<char>(ch));
     } else {
       out.push_back('%');
-      out.push_back(kHex[(ch >> 4) & 0x0F]);
-      out.push_back(kHex[ch & 0x0F]);
+      out.push_back(kHex[(ch >> 4U) & 0x0FU]);
+      out.push_back(kHex[ch & 0x0FU]);
     }
   }
   return out;

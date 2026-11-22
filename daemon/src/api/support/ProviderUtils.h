@@ -33,7 +33,7 @@ inline std::string mask_api_key(const std::string& api_key) {
                                                              : 0;
     if (!width || i + width > api_key.size()) return "****";
     for (std::size_t j = 1; j < width; ++j) {
-      if ((static_cast<unsigned char>(api_key[i + j]) & 0xc0) != 0x80) return "****";
+      if ((static_cast<unsigned char>(api_key[i + j]) & 0xc0U) != 0x80U) return "****";
     }
     i += width;
   }
