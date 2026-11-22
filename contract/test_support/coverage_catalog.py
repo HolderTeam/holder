@@ -71,6 +71,11 @@ NATIVE = {
         "core/tests/PullConflictResolution_test.cpp",
         "Review copy-only metadata, reject stale cleanup and restore the trashed copy",
     ),
+    "separate_conflict_copy": (
+        "C",
+        "core/tests/PullConflictResolution_test.cpp",
+        "Reject a stale review, then keep the copy as its own card under a new title",
+    ),
     "register_ssh_signer": (
         "C",
         "core/tests/CApiLegacyHostResource_test.cpp",
@@ -175,6 +180,7 @@ OTHER_TRANSPORT_GAPS = {
     "compare_conflict_copy": "Exercise the comparison with a seeded conflict through live HTTP conformance.",
     "resolve_conflict_copy": "Exercise a stale review and successful save on a seeded conflict over HTTP.",
     "trash_conflict_copy": "Exercise guarded cleanup of a seeded conflict through live HTTP conformance.",
+    "separate_conflict_copy": "Exercise keeping a seeded conflict copy as its own card over HTTP.",
     **{
         name: "Exercise portable declaration CRUD through the live HTTP interface."
         for name in STORAGE_NATIVE

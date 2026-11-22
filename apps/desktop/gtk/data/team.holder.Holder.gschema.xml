@@ -86,6 +86,15 @@
         closes or crashes.
       </description>
     </key>
+    <key name="conflict-combine-markers" type="b">
+      <default>false</default>
+      <summary>Mark clashes with Git conflict markers when combining card versions</summary>
+      <description>
+        If true, Combine changes in the card comparison puts each clash between lines starting
+        with &lt;&lt;&lt;&lt;&lt;&lt;&lt; and &gt;&gt;&gt;&gt;&gt;&gt;&gt;, as Git does. If false,
+        the two versions of each clash follow one another.
+      </description>
+    </key>
     <key name="window-width" type="i">
       <default>1200</default>
       <summary>Window width in pixels</summary>

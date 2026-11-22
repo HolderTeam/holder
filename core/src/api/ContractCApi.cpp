@@ -489,6 +489,37 @@ holder_recovery_token_global_import_result_pull_status to_c_enum(
   // LCOV_EXCL_STOP
 }
 
+holder_conflict_comparison_original_edited_on to_c_enum(
+    contract::ConflictComparisonOriginalEditedOn value
+) {
+  switch (value) {
+  case contract::ConflictComparisonOriginalEditedOn::ThisDevice:
+    return HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_THIS_DEVICE;
+  case contract::ConflictComparisonOriginalEditedOn::AnotherDevice:
+    return HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_ANOTHER_DEVICE;
+  case contract::ConflictComparisonOriginalEditedOn::Unknown:
+    return HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_UNKNOWN;
+  }
+  // LCOV_EXCL_START - internal output enum: all declared values handled above.
+  throw std::logic_error("not a contract::ConflictComparisonOriginalEditedOn value");
+  // LCOV_EXCL_STOP
+}
+
+holder_conflict_comparison_copy_edited_on to_c_enum(contract::ConflictComparisonCopyEditedOn value
+) {
+  switch (value) {
+  case contract::ConflictComparisonCopyEditedOn::ThisDevice:
+    return HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_THIS_DEVICE;
+  case contract::ConflictComparisonCopyEditedOn::AnotherDevice:
+    return HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_ANOTHER_DEVICE;
+  case contract::ConflictComparisonCopyEditedOn::Unknown:
+    return HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_UNKNOWN;
+  }
+  // LCOV_EXCL_START - internal output enum: all declared values handled above.
+  throw std::logic_error("not a contract::ConflictComparisonCopyEditedOn value");
+  // LCOV_EXCL_STOP
+}
+
 holder_pull_phase_status to_c_enum(contract::PullPhaseStatus value) {
   switch (value) {
   case contract::PullPhaseStatus::NotAttempted:
@@ -1762,6 +1793,8 @@ holder_conflict_comparison to_c(holder_arena* arena, const contract::ConflictCom
   out.original_changed_lines = to_c_list(arena, value.original_changed_lines);
   out.copy_changed_lines = to_c_list(arena, value.copy_changed_lines);
   out.truncated = value.truncated;
+  out.original_edited_on = to_c_enum(value.original_edited_on);
+  out.copy_edited_on = to_c_enum(value.copy_edited_on);
   out.review_token = copy(arena, value.review_token);
   return out;
 }
@@ -2487,10 +2520,180 @@ contract::ConflictResolution from_c(const holder_conflict_resolution& value) {
   return out;
 }
 
+contract::SeparateConflictCopyRequest from_c(const holder_separate_conflict_copy_request& value) {
+  contract::SeparateConflictCopyRequest out;
+  out.review_token =
+      text(value.review_token, "separate_conflict_copy_request.review_token", 1, 256);
+  out.title = text(value.title, "separate_conflict_copy_request.title", 1, SIZE_MAX);
+  return out;
+}
+
+contract::ConflictCopyLinkTarget from_c(const holder_conflict_copy_link_target& value) {
+  contract::ConflictCopyLinkTarget out;
+  out.target_project_id =
+      text(value.target_project_id, "conflict_copy_link_target.target_project_id", 1, SIZE_MAX);
+  switch (value.target_type) {
+  case HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_CARD:
+    out.target_type = contract::ConflictCopyLinkTargetTargetType::Card;
+    break;
+  case HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_AI_MESSAGE:
+    out.target_type = contract::ConflictCopyLinkTargetTargetType::AiMessage;
+    break;
+  case HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_AI_THREAD:
+    out.target_type = contract::ConflictCopyLinkTargetTargetType::AiThread;
+    break;
+  case HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_RESOURCE:
+    out.target_type = contract::ConflictCopyLinkTargetTargetType::Resource;
+    break;
+  default:
+    throw ArgumentError(
+        "conflict_copy_link_target.target_type is not a holder_conflict_copy_link_target_target_type value"
+    );
+  }
+  out.target_id = text(value.target_id, "conflict_copy_link_target.target_id", 1, SIZE_MAX);
+  out.kind = text(value.kind, "conflict_copy_link_target.kind", 1, SIZE_MAX);
+  return out;
+}
+
+std::vector<contract::ConflictCopyLinkTarget> from_c_list(
+    const holder_conflict_copy_link_target_list& values,
+    const char* name
+) {
+  require(
+      values.items != nullptr || values.count == 0,
+      std::string(name) + ".items must not be null"
+  );
+  std::vector<contract::ConflictCopyLinkTarget> out;
+  out.reserve(values.count);
+  for (std::size_t i = 0; i < values.count; ++i)
+    out.push_back(from_c(values.items[i]));
+  return out;
+}
+
+contract::ConflictCopyMilestoneChoice from_c(const holder_conflict_copy_milestone_choice& value) {
+  contract::ConflictCopyMilestoneChoice out;
+  out.milestone_id =
+      text(value.milestone_id, "conflict_copy_milestone_choice.milestone_id", 1, SIZE_MAX);
+  return out;
+}
+
+std::vector<contract::ConflictCopyMilestoneChoice> from_c_list(
+    const holder_conflict_copy_milestone_choice_list& values,
+    const char* name
+) {
+  require(
+      values.items != nullptr || values.count == 0,
+      std::string(name) + ".items must not be null"
+  );
+  std::vector<contract::ConflictCopyMilestoneChoice> out;
+  out.reserve(values.count);
+  for (std::size_t i = 0; i < values.count; ++i)
+    out.push_back(from_c(values.items[i]));
+  return out;
+}
+
+contract::ConflictCopyTagChoice from_c(const holder_conflict_copy_tag_choice& value) {
+  contract::ConflictCopyTagChoice out;
+  out.tag = text(value.tag, "conflict_copy_tag_choice.tag", 1, SIZE_MAX);
+  return out;
+}
+
+std::vector<contract::ConflictCopyTagChoice> from_c_list(
+    const holder_conflict_copy_tag_choice_list& values,
+    const char* name
+) {
+  require(
+      values.items != nullptr || values.count == 0,
+      std::string(name) + ".items must not be null"
+  );
+  std::vector<contract::ConflictCopyTagChoice> out;
+  out.reserve(values.count);
+  for (std::size_t i = 0; i < values.count; ++i)
+    out.push_back(from_c(values.items[i]));
+  return out;
+}
+
+contract::ConflictCopyChildChoice from_c(const holder_conflict_copy_child_choice& value) {
+  contract::ConflictCopyChildChoice out;
+  out.card_id = text(value.card_id, "conflict_copy_child_choice.card_id", 1, SIZE_MAX);
+  return out;
+}
+
+std::vector<contract::ConflictCopyChildChoice> from_c_list(
+    const holder_conflict_copy_child_choice_list& values,
+    const char* name
+) {
+  require(
+      values.items != nullptr || values.count == 0,
+      std::string(name) + ".items must not be null"
+  );
+  std::vector<contract::ConflictCopyChildChoice> out;
+  out.reserve(values.count);
+  for (std::size_t i = 0; i < values.count; ++i)
+    out.push_back(from_c(values.items[i]));
+  return out;
+}
+
+contract::ConflictCopyBacklinkSource from_c(const holder_conflict_copy_backlink_source& value) {
+  contract::ConflictCopyBacklinkSource out;
+  out.source_project_id =
+      text(value.source_project_id, "conflict_copy_backlink_source.source_project_id", 1, SIZE_MAX);
+  out.source_id = text(value.source_id, "conflict_copy_backlink_source.source_id", 1, SIZE_MAX);
+  out.kind = text(value.kind, "conflict_copy_backlink_source.kind", 1, SIZE_MAX);
+  return out;
+}
+
+std::vector<contract::ConflictCopyBacklinkSource> from_c_list(
+    const holder_conflict_copy_backlink_source_list& values,
+    const char* name
+) {
+  require(
+      values.items != nullptr || values.count == 0,
+      std::string(name) + ".items must not be null"
+  );
+  std::vector<contract::ConflictCopyBacklinkSource> out;
+  out.reserve(values.count);
+  for (std::size_t i = 0; i < values.count; ++i)
+    out.push_back(from_c(values.items[i]));
+  return out;
+}
+
 contract::TrashConflictCopyRequest from_c(const holder_trash_conflict_copy_request& value) {
   contract::TrashConflictCopyRequest out;
   out.cleanup_token =
       text(value.cleanup_token, "trash_conflict_copy_request.cleanup_token", 1, 256);
+  out.carry_links =
+      (value.carry_links
+           ? std::optional<std::vector<contract::ConflictCopyLinkTarget>>(
+                 from_c_list(*value.carry_links, "trash_conflict_copy_request.carry_links")
+             )
+           : std::nullopt);
+  out.carry_milestones =
+      (value.carry_milestones
+           ? std::optional<std::vector<contract::ConflictCopyMilestoneChoice>>(from_c_list(
+                 *value.carry_milestones,
+                 "trash_conflict_copy_request.carry_milestones"
+             ))
+           : std::nullopt);
+  out.carry_tags =
+      (value.carry_tags
+           ? std::optional<std::vector<contract::ConflictCopyTagChoice>>(
+                 from_c_list(*value.carry_tags, "trash_conflict_copy_request.carry_tags")
+             )
+           : std::nullopt);
+  out.adopt_children =
+      (value.adopt_children
+           ? std::optional<std::vector<contract::ConflictCopyChildChoice>>(
+                 from_c_list(*value.adopt_children, "trash_conflict_copy_request.adopt_children")
+             )
+           : std::nullopt);
+  out.retarget_backlinks =
+      (value.retarget_backlinks
+           ? std::optional<std::vector<contract::ConflictCopyBacklinkSource>>(from_c_list(
+                 *value.retarget_backlinks,
+                 "trash_conflict_copy_request.retarget_backlinks"
+             ))
+           : std::nullopt);
   return out;
 }
 
@@ -4132,6 +4335,32 @@ int holder_resolve_conflict_copy(
         contract::resolve_conflict_copy(*context, project_id_value, copy_id_value, resolution_value)
     );
     *out_conflict_resolution_result = out;
+  });
+}
+
+int holder_separate_conflict_copy(
+    holder_context* context,
+    const char* project_id,
+    const char* copy_id,
+    const holder_separate_conflict_copy_request* request,
+    holder_arena* arena,
+    const holder_card** out_card,
+    holder_error** out_error
+) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card != nullptr, "out_card must not be null");
+    *out_card = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto copy_id_value = text(copy_id, "copy_id", 1, SIZE_MAX);
+    require(request != nullptr, "request must not be null");
+    const auto request_value = from_c(*request);
+    auto* out = make<holder_card>(arena);
+    *out = to_c(
+        arena,
+        contract::separate_conflict_copy(*context, project_id_value, copy_id_value, request_value)
+    );
+    *out_card = out;
   });
 }
 

@@ -5,11 +5,11 @@ Everything lives under one sandbox folder: its own Holder data, config, cache an
 its own daemon on its own port, and a local bare Git remote plus an "other machine" clone for
 each scenario. Your real Holder data, daemon and keyring are never touched.
 
-    python3 scripts/dev/conflict-sandbox/sandbox.py setup          # every scenario
-    python3 scripts/dev/conflict-sandbox/sandbox.py setup basic crlf
-    python3 scripts/dev/conflict-sandbox/sandbox.py desktop        # open Desktop on the sandbox
-    python3 scripts/dev/conflict-sandbox/sandbox.py env            # exports for your own shell
-    python3 scripts/dev/conflict-sandbox/sandbox.py stop | reset | list
+    python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py setup          # every scenario
+    python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py setup basic crlf
+    python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py desktop        # open Desktop on the sandbox
+    python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py env            # exports for your own shell
+    python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py stop | reset | list
 
 See README.md next to this file.
 """
@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
+REPO = Path(__file__).resolve().parents[5]
 EXE = ".exe" if os.name == "nt" else ""
 DEFAULT_ROOT = Path(tempfile.gettempdir()) / "holder-conflict-sandbox"
 DEFAULT_PORT = 11599  # The real daemon defaults to 11499; never share it.
@@ -450,9 +450,30 @@ def trashed_remote(ctx: Context) -> None:
     ctx.other.push("Delete card Loose idea")
 
 
+def hamlet_build(project) -> dict[str, object]:
+    return {"card": project.cards.create(title="Hamlet", content="Enter Hamlet.\nTo be, or not to be\n")}
+
+
+def hamlet_local(ctx: Context) -> None:
+    # The first quarto's reading.
+    ctx.cards["card"].update(content="Enter Hamlet.\n"
+                                     "To be, or not to be, ay, there's the point,\n"
+                                     "To die, to sleep, is that all? Ay, all:\n")
+
+
+def hamlet_remote(ctx: Context) -> None:
+    # The Folio's.
+    ctx.other.set_body(ctx.cards["card"].id, "Enter Hamlet.\n"
+                                             "To be, or not to be, that is the question:\n"
+                                             "Whether 'tis nobler in the mind to suffer\n")
+    ctx.other.push("Edit Hamlet elsewhere")
+
+
 SCENARIOS = [
     Scenario("basic", "Both sides edit the same line; the other machine also renames the card.",
              one_card, basic_local, basic_remote),
+    Scenario("hamlet", "A demo: the same line of Hamlet rewritten two ways, each adding a second line.",
+             hamlet_build, hamlet_local, hamlet_remote),
     Scenario("children", "A parent and its child conflict, so the copy has a child of its own.",
              family, family_local, family_remote),
     Scenario("original-under-copy", "The original is moved under its copy; Trash is blocked.",
@@ -487,7 +508,7 @@ SCENARIOS = [
 BY_NAME = {s.name: s for s in SCENARIOS}
 
 
-def run_scenario(holder, root: Path, scenario: Scenario) -> bool:
+def run_scenario(holder, root: Path, scenario: Scenario, pending: bool = False) -> bool:
     name = f"Conflict: {scenario.name}"
     for existing in holder.projects.filter(name=name):
         if existing.name == name:
@@ -514,6 +535,11 @@ def run_scenario(holder, root: Path, scenario: Scenario) -> bool:
     ctx = Context(project, other, cards)
     scenario.local(ctx)    # Committed here, not pushed.
     scenario.remote(ctx)   # Committed and pushed from the other clone.
+    if pending:
+        # Left for Desktop's Sync now or the next background pull.
+        note = "  (its extra step runs only without --pending)" if scenario.after else ""
+        print(f"  {scenario.name:<20} {'waiting for a pull':<21} {scenario.summary}{note}")
+        return True
     result = project.git.pull()
     if not result.succeeded:
         print(f"  {scenario.name:<20} {'PULL FAILED':<21} {scenario.summary}\n"
@@ -545,10 +571,14 @@ def cmd_setup(args: argparse.Namespace) -> None:
     start_daemon(root, holderctl, holderd, args.port)
     print("Scenarios:")
     with connect(holderctl) as holder:
-        unexpected = [s.name for s in chosen if not run_scenario(holder, root, s)]
+        unexpected = [s.name for s in chosen if not run_scenario(holder, root, s, args.pending)]
     print("\nOpen Desktop on the sandbox with:\n"
           f"  python3 {Path(__file__).relative_to(REPO)} desktop"
           + ("" if root == DEFAULT_ROOT else f" --root {root}"))
+    if args.pending:
+        print("\nBoth machines have edited, and nothing is pulled yet. Open a 'Conflict: …' project "
+              "and click Sync now in Git Sync, or leave it open for the background pull (within "
+              "about five minutes of now). The conflict appears with its toast.")
     if unexpected:
         sys.exit(f"\nUnexpected outcome for: {', '.join(unexpected)}. The daemon may predate or "
                  "postdate the merge rules this script expects.")
@@ -561,7 +591,23 @@ def cmd_desktop(args: argparse.Namespace) -> None:
     desktop = find_binary("desktop", args.desktop, "HOLDER_SANDBOX_DESKTOP",
                           [build / f"holder-desktop{EXE}", build / "src" / f"holder-desktop{EXE}"])
     print(f"Starting {desktop}. Open a 'Conflict: …' project, then Git Sync → Compare versions.")
-    subprocess.run([str(desktop)], env=os.environ.copy(), check=False)
+    subprocess.run([str(desktop)], env=desktop_env(desktop), check=False)
+
+
+def desktop_env(desktop: Path) -> dict[str, str]:
+    """Desktop's environment: the sandbox's, with this build's settings schema and the sandbox's
+    own settings. A Holder schema installed elsewhere may be older than the build, and GLib aborts
+    when the build asks it for a key it lacks; GSETTINGS_SCHEMA_DIR is searched first. The keyfile
+    backend keeps preferences under the sandbox's config folder, so they never touch your own
+    Desktop's and reset deletes them."""
+    env = os.environ.copy()
+    for data in (desktop.parent / "data", desktop.parent.parent / "data"):
+        if (data / "gschemas.compiled").is_file():
+            existing = env.get("GSETTINGS_SCHEMA_DIR")
+            env["GSETTINGS_SCHEMA_DIR"] = str(data) + (os.pathsep + existing if existing else "")
+            break
+    env["GSETTINGS_BACKEND"] = "keyfile"
+    return env
 
 
 def cmd_env(args: argparse.Namespace) -> None:
@@ -609,6 +655,8 @@ def main() -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     setup = commands.add_parser("setup", help="start the sandbox daemon and build scenarios")
     setup.add_argument("scenarios", nargs="*", help="scenario names (default: all)")
+    setup.add_argument("--pending", action="store_true",
+                       help="stop before the pull, so it happens with Desktop open and shows its toast")
     setup.set_defaults(run=cmd_setup)
     commands.add_parser("desktop", help="open Desktop on the sandbox").set_defaults(run=cmd_desktop)
     commands.add_parser("env", help="print environment exports for your shell").set_defaults(run=cmd_env)

@@ -137,10 +137,16 @@ from .conflict_changed_line import ConflictChangedLine
 from .conflict_comparison import ConflictComparison
 from .conflict_comparison_response import ConflictComparisonResponse
 from .conflict_copy import ConflictCopy
+from .conflict_copy_backlink_source import ConflictCopyBacklinkSource
+from .conflict_copy_child_choice import ConflictCopyChildChoice
 from .conflict_copy_cleanup_review import ConflictCopyCleanupReview
+from .conflict_copy_link_target import ConflictCopyLinkTarget
+from .conflict_copy_milestone_choice import ConflictCopyMilestoneChoice
+from .conflict_copy_tag_choice import ConflictCopyTagChoice
 from .conflict_resolution import ConflictResolution
 from .conflict_resolution_result import ConflictResolutionResult
 from .conflict_resolution_result_response import ConflictResolutionResultResponse
+from .conflict_version_edited_on import ConflictVersionEditedOn
 from .delete_projects_project_id_cards_card_id_children import (
     DeleteProjectsProjectIdCardsCardIdChildren,
 )
@@ -281,6 +287,7 @@ from .search_card import SearchCard
 from .search_card_list_response import SearchCardListResponse
 from .search_message import SearchMessage
 from .search_message_list_response import SearchMessageListResponse
+from .separate_conflict_copy_request import SeparateConflictCopyRequest
 from .storage_location_list_response import StorageLocationListResponse
 from .storage_location_update import StorageLocationUpdate
 from .sync_result import SyncResult
@@ -435,10 +442,16 @@ __all__ = (
     "ConflictComparison",
     "ConflictComparisonResponse",
     "ConflictCopy",
+    "ConflictCopyBacklinkSource",
+    "ConflictCopyChildChoice",
     "ConflictCopyCleanupReview",
+    "ConflictCopyLinkTarget",
+    "ConflictCopyMilestoneChoice",
+    "ConflictCopyTagChoice",
     "ConflictResolution",
     "ConflictResolutionResult",
     "ConflictResolutionResultResponse",
+    "ConflictVersionEditedOn",
     "DeleteProjectsProjectIdCardsCardIdChildren",
     "DueSyncResult",
     "DueSyncResultResponse",
@@ -561,6 +574,7 @@ __all__ = (
     "SearchCardListResponse",
     "SearchMessage",
     "SearchMessageListResponse",
+    "SeparateConflictCopyRequest",
     "StorageLocationListResponse",
     "StorageLocationUpdate",
     "SyncResult",

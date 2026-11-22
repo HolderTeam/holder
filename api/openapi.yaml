@@ -4687,16 +4687,89 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /projects/{project_id}/git/conflict-copies/{copy_id}/separation:
+    post:
+      summary: Keep a preserved copy as an ordinary card instead of resolving it into the original.
+      description: 'Holder verifies the token against both live cards before changing anything. A stale
+        token is
+
+        Conflict. A missing association or a card that is missing or in Trash is NotFound. The copy takes
+
+        the new title and loses its recorded association with the original, in one Git commit, so it is
+
+        no longer listed as a conflict copy. Both cards keep their content, place, links and milestones.'
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: copy_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/CardId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SeparateConflictCopyRequest'}
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CardResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: 'The request conflicts with what exists: what would be created already exists,
+            such as a card with the same ID or file, or the thing to change is not in the state the request
+            needs, such as restoring a card that is not in the trash, or removing a tag that a card would
+            still carry in its prose. An encrypted project''s key is not on this device; the project''s
+            recovery token restores it.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/git/conflict-copies/{copy_id}/trash:
     post:
       summary: Move a reviewed conflict copy to Trash after choosing a result.
       description: 'Holder verifies the cleanup token against both live cards and the reviewed effects.
 
-        A stale token or cleanup that would move the original is Conflict. A missing association
+        A stale token, cleanup that would move the original, or a detail to carry over that the review
 
-        or a card missing or in Trash is NotFound.
+        did not list is Conflict. A missing association or a card missing or in Trash is NotFound.
 
-        The original is untouched. The copy can be restored and its live children move up a level.'
+        Holder first carries the chosen details over to the original: links, milestones and tags are
+
+        added to it, chosen children move under it, and chosen card links to the copy point at it
+
+        instead. Each is its own change. The original is otherwise untouched. The copy can be restored,
+
+        and its other live children move up a level.'
       parameters:
       - name: project_id
         in: path
@@ -8676,11 +8749,16 @@ components:
           description: One-based lines of the copy's content that differ from the original.
         truncated: {type: boolean, title: Truncated, description: Whether the bounded diff could only
             highlight part of the change.}
+        original_edited_on: {$ref: '#/components/schemas/ConflictVersionEditedOn', description: Which
+            device made the latest change to the original.}
+        copy_edited_on: {$ref: '#/components/schemas/ConflictVersionEditedOn', description: Which device
+            made the latest change to the preserved copy.}
         review_token: {type: string, title: Review Token, description: 'An opaque token for both reviewed
             versions, required when saving a resolution.'}
       additionalProperties: false
       type: object
-      required: [original, copy_card, original_changed_lines, copy_changed_lines, truncated, review_token]
+      required: [original, copy_card, original_changed_lines, copy_changed_lines, truncated, original_edited_on,
+        copy_edited_on, review_token]
       title: ConflictComparison
       description: The two live cards in a recorded conflict pair, read together for review.
     ConflictComparisonResponse:
@@ -8706,6 +8784,25 @@ components:
       required: [original_card_id, original, copy_card]
       title: ConflictCopy
       description: A local card version preserved during a divergent pull.
+    ConflictCopyBacklinkSource:
+      properties:
+        source_project_id: {$ref: '#/components/schemas/ProjectId', description: The project of the card
+            the link is from.}
+        source_id: {$ref: '#/components/schemas/CardId', description: The card the link is from.}
+        kind: {$ref: '#/components/schemas/LinkKind', description: What the link means.}
+      additionalProperties: false
+      type: object
+      required: [source_project_id, source_id, kind]
+      title: ConflictCopyBacklinkSource
+      description: A card's link to the copy, as the cleanup review listed it in backlinks.
+    ConflictCopyChildChoice:
+      properties:
+        card_id: {$ref: '#/components/schemas/CardId', description: The child's ID.}
+      additionalProperties: false
+      type: object
+      required: [card_id]
+      title: ConflictCopyChildChoice
+      description: One card from the cleanup review's children.
     ConflictCopyCleanupReview:
       properties:
         cleanup_token: {type: string, title: Cleanup Token, description: 'An opaque token for the saved
@@ -8750,6 +8847,36 @@ components:
         preserves_original, copy_tags]
       title: ConflictCopyCleanupReview
       description: What stays on the preserved copy or is affected if the copy moves to Trash.
+    ConflictCopyLinkTarget:
+      properties:
+        target_project_id: {$ref: '#/components/schemas/ProjectId', description: The project of what the
+            link points at.}
+        target_type: {$ref: '#/components/schemas/LinkTargetType', description: What the link points at.}
+        target_id: {$ref: '#/components/schemas/LinkTargetId', description: The ID of what the link points
+            at.}
+        kind: {$ref: '#/components/schemas/LinkKind', description: What the link means.}
+      additionalProperties: false
+      type: object
+      required: [target_project_id, target_type, target_id, kind]
+      title: ConflictCopyLinkTarget
+      description: One of the copy's own links, as the cleanup review listed it in copy_links.
+    ConflictCopyMilestoneChoice:
+      properties:
+        milestone_id: {$ref: '#/components/schemas/MilestoneId', description: The milestone's ID on the
+            copy.}
+      additionalProperties: false
+      type: object
+      required: [milestone_id]
+      title: ConflictCopyMilestoneChoice
+      description: One milestone from the cleanup review's copy_milestones.
+    ConflictCopyTagChoice:
+      properties:
+        tag: {type: string, minLength: 1, title: Tag, description: 'The tag, without its #.'}
+      additionalProperties: false
+      type: object
+      required: [tag]
+      title: ConflictCopyTagChoice
+      description: One tag from the cleanup review's copy_tags.
     ConflictResolution:
       properties:
         review_token: {type: string, maxLength: 256, minLength: 1, title: Review Token, description: The
@@ -8779,6 +8906,9 @@ components:
       type: object
       required: [ok, data]
       title: ConflictResolutionResultResponse
+    ConflictVersionEditedOn:
+      type: string
+      enum: [this_device, another_device, unknown]
     DateTime: {type: string, maxLength: 25, minLength: 20}
     Day: {type: string, maxLength: 10, minLength: 10}
     DueSyncResult:
@@ -10315,6 +10445,17 @@ components:
       type: object
       required: [ok, data]
       title: SearchMessageListResponse
+    SeparateConflictCopyRequest:
+      properties:
+        review_token: {type: string, maxLength: 256, minLength: 1, title: Review Token, description: The
+            token returned with the reviewed comparison.}
+        title: {type: string, minLength: 1, title: Title, description: 'The copy''s new title, usually
+            without the "(conflicted copy)" suffix.'}
+      additionalProperties: false
+      type: object
+      required: [review_token, title]
+      title: SeparateConflictCopyRequest
+      description: The reviewed pair and the title the preserved copy keeps as a card of its own.
     StorageLocationListResponse:
       properties:
         ok: {type: boolean, title: Ok, description: Whether the request succeeded.}
@@ -10514,11 +10655,43 @@ components:
       properties:
         cleanup_token: {type: string, maxLength: 256, minLength: 1, title: Cleanup Token, description: The
             token returned with the cleanup review.}
+        carry_links:
+          items: {$ref: '#/components/schemas/ConflictCopyLinkTarget'}
+          type: array
+          title: Carry Links
+          description: Links from copy_links to make on the original, with their labels.
+        carry_milestones:
+          items: {$ref: '#/components/schemas/ConflictCopyMilestoneChoice'}
+          type: array
+          title: Carry Milestones
+          description: Milestones from copy_milestones to put on the original, as new milestones with
+            the same dates.
+        carry_tags:
+          items: {$ref: '#/components/schemas/ConflictCopyTagChoice'}
+          type: array
+          title: Carry Tags
+          description: Tags from copy_tags to add to the original.
+        adopt_children:
+          items: {$ref: '#/components/schemas/ConflictCopyChildChoice'}
+          type: array
+          title: Adopt Children
+          description: Children of the copy to move under the original instead of up a level.
+        retarget_backlinks:
+          items: {$ref: '#/components/schemas/ConflictCopyBacklinkSource'}
+          type: array
+          title: Retarget Backlinks
+          description: Card links from backlinks to point at the original instead of the copy.
       additionalProperties: false
       type: object
       required: [cleanup_token]
       title: TrashConflictCopyRequest
-      description: Confirmation of the cleanup effects returned when the resolution was saved.
+      description: 'Confirmation of the cleanup effects returned when the resolution was saved, and which
+        of the copy''s own
+
+        details to carry over to the original first. Everything named must be in the reviewed cleanup;
+        anything not
+
+        carried over stays with the copy in Trash.'
     TrashDeleteResult:
       properties:
         card_id:

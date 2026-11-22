@@ -6,7 +6,7 @@ from fastapi import Body, Path, Query
 
 from authoring import Contract, Int32
 
-from ..cards.models import CardId, CardMetadata
+from ..cards.models import Card, CardId, CardMetadata
 from ..errors import Conflict, DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..projects.ids import ProjectId
 from .models import (
@@ -17,6 +17,7 @@ from .models import (
     PushOptions,
     RemoteTest,
     RemoteTestResult,
+    SeparateConflictCopyRequest,
     SyncResult,
     SyncState,
     TrashConflictCopyRequest,
@@ -57,6 +58,21 @@ def register(contract: Contract) -> None:
         includes a review for optional cleanup of the preserved copy.
         """
 
+    @contract.route("POST", "/projects/{project_id}/git/conflict-copies/{copy_id}/separation",
+                    errors=[NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted])
+    def separate_conflict_copy(
+        project_id: Annotated[ProjectId, Path()],
+        copy_id: Annotated[CardId, Path()],
+        request: Annotated[SeparateConflictCopyRequest, Body()],
+    ) -> Card:
+        """Keep a preserved copy as an ordinary card instead of resolving it into the original.
+
+        Holder verifies the token against both live cards before changing anything. A stale token is
+        Conflict. A missing association or a card that is missing or in Trash is NotFound. The copy takes
+        the new title and loses its recorded association with the original, in one Git commit, so it is
+        no longer listed as a conflict copy. Both cards keep their content, place, links and milestones.
+        """
+
     @contract.route("POST", "/projects/{project_id}/git/conflict-copies/{copy_id}/trash",
                     errors=[NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted])
     def trash_conflict_copy(
@@ -67,9 +83,12 @@ def register(contract: Contract) -> None:
         """Move a reviewed conflict copy to Trash after choosing a result.
 
         Holder verifies the cleanup token against both live cards and the reviewed effects.
-        A stale token or cleanup that would move the original is Conflict. A missing association
-        or a card missing or in Trash is NotFound.
-        The original is untouched. The copy can be restored and its live children move up a level.
+        A stale token, cleanup that would move the original, or a detail to carry over that the review
+        did not list is Conflict. A missing association or a card missing or in Trash is NotFound.
+        Holder first carries the chosen details over to the original: links, milestones and tags are
+        added to it, chosen children move under it, and chosen card links to the copy point at it
+        instead. Each is its own change. The original is otherwise untouched. The copy can be restored,
+        and its other live children move up a level.
         """
 
     @contract.route("POST", "/projects/{project_id}/git/pull",

@@ -522,9 +522,97 @@ typedef struct holder_conflict_resolution {
   const char* content; /* The replacement card content, which can be empty. */
 } holder_conflict_resolution;
 
-/* Confirmation of the cleanup effects returned when the resolution was saved. */
+/* The reviewed pair and the title the preserved copy keeps as a card of its own. */
+typedef struct holder_separate_conflict_copy_request {
+  const char* review_token; /* The token returned with the reviewed comparison. */
+  const char* title; /* The copy's new title, usually without the "(conflicted copy)" suffix. */
+} holder_separate_conflict_copy_request;
+
+/* What the link points at. */
+typedef enum holder_conflict_copy_link_target_target_type {
+  HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_CARD = 1,
+  HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_AI_MESSAGE = 2,
+  HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_AI_THREAD = 3,
+  HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_RESOURCE = 4,
+  HOLDER_CONFLICT_COPY_LINK_TARGET_TARGET_TYPE_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_conflict_copy_link_target_target_type;
+
+/* One of the copy's own links, as the cleanup review listed it in copy_links. */
+typedef struct holder_conflict_copy_link_target {
+  const char* target_project_id; /* The project of what the link points at. */
+  holder_conflict_copy_link_target_target_type target_type; /* What the link points at. */
+  const char* target_id; /* The ID of what the link points at. */
+  const char* kind; /* What the link means. */
+} holder_conflict_copy_link_target;
+
+typedef struct holder_conflict_copy_link_target_list {
+  const holder_conflict_copy_link_target* items;
+  size_t count;
+} holder_conflict_copy_link_target_list;
+
+/* One milestone from the cleanup review's copy_milestones. */
+typedef struct holder_conflict_copy_milestone_choice {
+  const char* milestone_id; /* The milestone's ID on the copy. */
+} holder_conflict_copy_milestone_choice;
+
+typedef struct holder_conflict_copy_milestone_choice_list {
+  const holder_conflict_copy_milestone_choice* items;
+  size_t count;
+} holder_conflict_copy_milestone_choice_list;
+
+/* One tag from the cleanup review's copy_tags. */
+typedef struct holder_conflict_copy_tag_choice {
+  const char* tag; /* The tag, without its #. */
+} holder_conflict_copy_tag_choice;
+
+typedef struct holder_conflict_copy_tag_choice_list {
+  const holder_conflict_copy_tag_choice* items;
+  size_t count;
+} holder_conflict_copy_tag_choice_list;
+
+/* One card from the cleanup review's children. */
+typedef struct holder_conflict_copy_child_choice {
+  const char* card_id; /* The child's ID. */
+} holder_conflict_copy_child_choice;
+
+typedef struct holder_conflict_copy_child_choice_list {
+  const holder_conflict_copy_child_choice* items;
+  size_t count;
+} holder_conflict_copy_child_choice_list;
+
+/* A card's link to the copy, as the cleanup review listed it in backlinks. */
+typedef struct holder_conflict_copy_backlink_source {
+  const char* source_project_id; /* The project of the card the link is from. */
+  const char* source_id; /* The card the link is from. */
+  const char* kind; /* What the link means. */
+} holder_conflict_copy_backlink_source;
+
+typedef struct holder_conflict_copy_backlink_source_list {
+  const holder_conflict_copy_backlink_source* items;
+  size_t count;
+} holder_conflict_copy_backlink_source_list;
+
+/* Confirmation of the cleanup effects returned when the resolution was saved, and which of the
+ * copy's own details to carry over to the original first. Everything named must be in the reviewed
+ * cleanup; anything not carried over stays with the copy in Trash.
+ */
 typedef struct holder_trash_conflict_copy_request {
   const char* cleanup_token; /* The token returned with the cleanup review. */
+  const holder_conflict_copy_link_target_list*
+      carry_links; /* Links from copy_links to make on the original, with their labels. NULL when
+                      absent. */
+  const holder_conflict_copy_milestone_choice_list*
+      carry_milestones; /* Milestones from copy_milestones to put on the original, as new milestones
+                           with the same dates. NULL when absent. */
+  const holder_conflict_copy_tag_choice_list*
+      carry_tags; /* Tags from copy_tags to add to the original. NULL when absent. */
+  const holder_conflict_copy_child_choice_list*
+      adopt_children; /* Children of the copy to move under the original instead of up a level. NULL
+                         when absent. */
+  const holder_conflict_copy_backlink_source_list*
+      retarget_backlinks; /* Card links from backlinks to point at the original instead of the copy.
+                             NULL when absent. */
 } holder_trash_conflict_copy_request;
 
 /* How to push. */
@@ -1338,6 +1426,24 @@ typedef struct holder_conflict_changed_line_list {
   size_t count;
 } holder_conflict_changed_line_list;
 
+/* Which device made the latest change to the original. */
+typedef enum holder_conflict_comparison_original_edited_on {
+  HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_THIS_DEVICE = 1,
+  HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_ANOTHER_DEVICE = 2,
+  HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_UNKNOWN = 3,
+  HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_conflict_comparison_original_edited_on;
+
+/* Which device made the latest change to the preserved copy. */
+typedef enum holder_conflict_comparison_copy_edited_on {
+  HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_THIS_DEVICE = 1,
+  HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_ANOTHER_DEVICE = 2,
+  HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_UNKNOWN = 3,
+  HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_MAX_ENUM =
+      0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_conflict_comparison_copy_edited_on;
+
 /* The two live cards in a recorded conflict pair, read together for review. */
 typedef struct holder_conflict_comparison {
   holder_card original; /* The current state of the original card. */
@@ -1347,6 +1453,10 @@ typedef struct holder_conflict_comparison {
   holder_conflict_changed_line_list
       copy_changed_lines; /* One-based lines of the copy's content that differ from the original. */
   bool truncated; /* Whether the bounded diff could only highlight part of the change. */
+  holder_conflict_comparison_original_edited_on
+      original_edited_on; /* Which device made the latest change to the original. */
+  holder_conflict_comparison_copy_edited_on
+      copy_edited_on; /* Which device made the latest change to the preserved copy. */
   const char* review_token; /* An opaque token for both reviewed versions, required when saving a
                                resolution. */
 } holder_conflict_comparison;
@@ -2818,11 +2928,32 @@ int holder_resolve_conflict_copy(
     holder_error** out_error
 );
 
+/* Keep a preserved copy as an ordinary card instead of resolving it into the original.
+ * Holder verifies the token against both live cards before changing anything. A stale token is
+ * Conflict. A missing association or a card that is missing or in Trash is NotFound. The copy takes
+ * the new title and loses its recorded association with the original, in one Git commit, so it is
+ * no longer listed as a conflict copy. Both cards keep their content, place, links and milestones.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE,
+ * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_separate_conflict_copy(
+    holder_context* context,
+    const char* project_id,
+    const char* copy_id,
+    const holder_separate_conflict_copy_request* request,
+    holder_arena* arena,
+    const holder_card** out_card,
+    holder_error** out_error
+);
+
 /* Move a reviewed conflict copy to Trash after choosing a result.
  * Holder verifies the cleanup token against both live cards and the reviewed effects.
- * A stale token or cleanup that would move the original is Conflict. A missing association
- * or a card missing or in Trash is NotFound.
- * The original is untouched. The copy can be restored and its live children move up a level.
+ * A stale token, cleanup that would move the original, or a detail to carry over that the review
+ * did not list is Conflict. A missing association or a card missing or in Trash is NotFound.
+ * Holder first carries the chosen details over to the original: links, milestones and tags are
+ * added to it, chosen children move under it, and chosen card links to the copy point at it
+ * instead. Each is its own change. The original is otherwise untouched. The copy can be restored,
+ * and its other live children move up a level.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE,
  * HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */

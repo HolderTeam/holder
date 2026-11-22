@@ -305,6 +305,10 @@ trash_conflict_copy(holder_context& context, std::string, std::string, const Tra
   context.invoke("trash_conflict_copy");
   return {};
 }
+Card separate_conflict_copy(holder_context& context, std::string, std::string, const SeparateConflictCopyRequest&) {
+  context.invoke("separate_conflict_copy");
+  return {};
+}
 SyncResult pull_project(holder_context& context, std::string) {
   context.invoke("pull_project");
   return {};
@@ -1446,6 +1450,37 @@ TEST_CASE(
        "POST",
        "/projects/a/git/conflict-copies/b/trash",
        R"({"cleanup_token":"a"})",
+       {
+           {"conflict",
+            409,
+            [] {
+              throw holder::contract::Conflict("operation rejected");
+            }},
+           {"not_found",
+            404,
+            [] {
+              throw holder::contract::NotFound("operation rejected");
+            }},
+           {"keyring_unavailable",
+            503,
+            [] {
+              throw holder::contract::KeyringUnavailable("operation rejected");
+            }},
+           {"key_missing",
+            409,
+            [] {
+              throw holder::contract::KeyMissing("operation rejected");
+            }},
+           {"data_corrupted",
+            500,
+            [] {
+              throw holder::contract::DataCorrupted("operation rejected");
+            }},
+       }},
+      {"separate_conflict_copy",
+       "POST",
+       "/projects/a/git/conflict-copies/b/separation",
+       R"({"review_token":"a","title":"a"})",
        {
            {"conflict",
             409,

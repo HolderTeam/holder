@@ -4,9 +4,9 @@ Builds a throwaway Holder full of Git conflict copies, so you can open Desktop a
 **Git Sync → Compare versions** without setting up two machines.
 
 ```sh
-python3 scripts/dev/conflict-sandbox/sandbox.py setup     # build every scenario
-python3 scripts/dev/conflict-sandbox/sandbox.py desktop   # open Desktop on the sandbox
-python3 scripts/dev/conflict-sandbox/sandbox.py reset     # stop it and delete everything
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py setup     # build every scenario
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py desktop   # open Desktop on the sandbox
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py reset     # stop it and delete everything
 ```
 
 On Windows use `py` instead of `python3`.
@@ -36,6 +36,7 @@ These end in a conflict copy to compare:
 | Name | What to look at |
 | --- | --- |
 | `basic` | The same line edited on both sides; the other machine also renamed the card. |
+| `hamlet` | A demo. The card reads "Enter Hamlet." then "To be, or not to be"; the first line never changes. This machine makes it "To be, or not to be, ay, there's the point," and adds "To die, to sleep, is that all? Ay, all:"; the other makes it "To be, or not to be, that is the question:" and adds "Whether 'tis nobler in the mind to suffer". |
 | `children` | A parent and child both conflict, so the copy has a child of its own. Cleanup shows where it would move. |
 | `original-under-copy` | The original has been moved under its copy, so **Move copy to Trash** is blocked. |
 | `copy-extras` | Tags, a link and a milestone only on the copy, and another card linking to the copy. |
@@ -63,6 +64,23 @@ quick check of the merge rules against a daemon build.
 `setup basic crlf` builds only those. `list` prints them. Running `setup` again for a scenario
 that exists asks you to `reset` first.
 
+## Seeing the toasts
+
+Setup pulls each scenario straight away, before Desktop is open, so the conflict is already there
+when Desktop starts and no toast is shown. To see it as a user would, stop before the pull:
+
+```sh
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py setup --pending basic
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py desktop
+```
+
+Both machines have made their edits, and nothing is pulled. Open "Conflict: basic" and click
+**Sync now** in Git Sync, or leave it open: the daemon's background pull comes within about five
+minutes of setup. The conflict appears, and Desktop shows "Pulled changes from another device…"
+with **Compare**. Use a merge scenario, such as `different-lines`, for the toast without a copy.
+To try again, `reset` and run setup again. With `--pending`, setup cannot check the outcome, and
+the extra step of `original-under-copy` and `copy-extras` is skipped.
+
 ## Options and binaries
 
 By default the script uses `daemon/build/holderctl` and `holderd` (also `Debug/`, `Release/` and
@@ -77,11 +95,16 @@ uses the Holder Python library from this checkout if it isn't installed.
 To use `holderctl` or your own scripts against the sandbox, load its environment:
 
 ```sh
-eval "$(python3 scripts/dev/conflict-sandbox/sandbox.py env)"      # bash/zsh
-python3 scripts/dev/conflict-sandbox/sandbox.py env | Invoke-Expression   # PowerShell
+eval "$(python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py env)"      # bash/zsh
+python3 apps/desktop/gtk/scripts/conflict-sandbox/sandbox.py env | Invoke-Expression   # PowerShell
 ```
 
 ## Troubleshooting
+
+- **"Settings schema 'team.holder.Holder' does not contain a key named …"**: an older Holder
+  schema is installed on the machine. `desktop` puts the build's own schema first, so update this
+  script. Desktop run that way keeps its preferences in `<root>/config`, apart from your own, and
+  `reset` deletes them.
 
 - **"The other machine's push was rejected"**: the sandbox daemon's background sync pushed
   first. Run `reset` and `setup` again.

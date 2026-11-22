@@ -21,6 +21,7 @@
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
+#include <vector>
 
 namespace {
 
@@ -1370,4 +1371,33 @@ TEST_CASE("Card history rejects limits outside the supported range", "[history]"
         "history limit must be between 1 and 200"
     );
   }
+}
+
+// The conflict comparison dialog highlights these line numbers, and Desktop counts lines the same
+// way: only "\n" ends a line, so CRLF content keeps its numbering and a trailing newline adds an
+// empty last line.
+TEST_CASE("Card text comparison numbers lines by newline only", "[history]") {
+  bool truncated = true;
+  const auto lines = holder::history::compare_card_text(
+      "one\r\ntwo\r\nthree\r\n",
+      "one\r\nTWO\r\nthree\r\nfour",
+      truncated
+  );
+  CHECK_FALSE(truncated);
+  std::vector<long long> removed;
+  std::vector<long long> added;
+  for (const auto& line : lines) {
+    if (line.origin == '-') removed.push_back(line.old_line);
+    if (line.origin == '+') added.push_back(line.new_line);
+  }
+  // The original's empty fourth line (after its trailing newline) became "four".
+  CHECK(removed == std::vector<long long>{2, 4});
+  CHECK(added == std::vector<long long>{2, 4});
+
+  // A lone "\r" is not a line break.
+  const auto lone_cr = holder::history::compare_card_text("a\rb\nc", "a\rb\nC", truncated);
+  added.clear();
+  for (const auto& line : lone_cr)
+    if (line.origin == '+') added.push_back(line.new_line);
+  CHECK(added == std::vector<long long>{2});
 }

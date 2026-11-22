@@ -8,6 +8,7 @@
 
 #include "sync/PullConflictResolution.h"
 
+#include "api/Contract.h"
 #include "capi/Context.h"
 #include "card/CardFrontMatter.h"
 #include "card/CardPaths.h"
@@ -672,6 +673,22 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
   CHECK(std::string(pairs.at(parent.card_id).copy_card.card_id) == parent_copy->card_id);
   CHECK(std::string(pairs.at(child.card_id).copy_card.card_id) == child_copy->card_id);
 
+  // The original holds the version pulled from the other clone, and the copy holds this one's.
+  const holder_conflict_comparison* pulled = nullptr;
+  holder_error* pulled_error = nullptr;
+  REQUIRE(
+      holder_compare_conflict_copy(
+          &context,
+          project_id.c_str(),
+          parent_copy->card_id.c_str(),
+          arena.get(),
+          &pulled,
+          &pulled_error
+      ) == HOLDER_OK
+  );
+  CHECK(pulled->original_edited_on == HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_ANOTHER_DEVICE);
+  CHECK(pulled->copy_edited_on == HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_THIS_DEVICE);
+
   holder::card::CardStore store(local_db, &local_fts, nullptr, &local_git);
   store.update_content(child.card_id, "original update", "Renamed original", 4);
   store.update_content(child_copy->card_id, "preserved update", "Renamed copy", 5);
@@ -696,6 +713,11 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
   CHECK(std::string(comparison->copy_card.card_id) == child_copy->card_id);
   CHECK(std::string(comparison->original.content) == "original update");
   CHECK(std::string(comparison->copy_card.content) == "preserved update");
+  // Both were edited here after the pull.
+  CHECK(
+      comparison->original_edited_on == HOLDER_CONFLICT_COMPARISON_ORIGINAL_EDITED_ON_THIS_DEVICE
+  );
+  CHECK(comparison->copy_edited_on == HOLDER_CONFLICT_COMPARISON_COPY_EDITED_ON_THIS_DEVICE);
   REQUIRE(comparison->original_changed_lines.count == 1);
   CHECK(comparison->original_changed_lines.items[0].line == 1);
   REQUIRE(comparison->copy_changed_lines.count == 1);
@@ -934,6 +956,143 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
   store.restore(parent_copy->card_id, 9);
   CHECK(store.get_content(*store.get(parent_copy->card_id)) == "# Local notes\n\n#copy-only");
   CHECK(conflict_pairs(context).contains(parent.card_id));
+
+  // Carrying details over: the copy links to the child and is linked from it, has a child of its
+  // own, a milestone and a tag the original lacks.
+  namespace contract = holder::contract;
+  contract::NewLink see_child;
+  see_child.target_type = contract::NewLinkTargetType::Card;
+  see_child.target_id = child_copy->card_id;
+  see_child.kind = "see";
+  see_child.label = "the child";
+  contract::add_card_link(context, project_id, parent_copy->card_id, see_child);
+  contract::NewLink see_copy;
+  see_copy.target_type = contract::NewLinkTargetType::Card;
+  see_copy.target_id = parent_copy->card_id;
+  see_copy.kind = "see";
+  contract::add_card_link(context, project_id, child_copy->card_id, see_copy);
+  store.move(child_copy->card_id, true, parent_copy->card_id, std::nullopt, 10);
+  save_parent_result();
+  const auto review_before =
+      contract::compare_conflict_copy(context, project_id, parent_copy->card_id);
+  const auto cleanup =
+      contract::resolve_conflict_copy(
+          context,
+          project_id,
+          parent_copy->card_id,
+          {review_before.review_token, review_before.original.title, review_before.original.content}
+      )
+          .cleanup;
+  REQUIRE(cleanup.copy_milestones.size() == 1);
+  REQUIRE(cleanup.copy_tags == std::vector<std::string>{"copy-only"});
+  REQUIRE(cleanup.children.size() == 1);
+  REQUIRE(std::ranges::any_of(cleanup.copy_links, [](const auto& link) {
+    return link.kind == "see";
+  }));
+  REQUIRE(std::ranges::any_of(cleanup.backlinks, [&](const auto& link) {
+    return link.source_id == child_copy->card_id && link.kind == "see";
+  }));
+
+  contract::TrashConflictCopyRequest carry;
+  carry.cleanup_token = cleanup.cleanup_token;
+  // A detail the review did not list changes nothing.
+  carry.carry_tags = std::vector<contract::ConflictCopyTagChoice>{{"not-reviewed"}};
+  CHECK_THROWS_AS(
+      contract::trash_conflict_copy(context, project_id, parent_copy->card_id, carry),
+      contract::Conflict
+  );
+  CHECK_FALSE(store.get(parent_copy->card_id)->deleted_at.has_value());
+  carry.carry_links = std::vector<contract::ConflictCopyLinkTarget>{
+      {project_id, contract::ConflictCopyLinkTargetTargetType::Card, child_copy->card_id, "see"}
+  };
+  carry.carry_milestones = std::vector<contract::ConflictCopyMilestoneChoice>{
+      {cleanup.copy_milestones[0].milestone_id}
+  };
+  carry.carry_tags = std::vector<contract::ConflictCopyTagChoice>{{"copy-only"}};
+  carry.adopt_children = std::vector<contract::ConflictCopyChildChoice>{{cleanup.children[0].card_id
+  }};
+  carry.retarget_backlinks = std::vector<contract::ConflictCopyBacklinkSource>{
+      {project_id, child_copy->card_id, "see"}
+  };
+  contract::trash_conflict_copy(context, project_id, parent_copy->card_id, carry);
+
+  CHECK(store.get(parent_copy->card_id)->deleted_at.has_value());
+  const auto carried_links = contract::list_card_links(context, project_id, parent.card_id, true);
+  CHECK(std::ranges::any_of(carried_links, [&](const auto& link) {
+    return link.kind == "see" && link.target_id == child_copy->card_id && link.label == "the child";
+  }));
+  const auto original_milestones =
+      contract::list_card_milestones(context, project_id, parent.card_id);
+  CHECK(std::ranges::any_of(original_milestones, [](const auto& milestone) {
+    return milestone.description == "Only on the copy";
+  }));
+  CHECK_THAT(
+      store.get_content(*store.get(parent.card_id)).value_or(""),
+      Catch::Matchers::ContainsSubstring("#copy-only")
+  );
+  CHECK(store.get(child_copy->card_id)->parent_card_id == parent.card_id);
+  const auto child_links =
+      contract::list_card_links(context, project_id, child_copy->card_id, true);
+  CHECK(std::ranges::any_of(child_links, [&](const auto& link) {
+    return link.kind == "see" && link.target_id == parent.card_id;
+  }));
+  CHECK_FALSE(std::ranges::any_of(child_links, [&](const auto& link) {
+    return link.kind == "see" && link.target_id == parent_copy->card_id;
+  }));
+  // The links not chosen still point at the copy.
+  CHECK(std::ranges::any_of(child_links, [&](const auto& link) {
+    return link.kind == "ref" && link.target_id == parent_copy->card_id;
+  }));
+  store.restore(parent_copy->card_id, 11);
+  REQUIRE(conflict_pairs(context).contains(parent.card_id));
+
+  // Keeping the restored copy as a card of its own needs a current review too.
+  const holder_conflict_comparison* review = nullptr;
+  holder_error* review_error = nullptr;
+  REQUIRE(
+      holder_compare_conflict_copy(
+          &context,
+          project_id.c_str(),
+          parent_copy->card_id.c_str(),
+          arena.get(),
+          &review,
+          &review_error
+      ) == HOLDER_OK
+  );
+  const auto copy_links_before =
+      holder::card::LinkRepo(local_db).list_outgoing(project_id, parent_copy->card_id).size();
+  const auto separate = [&](const char* token) {
+    const holder_separate_conflict_copy_request request{token, "Local notes"};
+    const holder_card* kept = nullptr;
+    holder_error* error = nullptr;
+    return holder_separate_conflict_copy(
+        &context,
+        project_id.c_str(),
+        parent_copy->card_id.c_str(),
+        &request,
+        arena.get(),
+        &kept,
+        &error
+    );
+  };
+  CHECK(separate(stale_token.c_str()) == HOLDER_ERROR_CONFLICT);
+  CHECK(conflict_pairs(context).contains(parent.card_id));
+  REQUIRE(separate(review->review_token) == HOLDER_OK);
+  CHECK_FALSE(conflict_pairs(context).contains(parent.card_id));
+  const auto kept = store.get(parent_copy->card_id);
+  REQUIRE(kept.has_value());
+  CHECK(kept->title == "Local notes");
+  CHECK_FALSE(kept->deleted_at.has_value());
+  CHECK(store.get_content(*kept) == "# Local notes\n\n#copy-only");
+  // Only the conflict association went; the copy's own links stay.
+  CHECK(
+      holder::card::LinkRepo(local_db).list_outgoing(project_id, parent_copy->card_id).size() ==
+      copy_links_before - 1
+  );
+  // The files say so too: a rebuilt index still has no pair.
+  holder::store::Rebuilder(local_db, &local_fts).rebuild_project(local_project);
+  CHECK_FALSE(conflict_pairs(context).contains(parent.card_id));
+  CHECK(conflict_pairs(context).contains(child.card_id));
 }
 
 TEST_CASE("resolve_pull_conflicts rejects a project that no longer exists", "[sync]") {

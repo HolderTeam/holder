@@ -66,7 +66,7 @@ def test_generated_coverage_exclusions_preserve_validation_and_returns():
                                                 statement(b))]
     unwind_ends = [b for b in blocks
                    if len(b) == 1 and b[0].startswith("} // LCOV_EXCL_LINE - GCC unwind")]
-    assert len(guards) == 19
+    assert len(guards) == 21
     assert len(unwind_ends) == 13
     assert len(blocks) == len(guards) + len(unwind_ends)
     excluded = [line for block in blocks for line in block]

@@ -368,9 +368,62 @@ struct ConflictResolution {
   std::string content; ///< The replacement card content, which can be empty.
 };
 
-/// Confirmation of the cleanup effects returned when the resolution was saved.
+/// The reviewed pair and the title the preserved copy keeps as a card of its own.
+struct SeparateConflictCopyRequest {
+  std::string review_token; ///< The token returned with the reviewed comparison.
+  std::string title; ///< The copy's new title, usually without the "(conflicted copy)" suffix.
+};
+
+/// What the link points at.
+enum class ConflictCopyLinkTargetTargetType { Card, AiMessage, AiThread, Resource };
+
+/// One of the copy's own links, as the cleanup review listed it in copy_links.
+struct ConflictCopyLinkTarget {
+  std::string target_project_id; ///< The project of what the link points at.
+  ConflictCopyLinkTargetTargetType target_type; ///< What the link points at.
+  std::string target_id; ///< The ID of what the link points at.
+  std::string kind; ///< What the link means.
+};
+
+/// One milestone from the cleanup review's copy_milestones.
+struct ConflictCopyMilestoneChoice {
+  std::string milestone_id; ///< The milestone's ID on the copy.
+};
+
+/// One tag from the cleanup review's copy_tags.
+struct ConflictCopyTagChoice {
+  std::string tag; ///< The tag, without its #.
+};
+
+/// One card from the cleanup review's children.
+struct ConflictCopyChildChoice {
+  std::string card_id; ///< The child's ID.
+};
+
+/// A card's link to the copy, as the cleanup review listed it in backlinks.
+struct ConflictCopyBacklinkSource {
+  std::string source_project_id; ///< The project of the card the link is from.
+  std::string source_id; ///< The card the link is from.
+  std::string kind; ///< What the link means.
+};
+
+/// Confirmation of the cleanup effects returned when the resolution was saved, and which of the
+/// copy's own details to carry over to the original first. Everything named must be in the reviewed
+/// cleanup; anything not carried over stays with the copy in Trash.
 struct TrashConflictCopyRequest {
   std::string cleanup_token; ///< The token returned with the cleanup review.
+  std::optional<std::vector<ConflictCopyLinkTarget>>
+      carry_links; ///< Links from copy_links to make on the original, with their labels.
+  std::optional<std::vector<ConflictCopyMilestoneChoice>>
+      carry_milestones; ///< Milestones from copy_milestones to put on the original, as new
+                        ///< milestones with the same dates.
+  std::optional<std::vector<ConflictCopyTagChoice>>
+      carry_tags; ///< Tags from copy_tags to add to the original.
+  std::optional<std::vector<ConflictCopyChildChoice>>
+      adopt_children; ///< Children of the copy to move under the original instead of up a level.
+  std::optional<std::vector<ConflictCopyBacklinkSource>>
+      retarget_backlinks; ///< Card links from backlinks to point at the original instead of the
+                          ///< copy.
 };
 
 /// How to push.
@@ -930,6 +983,12 @@ struct ConflictChangedLine {
   std::int32_t line{}; ///< The one-based line number within this card's content.
 };
 
+/// Which device made the latest change to the original.
+enum class ConflictComparisonOriginalEditedOn { ThisDevice, AnotherDevice, Unknown };
+
+/// Which device made the latest change to the preserved copy.
+enum class ConflictComparisonCopyEditedOn { ThisDevice, AnotherDevice, Unknown };
+
 /// The two live cards in a recorded conflict pair, read together for review.
 struct ConflictComparison {
   Card original; ///< The current state of the original card.
@@ -939,6 +998,10 @@ struct ConflictComparison {
   std::vector<ConflictChangedLine>
       copy_changed_lines; ///< One-based lines of the copy's content that differ from the original.
   bool truncated{}; ///< Whether the bounded diff could only highlight part of the change.
+  ConflictComparisonOriginalEditedOn
+      original_edited_on; ///< Which device made the latest change to the original.
+  ConflictComparisonCopyEditedOn
+      copy_edited_on; ///< Which device made the latest change to the preserved copy.
   std::string review_token; ///< An opaque token for both reviewed versions, required when saving a
                             ///< resolution.
 };
@@ -1979,11 +2042,28 @@ ConflictResolutionResult resolve_conflict_copy(
     const ConflictResolution& resolution
 );
 
+/// Keep a preserved copy as an ordinary card instead of resolving it into the original.
+/// Holder verifies the token against both live cards before changing anything. A stale token is
+/// Conflict. A missing association or a card that is missing or in Trash is NotFound. The copy
+/// takes the new title and loses its recorded association with the original, in one Git commit, so
+/// it is no longer listed as a conflict copy. Both cards keep their content, place, links and
+/// milestones.
+/// @throws NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted
+Card separate_conflict_copy(
+    holder_context& context,
+    std::string project_id,
+    std::string copy_id,
+    const SeparateConflictCopyRequest& request
+);
+
 /// Move a reviewed conflict copy to Trash after choosing a result.
 /// Holder verifies the cleanup token against both live cards and the reviewed effects.
-/// A stale token or cleanup that would move the original is Conflict. A missing association
-/// or a card missing or in Trash is NotFound.
-/// The original is untouched. The copy can be restored and its live children move up a level.
+/// A stale token, cleanup that would move the original, or a detail to carry over that the review
+/// did not list is Conflict. A missing association or a card missing or in Trash is NotFound.
+/// Holder first carries the chosen details over to the original: links, milestones and tags are
+/// added to it, chosen children move under it, and chosen card links to the copy point at it
+/// instead. Each is its own change. The original is otherwise untouched. The copy can be restored,
+/// and its other live children move up a level.
 /// @throws NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted
 CardMetadata trash_conflict_copy(
     holder_context& context,

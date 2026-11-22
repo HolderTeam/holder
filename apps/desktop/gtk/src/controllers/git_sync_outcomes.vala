@@ -204,4 +204,84 @@ public class GitPullWatch : Object {
     }
 }
 
+// Where core's numbered lines sit in a card's text. Core ends a line only at "\n", as Git does.
+// A GTK text buffer also breaks lines at a lone "\r" and at U+2029, so its line numbers can
+// drift from core's; these ranges are character offsets a buffer can use instead.
+public class ConflictLineRanges : Object { // LCOV_EXCL_LINE: declaration-only coverage artifact
+    // Start and end offsets, in pairs, of each 1-based line that exists in content. A range
+    // includes the line's "\n".
+    public static int[] of(string content, int[] lines) {
+        int[] starts = { 0 };
+        int offset = 0;
+        int index = 0;
+        unichar c;
+        while (content.get_next_char(ref index, out c)) {
+            offset++;
+            if (c == '\n') starts += offset;
+        }
+        int[] ranges = {};
+        foreach (var line in lines) {
+            if (line < 1 || line > starts.length) continue;
+            ranges += starts[line - 1];
+            ranges += line < starts.length ? starts[line] : offset;
+        }
+        return ranges;
+    }
+}
+
+
+// The starting text for "Combine changes": both versions, lines they share written once. Core's
+// comparison numbers the lines each version changed, and the lines it did not mark are the ones
+// the two share, in the same order on both sides. So walking both versions together, each run of
+// changed lines is followed by the next shared line. A run appears first from version a, then
+// from version b, either one after the other or between Git conflict markers. Lines end only at
+// "\n", as core counts them, and are joined back the same way, so a "\r" stays where it was.
+public class ConflictCombiner : Object { // LCOV_EXCL_LINE: declaration-only coverage artifact
+    public static string combine(string a, int[] a_changed, string b, int[] b_changed, bool markers,
+                                 string a_label, string b_label) {
+        var a_lines = core_lines(a);
+        var b_lines = core_lines(b);
+        var a_marked = marked(a_changed);
+        var b_marked = marked(b_changed);
+        string[] out_lines = {};
+        int i = 0;
+        int j = 0;
+        while (i < a_lines.length || j < b_lines.length) {
+            string[] a_run = {};
+            string[] b_run = {};
+            while (i < a_lines.length && a_marked.contains(i + 1)) a_run += a_lines[i++];
+            while (j < b_lines.length && b_marked.contains(j + 1)) b_run += b_lines[j++];
+            if (a_run.length > 0 || b_run.length > 0) {
+                if (markers) out_lines += "<<<<<<< " + a_label;
+                foreach (var line in a_run) out_lines += line;
+                if (markers) out_lines += "=======";
+                foreach (var line in b_run) out_lines += line;
+                if (markers) out_lines += ">>>>>>> " + b_label;
+            }
+            if (i < a_lines.length && j < b_lines.length) {
+                out_lines += a_lines[i++];
+                j++;
+            } else {
+                // The unmarked lines ran out on one side only, which a complete comparison never
+                // does. Keep whatever is left rather than lose it.
+                while (i < a_lines.length) out_lines += a_lines[i++];
+                while (j < b_lines.length) out_lines += b_lines[j++];
+            }
+        }
+        return string.joinv("\n", out_lines);
+    }
+
+    // As core's lines_of: split at "\n"; a trailing "\n" leaves an empty last line.
+    private static string[] core_lines(string text) {
+        if (text == "") return {};
+        return text.split("\n");
+    }
+
+    private static Gee.HashSet<int> marked(int[] lines) {
+        var set = new Gee.HashSet<int>();
+        foreach (var line in lines) set.add(line);
+        return set;
+    }
+}
+
 }

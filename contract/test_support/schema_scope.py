@@ -38,7 +38,8 @@ def positive_acceptance_limits(operation, path, query, params, body):
         yield "The query must be valid SQLite FTS5 syntax."
     if operation == "start_asset_import":
         yield "The source must be an existing readable regular file on the daemon's host."
-    if operation in {"compare_conflict_copy", "resolve_conflict_copy", "trash_conflict_copy"}:
+    if operation in {"compare_conflict_copy", "resolve_conflict_copy", "trash_conflict_copy",
+                     "separate_conflict_copy"}:
         yield "Requires a live original and copy with a recorded conflict association."
     if operation in {"authorize_google_drive_location", "finish_google_drive_location"}:
         yield "Requires Google Drive provider configuration and daemon-issued OAuth state."

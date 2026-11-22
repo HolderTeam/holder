@@ -5,8 +5,8 @@ from typing import Annotated, Literal
 from authoring import MISSING, Field, Int32, Record, Timestamp
 
 from ..cards.models import Card, CardId, CardSummary
-from ..links.models import Link
-from ..milestones.models import Milestone
+from ..links.models import Link, LinkKind, LinkTargetId, LinkTargetType
+from ..milestones.models import Milestone, MilestoneId
 from ..projects.ids import ProjectId
 from ..projects.models import GitRemoteUrl
 
@@ -14,6 +14,12 @@ type PushStatus = Literal["not_attempted", "pushed", "up_to_date", "auth_failed"
                           "non_fast_forward", "remote_unset", "unknown_error"]
 """What a push did: nothing, pushed, found the remote already had everything, or failed for one of these reasons.
 non_fast_forward means the remote has changes to pull first."""
+
+
+type ConflictVersionEditedOn = Literal["this_device", "another_device", "unknown"]
+"""Which device made the latest change to one version of a conflict pair. Each device answers from its own Git log of
+the commits made in its copy of the project, so the two devices give opposite answers for the same version. unknown
+means this device's log cannot tell: the change is older than the log, as after a fresh clone."""
 
 
 class ConflictCopy(Record):
@@ -47,6 +53,10 @@ class ConflictComparison(Record):
     """One-based lines of the copy's content that differ from the original."""
     truncated: bool
     """Whether the bounded diff could only highlight part of the change."""
+    original_edited_on: ConflictVersionEditedOn
+    """Which device made the latest change to the original."""
+    copy_edited_on: ConflictVersionEditedOn
+    """Which device made the latest change to the preserved copy."""
     review_token: str
     """An opaque token for both reviewed versions, required when saving a resolution."""
 
@@ -60,6 +70,15 @@ class ConflictResolution(Record):
     """The replacement title."""
     content: str
     """The replacement card content, which can be empty."""
+
+
+class SeparateConflictCopyRequest(Record):
+    """The reviewed pair and the title the preserved copy keeps as a card of its own."""
+
+    review_token: Annotated[str, Field(min_length=1, max_length=256)]
+    """The token returned with the reviewed comparison."""
+    title: Annotated[str, Field(min_length=1)]
+    """The copy's new title, usually without the "(conflicted copy)" suffix."""
 
 
 class ConflictCopyCleanupReview(Record):
@@ -94,11 +113,68 @@ class ConflictResolutionResult(Record):
     """The copy and effects to review before moving it to Trash."""
 
 
+class ConflictCopyLinkTarget(Record):
+    """One of the copy's own links, as the cleanup review listed it in copy_links."""
+
+    target_project_id: ProjectId
+    """The project of what the link points at."""
+    target_type: LinkTargetType
+    """What the link points at."""
+    target_id: LinkTargetId
+    """The ID of what the link points at."""
+    kind: LinkKind
+    """What the link means."""
+
+
+class ConflictCopyBacklinkSource(Record):
+    """A card's link to the copy, as the cleanup review listed it in backlinks."""
+
+    source_project_id: ProjectId
+    """The project of the card the link is from."""
+    source_id: CardId
+    """The card the link is from."""
+    kind: LinkKind
+    """What the link means."""
+
+
+class ConflictCopyMilestoneChoice(Record):
+    """One milestone from the cleanup review's copy_milestones."""
+
+    milestone_id: MilestoneId
+    """The milestone's ID on the copy."""
+
+
+class ConflictCopyTagChoice(Record):
+    """One tag from the cleanup review's copy_tags."""
+
+    tag: Annotated[str, Field(min_length=1)]
+    """The tag, without its #."""
+
+
+class ConflictCopyChildChoice(Record):
+    """One card from the cleanup review's children."""
+
+    card_id: CardId
+    """The child's ID."""
+
+
 class TrashConflictCopyRequest(Record):
-    """Confirmation of the cleanup effects returned when the resolution was saved."""
+    """Confirmation of the cleanup effects returned when the resolution was saved, and which of the copy's own
+    details to carry over to the original first. Everything named must be in the reviewed cleanup; anything not
+    carried over stays with the copy in Trash."""
 
     cleanup_token: Annotated[str, Field(min_length=1, max_length=256)]
     """The token returned with the cleanup review."""
+    carry_links: list[ConflictCopyLinkTarget] | MISSING = MISSING
+    """Links from copy_links to make on the original, with their labels."""
+    carry_milestones: list[ConflictCopyMilestoneChoice] | MISSING = MISSING
+    """Milestones from copy_milestones to put on the original, as new milestones with the same dates."""
+    carry_tags: list[ConflictCopyTagChoice] | MISSING = MISSING
+    """Tags from copy_tags to add to the original."""
+    adopt_children: list[ConflictCopyChildChoice] | MISSING = MISSING
+    """Children of the copy to move under the original instead of up a level."""
+    retarget_backlinks: list[ConflictCopyBacklinkSource] | MISSING = MISSING
+    """Card links from backlinks to point at the original instead of the copy."""
 
 
 class PullChanges(Record):

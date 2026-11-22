@@ -587,6 +587,38 @@ void CardStore::save_conflict_resolution(
   apply_card_changes(project, *card, std::move(target), {}, "Resolve conflict for " + title);
 }
 
+void CardStore::separate_conflict_copy(
+    const std::string& project_id,
+    const std::string& copy_id,
+    const std::string& title,
+    long long updated_at
+) {
+  const auto project = require_project(project_id);
+  auto operation = git_->lock_operation(project.root_path);
+  const auto card = card_repo_.get(copy_id);
+  if (!card || card->project_id != project_id || card->deleted_at)
+    throw std::runtime_error("live card not found: " + copy_id);
+  const auto relative_path = holder::core::card_rel_path(copy_id);
+  if (card->rel_path != relative_path)
+    throw std::runtime_error("card rel_path does not match card_id");
+
+  git_->open_or_init(project.root_path);
+  const auto raw = fs_->read_file(git_->repo_dir() / relative_path);
+  auto target = holder::core::parse_card_file(decode_card_blob(project, raw));
+  if (!target.has_front_matter || target.card.card_id != copy_id ||
+      target.card.project_id != project_id)
+    throw std::runtime_error("card front matter identity mismatch");
+
+  target.card = *card;
+  target.card.title = title;
+  target.card.updated_at = updated_at;
+  target.links = link_repo_.list_outgoing(project_id, copy_id);
+  std::erase_if(target.links, [](const auto& link) {
+    return link.kind == holder::model::kConflictCopyLinkKind;
+  });
+  apply_card_changes(project, *card, std::move(target), {}, "Keep " + title + " as its own card");
+}
+
 void CardStore::move(
     const std::string& card_id,
     bool has_parent_card_id,

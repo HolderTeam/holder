@@ -99,8 +99,14 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
         return yield ApiClientGitEndpoints.resolve_conflict_copy(this, project_id, copy_id, review_token, title, content);
     }
 
-    public async void trash_conflict_copy(string project_id, string copy_id, string cleanup_token) throws Error {
-        yield ApiClientGitEndpoints.trash_conflict_copy(this, project_id, copy_id, cleanup_token);
+    public async void trash_conflict_copy(string project_id, string copy_id, string cleanup_token,
+                                          ConflictCarryOver? carry_over) throws Error {
+        yield ApiClientGitEndpoints.trash_conflict_copy(this, project_id, copy_id, cleanup_token, carry_over);
+    }
+
+    public async CardDetail separate_conflict_copy(string project_id, string copy_id, string review_token,
+                                                   string title) throws Error {
+        return yield ApiClientGitEndpoints.separate_conflict_copy(this, project_id, copy_id, review_token, title);
     }
 
     public async CardHistoryComparison compare_card_history(string project_id,

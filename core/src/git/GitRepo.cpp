@@ -1382,6 +1382,107 @@ std::optional<std::string> GitRepo::head_oid() {
   return oid_to_hex(oid);
 }
 
+namespace {
+
+struct CommitFree {
+  void operator()(git_commit* commit) const { git_commit_free(commit); }
+};
+using CommitPtr = std::unique_ptr<git_commit, CommitFree>;
+
+// The blob at relative_path in commit, or nullopt when the path is absent.
+std::optional<git_oid> blob_in_commit(
+    git_commit* commit,
+    const std::filesystem::path& relative_path
+) {
+  git_tree* tree = nullptr;
+  int rc = git_commit_tree(&tree, commit);
+  if (rc != 0) throw git_err("git_commit_tree failed", rc); // LCOV_EXCL_LINE
+  git_tree_entry* entry = nullptr;
+  const auto* id = tree_entry_oid_or_null(tree, relative_path, &entry);
+  std::optional<git_oid> out;
+  if (id != nullptr) out = *id;
+  git_tree_entry_free(entry);
+  git_tree_free(tree);
+  return out;
+}
+
+bool starts_with(const char* text, std::string_view prefix) {
+  return text != nullptr && std::string_view(text).starts_with(prefix);
+}
+
+} // namespace
+
+ChangeOrigin GitRepo::latest_change_origin(const std::filesystem::path& relative_path) {
+  ensure_open();
+  auto* repo = reinterpret_cast<git_repository*>(repo_);
+  git_oid head{};
+  int rc = git_reference_name_to_id(&head, repo, "HEAD");
+  if (rc == GIT_ENOTFOUND || rc == GIT_EUNBORNBRANCH) return ChangeOrigin::Unknown;
+  if (rc != 0) throw git_err("git_reference_name_to_id failed", rc); // LCOV_EXCL_LINE
+
+  git_commit* raw = nullptr;
+  rc = git_commit_lookup(&raw, repo, &head);
+  if (rc != 0) throw git_err("git_commit_lookup failed", rc); // LCOV_EXCL_LINE
+  CommitPtr commit(raw);
+  const auto blob = blob_in_commit(commit.get(), relative_path);
+  if (!blob) return ChangeOrigin::Unknown;
+
+  const auto on_disk = repo_dir_ / relative_path;
+  if (std::filesystem::is_regular_file(on_disk)) {
+    git_oid disk{};
+    // Applies the filters Git would, such as core.autocrlf, as when staging the file.
+    const auto rel = relative_path.generic_string();
+    rc = git_repository_hashfile(&disk, repo, rel.c_str(), GIT_OBJECT_BLOB, nullptr);
+    if (rc != 0) throw git_err("git_repository_hashfile failed", rc); // LCOV_EXCL_LINE
+    if (!git_oid_equal(&disk, &*blob)) return ChangeOrigin::ThisDevice;
+  }
+
+  // Walk back while some parent already had this content. History is a DAG, so this ends.
+  for (;;) {
+    CommitPtr same_parent;
+    const auto parents = git_commit_parentcount(commit.get());
+    for (unsigned int i = 0; i < parents && !same_parent; ++i) {
+      git_commit* parent = nullptr;
+      rc = git_commit_parent(&parent, commit.get(), i);
+      if (rc != 0) throw git_err("git_commit_parent failed", rc); // LCOV_EXCL_LINE
+      CommitPtr owned(parent);
+      const auto parent_blob = blob_in_commit(parent, relative_path);
+      if (parent_blob && git_oid_equal(&*parent_blob, &*blob)) same_parent = std::move(owned);
+    }
+    if (!same_parent) break;
+    commit = std::move(same_parent);
+  }
+  const git_oid introduced = *git_commit_id(commit.get());
+
+  git_reflog* reflog = nullptr;
+  rc = git_reflog_read(&reflog, repo, "HEAD");
+  if (rc != 0) throw git_err("git_reflog_read failed", rc); // LCOV_EXCL_LINE
+  const auto count = git_reflog_entrycount(reflog);
+  auto origin = ChangeOrigin::Unknown;
+  if (count > 0) {
+    origin = ChangeOrigin::AnotherDevice;
+    for (std::size_t i = 0; i < count; ++i) {
+      const auto* entry = git_reflog_entry_byindex(reflog, i);
+      if (git_oid_equal(git_reflog_entry_id_new(entry), &introduced)) {
+        if (starts_with(git_reflog_entry_message(entry), "commit")) {
+          origin = ChangeOrigin::ThisDevice;
+          break;
+        }
+      }
+    }
+    if (origin == ChangeOrigin::AnotherDevice) {
+      // Index count - 1 is the oldest entry. Anything it already contained predates the log.
+      const auto* oldest = git_reflog_entry_byindex(reflog, count - 1);
+      const auto* start = git_reflog_entry_id_new(oldest);
+      if (git_oid_equal(start, &introduced) ||
+          git_graph_descendant_of(repo, start, &introduced) == 1)
+        origin = ChangeOrigin::Unknown;
+    }
+  }
+  git_reflog_free(reflog);
+  return origin;
+}
+
 std::vector<std::string> GitRepo::commit_parent_oids(const std::string& commit_oid_hex) {
   ensure_open();
   auto* repo = reinterpret_cast<git_repository*>(repo_);

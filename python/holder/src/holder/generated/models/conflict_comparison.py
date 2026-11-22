@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from attrs import define as _attrs_define
 from typing_extensions import Self
 
+from ..models.conflict_version_edited_on import ConflictVersionEditedOn
+
 if TYPE_CHECKING:
     from ..models.card import Card
     from ..models.conflict_changed_line import ConflictChangedLine
@@ -26,6 +28,8 @@ class ConflictComparison:
         copy_changed_lines (list[ConflictChangedLine]): One-based lines of the copy's content that differ from the
             original.
         truncated (bool): Whether the bounded diff could only highlight part of the change.
+        original_edited_on (ConflictVersionEditedOn):
+        copy_edited_on (ConflictVersionEditedOn):
         review_token (str): An opaque token for both reviewed versions, required when saving a resolution.
     """
 
@@ -34,6 +38,8 @@ class ConflictComparison:
     original_changed_lines: list[ConflictChangedLine]
     copy_changed_lines: list[ConflictChangedLine]
     truncated: bool
+    original_edited_on: ConflictVersionEditedOn
+    copy_edited_on: ConflictVersionEditedOn
     review_token: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -53,6 +59,10 @@ class ConflictComparison:
 
         truncated = self.truncated
 
+        original_edited_on = self.original_edited_on.value
+
+        copy_edited_on = self.copy_edited_on.value
+
         review_token = self.review_token
 
         field_dict: dict[str, Any] = {}
@@ -64,6 +74,8 @@ class ConflictComparison:
                 "original_changed_lines": original_changed_lines,
                 "copy_changed_lines": copy_changed_lines,
                 "truncated": truncated,
+                "original_edited_on": original_edited_on,
+                "copy_edited_on": copy_edited_on,
                 "review_token": review_token,
             }
         )
@@ -100,6 +112,10 @@ class ConflictComparison:
 
         truncated = d.pop("truncated")
 
+        original_edited_on = ConflictVersionEditedOn(d.pop("original_edited_on"))
+
+        copy_edited_on = ConflictVersionEditedOn(d.pop("copy_edited_on"))
+
         review_token = d.pop("review_token")
 
         conflict_comparison = cls(
@@ -108,6 +124,8 @@ class ConflictComparison:
             original_changed_lines=original_changed_lines,
             copy_changed_lines=copy_changed_lines,
             truncated=truncated,
+            original_edited_on=original_edited_on,
+            copy_edited_on=copy_edited_on,
             review_token=review_token,
         )
 

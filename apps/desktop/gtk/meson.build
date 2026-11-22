@@ -4043,6 +4043,8 @@ app_views_test_groups = {
   'conflict-open-copy': '/app_views/conflict_comparison/open_copy',
   'conflict-stale-cleanup': '/app_views/conflict_comparison/stale_cleanup',
   'conflict-trash-copy': '/app_views/conflict_comparison/trash_copy',
+  'conflict-keep-other': '/app_views/conflict_comparison/keep_other',
+  'conflict-keep-both': '/app_views/conflict_comparison/keep_both',
   'lifetime': '/app-views/lifetime',
 }
 if terminal_backend == 'vte'
@@ -4057,7 +4059,8 @@ foreach group, path : app_views_test_groups
     suite: 'app-views',
     # GUI tests share display focus and the clipboard.
     is_parallel: false,
-    timeout: 60,
+    # The conflict dialog groups take most of a minute on the macOS runners.
+    timeout: 120,
     # Keep per-case timings in macOS CI output even when tests pass.
     verbose: host_machine.system() == 'darwin',
   )

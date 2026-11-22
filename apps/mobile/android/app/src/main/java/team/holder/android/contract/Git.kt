@@ -1,6 +1,20 @@
 // Generated from contract/interface by compiler. Do not edit; run make -C contract update.
 package team.holder.android.contract
 
+/** Which device made the latest change to the original. */
+enum class ConflictComparisonOriginalEditedOn(val value: String) {
+    THIS_DEVICE("this_device"),
+    ANOTHER_DEVICE("another_device"),
+    UNKNOWN("unknown"),
+}
+
+/** Which device made the latest change to the preserved copy. */
+enum class ConflictComparisonCopyEditedOn(val value: String) {
+    THIS_DEVICE("this_device"),
+    ANOTHER_DEVICE("another_device"),
+    UNKNOWN("unknown"),
+}
+
 /** How the pull ended. */
 enum class PullPhaseStatus(val value: String) {
     NOT_ATTEMPTED("not_attempted"),
@@ -37,6 +51,14 @@ enum class RemoteTestResultStatus(val value: String) {
     INVALID_REMOTE_URL("invalid_remote_url"),
     REMOTE_UNSET("remote_unset"),
     UNKNOWN_ERROR("unknown_error"),
+}
+
+/** What the link points at. */
+enum class ConflictCopyLinkTargetTargetType(val value: String) {
+    CARD("card"),
+    AI_MESSAGE("ai_message"),
+    AI_THREAD("ai_thread"),
+    RESOURCE("resource"),
 }
 
 /**
@@ -127,6 +149,10 @@ data class ConflictComparison(
     val copyChangedLines: List<ConflictChangedLine>,
     /** Whether the bounded diff could only highlight part of the change. */
     val truncated: Boolean,
+    /** Which device made the latest change to the original. */
+    val originalEditedOn: ConflictComparisonOriginalEditedOn,
+    /** Which device made the latest change to the preserved copy. */
+    val copyEditedOn: ConflictComparisonCopyEditedOn,
     /** An opaque token for both reviewed versions, required when saving a resolution. */
     val reviewToken: String,
 )
@@ -266,10 +292,72 @@ data class ConflictResolution(
     val content: String,
 )
 
-/** Confirmation of the cleanup effects returned when the resolution was saved. */
+/** The reviewed pair and the title the preserved copy keeps as a card of its own. */
+data class SeparateConflictCopyRequest(
+    /** The token returned with the reviewed comparison. */
+    val reviewToken: String,
+    /** The copy's new title, usually without the "(conflicted copy)" suffix. */
+    val title: String,
+)
+
+/** One of the copy's own links, as the cleanup review listed it in copy_links. */
+data class ConflictCopyLinkTarget(
+    /** The project of what the link points at. */
+    val targetProjectId: String,
+    /** What the link points at. */
+    val targetType: ConflictCopyLinkTargetTargetType,
+    /** The ID of what the link points at. */
+    val targetId: String,
+    /** What the link means. */
+    val kind: String,
+)
+
+/** One milestone from the cleanup review's copy_milestones. */
+data class ConflictCopyMilestoneChoice(
+    /** The milestone's ID on the copy. */
+    val milestoneId: String,
+)
+
+/** One tag from the cleanup review's copy_tags. */
+data class ConflictCopyTagChoice(
+    /** The tag, without its #. */
+    val tag: String,
+)
+
+/** One card from the cleanup review's children. */
+data class ConflictCopyChildChoice(
+    /** The child's ID. */
+    val cardId: String,
+)
+
+/** A card's link to the copy, as the cleanup review listed it in backlinks. */
+data class ConflictCopyBacklinkSource(
+    /** The project of the card the link is from. */
+    val sourceProjectId: String,
+    /** The card the link is from. */
+    val sourceId: String,
+    /** What the link means. */
+    val kind: String,
+)
+
+/**
+ * Confirmation of the cleanup effects returned when the resolution was saved, and which of the copy's own
+ * details to carry over to the original first. Everything named must be in the reviewed cleanup; anything not
+ * carried over stays with the copy in Trash.
+ */
 data class TrashConflictCopyRequest(
     /** The token returned with the cleanup review. */
     val cleanupToken: String,
+    /** Links from copy_links to make on the original, with their labels. */
+    val carryLinks: List<ConflictCopyLinkTarget>? = null,
+    /** Milestones from copy_milestones to put on the original, as new milestones with the same dates. */
+    val carryMilestones: List<ConflictCopyMilestoneChoice>? = null,
+    /** Tags from copy_tags to add to the original. */
+    val carryTags: List<ConflictCopyTagChoice>? = null,
+    /** Children of the copy to move under the original instead of up a level. */
+    val adoptChildren: List<ConflictCopyChildChoice>? = null,
+    /** Card links from backlinks to point at the original instead of the copy. */
+    val retargetBacklinks: List<ConflictCopyBacklinkSource>? = null,
 )
 
 /** How to push. */
@@ -326,11 +414,28 @@ object Git {
     ): ConflictResolutionResult
 
     /**
+     * Keep a preserved copy as an ordinary card instead of resolving it into the original.
+     * Holder verifies the token against both live cards before changing anything. A stale token is
+     * Conflict. A missing association or a card that is missing or in Trash is NotFound. The copy takes
+     * the new title and loses its recorded association with the original, in one Git commit, so it is
+     * no longer listed as a conflict copy. Both cards keep their content, place, links and milestones.
+     */
+    external fun separateConflictCopy(
+        contextHandle: Long,
+        projectId: String,
+        copyId: String,
+        request: SeparateConflictCopyRequest,
+    ): Card
+
+    /**
      * Move a reviewed conflict copy to Trash after choosing a result.
      * Holder verifies the cleanup token against both live cards and the reviewed effects.
-     * A stale token or cleanup that would move the original is Conflict. A missing association
-     * or a card missing or in Trash is NotFound.
-     * The original is untouched. The copy can be restored and its live children move up a level.
+     * A stale token, cleanup that would move the original, or a detail to carry over that the review
+     * did not list is Conflict. A missing association or a card missing or in Trash is NotFound.
+     * Holder first carries the chosen details over to the original: links, milestones and tags are
+     * added to it, chosen children move under it, and chosen card links to the copy point at it
+     * instead. Each is its own change. The original is otherwise untouched. The copy can be restored,
+     * and its other live children move up a level.
      */
     external fun trashConflictCopy(
         contextHandle: Long,
