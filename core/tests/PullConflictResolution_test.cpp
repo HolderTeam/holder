@@ -1065,7 +1065,7 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
     const holder_separate_conflict_copy_request request{token, "Local notes"};
     const holder_card* kept = nullptr;
     holder_error* error = nullptr;
-    return holder_separate_conflict_copy(
+    const int status = holder_separate_conflict_copy(
         &context,
         project_id.c_str(),
         parent_copy->card_id.c_str(),
@@ -1074,6 +1074,8 @@ TEST_CASE("resolve_pull_conflicts preserves links and parents between copied car
         &kept,
         &error
     );
+    holder_error_destroy(error);
+    return status;
   };
   CHECK(separate(stale_token.c_str()) == HOLDER_ERROR_CONFLICT);
   CHECK(conflict_pairs(context).contains(parent.card_id));
