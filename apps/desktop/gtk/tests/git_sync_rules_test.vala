@@ -311,6 +311,93 @@ private void test_outcomes_explain_incomplete_sync_and_reconciliation() {
     assert(result.toast_message == "Project synced. 2 hidden cards were made reachable.");
 }
 
+private HolderLinux.GitPullChanges make_changes(int merged, int kept, int restored, int copies, int repaired) {
+    var changes = new HolderLinux.GitPullChanges();
+    for (int i = 0; i < merged; i++) changes.merged_card_ids.add("m%d".printf(i));
+    for (int i = 0; i < kept; i++) changes.kept_out_of_trash_card_ids.add("k%d".printf(i));
+    for (int i = 0; i < restored; i++) changes.restored_from_trash_card_ids.add("r%d".printf(i));
+    for (int i = 0; i < copies; i++) changes.conflict_copy_ids.add("c%d".printf(i));
+    changes.hidden_cards_repaired = repaired;
+    return changes;
+}
+
+private HolderLinux.ProjectSyncState reported_state(HolderLinux.GitPullChanges? changes, int64 at) {
+    var state = new HolderLinux.ProjectSyncState();
+    state.last_pull_changes = changes;
+    state.last_pull_changes_at = at;
+    return state;
+}
+
+private void test_outcomes_leave_a_pull_that_changed_something_to_its_report() {
+    var pull = new HolderLinux.GitPullPhase(true, "succeeded", 1, 0, "");
+    pull.changes = make_changes(0, 0, 0, 1, 0);
+    var synced = HolderLinux.GitSyncOutcomes.for_sync_result(
+        new HolderLinux.GitSyncResult(pull, true, make_push("pushed")));
+    assert(synced.toast_message == "");
+    assert(synced.error_title == "");
+    assert(synced.pull_succeeded);
+
+    // A failed push still explains the whole sync in its error.
+    var failed = HolderLinux.GitSyncOutcomes.for_sync_result(
+        new HolderLinux.GitSyncResult(pull, true, make_push("failed", "auth rejected")));
+    assert(failed.error_details ==
+           "Pull succeeded. One local version was preserved as a conflict copy.\nauth rejected");
+}
+
+private void test_pull_report_describes_every_change() {
+    assert(HolderLinux.GitPullReportTracker.describe(make_changes(1, 0, 0, 0, 0)) ==
+           "Pulled changes from another device: merged edits into 1 card.");
+    assert(HolderLinux.GitPullReportTracker.describe(make_changes(2, 0, 0, 1, 0)) ==
+           "Pulled changes from another device: merged edits into 2 cards and saved your version of a card as a copy.");
+    assert(HolderLinux.GitPullReportTracker.describe(make_changes(0, 1, 2, 3, 1)) ==
+           "Pulled changes from another device: kept 1 card you edited out of Trash, " +
+           "brought back 2 cards you edited from Trash, saved your versions of 3 cards as copies " +
+           "and made a hidden card reachable again.");
+    assert(HolderLinux.GitPullReportTracker.describe(make_changes(0, 2, 1, 0, 4)) ==
+           "Pulled changes from another device: kept 2 cards you edited out of Trash, " +
+           "brought back 1 card you edited from Trash and made 4 hidden cards reachable again.");
+}
+
+private void test_pull_report_offers_compare_for_one_copy_and_review_for_more() {
+    var state = new HolderLinux.ProjectSyncState();
+    state.conflict_copies.add(new HolderLinux.GitConflictCopy("c0", "Copy", "o0", "Original", false));
+    state.conflict_copies.add(new HolderLinux.GitConflictCopy("c1", "Copy", "o1", "Trashed", true));
+
+    var one = HolderLinux.GitPullReportTracker.notice_for(make_changes(0, 0, 0, 1, 0), state);
+    assert(one.opens_comparison() && !one.opens_git_tool());
+    assert(one.action_label == "Compare" && one.copy_id == "c0" && one.original_id == "o0");
+
+    var many = HolderLinux.GitPullReportTracker.notice_for(make_changes(0, 0, 0, 2, 0), state);
+    assert(many.opens_git_tool() && many.action_label == "Review");
+
+    // The one copy's original is in Trash, or the copy is no longer listed: nothing to compare.
+    var trashed = new HolderLinux.GitPullChanges();
+    trashed.conflict_copy_ids.add("c1");
+    assert(HolderLinux.GitPullReportTracker.notice_for(trashed, state).opens_git_tool());
+    var gone = new HolderLinux.GitPullChanges();
+    gone.conflict_copy_ids.add("c9");
+    assert(HolderLinux.GitPullReportTracker.notice_for(gone, state).opens_git_tool());
+
+    var merged = HolderLinux.GitPullReportTracker.notice_for(make_changes(1, 0, 0, 0, 0), state);
+    assert(merged.action_label == "" && !merged.opens_comparison() && !merged.opens_git_tool());
+}
+
+private void test_pull_report_tracker_announces_each_new_report_once() {
+    var tracker = new HolderLinux.GitPullReportTracker(100);
+    assert(tracker.take("p1", reported_state(null, 0)) == null);
+    assert(tracker.take("p1", reported_state(new HolderLinux.GitPullChanges(), 150)) == null);
+    // Made before the app started.
+    assert(tracker.take("p1", reported_state(make_changes(1, 0, 0, 0, 0), 99)) == null);
+
+    var first = tracker.take("p1", reported_state(make_changes(1, 0, 0, 0, 0), 100));
+    assert(first != null && first.message == "Pulled changes from another device: merged edits into 1 card.");
+    assert(tracker.take("p1", reported_state(make_changes(1, 0, 0, 0, 0), 100)) == null);
+    // Another project's reports are its own.
+    assert(tracker.take("p2", reported_state(make_changes(1, 0, 0, 0, 0), 100)) != null);
+    assert(tracker.take("p1", reported_state(make_changes(0, 1, 0, 0, 0), 120)) != null);
+    assert(tracker.take("p1", reported_state(make_changes(0, 1, 0, 0, 0), 110)) == null);
+}
+
 private void test_outcomes_for_sync_result() {
     var pull = new HolderLinux.GitPullPhase(true, "succeeded", 0, 0, "");
     var pushed = HolderLinux.GitSyncOutcomes.for_sync_result(
@@ -360,6 +447,13 @@ public static int main(string[] args) {
     Test.add_func("/git-sync-rules/provider/transport-defaults", test_provider_transport_options_defaults);
     Test.add_func("/git-sync-rules/provider/label-entry-resolve", test_provider_label_entry_at_and_resolve_transport);
     Test.add_func("/git-sync-rules/outcomes/sync-result", test_outcomes_for_sync_result);
+    Test.add_func("/git-sync-rules/outcomes/pull-changes-left-to-report",
+                  test_outcomes_leave_a_pull_that_changed_something_to_its_report);
+    Test.add_func("/git-sync-rules/pull-report/describes-every-change", test_pull_report_describes_every_change);
+    Test.add_func("/git-sync-rules/pull-report/compare-or-review",
+                  test_pull_report_offers_compare_for_one_copy_and_review_for_more);
+    Test.add_func("/git-sync-rules/pull-report/each-report-once",
+                  test_pull_report_tracker_announces_each_new_report_once);
     Test.add_func("/git-sync-rules/outcomes/incomplete-and-reconciled",
                   test_outcomes_explain_incomplete_sync_and_reconciliation);
 

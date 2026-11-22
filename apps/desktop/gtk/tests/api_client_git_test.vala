@@ -161,7 +161,10 @@ private void test_forced_sync_reads_both_phases() {
     transport.enqueue_read(200,
         "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"status\":\"failed\",\"remote_url\":null," +
         "\"pull\":{\"attempted\":true,\"status\":\"succeeded\",\"conflicts_resolved\":2," +
-        "\"hidden_cards_repaired\":1,\"error_message\":null}," +
+        "\"hidden_cards_repaired\":1,\"error_message\":null," +
+        "\"changes\":{\"merged_card_ids\":[\"m1\"],\"kept_out_of_trash_card_ids\":[]," +
+        "\"restored_from_trash_card_ids\":[\"r1\"],\"conflict_copy_ids\":[\"c1\",\"c2\"]," +
+        "\"hidden_cards_repaired\":1}}," +
         "\"push\":{\"attempted\":true,\"status\":\"auth_failed\",\"error_message\":\"remote rejected push\"}}}");
     var client = make_client(transport);
     HolderLinux.GitSyncResult? result = null;
@@ -177,8 +180,27 @@ private void test_forced_sync_reads_both_phases() {
     assert(transport.last_uri.has_suffix("/projects/p1/git/sync"));
     assert(result.pull.attempted && result.pull.status == "succeeded");
     assert(result.pull.conflicts_resolved == 2 && result.pull.hidden_cards_repaired == 1);
+    assert(result.pull.changes.merged_card_ids.size == 1 && result.pull.changes.merged_card_ids[0] == "m1");
+    assert(result.pull.changes.restored_from_trash_card_ids[0] == "r1");
+    assert(result.pull.changes.conflict_copy_ids.size == 2);
+    assert(result.pull.changes.hidden_cards_repaired == 1);
     assert(result.push_attempted && result.push.status == "auth_failed");
     assert(result.push.error_message == "remote rejected push");
+}
+
+private void test_sync_result_without_changes_reads_as_empty() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200,
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"status\":\"succeeded\",\"remote_url\":null," +
+        "\"pull\":{\"attempted\":true,\"status\":\"succeeded\",\"conflicts_resolved\":1}," +
+        "\"push\":{\"attempted\":true,\"status\":\"pushed\"}}}");
+    var client = make_client(transport);
+    HolderLinux.GitSyncResult? result = null;
+    client.sync_project_git.begin("p1", (obj, res) => {
+        try { result = client.sync_project_git.end(res); } catch (Error e) { assert_not_reached(); }
+    });
+    assert(wait_for_condition(() => result != null));
+    assert(result.pull.changes.is_empty());
 }
 
 public static int main(string[] args) {
@@ -195,6 +217,8 @@ public static int main(string[] args) {
     Test.add_func("/api_client_git/missing_data_errors_for_test_remote_and_push",
                   test_missing_data_errors_for_test_remote_and_push);
     Test.add_func("/api_client_git/forced_sync_reads_both_phases", test_forced_sync_reads_both_phases);
+    Test.add_func("/api_client_git/sync_result_without_changes_reads_as_empty",
+                  test_sync_result_without_changes_reads_as_empty);
 
     return Test.run();
 }

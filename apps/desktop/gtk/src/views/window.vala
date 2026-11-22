@@ -98,6 +98,10 @@ public class MainWindow : Adw.ApplicationWindow {
     private uint applying_state_depth = 0; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private uint rendered_sidebar_data_version = uint.MAX; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private uint git_refresh_serial = 0;
+    // Pull reports are announced once each; only pulls finished after the window opened are news.
+    private GitPullReportTracker pull_reports = new GitPullReportTracker(new DateTime.now_utc().to_unix());
+    private bool pull_report_check_running = false;
+    private bool pull_report_recheck = false;
     private ApiClient? diagnostic_client; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: declaration maps to generated finalizer cleanup
     private ulong request_failed_handler = 0;
 
@@ -431,6 +435,7 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.bind_flowboard_controller(flowboard_controller);
         toolbox.git_project_pulled.connect((project_id) => {
             refresh_cards_after_git_change.begin(project_id);
+            check_pull_report.begin(project_id, false);
         });
         toolbox.git_compare_conflict_requested.connect((project_id, original_id, copy_id) => {
             compare_conflict_cards(project_id, original_id, copy_id);
@@ -533,6 +538,11 @@ public class MainWindow : Adw.ApplicationWindow {
             // GCOVR_EXCL_STOP
             // LCOV_EXCL_STOP
         }
+        ((!) controller.presence).project_changed.connect((project_id) => {
+            if (controller.selected_project_id() == project_id) {
+                check_pull_report.begin(project_id, true);
+            }
+        });
         controller.bootstrap.begin();
         queue_update_check();
     }
@@ -1456,6 +1466,75 @@ public class MainWindow : Adw.ApplicationWindow {
             return false;
         }
         return true;
+    }
+
+    // Reads the selected project's sync state back and announces a pull that changed something:
+    // after Sync now (whose own toast leaves that to this), and when the daemon reports a change to
+    // the project, as after a background pull, which also refreshes the cards it changed. One check
+    // runs at a time; a change reported meanwhile is checked again once it finishes.
+    private async void check_pull_report(string project_id, bool refresh_cards) {
+        if (pull_report_check_running) {
+            pull_report_recheck = true;
+            return;
+        }
+        pull_report_check_running = true;
+        var current = project_id;
+        var refresh = refresh_cards;
+        while (true) {
+            pull_report_recheck = false;
+            yield announce_pull_report(current, refresh);
+            var selected = controller.selected_project_id();
+            if (!pull_report_recheck || selected == null) {
+                break;
+            }
+            current = (!) selected;
+            refresh = true;
+        }
+        pull_report_check_running = false;
+    }
+
+    private async void announce_pull_report(string project_id, bool refresh_cards) {
+        var api = controller.get_api_client();
+        var status_api = api as IProjectSyncStatusApi;
+        if (status_api == null || controller.selected_project_id() != project_id) {
+            return;
+        }
+        ProjectSyncState state;
+        try {
+            state = yield ((!) status_api).get_project_sync_status(project_id);
+        } catch (Error e) {
+            log_debug_line("PULL_REPORT could not read the sync state of %s: %s".printf(project_id, e.message));
+            return;
+        }
+        if (controller.get_api_client() != api || controller.selected_project_id() != project_id) {
+            return;
+        }
+        var notice = pull_reports.take(project_id, state);
+        if (notice == null) {
+            return;
+        }
+        if (refresh_cards) {
+            refresh_cards_after_git_change.begin(project_id);
+        }
+        show_pull_notice(project_id, (!) notice);
+    }
+
+    private void show_pull_notice(string project_id, GitPullNotice notice) {
+        var toast = new Adw.Toast(notice.message);
+        if (notice.action_label.length > 0) {
+            toast.set_button_label(notice.action_label);
+            // Long enough to reach for the button.
+            toast.set_timeout(10);
+            toast.button_clicked.connect(() => {
+                if (notice.opens_comparison()) {
+                    compare_conflict_cards(project_id, notice.original_id, notice.copy_id);
+                } else {
+                    toolbox.show_tool("git");
+                }
+            });
+        }
+        log_debug_line("PULL_REPORT %s: %s".printf(project_id, notice.message));
+        activity_feedback.add_toast_with_action(toast);
     }
 
     private async void refresh_cards_after_git_change(string project_id,

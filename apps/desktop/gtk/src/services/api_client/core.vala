@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi, IHistoryApi, IProjectHistoryApi, IConflictComparisonApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi, IHistoryApi, IProjectHistoryApi, IConflictComparisonApi, IProjectSyncStatusApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     private IApiHttpTransport transport; // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     private string base_url;
     private string auth_token;
@@ -24,6 +24,10 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
     // Projects
     public async Gee.ArrayList<Project> list_projects() throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
         return yield ApiClientProjectsEndpoints.list_projects(this); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async ProjectSyncState get_project_sync_status(string project_id) throws Error {
+        return yield ApiClientProjectsEndpoints.get_project_sync_status(this, project_id);
     }
 
     public async string create_project(string name, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact

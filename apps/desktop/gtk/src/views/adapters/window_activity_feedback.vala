@@ -74,6 +74,10 @@ internal class WindowActivityFeedback : Object {
         toast_overlay.add_toast(new Adw.Toast(msg));
     }
 
+    public void add_toast_with_action(Adw.Toast toast) {
+        toast_overlay.add_toast(toast);
+    }
+
     public void show_error(string title_text, string details) {
         set_status(WindowFeedbackFormat.error_status_text(title_text, details));
         add_toast("%s".printf(title_text));

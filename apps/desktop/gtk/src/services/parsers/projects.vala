@@ -57,6 +57,11 @@ public class ApiParsersProjects { // LCOV_EXCL_LINE: declaration-only coverage a
             ApiParsersCommon.nullable_int_member_or_null(obj, "next_pull_retry_at"),
             ApiParsersCommon.nullable_int_member_or_null(obj, "updated_at")
         );
+        var last_changes = ApiParsersCommon.object_member_or_null(obj, "last_pull_changes");
+        if (last_changes != null) {
+            state.last_pull_changes = ApiParsersCommon.parse_pull_changes((!) last_changes);
+            state.last_pull_changes_at = ((!) last_changes).get_int_member_with_default("pulled_at", 0);
+        }
         if (obj.has_member("conflict_copies")) {
             var entries = obj.get_array_member("conflict_copies");
             for (uint i = 0; i < entries.get_length(); i++) {

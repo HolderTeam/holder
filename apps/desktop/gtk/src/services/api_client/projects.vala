@@ -8,15 +8,19 @@ public class ApiClientProjectsEndpoints : Object { // LCOV_EXCL_BR_LINE: declara
         var projects = ApiParsersProjects.parse_projects(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
         // Each project's sync state, which the sidebar and the Git tool show.
         foreach (var project in projects) {
-            var status = yield client.request_json(
-                "GET",
-                "/projects/%s/git/sync-status".printf(Uri.escape_string(project.project_id)),
-                null,
-                null
-            );
-            project.sync = ApiParsersProjects.parse_project_sync_status(status);
+            project.sync = yield get_project_sync_status(client, project.project_id);
         }
         return projects;
+    }
+
+    public static async ProjectSyncState get_project_sync_status(ApiClient client, string project_id) throws Error {
+        var status = yield client.request_json(
+            "GET",
+            "/projects/%s/git/sync-status".printf(Uri.escape_string(project_id)),
+            null,
+            null
+        );
+        return ApiParsersProjects.parse_project_sync_status(status);
     }
 
     public static async string create_project(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact

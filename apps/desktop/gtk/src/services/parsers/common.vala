@@ -81,6 +81,27 @@ public class ApiParsersCommon { // LCOV_EXCL_LINE: declaration-only coverage art
 
         return root.get_object();
     }
+
+    // A pull's changes, as a sync result's pull phase and a project's last pull changes give them.
+    public static GitPullChanges parse_pull_changes(Json.Object obj) {
+        var changes = new GitPullChanges();
+        add_strings(obj, "merged_card_ids", changes.merged_card_ids);
+        add_strings(obj, "kept_out_of_trash_card_ids", changes.kept_out_of_trash_card_ids);
+        add_strings(obj, "restored_from_trash_card_ids", changes.restored_from_trash_card_ids);
+        add_strings(obj, "conflict_copy_ids", changes.conflict_copy_ids);
+        changes.hidden_cards_repaired = (int) obj.get_int_member_with_default("hidden_cards_repaired", 0);
+        return changes;
+    }
+
+    private static void add_strings(Json.Object obj, string key, Gee.ArrayList<string> into) {
+        if (!obj.has_member(key)) {
+            return;
+        }
+        var items = obj.get_array_member(key);
+        for (uint i = 0; i < items.get_length(); i++) {
+            into.add(items.get_string_element(i));
+        }
+    }
 }
 
 }

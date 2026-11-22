@@ -57,6 +57,24 @@ public class GitConflictCopy : Object {
     }
 }
 
+// What a pull changed to bring this device's and another device's versions of the project
+// together: cards whose edits were merged, cards edited here that the other device had moved to
+// Trash (kept out of it, or restored from it), copies that preserve a version that could not be
+// merged, and live cards the pull left hidden that were made reachable again.
+public class GitPullChanges : Object {
+    public Gee.ArrayList<string> merged_card_ids { get; private set; default = new Gee.ArrayList<string>(); }
+    public Gee.ArrayList<string> kept_out_of_trash_card_ids { get; private set; default = new Gee.ArrayList<string>(); }
+    public Gee.ArrayList<string> restored_from_trash_card_ids { get; private set; default = new Gee.ArrayList<string>(); }
+    public Gee.ArrayList<string> conflict_copy_ids { get; private set; default = new Gee.ArrayList<string>(); }
+    public int hidden_cards_repaired { get; set; default = 0; }
+
+    public bool is_empty() {
+        return merged_card_ids.is_empty && kept_out_of_trash_card_ids.is_empty &&
+               restored_from_trash_card_ids.is_empty && conflict_copy_ids.is_empty &&
+               hidden_cards_repaired == 0;
+    }
+}
+
 public class ProjectSyncState : Object {
     public bool has_last_commit_at { get; set; }
     public int64 last_commit_at { get; set; }
@@ -80,6 +98,10 @@ public class ProjectSyncState : Object {
     public bool has_updated_at { get; set; }
     public int64 updated_at { get; set; }
     public Gee.ArrayList<GitConflictCopy> conflict_copies { get; private set; default = new Gee.ArrayList<GitConflictCopy>(); }
+    // The last pull, background or not, that changed something, and when it finished (epoch
+    // seconds); null when no pull has changed anything yet.
+    public GitPullChanges? last_pull_changes { get; set; default = null; }
+    public int64 last_pull_changes_at { get; set; default = 0; }
 
     public ProjectSyncState(int64? last_commit_at = null,
                             int64? last_push_at = null,

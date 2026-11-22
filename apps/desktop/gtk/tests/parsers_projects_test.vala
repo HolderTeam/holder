@@ -159,6 +159,38 @@ private void test_parse_conflict_copies() {
     }
 }
 
+private void test_parse_last_pull_changes() {
+    try {
+        var parser = new Json.Parser();
+        parser.load_from_data(
+            "{\"data\":{\"last_pull_changes\":{\"pulled_at\":1700," +
+            "\"merged_card_ids\":[\"m1\",\"m2\"],\"kept_out_of_trash_card_ids\":[\"k1\"]," +
+            "\"restored_from_trash_card_ids\":[],\"conflict_copy_ids\":[\"c1\"]," +
+            "\"hidden_cards_repaired\":3}}}"
+        );
+        var state = HolderLinux.ApiParsersProjects.parse_project_sync_status(parser.get_root().get_object());
+        assert(state.last_pull_changes != null);
+        var changes = (!) state.last_pull_changes;
+        assert(state.last_pull_changes_at == 1700);
+        assert(changes.merged_card_ids.size == 2 && changes.merged_card_ids[1] == "m2");
+        assert(changes.kept_out_of_trash_card_ids.size == 1);
+        assert(changes.restored_from_trash_card_ids.is_empty);
+        assert(changes.conflict_copy_ids[0] == "c1");
+        assert(changes.hidden_cards_repaired == 3);
+        assert(!changes.is_empty());
+
+        // No pull has changed anything yet, or an older daemon that does not report it.
+        foreach (var data in new string[] { "{\"data\":{\"last_pull_changes\":null}}", "{\"data\":{}}" }) {
+            parser.load_from_data(data);
+            state = HolderLinux.ApiParsersProjects.parse_project_sync_status(parser.get_root().get_object());
+            assert(state.last_pull_changes == null);
+            assert(state.last_pull_changes_at == 0);
+        }
+    } catch (Error e) {
+        assert_not_reached();
+    }
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -166,6 +198,7 @@ public static int main(string[] args) {
     Test.add_func("/parsers/projects/sync-status-missing-data-protocol-error", test_parse_project_sync_status_missing_data_is_protocol_error);
     Test.add_func("/parsers/projects/full-and-defaults", test_parse_projects_full_and_defaults);
     Test.add_func("/parsers/projects/conflict-copies", test_parse_conflict_copies);
+    Test.add_func("/parsers/projects/last-pull-changes", test_parse_last_pull_changes);
 
     return Test.run();
 }

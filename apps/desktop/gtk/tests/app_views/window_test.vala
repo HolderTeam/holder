@@ -786,6 +786,48 @@ private class WindowConflictApi : MainControllerFakeApi, HolderLinux.IConflictCo
     }
 }
 
+// Answers the sync state with a pull report the test sets: the conflict copy c2 of c1 by
+// default, as a pull that could not merge an edit records it.
+private class WindowPullReportApi : WindowConflictApi, HolderLinux.IProjectSyncStatusApi {
+    public int sync_status_calls;
+    public string[] sync_status_projects = {};
+    public HolderLinux.GitPullChanges? report = null;
+    public int64 reported_at = new DateTime.now_utc().to_unix();
+    public bool fail_sync_status;
+
+    public WindowPullReportApi() {
+        var changes = new HolderLinux.GitPullChanges();
+        changes.merged_card_ids.add("c1");
+        changes.conflict_copy_ids.add("c2");
+        report = changes;
+    }
+
+    public async HolderLinux.ProjectSyncState get_project_sync_status(string project_id) throws Error {
+        sync_status_calls++;
+        sync_status_projects += project_id;
+        if (fail_sync_status) {
+            throw new HolderLinux.ApiError.HTTP("Sync state unavailable");
+        }
+        var projects = yield list_projects();
+        var state = projects[0].sync;
+        state.last_pull_changes = report;
+        state.last_pull_changes_at = reported_at;
+        return state;
+    }
+}
+
+private Gtk.Button? toast_button(WindowFixture f, string label) {
+    av_settle();
+    foreach (var widget in av_descendants(f.window)) {
+        var button = widget as Gtk.Button;
+        if (button != null && button.get_label() == label && button.is_drawable()) return button;
+    }
+    return null;
+}
+
+private const string PULL_REPORT_MESSAGE =
+    "Pulled changes from another device: merged edits into 1 card and saved your version of a card as a copy.";
+
 private Gtk.Button comparison_button(Adw.Dialog dialog, string label) {
     foreach (var widget in av_descendants(dialog)) {
         var button = widget as Gtk.Button;
@@ -1956,6 +1998,80 @@ private void test_disposing_the_window_stops_intelligence_runs() {
     window_run_dispose(window);
 }
 
+private void test_a_background_pull_is_announced_once_with_its_copy_to_compare() {
+    Gtk.Settings.get_default().gtk_enable_animations = false;
+    var f = new WindowFixture();
+    var api = new WindowPullReportApi();
+    f.api = api;
+    api.include_card2 = true;
+    f.open_loaded();
+    f.open_card("c1");
+    var cards_before = api.list_cards_calls;
+
+    // Another project's change is not this window's news.
+    f.presence.project_changed("p9");
+    av_settle();
+    assert(api.sync_status_calls == 0);
+
+    f.presence.project_changed("p1");
+    assert(wait_for_condition(() => f.has_toast(PULL_REPORT_MESSAGE)));
+    assert(api.sync_status_projects[0] == "p1");
+    // The pulled cards are shown.
+    assert(wait_for_condition(() => api.list_cards_calls > cards_before));
+
+    // The same report again, as when the project changes for another reason: no new toast.
+    var cards_after = api.list_cards_calls;
+    f.presence.project_changed("p1");
+    assert(wait_for_condition(() => api.sync_status_calls >= 2));
+    av_settle();
+    assert(api.list_cards_calls == cards_after);
+
+    var compare = toast_button(f, "Compare");
+    assert(compare != null);
+    ((!) compare).clicked();
+    assert(wait_for_condition(() => f.window.get_visible_dialog() != null));
+    assert(wait_for_condition(() => api.comparison_calls == 1));
+    ((!) f.window.get_visible_dialog()).force_close();
+    f.destroy();
+}
+
+private void test_a_pull_report_from_sync_now_or_before_startup() {
+    Gtk.Settings.get_default().gtk_enable_animations = false;
+    var f = new WindowFixture();
+    var api = new WindowPullReportApi();
+    f.api = api;
+    f.open_loaded();
+    var toolbox = f.window.workspace_for_tests.toolbox;
+
+    // A report from before the window opened was not made while anyone was looking.
+    api.reported_at = 1;
+    f.presence.project_changed("p1");
+    assert(wait_for_condition(() => api.sync_status_calls == 1));
+    av_settle();
+    assert(!f.has_toast(PULL_REPORT_MESSAGE));
+
+    // An unreadable sync state is only logged.
+    api.fail_sync_status = true;
+    toolbox.git_project_pulled("p1");
+    assert(wait_for_condition(() => f.debug_contains("PULL_REPORT could not read the sync state of p1")));
+    api.fail_sync_status = false;
+
+    // Sync now leaves its changes to the report; two copies are reviewed in the Git tool.
+    var changes = new HolderLinux.GitPullChanges();
+    changes.conflict_copy_ids.add("c2");
+    changes.conflict_copy_ids.add("c3");
+    api.report = changes;
+    api.reported_at = new DateTime.now_utc().to_unix() + 1;
+    toolbox.git_project_pulled("p1");
+    assert(wait_for_condition(() => f.has_toast(
+        "Pulled changes from another device: saved your versions of 2 cards as copies.")));
+    var review = toast_button(f, "Review");
+    assert(review != null);
+    ((!) review).clicked();
+    assert(wait_for_condition(() => toolbox.is_showing_tool("git")));
+    f.destroy();
+}
+
 internal void register_window_tests() {
     av_add_test("/app_views/window/starts_and_loads", test_the_window_starts_and_loads_the_first_project);
     av_add_test("/app_views/window/toolbar_actions", test_the_toolbar_actions_reach_the_controller);
@@ -1968,6 +2084,9 @@ internal void register_window_tests() {
     av_add_test("/app_views/window/find_replace", test_find_and_replace_edit_the_card);
     av_add_test("/app_views/window/reported_state", test_the_window_shows_what_the_controller_reports);
     av_add_test("/app_views/window/sync_now_refresh", test_sync_now_refreshes_remote_edits_and_deletions);
+    av_add_test("/app_views/window/background_pull_report",
+                test_a_background_pull_is_announced_once_with_its_copy_to_compare);
+    av_add_test("/app_views/window/pull_report_sync_now_and_startup", test_a_pull_report_from_sync_now_or_before_startup);
     av_add_test("/app_views/window/sync_out_of_order_card_replies", test_newer_pull_wins_over_an_older_card_reply_or_error);
     av_add_test("/app_views/conflict_comparison/discard_draft", test_discarding_a_conflict_draft);
     av_add_test("/app_views/conflict_comparison/keep_original", test_keeping_the_original_and_preserved_copy);
