@@ -793,6 +793,8 @@ private class WindowPullReportApi : WindowConflictApi, HolderLinux.IProjectSyncS
     public string[] sync_status_projects = {};
     public HolderLinux.GitPullChanges? report = null;
     public int64 reported_at = new DateTime.now_utc().to_unix();
+    // When the last pull finished, 0 for never.
+    public int64 pulled_at = 0;
     public bool fail_sync_status;
 
     public WindowPullReportApi() {
@@ -812,6 +814,8 @@ private class WindowPullReportApi : WindowConflictApi, HolderLinux.IProjectSyncS
         var state = projects[0].sync;
         state.last_pull_changes = report;
         state.last_pull_changes_at = reported_at;
+        state.has_last_pull_at = pulled_at > 0;
+        state.last_pull_at = pulled_at;
         return state;
     }
 }
@@ -2009,11 +2013,11 @@ private void test_a_background_pull_is_announced_once_with_its_copy_to_compare()
     var cards_before = api.list_cards_calls;
 
     // Another project's change is not this window's news.
-    f.presence.project_changed("p9");
+    f.presence.project_changed("p9", "r1");
     av_settle();
     assert(api.sync_status_calls == 0);
 
-    f.presence.project_changed("p1");
+    f.presence.project_changed("p1", "r1");
     assert(wait_for_condition(() => f.has_toast(PULL_REPORT_MESSAGE)));
     assert(api.sync_status_projects[0] == "p1");
     // The pulled cards are shown.
@@ -2021,7 +2025,7 @@ private void test_a_background_pull_is_announced_once_with_its_copy_to_compare()
 
     // The same report again, as when the project changes for another reason: no new toast.
     var cards_after = api.list_cards_calls;
-    f.presence.project_changed("p1");
+    f.presence.project_changed("p1", "r1");
     assert(wait_for_condition(() => api.sync_status_calls >= 2));
     av_settle();
     assert(api.list_cards_calls == cards_after);
@@ -2045,7 +2049,7 @@ private void test_a_pull_report_from_sync_now_or_before_startup() {
 
     // A report from before the window opened was not made while anyone was looking.
     api.reported_at = 1;
-    f.presence.project_changed("p1");
+    f.presence.project_changed("p1", "r1");
     assert(wait_for_condition(() => api.sync_status_calls == 1));
     av_settle();
     assert(!f.has_toast(PULL_REPORT_MESSAGE));
@@ -2072,6 +2076,46 @@ private void test_a_pull_report_from_sync_now_or_before_startup() {
     f.destroy();
 }
 
+private void test_a_background_pull_with_nothing_to_report_still_refreshes_the_cards() {
+    var f = new WindowFixture();
+    var api = new WindowPullReportApi();
+    api.report = null;
+    f.api = api;
+    f.open_loaded();
+    var now = new DateTime.now_utc().to_unix();
+
+    // A local save moves the commit but is not a pull.
+    var cards = api.list_cards_calls;
+    f.presence.project_changed("p1", "local-1");
+    assert(wait_for_condition(() => api.sync_status_calls == 1));
+    av_settle();
+    assert(api.list_cards_calls == cards);
+
+    // A background fast-forward: a pull, and the commit moved.
+    api.pulled_at = now;
+    f.presence.project_changed("p1", "pulled-1");
+    assert(wait_for_condition(() => api.list_cards_calls > cards));
+
+    // The next pull brought nothing: the commit stayed.
+    cards = api.list_cards_calls;
+    api.pulled_at = now + 300;
+    f.presence.project_changed("p1", "pulled-1");
+    assert(wait_for_condition(() => api.sync_status_calls == 3));
+    av_settle();
+    assert(api.list_cards_calls == cards);
+
+    // One that did, after Sync now saw the pull before it: Sync now refreshed by itself.
+    api.pulled_at = now + 600;
+    f.window.workspace_for_tests.toolbox.git_project_pulled("p1");
+    assert(wait_for_condition(() => api.sync_status_calls == 4));
+    var after_sync_now = api.list_cards_calls;
+    f.presence.project_changed("p1", "pulled-2");
+    assert(wait_for_condition(() => api.sync_status_calls == 5));
+    av_settle();
+    assert(api.list_cards_calls == after_sync_now);
+    f.destroy();
+}
+
 internal void register_window_tests() {
     av_add_test("/app_views/window/starts_and_loads", test_the_window_starts_and_loads_the_first_project);
     av_add_test("/app_views/window/toolbar_actions", test_the_toolbar_actions_reach_the_controller);
@@ -2087,6 +2131,8 @@ internal void register_window_tests() {
     av_add_test("/app_views/window/background_pull_report",
                 test_a_background_pull_is_announced_once_with_its_copy_to_compare);
     av_add_test("/app_views/window/pull_report_sync_now_and_startup", test_a_pull_report_from_sync_now_or_before_startup);
+    av_add_test("/app_views/window/background_pull_refreshes_cards",
+                test_a_background_pull_with_nothing_to_report_still_refreshes_the_cards);
     av_add_test("/app_views/window/sync_out_of_order_card_replies", test_newer_pull_wins_over_an_older_card_reply_or_error);
     av_add_test("/app_views/conflict_comparison/discard_draft", test_discarding_a_conflict_draft);
     av_add_test("/app_views/conflict_comparison/keep_original", test_keeping_the_original_and_preserved_copy);

@@ -181,7 +181,7 @@ public class PresenceStream : Object, IPresence {
         schedule_retry();
     }
 
-    // A project.changed event's data names the project.
+    // A project.changed event's data names the project and its current commit.
     private void announce_project_change(string data) {
         try {
             var parser = new Json.Parser();
@@ -190,9 +190,11 @@ public class PresenceStream : Object, IPresence {
             if (root == null || root.get_node_type() != Json.NodeType.OBJECT) {
                 return;
             }
-            var project_id = ApiParsersCommon.nullable_string_member_or_null(root.get_object(), "project_id");
+            var data_object = root.get_object();
+            var project_id = ApiParsersCommon.nullable_string_member_or_null(data_object, "project_id");
             if (project_id != null && ((!) project_id).length > 0) {
-                project_changed((!) project_id);
+                project_changed((!) project_id,
+                                ApiParsersCommon.nullable_string_member_or_null(data_object, "git_revision"));
             }
         } catch (Error e) {
             debug_log_requested("PRESENCE ignored an unreadable project event: %s".printf(e.message));

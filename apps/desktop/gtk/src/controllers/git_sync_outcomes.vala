@@ -168,4 +168,40 @@ public class GitPullReportTracker : Object {
     }
 }
 
+
+// Decides when a pull may have brought cards that the window does not show yet. Every successful
+// pull, background or not, records when it finished, even when there was nothing to pull, so a
+// finished pull alone is not enough: the project's commit must also have moved since the last
+// pull the window acted on. Local saves move the commit too, so a pull that brought nothing after
+// local edits can still answer yes once; that only costs one refresh. Pulls finished before the
+// window opened are already in the cards it loaded.
+public class GitPullWatch : Object {
+    private int64 since;
+    private Gee.HashMap<string, int64?> pulls_seen = new Gee.HashMap<string, int64?>();
+    private Gee.HashMap<string, string> revisions_at_pull = new Gee.HashMap<string, string>();
+
+    public GitPullWatch(int64 since) {
+        this.since = since;
+    }
+
+    // revision is the project's current commit, or null when it is not known.
+    public bool pulled_new_commits(string project_id, ProjectSyncState state, string? revision) {
+        if (!state.has_last_pull_at || state.last_pull_at < since) {
+            return false;
+        }
+        var seen = pulls_seen.get(project_id);
+        if (seen != null && state.last_pull_at <= (!) seen) {
+            return false;
+        }
+        pulls_seen.set(project_id, state.last_pull_at);
+        var before = revisions_at_pull.get(project_id);
+        if (revision == null) {
+            revisions_at_pull.unset(project_id);
+            return true;
+        }
+        revisions_at_pull.set(project_id, (!) revision);
+        return before == null || before != (!) revision;
+    }
+}
+
 }
