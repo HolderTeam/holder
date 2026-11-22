@@ -129,6 +129,8 @@ class GitRepo {
   // both sides since the merge-base; paths touched only locally are preserved; paths touched
   // only remotely are taken as-is. Deliberately never attempts a line-level content merge for a
   // path touched on both sides, even if the touched lines don't overlap -- see conflicted_paths.
+  // Cards are combined afterwards from their parsed (and decrypted) versions, field by field and
+  // line by line, by holder::sync::resolve_pull_conflicts.
   // Creates a real two-parent merge commit (parents: local_oid_hex, remote_oid_hex) and updates
   // HEAD to it.
   DivergedMergeResult merge_remote_taking_theirs_for_conflicts(

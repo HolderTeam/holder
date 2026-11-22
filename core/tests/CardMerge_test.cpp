@@ -9,6 +9,7 @@
 namespace {
 
 using holder::core::ParsedCardFile;
+using holder::sync::merge_body_lines;
 using holder::sync::merge_card_versions;
 
 constexpr const char* kCardId = "550e8400-e29b-41d4-a716-446655440000";
@@ -96,9 +97,13 @@ TEST_CASE("merge_card_versions keeps both versions for clashing changes", "[sync
   auto local = base;
   auto remote = base;
 
-  SECTION("different body edits") {
-    local.body = "Local.\n";
-    remote.body = "Remote.\n";
+  SECTION("different edits to the same body line") {
+    local.body = "First.\n\nSecond, edited here.\n";
+    remote.body = "First.\n\nSecond, edited there.\n";
+  }
+  SECTION("different edits to neighbouring body lines") {
+    local.body = "First, edited here.\n\nSecond.\n";
+    remote.body = "First.\nAdded there.\n\nSecond.\n";
   }
   SECTION("different titles") {
     local.card.title = "Local title";
@@ -211,5 +216,54 @@ TEST_CASE("merge_card_versions merges milestones one by one", "[sync][merge]") {
     local.milestones.erase(local.milestones.begin());
     remote.milestones[0].description = "Remote";
     CHECK_FALSE(merge_card_versions(base, local, remote).has_value());
+  }
+}
+
+TEST_CASE("merge_card_versions merges body edits to different lines", "[sync][merge]") {
+  auto base = base_card();
+  base.body = "Intro.\n\nFirst.\n\nSecond.\n\nThird.\n";
+  auto local = base;
+  auto remote = base;
+  local.body = "Intro.\n\nFirst, edited here.\n\nSecond.\n\nThird.\n";
+  remote.body = "Intro.\n\nFirst.\n\nSecond.\n\nThird, edited there.\n\nFourth, added there.\n";
+  local.card.title = "Renamed here";
+  local.card.updated_at = 30;
+  remote.card.updated_at = 20;
+
+  const auto merged = merge_card_versions(base, local, remote);
+  REQUIRE(merged.has_value());
+  CHECK(
+      merged->body ==
+      "Intro.\n\nFirst, edited here.\n\nSecond.\n\nThird, edited there.\n\nFourth, added there.\n"
+  );
+  CHECK(merged->card.title == "Renamed here");
+  CHECK(merged->card.updated_at == 30);
+}
+
+TEST_CASE("merge_body_lines merges as git merges a file", "[sync][merge]") {
+  SECTION("a removal on one side and an edit elsewhere on the other") {
+    CHECK(merge_body_lines("a\nb\nc\nd\n", "b\nc\nd\n", "a\nb\nc\nD\n") == "b\nc\nD\n");
+  }
+  SECTION("CRLF line endings are kept") {
+    CHECK(
+        merge_body_lines(
+            "1\r\n2\r\n3\r\n4\r\n",
+            "1!\r\n2\r\n3\r\n4\r\n",
+            "1\r\n2\r\n3\r\n4!\r\n"
+        ) == "1!\r\n2\r\n3\r\n4!\r\n"
+    );
+  }
+  SECTION("a last line without a newline") {
+    CHECK(merge_body_lines("a\nb\nc", "A\nb\nc", "a\nb\nC") == "A\nb\nC");
+  }
+  SECTION("a body written from empty on both sides cannot be merged") {
+    CHECK_FALSE(merge_body_lines("", "Here.\n", "There.\n").has_value());
+  }
+  SECTION("text with a NUL byte is not merged") {
+    const std::string base("a\nb\nc\n\0\n", 8);
+    CHECK_FALSE(
+        merge_body_lines(base, std::string("A\nb\nc\n\0\n", 8), std::string("a\nb\nC\n\0\n", 8))
+            .has_value()
+    );
   }
 }
