@@ -1,4 +1,6 @@
-# Three checks are off:
+# Intentional exceptions:
+# - The daemon uses pragma once, keeps explicit lambda parameter lists and qualified aliases,
+#   and parenthesizes numeric_limits::max calls to protect them from Windows macros.
 # - readability-redundant-member-init: response and event structs are aggregates built from some of
 #   their members, and their `= {}` initializers are what keep -Wextra's missing-field-initializers
 #   quiet about the rest.
@@ -14,10 +16,14 @@ Checks: >
   -clang-analyzer-optin.cplusplus.VirtualCall,
   performance-*,
   portability-*,
+  -portability-avoid-pragma-once,
   modernize-use-emplace,
   modernize-use-nullptr,
   modernize-use-override,
   readability-redundant-*,
+  -readability-redundant-lambda-parameter-list,
+  -readability-redundant-parentheses,
+  -readability-redundant-qualified-alias,
   -readability-redundant-member-init
 WarningsAsErrors: '*'
 HeaderFilterRegex: '^.*/daemon/(src|tests)/.*'

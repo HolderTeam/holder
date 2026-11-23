@@ -198,6 +198,7 @@ def generate_json(plan: BoundaryPlan) -> str:
         "#include <optional>",
         "#include <stdexcept>",
         "#include <string>",
+        "#include <string_view>",
         "#include <vector>",
         SUPPORT.replace("contract_json", "daemon_json").rstrip(),
         MAP_SUPPORT.rstrip(),

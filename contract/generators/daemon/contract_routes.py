@@ -77,7 +77,7 @@ inline std::string decode_uri_component(std::string_view input, bool query) {
         const int low = hex_digit(input[index + 2]);
         if (high < 0 || low < 0)
             throw std::invalid_argument("invalid percent escape in URL parameter");
-        result.push_back(static_cast<char>((high << 4) | low));
+        result.push_back(static_cast<char>(high * 16 + low));
         index += 2;
     }
     return result;

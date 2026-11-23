@@ -29,6 +29,8 @@ int successful_run(int argc, char* argv[]) {
 
 int throwing_std_run(int, char*[]) { throw std::runtime_error("startup failed"); }
 
+// Exercise the entry point's catch-all handler.
+// NOLINTNEXTLINE(bugprone-std-exception-baseclass)
 int throwing_unknown_run(int, char*[]) { throw 42; }
 
 void record_fatal_error(const char* message) noexcept {

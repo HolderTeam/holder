@@ -6,6 +6,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <string>
 
 namespace {
@@ -110,6 +111,18 @@ TEST_CASE("CloudQuota cooldown supports configurable base/cap", "[cloud_quota]")
   );
   REQUIRE(third.failure_count == 3);
   REQUIRE(third.cooldown_until == 1060); // 40s cap
+
+  const auto cap = std::numeric_limits<long long>::max();
+  const auto large = holder::api::support::record_cloud_model_failure(
+      db,
+      provider,
+      model,
+      "timeout",
+      1'700'000'000,
+      cap / 2 + 1,
+      cap
+  );
+  REQUIRE(large.cooldown_until == cap);
 }
 
 TEST_CASE("CloudQuota durable ledger restores usage after SQLite loss", "[cloud_quota]") {

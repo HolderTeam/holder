@@ -40,15 +40,15 @@ int run_helper(
 ) {
   std::string cmd;
   cmd.reserve(helper.string().size() + lock_path.string().size() + 16);
-  cmd += "\"";
+  cmd += '"';
   cmd += helper.string();
   cmd += "\" \"";
   cmd += lock_path.string();
-  cmd += "\"";
+  cmd += '"';
   if (hold_ms > 0) {
     cmd += " \"";
     cmd += std::to_string(hold_ms);
-    cmd += "\"";
+    cmd += '"';
   }
 
   return holder::test::run_system_command(cmd);

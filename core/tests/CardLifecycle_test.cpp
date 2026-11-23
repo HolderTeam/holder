@@ -189,7 +189,7 @@ TEST_CASE("Card appends re-space large sibling keys and survive a rebuild", "[ca
   std::function<void()> append;
 
   SECTION("creation without a key") {
-    append = [&] {
+    append = [&f, last, appended] {
       auto card = *f.cards.get(last);
       card.card_id = appended;
       card.title = appended;
@@ -201,13 +201,13 @@ TEST_CASE("Card appends re-space large sibling keys and survive a rebuild", "[ca
     f.add(parent_id);
     parent = parent_id;
     f.add(appended);
-    append = [&] {
+    append = [&f, &parent, appended] {
       f.store.move(appended, true, parent, std::nullopt, 10);
     };
   }
   SECTION("batch import with a key and then without one") {
     expected.insert(expected.end() - 1, "batch-sibling");
-    append = [&] {
+    append = [&f, appended] {
       holder::card::BatchCardInput earlier;
       earlier.card_id = earlier.title = "batch-sibling";
       earlier.content = "earlier body";

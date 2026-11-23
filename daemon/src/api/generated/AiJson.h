@@ -14,6 +14,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -24,26 +25,26 @@ using json = nlohmann::json;
 template <typename T> struct codec;
 
 // The number of characters in text, or nothing when it is not well-formed UTF-8.
-inline std::optional<std::size_t> utf8_length(const std::string& text) {
+inline std::optional<std::size_t> utf8_length(std::string_view text) {
   std::size_t count = 0;
   for (std::size_t i = 0; i < text.size(); ++count) {
-    const auto lead = static_cast<unsigned char>(text[i]);
+    const unsigned int lead = static_cast<unsigned char>(text[i]);
     std::size_t size = 1;
-    char32_t point = lead;
+    std::uint32_t point = lead;
     if (lead >= 0xC2 && lead <= 0xDF) {
-      size = 2, point = lead & 0x1F;
+      size = 2, point = lead & 0x1FU;
     } else if (lead >= 0xE0 && lead <= 0xEF) {
-      size = 3, point = lead & 0x0F;
+      size = 3, point = lead & 0x0FU;
     } else if (lead >= 0xF0 && lead <= 0xF4) {
-      size = 4, point = lead & 0x07;
+      size = 4, point = lead & 0x07U;
     } else if (lead >= 0x80) {
       return std::nullopt;
     }
     if (text.size() - i < size) return std::nullopt;
     for (std::size_t k = 1; k < size; ++k) {
-      const auto next = static_cast<unsigned char>(text[i + k]);
-      if ((next & 0xC0) != 0x80) return std::nullopt;
-      point = (point << 6) | (next & 0x3F);
+      const unsigned int next = static_cast<unsigned char>(text[i + k]);
+      if ((next & 0xC0U) != 0x80) return std::nullopt;
+      point = (point << 6U) | (next & 0x3FU);
     }
     if ((size == 3 && (point < 0x800 || (point >= 0xD800 && point <= 0xDFFF))) ||
         (size == 4 && (point < 0x10000 || point > 0x10FFFF)))
@@ -54,15 +55,15 @@ inline std::optional<std::size_t> utf8_length(const std::string& text) {
 }
 
 // Text the contract accepts: UTF-8 without U+0000, its length in characters within bounds.
-inline const std::string& check_text(
-    const std::string& value,
+inline void validate_text(
+    std::string_view value,
     const char* name,
     std::size_t minimum,
     std::size_t maximum
 ) {
   const auto length = utf8_length(value);
   if (!length) throw std::invalid_argument(std::string(name) + " must be UTF-8");
-  if (value.find('\0') != std::string::npos)
+  if (value.find('\0') != std::string_view::npos)
     throw std::invalid_argument(std::string(name) + " must not contain U+0000");
   if (*length < minimum)
     throw std::invalid_argument(
@@ -74,13 +75,22 @@ inline const std::string& check_text(
     throw std::invalid_argument(
         std::string(name) + " must be at most " + std::to_string(maximum) + " characters"
     );
+}
+
+inline std::string check_text(
+    std::string value,
+    const char* name,
+    std::size_t minimum,
+    std::size_t maximum
+) {
+  validate_text(value, name, minimum, maximum);
   return value;
 }
 
 // Lists and maps of text: every item, key and value is text the contract accepts, of any length.
 inline std::vector<std::string> check_text_items(std::vector<std::string> items, const char* name) {
   for (const auto& text : items)
-    check_text(text, name, 0, std::numeric_limits<std::size_t>::max());
+    validate_text(text, name, 0, std::numeric_limits<std::size_t>::max());
   return items;
 }
 
@@ -90,8 +100,8 @@ inline std::map<std::string, std::string> check_text_entries(
 ) {
   const auto key_name = std::string(name) + " key";
   for (const auto& [key, text] : entries) {
-    check_text(key, key_name.c_str(), 0, std::numeric_limits<std::size_t>::max());
-    check_text(text, name, 0, std::numeric_limits<std::size_t>::max());
+    validate_text(key, key_name.c_str(), 0, std::numeric_limits<std::size_t>::max());
+    validate_text(text, name, 0, std::numeric_limits<std::size_t>::max());
   }
   return entries;
 }
@@ -102,9 +112,9 @@ inline std::map<std::string, std::vector<std::string>> check_text_entries(
 ) {
   const auto key_name = std::string(name) + " key";
   for (const auto& [key, values] : entries) {
-    check_text(key, key_name.c_str(), 0, std::numeric_limits<std::size_t>::max());
+    validate_text(key, key_name.c_str(), 0, std::numeric_limits<std::size_t>::max());
     for (const auto& text : values)
-      check_text(text, name, 0, std::numeric_limits<std::size_t>::max());
+      validate_text(text, name, 0, std::numeric_limits<std::size_t>::max());
   }
   return entries;
 }

@@ -116,7 +116,7 @@ void LocalModelRunner::start_background_probe() {
     model.size = 1;
     fake.models.push_back(model);
     std::lock_guard<std::mutex> lock(mu_);
-    status_ = fake;
+    status_ = std::move(fake);
     return;
   }
   bool expected = false;
@@ -148,7 +148,7 @@ RunnerStatus LocalModelRunner::retry() {
     model.size = 1;
     fake.models.push_back(model);
     std::lock_guard<std::mutex> lock(mu_);
-    status_ = fake;
+    status_ = std::move(fake);
     return status_;
   }
   probe(true);

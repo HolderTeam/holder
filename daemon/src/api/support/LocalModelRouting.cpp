@@ -237,10 +237,9 @@ std::vector<std::string> parse_ranked_models(
     for (const auto& item : parsed) {
       if (!item.is_string()) continue;
       const auto name = item.get<std::string>();
-      if (std::find(candidates.begin(), candidates.end(), name) != candidates.end()) {
-        if (std::find(ranked.begin(), ranked.end(), name) == ranked.end()) {
-          ranked.push_back(name);
-        }
+      if (std::find(candidates.begin(), candidates.end(), name) != candidates.end() &&
+          std::find(ranked.begin(), ranked.end(), name) == ranked.end()) {
+        ranked.push_back(name);
       }
     }
     return ranked;

@@ -17,13 +17,14 @@ std::string query_encode(const std::string& value) {
   constexpr char hex[] = "0123456789ABCDEF";
   std::string result;
   for (const char character : value) {
-    const auto byte = static_cast<unsigned char>(character);
-    if (std::isalnum(byte) || byte == '-' || byte == '_' || byte == '.' || byte == '~') {
+    const unsigned int byte = static_cast<unsigned char>(character);
+    if (std::isalnum(static_cast<int>(byte)) || byte == '-' || byte == '_' || byte == '.' ||
+        byte == '~') {
       result += character;
     } else {
       result += '%';
-      result += hex[byte >> 4];
-      result += hex[byte & 15];
+      result += hex[byte >> 4U];
+      result += hex[byte & 15U];
     }
   }
   return result;

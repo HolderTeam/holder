@@ -335,7 +335,9 @@ unsigned int S3CompatibleProvider::request(
         (void)stream.socket().shutdown(tcp::socket::shutdown_both, ignored);
       }
       if ((status == 429 || status >= 500) && attempt < 2) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100 * (1 << attempt)));
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(100 * (1U << static_cast<unsigned int>(attempt)))
+        );
         continue;
       }
       return status;
@@ -346,7 +348,9 @@ unsigned int S3CompatibleProvider::request(
             std::string("S3 endpoint unavailable: ") + ex.what()
         );
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(100 * (1 << attempt)));
+      std::this_thread::sleep_for(
+          std::chrono::milliseconds(100 * (1U << static_cast<unsigned int>(attempt)))
+      );
     }
   }
   // LCOV_EXCL_START: the loop exits by return or throw on its final attempt.

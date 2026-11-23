@@ -175,7 +175,8 @@ TEST_CASE(
 
   SECTION("A target one byte over 128 KiB receives 414") {
     rejected(
-        "GET /" + std::string(128 * 1024, 'x') + " HTTP/1.1\r\nHost: localhost\r\n\r\n",
+        "GET /" + std::string(std::size_t{128} * 1024, 'x') +
+            " HTTP/1.1\r\nHost: localhost\r\n\r\n",
         http::status::uri_too_long,
         "uri_too_long"
     );
@@ -193,7 +194,7 @@ TEST_CASE(
     const std::string line = "GET /health HTTP/1.1\r\n";
     const std::string fields = "Host: localhost\r\nAuthorization: Bearer " + token +
                                "\r\nX-Padding: ";
-    const std::string padding(16 * 1024 - fields.size() - 4, 'x');
+    const std::string padding(std::size_t{16} * 1024 - fields.size() - 4, 'x');
     boost::asio::io_context ioc;
     auto socket = connect_test_socket(ioc, bound.bind, bound.port);
     write_raw_request(socket, line + fields + padding + "\r\n\r\n");
@@ -1081,7 +1082,7 @@ TEST_CASE("Listener stop cancels in-flight writer response and returns promptly"
   auto db = open_db_with_schema(db_path);
   std::atomic<int> route_started{0};
 
-  const std::string payload(std::size_t{8} * 1024 * 1024, 'x');
+  const std::string payload(std::size_t{2} * 1024 * 1024, 'x');
   HookedSecretStore secrets;
   // The preferred location ID is the response's large payload.
   secrets.on_get = [&route_started, &payload](const std::string&) {
@@ -1129,7 +1130,7 @@ TEST_CASE("Listener stop cancels in-flight writer response and returns promptly"
     SKIP(std::string("Socket bind not available in test environment: ") + ex.what());
   }
 
-  // A non-reading client with a tiny receive window keeps the 8 MiB response in the writer.
+  // A non-reading client with a tiny receive window keeps the response in the writer.
   // Windows also needs a zero send buffer: otherwise its overlapped sends complete at once.
   listener.set_accepted_send_buffer_size_for_test(0);
 

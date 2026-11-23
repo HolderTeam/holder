@@ -373,7 +373,7 @@ class EnvGuard {
 
   ~EnvGuard() {
     if (old_.has_value()) {
-      set_env(old_.value());
+      set_env(*old_);
     } else {
       unset_env();
     }

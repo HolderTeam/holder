@@ -87,12 +87,12 @@ std::string generate_auth_token(std::size_t bytes) {
   out.reserve(bytes * 2);
 
   std::random_device rd;
-  std::uniform_int_distribution<int> dist(0, 255);
+  std::uniform_int_distribution<unsigned int> dist(0, 255);
 
   for (std::size_t i = 0; i < bytes; ++i) {
-    const int v = dist(rd);
-    out.push_back(kHex[(v >> 4) & 0xF]);
-    out.push_back(kHex[v & 0xF]);
+    const unsigned int v = dist(rd);
+    out.push_back(kHex[(v >> 4U) & 0xFU]);
+    out.push_back(kHex[v & 0xFU]);
   }
 
   return out;

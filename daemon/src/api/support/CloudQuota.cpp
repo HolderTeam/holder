@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <nlohmann/json.hpp>
@@ -144,8 +145,9 @@ long long failure_cooldown_seconds(
   const long long safe_base = std::max(1LL, base_seconds);
   const long long safe_cap = std::max(safe_base, cap_seconds);
   const long long bounded = std::min(failure_count - 1, 5LL);
-  const long long raw = safe_base * (1LL << bounded);
-  return std::min(raw, safe_cap);
+  const auto multiplier = static_cast<long long>(1ULL << static_cast<unsigned int>(bounded));
+  if (safe_base > safe_cap / multiplier) return safe_cap;
+  return safe_base * multiplier;
 }
 
 } // namespace
@@ -321,7 +323,10 @@ CloudModelCooldownState record_cloud_model_failure(
   }
   const long long cooldown_seconds =
       failure_cooldown_seconds(failure_count, cooldown_base_seconds, cooldown_cap_seconds);
-  const long long cooldown_until = now_epoch_seconds + cooldown_seconds;
+  constexpr auto max_deadline = (std::numeric_limits<long long>::max)();
+  const long long cooldown_until = now_epoch_seconds > max_deadline - cooldown_seconds
+                                       ? max_deadline
+                                       : now_epoch_seconds + cooldown_seconds;
 
   static constexpr const char* SQL =
       "INSERT INTO ai_cloud_model_cooldowns("

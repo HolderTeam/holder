@@ -138,7 +138,7 @@ def generate_ai_codec(contract: ContractView) -> str:
              "#pragma once", '#include "api/AiRuntime.h"',
              "#include <nlohmann/json.hpp>", "#include <cmath>", "#include <cstddef>",
              "#include <cstdint>", "#include <limits>", "#include <map>", "#include <optional>",
-             "#include <stdexcept>", "#include <string>", "#include <type_traits>",
+             "#include <stdexcept>", "#include <string>", "#include <string_view>", "#include <type_traits>",
              "#include <utility>", "#include <variant>", "#include <vector>",
              SUPPORT.replace("contract_json", "ai_json").rstrip(),
              "template <> struct codec<json> {",

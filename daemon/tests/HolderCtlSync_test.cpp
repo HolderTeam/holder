@@ -15,6 +15,8 @@
 
 namespace {
 namespace http = boost::beast::http;
+// This fixture supplies a std::string to the CLI commands and database helpers.
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
 const std::string work_id = "12345678-1234-4234-8234-123456789abc";
 
 std::string read_text(const std::filesystem::path& path) {

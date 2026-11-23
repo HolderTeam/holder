@@ -32,6 +32,8 @@ inline response failure(int status, const std::exception& error) {
 
 template <typename Context>
 std::optional<response> dispatch(
+    // Match the method/path/body signature shared by the generated dispatchers.
+    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
     const std::string& method,
     const std::string& path,
     const std::string& body,
