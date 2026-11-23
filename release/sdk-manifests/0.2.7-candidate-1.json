@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "repository": "HolderTeam/holder",
+  "candidate": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+  "version": "0.2.7",
+  "backend": {
+    "workflow": "daemon-ci.yml",
+    "workflow_commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+    "run_id": "45187339507",
+    "attempt": 1,
+    "artifacts": [
+      {
+        "id": 14825701744,
+        "name": "core-selection",
+        "digest": "sha256:1a3ac2f0ccff508d632e43b1c448a5c1d5521be2642712ccb9dd5cc3cd4e445f",
+        "size_in_bytes": 591,
+        "expires_at": "2026-11-30T14:08:40Z"
+      },
+      {
+        "id": 14823218981,
+        "name": "core-sdk-linux-Release",
+        "digest": "sha256:2f560a381688c548dab68d5690a4b51efc3eab27a4a20ecb1ab0d27a18b1e9cc",
+        "size_in_bytes": 4029134,
+        "expires_at": "2026-11-30T13:52:20Z"
+      },
+      {
+        "id": 14824991447,
+        "name": "core-sdk-windows-Release",
+        "digest": "sha256:acff51976c2df11e41230eaf47d1640ea07aafbcf7704a17ab1594663acbf84d",
+        "size_in_bytes": 132377940,
+        "expires_at": "2026-11-30T13:58:47Z"
+      },
+      {
+        "id": 14825946725,
+        "name": "core-sdk-macos-Release",
+        "digest": "sha256:669baedb77c6eb815927dea7702923280de552a1b944f9932c4d46ebde53b146",
+        "size_in_bytes": 2716781,
+        "expires_at": "2026-11-30T14:08:13Z"
+      }
+    ]
+  },
+  "core_selection": {
+    "source": "artifact",
+    "commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+    "version": "0.2.7",
+    "assets": [
+      {
+        "name": "libholder-0.2.7-linux-x86_64-release.tar.gz",
+        "platform": "linux",
+        "architecture": "x86_64",
+        "build_type": "Release",
+        "commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+        "size": 4046354,
+        "sha256": "309ae01eeb81ff845d42134261813371db2524b152c773e6740352eaf435dec4"
+      },
+      {
+        "name": "libholder-0.2.7-macos-arm64-release.tar.gz",
+        "platform": "macos",
+        "architecture": "arm64",
+        "build_type": "Release",
+        "commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+        "size": 2735168,
+        "sha256": "4187d545188caafc67c7316d71721d38c2e06e22a6574a9bf76ad9759468e3e0"
+      },
+      {
+        "name": "libholder-0.2.7-windows-x86_64-release.zip",
+        "platform": "windows",
+        "architecture": "x86_64",
+        "build_type": "Release",
+        "commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+        "size": 133757620,
+        "sha256": "8dd5fd3bb1c7ba5cf820373b39bbdd61e573344ccbba4b7a5965d83e6f6be3f7"
+      }
+    ],
+    "core_tree": "51d3016b9745b418ac334add9fb0a4bf98f6ba30"
+  },
+  "core_pin": {
+    "commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+    "build_type": "Release",
+    "selection_artifact_id": "14825701744",
+    "selection_artifact_sha256": "1a3ac2f0ccff508d632e43b1c448a5c1d5521be2642712ccb9dd5cc3cd4e445f"
+  }
+}
