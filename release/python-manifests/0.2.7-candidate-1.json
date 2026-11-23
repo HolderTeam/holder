@@ -1,0 +1,416 @@
+{
+  "schema": 1,
+  "repository": "HolderTeam/holder",
+  "candidate": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+  "version": "0.2.7",
+  "python_packages": {
+    "kit": {
+      "source": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+      "version": "0.2.7",
+      "run_id": "45200790830",
+      "attempt": 3,
+      "distribution_artifact_id": 14837808935,
+      "distribution_archive_sha256": "5a91b019f42794894333998586df26ea4c9e71197ce7c6a470b21affdc36f435",
+      "manifest_artifact_id": 14837514233,
+      "manifest_archive_sha256": "2294c11171cdebab667b73ed8c18f1b4913ba215e827f8875d26419c48c4815c",
+      "manifest": {
+        "source": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+        "version": "0.2.7",
+        "core": {
+          "commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+          "core_tree": "51d3016b9745b418ac334add9fb0a4bf98f6ba30",
+          "version": "0.2.7",
+          "sdk_commits": {
+            "linux": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+            "macos": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+            "windows": "a98dbab2e12edbe220692e4c981a0377a0c1597a"
+          },
+          "sdk_assets": [
+            {
+              "name": "libholder-0.2.7-linux-x86_64-release.tar.gz",
+              "platform": "linux",
+              "architecture": "x86_64",
+              "build_type": "Release",
+              "commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+              "size": 4046354,
+              "sha256": "309ae01eeb81ff845d42134261813371db2524b152c773e6740352eaf435dec4"
+            },
+            {
+              "name": "libholder-0.2.7-macos-arm64-release.tar.gz",
+              "platform": "macos",
+              "architecture": "arm64",
+              "build_type": "Release",
+              "commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+              "size": 2735168,
+              "sha256": "4187d545188caafc67c7316d71721d38c2e06e22a6574a9bf76ad9759468e3e0"
+            },
+            {
+              "name": "libholder-0.2.7-windows-x86_64-release.zip",
+              "platform": "windows",
+              "architecture": "x86_64",
+              "build_type": "Release",
+              "commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+              "size": 133757620,
+              "sha256": "8dd5fd3bb1c7ba5cf820373b39bbdd61e573344ccbba4b7a5965d83e6f6be3f7"
+            }
+          ]
+        },
+        "files": [
+          {
+            "name": "holder_kit-0.2.7-cp310-cp310-macosx_15_0_arm64.whl",
+            "sha256": "d863edcbc0d47b8df3b809567707f9761d2c61636759e0ec3e736ad1e66d3cf5",
+            "size": 7789222
+          },
+          {
+            "name": "holder_kit-0.2.7-cp310-cp310-manylinux_2_39_x86_64.whl",
+            "sha256": "d68bf359f72cc978687a5478d6e8a63d350cb19454a89fd9ec225c7c76fa4d7e",
+            "size": 10957484
+          },
+          {
+            "name": "holder_kit-0.2.7-cp310-cp310-win_amd64.whl",
+            "sha256": "6cf63a26f19c585bc98673cc770ff89b37dcfe2e70cfda39b54e31ff3ccdb218",
+            "size": 5377087
+          },
+          {
+            "name": "holder_kit-0.2.7-cp311-cp311-macosx_15_0_arm64.whl",
+            "sha256": "2b0ea7e947227c64d32af0a5e776fbc2bcd058ee60d6ede93ec700761d93af94",
+            "size": 7789221
+          },
+          {
+            "name": "holder_kit-0.2.7-cp311-cp311-manylinux_2_39_x86_64.whl",
+            "sha256": "6136093f71f7b1de8d09565c87c0f78af2265e55f3a9cc672c5be538c00b7d8a",
+            "size": 10957481
+          },
+          {
+            "name": "holder_kit-0.2.7-cp311-cp311-win_amd64.whl",
+            "sha256": "f495aea57ce7c06f4cd07a6cf0e566cf905e34aaf0a4e00559eabddbda3b84cd",
+            "size": 5377094
+          },
+          {
+            "name": "holder_kit-0.2.7-cp312-cp312-macosx_15_0_arm64.whl",
+            "sha256": "ea4de9c35fc73617c08a8d3b5aa533dbaf1093dc7318388c0de64b1f99cc2630",
+            "size": 7789714
+          },
+          {
+            "name": "holder_kit-0.2.7-cp312-cp312-manylinux_2_39_x86_64.whl",
+            "sha256": "9f5f7a9356b2c8a2d3329c483696047fa23c0e0818c2a31487a9f643c20787a3",
+            "size": 10957778
+          },
+          {
+            "name": "holder_kit-0.2.7-cp312-cp312-win_amd64.whl",
+            "sha256": "b46a685a0e6b64c6f38a01afd7e67fdab870a01e75a57f07475e94ab30471d0f",
+            "size": 5377089
+          },
+          {
+            "name": "holder_kit-0.2.7-cp313-cp313-macosx_15_0_arm64.whl",
+            "sha256": "11efb2c24a04f174b58ba04dc78d6172ed2cb0fb37090f5e780a833a66db6f6f",
+            "size": 7789716
+          },
+          {
+            "name": "holder_kit-0.2.7-cp313-cp313-manylinux_2_39_x86_64.whl",
+            "sha256": "c2edf393849556d2606828d4e5ff950965b864ac91935b7ef19621b779448d3b",
+            "size": 10957788
+          },
+          {
+            "name": "holder_kit-0.2.7-cp313-cp313-win_amd64.whl",
+            "sha256": "c80242c6d812244ea9a0f5a6f4ab9b07d0fc032f838e79398a0831b31b5eb8b1",
+            "size": 5377083
+          },
+          {
+            "name": "holder_kit-0.2.7-cp314-cp314-macosx_15_0_arm64.whl",
+            "sha256": "43bb36568759841ff215e87f9ecd6fbb2f779f135fd7639d47f9c22051aafb60",
+            "size": 7789796
+          },
+          {
+            "name": "holder_kit-0.2.7-cp314-cp314-manylinux_2_39_x86_64.whl",
+            "sha256": "f0a8afa494c6bc24621a6ea602f642a75feec0b7fa978db7f768ee6d0942d7a6",
+            "size": 10957672
+          },
+          {
+            "name": "holder_kit-0.2.7-cp314-cp314-win_amd64.whl",
+            "sha256": "38825be9e652a496749fd5021dda3e37e3e7cf117429824c374abecb9ab97d74",
+            "size": 5551800
+          },
+          {
+            "name": "holder_kit-0.2.7-cp315-cp315-macosx_15_0_arm64.whl",
+            "sha256": "6259f62a776c724d1f0e91036e505a793e7a69a88c3d6956bb3a757e72ffb490",
+            "size": 7789793
+          },
+          {
+            "name": "holder_kit-0.2.7-cp315-cp315-manylinux_2_39_x86_64.whl",
+            "sha256": "53156bc1158a695298751e952f4cd7907b0f92e0d9569db4e08f056a802da346",
+            "size": 10957673
+          },
+          {
+            "name": "holder_kit-0.2.7-cp315-cp315-win_amd64.whl",
+            "sha256": "7a821fdcd310d26aec64064576793c8e2363a1bf3b43040c90e96a3cb4535057",
+            "size": 5551791
+          },
+          {
+            "name": "holder_kit-0.2.7.tar.gz",
+            "sha256": "cbf5fbe27b26b6bf9623a65a655b9e1f075429128bc3b0ac32a7538d392902fe",
+            "size": 4846463
+          }
+        ]
+      },
+      "files": [
+        {
+          "name": "holder_kit-0.2.7-cp310-cp310-macosx_15_0_arm64.whl",
+          "sha256": "d863edcbc0d47b8df3b809567707f9761d2c61636759e0ec3e736ad1e66d3cf5",
+          "size": 7789222
+        },
+        {
+          "name": "holder_kit-0.2.7-cp310-cp310-manylinux_2_39_x86_64.whl",
+          "sha256": "d68bf359f72cc978687a5478d6e8a63d350cb19454a89fd9ec225c7c76fa4d7e",
+          "size": 10957484
+        },
+        {
+          "name": "holder_kit-0.2.7-cp310-cp310-win_amd64.whl",
+          "sha256": "6cf63a26f19c585bc98673cc770ff89b37dcfe2e70cfda39b54e31ff3ccdb218",
+          "size": 5377087
+        },
+        {
+          "name": "holder_kit-0.2.7-cp311-cp311-macosx_15_0_arm64.whl",
+          "sha256": "2b0ea7e947227c64d32af0a5e776fbc2bcd058ee60d6ede93ec700761d93af94",
+          "size": 7789221
+        },
+        {
+          "name": "holder_kit-0.2.7-cp311-cp311-manylinux_2_39_x86_64.whl",
+          "sha256": "6136093f71f7b1de8d09565c87c0f78af2265e55f3a9cc672c5be538c00b7d8a",
+          "size": 10957481
+        },
+        {
+          "name": "holder_kit-0.2.7-cp311-cp311-win_amd64.whl",
+          "sha256": "f495aea57ce7c06f4cd07a6cf0e566cf905e34aaf0a4e00559eabddbda3b84cd",
+          "size": 5377094
+        },
+        {
+          "name": "holder_kit-0.2.7-cp312-cp312-macosx_15_0_arm64.whl",
+          "sha256": "ea4de9c35fc73617c08a8d3b5aa533dbaf1093dc7318388c0de64b1f99cc2630",
+          "size": 7789714
+        },
+        {
+          "name": "holder_kit-0.2.7-cp312-cp312-manylinux_2_39_x86_64.whl",
+          "sha256": "9f5f7a9356b2c8a2d3329c483696047fa23c0e0818c2a31487a9f643c20787a3",
+          "size": 10957778
+        },
+        {
+          "name": "holder_kit-0.2.7-cp312-cp312-win_amd64.whl",
+          "sha256": "b46a685a0e6b64c6f38a01afd7e67fdab870a01e75a57f07475e94ab30471d0f",
+          "size": 5377089
+        },
+        {
+          "name": "holder_kit-0.2.7-cp313-cp313-macosx_15_0_arm64.whl",
+          "sha256": "11efb2c24a04f174b58ba04dc78d6172ed2cb0fb37090f5e780a833a66db6f6f",
+          "size": 7789716
+        },
+        {
+          "name": "holder_kit-0.2.7-cp313-cp313-manylinux_2_39_x86_64.whl",
+          "sha256": "c2edf393849556d2606828d4e5ff950965b864ac91935b7ef19621b779448d3b",
+          "size": 10957788
+        },
+        {
+          "name": "holder_kit-0.2.7-cp313-cp313-win_amd64.whl",
+          "sha256": "c80242c6d812244ea9a0f5a6f4ab9b07d0fc032f838e79398a0831b31b5eb8b1",
+          "size": 5377083
+        },
+        {
+          "name": "holder_kit-0.2.7-cp314-cp314-macosx_15_0_arm64.whl",
+          "sha256": "43bb36568759841ff215e87f9ecd6fbb2f779f135fd7639d47f9c22051aafb60",
+          "size": 7789796
+        },
+        {
+          "name": "holder_kit-0.2.7-cp314-cp314-manylinux_2_39_x86_64.whl",
+          "sha256": "f0a8afa494c6bc24621a6ea602f642a75feec0b7fa978db7f768ee6d0942d7a6",
+          "size": 10957672
+        },
+        {
+          "name": "holder_kit-0.2.7-cp314-cp314-win_amd64.whl",
+          "sha256": "38825be9e652a496749fd5021dda3e37e3e7cf117429824c374abecb9ab97d74",
+          "size": 5551800
+        },
+        {
+          "name": "holder_kit-0.2.7-cp315-cp315-macosx_15_0_arm64.whl",
+          "sha256": "6259f62a776c724d1f0e91036e505a793e7a69a88c3d6956bb3a757e72ffb490",
+          "size": 7789793
+        },
+        {
+          "name": "holder_kit-0.2.7-cp315-cp315-manylinux_2_39_x86_64.whl",
+          "sha256": "53156bc1158a695298751e952f4cd7907b0f92e0d9569db4e08f056a802da346",
+          "size": 10957673
+        },
+        {
+          "name": "holder_kit-0.2.7-cp315-cp315-win_amd64.whl",
+          "sha256": "7a821fdcd310d26aec64064576793c8e2363a1bf3b43040c90e96a3cb4535057",
+          "size": 5551791
+        },
+        {
+          "name": "holder_kit-0.2.7.tar.gz",
+          "sha256": "cbf5fbe27b26b6bf9623a65a655b9e1f075429128bc3b0ac32a7538d392902fe",
+          "size": 4846463
+        }
+      ],
+      "inputs_expire_at": "2027-02-21T16:18:34Z"
+    },
+    "python": {
+      "source": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+      "version": "0.2.7",
+      "run_id": "45200797100",
+      "attempt": 1,
+      "distribution_artifact_id": 14830498465,
+      "distribution_archive_sha256": "6e34f965880576590ce98c80f60e54fcc4ce6977b576171032043497e01a12ef",
+      "manifest_artifact_id": 14830039237,
+      "manifest_archive_sha256": "0d444ef7eff2d16cf6de1e7484fad82663975dab5f22b260cfb32e356362467c",
+      "manifest": {
+        "source": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+        "version": "0.2.7",
+        "files": [
+          {
+            "name": "holder_python-0.2.7-py3-none-any.whl",
+            "sha256": "22b73067e45b6a1d33e9f4ac8a897aa7182ea1d85ec55bb1e48db32a5bb05c9e",
+            "size": 500116
+          },
+          {
+            "name": "holder_python-0.2.7.tar.gz",
+            "sha256": "73d2169a4bcae767a94dd4ac11ce44e06d2a44b37022a4451768fc4ffe06ae39",
+            "size": 217322
+          }
+        ]
+      },
+      "files": [
+        {
+          "name": "holder_python-0.2.7-py3-none-any.whl",
+          "sha256": "22b73067e45b6a1d33e9f4ac8a897aa7182ea1d85ec55bb1e48db32a5bb05c9e",
+          "size": 500116
+        },
+        {
+          "name": "holder_python-0.2.7.tar.gz",
+          "sha256": "73d2169a4bcae767a94dd4ac11ce44e06d2a44b37022a4451768fc4ffe06ae39",
+          "size": 217322
+        }
+      ],
+      "inputs_expire_at": "2027-02-21T15:02:55Z"
+    }
+  },
+  "steps": {
+    "kit": {
+      "workflow": "release-kit-pypi.yml",
+      "ref": "rc/0.2.7-candidate-1",
+      "inputs": {
+        "destination": "none",
+        "release_manifest": "release-manifests/0.2.7-candidate-1.json",
+        "release_manifest_ref": "78d3fcda830fbb52c6f5dda908a01ac5d9201adc",
+        "release_request": "holder-0.2.7-candidate-1-kit-f47b12f583ff404f86f95f3cadaa3bd2"
+      },
+      "request": "holder-0.2.7-candidate-1-kit-f47b12f583ff404f86f95f3cadaa3bd2",
+      "requested_at": "2026-11-23T15:02:50+00:00",
+      "status": "verified",
+      "history": [
+        {
+          "run_id": "45200790830",
+          "attempt": 1,
+          "conclusion": "failure",
+          "workflow_commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a"
+        },
+        {
+          "run_id": "45200790830",
+          "attempt": 2,
+          "conclusion": "failure",
+          "workflow_commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a"
+        }
+      ],
+      "run_id": "45200790830",
+      "workflow_commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+      "conclusion": "success",
+      "attempt": 3,
+      "artifacts": [
+        {
+          "id": 14837808935,
+          "name": "kit-release-distributions",
+          "digest": "sha256:5a91b019f42794894333998586df26ea4c9e71197ce7c6a470b21affdc36f435",
+          "size_in_bytes": 148063070,
+          "expires_at": "2027-02-21T16:18:34Z"
+        },
+        {
+          "id": 14837514233,
+          "name": "kit-release-manifest",
+          "digest": "sha256:2294c11171cdebab667b73ed8c18f1b4913ba215e827f8875d26419c48c4815c",
+          "size_in_bytes": 1577,
+          "expires_at": "2027-02-21T16:18:34Z"
+        }
+      ]
+    },
+    "python": {
+      "workflow": "release-holder-python-pypi.yml",
+      "ref": "rc/0.2.7-candidate-1",
+      "inputs": {
+        "destination": "none",
+        "preview_number": "0",
+        "release_request": "holder-0.2.7-candidate-1-python-7f4e6c8eea95476eb25bd97bf13ccc37"
+      },
+      "request": "holder-0.2.7-candidate-1-python-7f4e6c8eea95476eb25bd97bf13ccc37",
+      "requested_at": "2026-11-23T15:02:51+00:00",
+      "status": "verified",
+      "history": [],
+      "run_id": "45200797100",
+      "workflow_commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+      "attempt": 1,
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 14830498465,
+          "name": "holder-python-distributions",
+          "digest": "sha256:6e34f965880576590ce98c80f60e54fcc4ce6977b576171032043497e01a12ef",
+          "size_in_bytes": 655590,
+          "expires_at": "2027-02-21T15:02:55Z"
+        },
+        {
+          "id": 14830039237,
+          "name": "holder-python-release-manifest",
+          "digest": "sha256:0d444ef7eff2d16cf6de1e7484fad82663975dab5f22b260cfb32e356362467c",
+          "size_in_bytes": 411,
+          "expires_at": "2027-02-21T15:02:55Z"
+        }
+      ]
+    }
+  },
+  "manifest": {
+    "evidence": {
+      "core_selection": {
+        "source": "artifact",
+        "commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+        "version": "0.2.7",
+        "assets": [
+          {
+            "name": "libholder-0.2.7-linux-x86_64-release.tar.gz",
+            "platform": "linux",
+            "architecture": "x86_64",
+            "build_type": "Release",
+            "commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+            "size": 4046354,
+            "sha256": "309ae01eeb81ff845d42134261813371db2524b152c773e6740352eaf435dec4"
+          },
+          {
+            "name": "libholder-0.2.7-macos-arm64-release.tar.gz",
+            "platform": "macos",
+            "architecture": "arm64",
+            "build_type": "Release",
+            "commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+            "size": 2735168,
+            "sha256": "4187d545188caafc67c7316d71721d38c2e06e22a6574a9bf76ad9759468e3e0"
+          },
+          {
+            "name": "libholder-0.2.7-windows-x86_64-release.zip",
+            "platform": "windows",
+            "architecture": "x86_64",
+            "build_type": "Release",
+            "commit": "a98dbab2e12edbe220692e4c981a0377a0c1597a",
+            "size": 133757620,
+            "sha256": "8dd5fd3bb1c7ba5cf820373b39bbdd61e573344ccbba4b7a5965d83e6f6be3f7"
+          }
+        ],
+        "core_tree": "51d3016b9745b418ac334add9fb0a4bf98f6ba30"
+      }
+    }
+  }
+}
