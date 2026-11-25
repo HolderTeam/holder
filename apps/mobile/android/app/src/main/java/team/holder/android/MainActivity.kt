@@ -571,15 +571,15 @@ private fun HolderNavHost(
         }
     }
 
-    // The automatic half of BACKUP_RESTORE_IMPLEMENTATION_PLAN.md step 9: once per device,
-    // ever (see RestoreOffer), jump straight to Restore Backup if Auto Backup restored a
-    // snapshot before this install's first launch. Skipped entirely if a .hrk file already
-    // claimed the same first-launch moment above -- opening one implies she already has a
-    // real recovery path in hand, so this doesn't also compete for it. Unkeyed (LaunchedEffect
-    // (Unit)): this must run exactly once per process, not re-check on every recomposition --
-    // checkAndMarkOfferedOnce's own flag is what makes that safe across process restarts too.
+    // The automatic half of BACKUP_RESTORE_IMPLEMENTATION_PLAN.md step 9: jump straight to
+    // Restore Backup if Auto Backup restored a snapshot before this install's first launch
+    // (see RestoreOffer). Skipped entirely if a .hrk file already claimed the same first-launch
+    // moment above -- opening one implies a real recovery path is already in hand, so this
+    // doesn't also compete for it. Unkeyed (LaunchedEffect(Unit)): once per process; across
+    // restarts, Restore Backup disarming the marker once it has read the snapshot is what
+    // stops it firing again.
     LaunchedEffect(Unit) {
-        if (pendingRecoveryToken == null && RestoreOffer.checkAndMarkOfferedOnce(context)) {
+        if (pendingRecoveryToken == null && RestoreOffer.shouldOffer(context)) {
             navController.navigate("restore-backup")
         }
     }

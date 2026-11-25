@@ -209,19 +209,6 @@ object HolderSettings {
         context.settingsDataStore.edit { it[GITHUB_BACKFILL_OFFER_SHOWN] = shown }
     }
 
-    /** Whether the one-time "we found a backup snapshot, restore it?" offer (see
-     * [team.holder.android.git.backup.RestoreOffer]) has already been shown -- true the
-     * moment it's checked, whether or not a snapshot file actually existed. Never reset, same
-     * shape as [githubBackfillOfferShown]: a genuine one-time-ever flag, not
-     * snapshot-file-presence-derived, so deleting and re-creating a snapshot later can't
-     * re-fire it. The always-available manual "Restore from backup" entry point in Settings
-     * doesn't check this at all -- this flag only gates the automatic first-launch offer. */
-    fun restoreOfferShown(context: Context): Flow<Boolean> =
-        context.settingsDataStore.data.map { it[RESTORE_OFFER_SHOWN] ?: false }
-
-    suspend fun setRestoreOfferShown(context: Context, shown: Boolean) {
-        context.settingsDataStore.edit { it[RESTORE_OFFER_SHOWN] = shown }
-    }
 
     /** The largest card `updated_at` that was reflected in the most recently *successfully*
      * regenerated backup snapshot -- compared against the device's current max (see
@@ -261,7 +248,6 @@ object HolderSettings {
     }
 
     private val GITHUB_BACKFILL_OFFER_SHOWN = booleanPreferencesKey("github_backfill_offer_shown")
-    private val RESTORE_OFFER_SHOWN = booleanPreferencesKey("restore_offer_shown")
     private val LAST_SNAPSHOT_MAX_UPDATED_AT = longPreferencesKey("last_snapshot_max_updated_at")
 
     /** The start screen's unsaved quick-entry text, kept across app restarts. Device-local and

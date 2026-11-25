@@ -279,17 +279,17 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
-    fun projectWrites_preservePlainDefault() {
+    fun projectWrites_defaultToEncryptedAndKeepTheirMode() {
         initialize()
         repeat(3) { round ->
             val created = HolderNative.createProject("Project $round 🚀")
-            assertEquals("plain", created.privacyMode)
+            assertEquals("encrypted_git", created.privacyMode)
             assertNull(created.gitRemoteUrl)
             assertEquals(created, HolderNative.listProjects().single { it.projectId == created.projectId })
 
             val renamed = HolderNative.renameProject(created.projectId, "Renamed $round 日本語")
             assertEquals("Renamed $round 日本語", renamed.name)
-            assertEquals("plain", renamed.privacyMode)
+            assertEquals("encrypted_git", renamed.privacyMode)
             assertEquals(renamed, HolderNative.listProjects().single { it.projectId == created.projectId })
 
             HolderNative.deleteProject(created.projectId)
@@ -416,7 +416,7 @@ class HolderNativeIntegrationTest {
     @Test
     fun encryptionCheck_forPlainAndEncryptedProjects() {
         initialize()
-        val plain = HolderNative.createProject("Plain check")
+        val plain = HolderNative.createProject("Plain check", "plain")
         val encrypted = HolderNative.createProject("Encrypted check", "encrypted_git")
         HolderNative.createCard(encrypted.projectId, "Private card", "# Private\n\nCafé 日本語 📝")
 

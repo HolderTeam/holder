@@ -1,11 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Pre-API-31 equivalent of data_extraction_rules.xml's cloud-backup section, ignored on
-     API 31+, which reads that file instead. Same three exclusions, same reasoning, and the
-     same files/backup/snapshot.jsonl.gz left un-excluded on purpose: see that file's comment.
-     This one still matters: minSdk is 28. -->
+<!-- Pre-API-31 equivalent of data_extraction_rules.xml, used on API 28-30 (minSdk is 28).
+     Same exclusions, same reasoning: see that file's comment.
+
+     Cloud backup requires client-side encryption here too (issue #355). This format has no
+     disableIfNoEncryptionCapabilities, only requireFlags on <include>, so everything is
+     included explicitly: a cloud backup takes files and shared preferences only when the
+     transport reports client-side encryption, and a device-to-device transfer (no server
+     involved) takes them unconditionally, as on API 31+. All flags on one <include> must hold,
+     hence one <include> per flag rather than "clientSideEncryption|deviceToDeviceTransfer".
+
+     With any <include> present nothing else is backed up by default, so the app's other
+     domains (database, external) are no longer backed up on these versions. Holder keeps
+     nothing there: its SQLite index lives under files/holder/, which is excluded anyway.
+     Exclusions apply on top of every <include>. -->
 <full-backup-content>
+    <include domain="file" path="." requireFlags="clientSideEncryption" />
+    <include domain="sharedpref" path="." requireFlags="clientSideEncryption" />
+    <include domain="file" path="." requireFlags="deviceToDeviceTransfer" />
+    <include domain="sharedpref" path="." requireFlags="deviceToDeviceTransfer" />
+
     <exclude domain="file" path="holder/" />
     <exclude domain="file" path="local_state/" />
     <exclude domain="sharedpref" path="holder_platform_keyring.xml" />
     <exclude domain="file" path="datastore/github_credential.preferences_pb" />
+    <exclude domain="file" path="editor-recovery-drafts/" />
 </full-backup-content>

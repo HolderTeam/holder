@@ -22,13 +22,8 @@ import java.io.File
  * That regeneration would silently overwrite the one file
  * [team.holder.android.ui.screens.RestoreBackupScreen] needs to read, with a snapshot of the
  * practically-empty new "Home" project -- permanently, before anyone ever sees what was
- * actually there. This would be low-risk if the automatic "we found a backup" offer reliably
- * beat it there, but [RestoreOffer]'s own doc comment already explains why it doesn't for the
- * realistic case: `restoreOfferShown` is *also* backed up, so any returning user -- the only
- * kind of user with a real snapshot worth protecting -- already has it as `true` from their
- * very first-ever launch, long before the phone was lost. The automatic offer silently declines
- * to fire, leaving the manual "Restore from backup" button in Settings as the real path -- one
- * a human has to notice and navigate to, almost certainly slower than a background worker's
+ * actually there. The automatic "we found a backup" offer ([RestoreOffer], gated by this same
+ * marker) usually gets there first, but nothing guarantees it beats a background worker's
  * first tick.
  *
  * The fix: arm a guard, checked only by [SnapshotWorker]'s automatic path, the moment a fresh

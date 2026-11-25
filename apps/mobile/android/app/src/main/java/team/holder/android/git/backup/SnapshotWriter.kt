@@ -16,9 +16,10 @@ const val SNAPSHOT_BUDGET_BYTES: Long = 20L * 1024 * 1024
 
 /** Where the rolling snapshot file lives -- filesDir/backup/, a sibling to (deliberately not
  * inside) the files/holder/ directory data_extraction_rules.xml/backup_rules.xml exclude from
- * Auto Backup. Both rule files default to backing up everything under filesDir *not*
- * explicitly excluded, so this path needs no `<include>` of its own -- it only has to stay out
- * of that one exclusion. [team.holder.android.git.backup.SnapshotReader] and everything that
+ * Auto Backup. Both rule files back up everything under filesDir *not* explicitly excluded
+ * (backup_rules.xml through a whole-domain `<include>`), so this path needs no `<include>` of
+ * its own -- it only has to stay out of that one exclusion. Cloud backup takes it only when
+ * the transport encrypts with a client-side secret (issue #355): this is readable card text. [team.holder.android.git.backup.SnapshotReader] and everything that
  * reads a snapshot back (RestoreOffer, RestoreBackupScreen) looks for the file at this same
  * path. */
 fun snapshotFile(context: Context): File = File(context.filesDir, "backup/snapshot.jsonl.gz")
