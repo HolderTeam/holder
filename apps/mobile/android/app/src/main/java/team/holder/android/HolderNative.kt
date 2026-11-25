@@ -12,6 +12,16 @@ import team.holder.android.contract.CardReferenceResolveRequestScope
 import team.holder.android.contract.CardUpdate
 import team.holder.android.contract.Cards
 import team.holder.android.contract.Change
+import team.holder.android.contract.ConflictComparison
+import team.holder.android.contract.ConflictResolution
+import team.holder.android.contract.TrashConflictCopyRequest
+import team.holder.android.contract.ConflictCopyLinkTarget
+import team.holder.android.contract.ConflictCopyLinkTargetTargetType
+import team.holder.android.contract.ConflictCopyMilestoneChoice
+import team.holder.android.contract.ConflictCopyTagChoice
+import team.holder.android.contract.ConflictCopyChildChoice
+import team.holder.android.contract.ConflictCopyBacklinkSource
+import team.holder.android.contract.SeparateConflictCopyRequest
 import team.holder.android.contract.ConflictCopy
 import team.holder.android.contract.ConflictException
 import team.holder.android.contract.DeleteProjectTrashItemType
@@ -351,6 +361,25 @@ data class GitPullResult(
     val conflictsResolved: Int,
 )
 
+/** A card a pull kept both devices' versions of: [originalCardId] and its preserved copy. */
+data class HolderConflictCopy(
+    val projectId: String,
+    val originalCardId: String,
+    val originalTitle: String,
+    val copyCardId: String,
+    val copyTitle: String,
+)
+
+/** What became of the copy after [HolderNative.keepConflictResult] saved the chosen version. */
+enum class ConflictKeepOutcome { COPY_IN_TRASH, COPY_KEPT_SEPARATELY, COPY_STILL_TO_REVIEW }
+
+/** A conflict copy's own title: without the "(conflicted copy)" Holder adds to tell it apart. */
+fun conflictCopyBaseTitle(copyTitle: String): String =
+    copyTitle.replace(Regex("""\s*\(conflicted copy\)\s*$"""), "").ifBlank { copyTitle }
+
+/** See [HolderNative.conflictCopiesArrived]. */
+data class ConflictCopiesArrived(val projectId: String, val count: Int)
+
 data class GitSyncStatus(
     val lastPushAt: Long?,
     val lastPullAt: Long?,
@@ -463,6 +492,19 @@ object HolderNative {
      * the sync, including GitSyncWorker's.
      */
     val projectDataChanged: SharedFlow<String> = projectDataChanges.asSharedFlow()
+
+    private val conflictCopyArrivals = MutableSharedFlow<ConflictCopiesArrived>(
+        extraBufferCapacity = 16,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    /** A pull (foreground or background) kept both devices' versions of some cards as
+     * conflict copies to review. MainActivity offers to review them while Holder is open. */
+    val conflictCopiesArrived: SharedFlow<ConflictCopiesArrived> = conflictCopyArrivals.asSharedFlow()
+
+    internal fun notifyConflictCopiesArrived(projectId: String, count: Int) {
+        conflictCopyArrivals.tryEmit(ConflictCopiesArrived(projectId, count))
+    }
 
     /** Publishes [projectId] on [projectDataChanged]. Internal so tests can stand in for a sync. */
     internal fun notifyProjectDataChanged(projectId: String) {
@@ -1232,6 +1274,7 @@ object HolderNative {
             }
         }
         if (changed) notifyProjectDataChanged(projectId)
+        if (pull.conflictsResolved > 0) notifyConflictCopiesArrived(projectId, pull.conflictsResolved)
         return GitPullResult(
             // The old Android result reports an unset remote as a failed pull.
             status = if (pull.status == team.holder.android.contract.PullPhaseStatus.REMOTE_UNSET) "failed"
@@ -1239,6 +1282,90 @@ object HolderNative {
             errorMessage = pull.errorMessage,
             conflictsResolved = pull.conflictsResolved,
         )
+    }
+
+    /** Every conflict copy waiting for review in [projectId]: a card a pull kept both devices'
+     * versions of, the other version saved as a "(conflicted copy)" card. */
+    fun listConflictCopies(projectId: String): List<HolderConflictCopy> =
+        readLane.call { Git.getProjectSyncState(it, projectId) }.conflictCopies.orEmpty()
+            .filter { it.original != null && it.original.deletedAt == null && it.copyCard.deletedAt == null }
+            .map { copy ->
+                HolderConflictCopy(
+                    projectId = projectId,
+                    originalCardId = copy.originalCardId,
+                    originalTitle = copy.original?.title.orEmpty(),
+                    copyCardId = copy.copyCard.cardId,
+                    copyTitle = copy.copyCard.title,
+                )
+            }
+
+    /** [listConflictCopies] across every project, with each project's name. */
+    fun listAllConflictCopies(): List<Pair<HolderProject, HolderConflictCopy>> =
+        listProjects().flatMap { project ->
+            runCatching { listConflictCopies(project.projectId) }.getOrDefault(emptyList()).map { project to it }
+        }
+
+    /** Both versions of a conflict copy pair, with the lines that differ. Changes nothing. */
+    fun compareConflictCopy(projectId: String, copyId: String): ConflictComparison =
+        readLane.call { Git.compareConflictCopy(it, projectId, copyId) }
+
+    /**
+     * Saves [title] and [content] to the original as the result of reviewing [copyId], then moves
+     * the copy to Trash, carrying over everything that would otherwise only be on the copy: its
+     * links, milestones and tags, its children (moved under the original) and links pointing at
+     * it (pointed at the original). Nothing is lost, and the copy can be restored from Trash.
+     *
+     * When the copy can't go to Trash without moving the original (the original is filed under
+     * it, say), or moving it fails, the copy is kept as an ordinary card instead, so the pair
+     * still leaves review. Throws only when saving the result itself failed.
+     */
+    fun keepConflictResult(
+        projectId: String,
+        copyId: String,
+        reviewToken: String,
+        title: String,
+        content: String,
+    ): ConflictKeepOutcome = saveLane.call { context ->
+        val saved = Git.resolveConflictCopy(context, projectId, copyId, ConflictResolution(reviewToken, title, content))
+        val review = saved.cleanup
+        val trashed = review.preservesOriginal && runCatching {
+            Git.trashConflictCopy(
+                context,
+                projectId,
+                copyId,
+                TrashConflictCopyRequest(
+                    cleanupToken = review.cleanupToken,
+                    carryLinks = review.copyLinks.map { link ->
+                        ConflictCopyLinkTarget(
+                            targetProjectId = link.targetProjectId,
+                            targetType = ConflictCopyLinkTargetTargetType.entries.single { it.value == link.targetType.value },
+                            targetId = link.targetId,
+                            kind = link.kind,
+                        )
+                    },
+                    carryMilestones = review.copyMilestones.map { ConflictCopyMilestoneChoice(it.milestoneId) },
+                    carryTags = review.copyTags.map { ConflictCopyTagChoice(it) },
+                    adoptChildren = review.children.map { ConflictCopyChildChoice(it.cardId) },
+                    retargetBacklinks = review.backlinks.map { ConflictCopyBacklinkSource(it.sourceProjectId, it.sourceId, it.kind) },
+                ),
+            )
+        }.isSuccess
+        if (trashed) return@call ConflictKeepOutcome.COPY_IN_TRASH
+        // Saving changed the original, so the earlier review token no longer matches: compare
+        // again for a fresh one, then let the copy go its own way.
+        runCatching {
+            val fresh = Git.compareConflictCopy(context, projectId, copyId)
+            Git.separateConflictCopy(
+                context, projectId, copyId,
+                SeparateConflictCopyRequest(fresh.reviewToken, conflictCopyBaseTitle(fresh.copyCard.title)),
+            )
+        }.fold({ ConflictKeepOutcome.COPY_KEPT_SEPARATELY }, { ConflictKeepOutcome.COPY_STILL_TO_REVIEW })
+    }
+
+    /** Keeps both versions: the copy becomes an ordinary card called [title], no longer a
+     * conflict copy. */
+    fun keepBothConflictVersions(projectId: String, copyId: String, reviewToken: String, title: String) {
+        saveLane.call { Git.separateConflictCopy(it, projectId, copyId, SeparateConflictCopyRequest(reviewToken, title)) }
     }
 
     fun gitSyncStatus(projectId: String): GitSyncStatus {
@@ -1275,6 +1402,7 @@ object HolderNative {
             }) { sync -> sync.pull.attempted && sync.pull.status == team.holder.android.contract.PullPhaseStatus.SUCCEEDED }
         }
         if (changed) notifyProjectDataChanged(projectId)
+        if (result.pull.conflictsResolved > 0) notifyConflictCopiesArrived(projectId, result.pull.conflictsResolved)
         return GitSyncIfDueResult(
             pullAttempted = result.pull.attempted,
             pullStatus = attemptedStatus(result.pull),
@@ -1325,6 +1453,7 @@ object HolderNative {
             }
         }
         if (changed) notifyProjectDataChanged(projectId)
+        if (outcome.pullConflictsResolved > 0) notifyConflictCopiesArrived(projectId, outcome.pullConflictsResolved)
         return outcome
     }
 

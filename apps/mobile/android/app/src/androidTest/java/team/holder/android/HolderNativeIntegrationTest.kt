@@ -1204,6 +1204,71 @@ class HolderNativeIntegrationTest {
         assertEquals(other.projectId, HolderNative.listResources(other.projectId).single().projectId)
     }
 
+    /**
+     * Opens Holder on a project holding a real conflict copy pair: androidTest/assets/
+     * conflict-copy-extras.zip, made by the Desktop conflict sandbox's copy-extras scenario (a
+     * pull that kept both versions). Only sync can make that pair, so it comes as a fixture.
+     * The copy, "Reading list (conflicted copy)", has a tag, a link and a milestone the
+     * original lacks, and "Weekly review" links to the copy.
+     */
+    private fun openConflictFixture(): HolderProject {
+        // A first open marks the data directory as one core may rebuild a database for.
+        initialize()
+        HolderNative.close()
+        val testAssets = InstrumentationRegistry.getInstrumentation().context.assets
+        val projects = dataDir.resolve("projects").apply { mkdirs() }
+        java.util.zip.ZipInputStream(testAssets.open("conflict-copy-extras.zip")).use { zip ->
+            generateSequence { zip.nextEntry }.forEach { entry ->
+                val out = projects.resolve(entry.name)
+                if (entry.isDirectory) out.mkdirs() else out.apply { parentFile?.mkdirs() }.outputStream().use { zip.copyTo(it) }
+            }
+        }
+        // Without its database, the next open rebuilds it from the project files, fixture included.
+        dataDir.resolve("server").listFiles { f -> f.name.startsWith("holder.db") }?.forEach { it.delete() }
+        initialize()
+        return HolderNative.listProjects().single { it.name == "Conflict: copy-extras" }
+    }
+
+    @Test
+    fun conflictReview_keepingAVersion_savesItAndTrashesTheCopyCarryingItsExtras() {
+        val project = openConflictFixture()
+        val pair = HolderNative.listConflictCopies(project.projectId).single()
+        val comparison = HolderNative.compareConflictCopy(project.projectId, pair.copyCardId)
+
+        // Keep the original's own version (the other device's).
+        val outcome = HolderNative.keepConflictResult(
+            project.projectId, pair.copyCardId, comparison.reviewToken, comparison.original.title, comparison.original.content,
+        )
+
+        assertEquals(ConflictKeepOutcome.COPY_IN_TRASH, outcome)
+        assertTrue(HolderNative.listConflictCopies(project.projectId).isEmpty())
+        assertTrue(HolderNative.listTrashedCards(project.projectId).any { it.cardId == pair.copyCardId })
+        // What only the copy had is now on the original: its tags, link and milestone, and the
+        // link that pointed at the copy.
+        assertTrue(HolderNative.getCardContent(project.projectId, pair.originalCardId).contains("#later"))
+        val links = HolderNative.listCardLinks(project.projectId, pair.originalCardId)
+        assertTrue(links.toString(), links.toString().contains("Library"))
+        assertTrue(links.toString(), links.toString().contains("Weekly review"))
+        // Through the contract: HolderNative's own listCardMilestones skips date-only milestones.
+        val milestones = HolderNative.onContract {
+            team.holder.android.contract.Milestones.listCardMilestones(it, project.projectId, pair.originalCardId)
+        }
+        assertEquals(listOf("Return books"), milestones.map { it.description })
+    }
+
+    @Test
+    fun conflictReview_keepingBoth_leavesTwoOrdinaryCards() {
+        val project = openConflictFixture()
+        val pair = HolderNative.listConflictCopies(project.projectId).single()
+        val comparison = HolderNative.compareConflictCopy(project.projectId, pair.copyCardId)
+
+        HolderNative.keepBothConflictVersions(project.projectId, pair.copyCardId, comparison.reviewToken, "Reading list")
+
+        assertEquals("Reading list", HolderNative.getCard(project.projectId, pair.copyCardId).title)
+        assertNull(HolderNative.getCard(project.projectId, pair.copyCardId).deletedAt)
+        assertTrue(HolderNative.listConflictCopies(project.projectId).isEmpty())
+    }
+
     private fun initialize() {
         HolderNative.initialize(
             context = context,
