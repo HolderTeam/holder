@@ -1,5 +1,9 @@
 package team.holder.android.ui.screens
 
+import android.app.KeyguardManager
+import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +34,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -41,6 +49,12 @@ import team.holder.android.ui.openUrlExternally
  * RestoreBackupScreen) with a line of copy each. */
 private const val ANDROID_BACKUPS_HELP_URL = "https://www.holder.team/android/backups"
 
+/** Cloud backup needs client-side encryption (issue #355), which Android only has with a
+ * screen lock. Whether backup itself is switched on isn't visible to apps, so the screen
+ * lock is the only thing this screen can report truthfully. */
+private fun hasScreenLock(context: Context): Boolean =
+    context.getSystemService(KeyguardManager::class.java)?.isDeviceSecure ?: true
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BackupSettingsScreen(onBack: () -> Unit, onRestoreBackupClick: () -> Unit) {
@@ -48,6 +62,16 @@ fun BackupSettingsScreen(onBack: () -> Unit, onRestoreBackupClick: () -> Unit) {
     val scope = rememberCoroutineScope()
     var preparingBackup by remember { mutableStateOf(false) }
     var prepareBackupResult by remember { mutableStateOf<String?>(null) }
+    // Re-checked on resume: the usual way back here is from setting a lock in Settings.
+    var screenLocked by remember { mutableStateOf(hasScreenLock(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) screenLocked = hasScreenLock(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(
         topBar = {
@@ -70,6 +94,11 @@ fun BackupSettingsScreen(onBack: () -> Unit, onRestoreBackupClick: () -> Unit) {
         ) {
             Text("Snapshot")
             Text("Normally kept up to date automatically.")
+            if (!screenLocked) {
+                TextButton(onClick = {
+                    runCatching { context.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) }
+                }) { Text("Set a screen lock to enable backups.") }
+            }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
                 Button(
                     enabled = !preparingBackup,
