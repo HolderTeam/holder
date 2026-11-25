@@ -44,6 +44,8 @@ import team.holder.android.sync.GitSyncScheduler
 import team.holder.android.ui.CenteredMessage
 import team.holder.android.ui.ProjectPickerDialog
 import team.holder.android.ui.screens.AboutSettingsScreen
+import team.holder.android.ui.screens.SearchScreen
+import team.holder.android.ui.screens.StartScreen
 import team.holder.android.ui.screens.AddConnectionScreen
 import team.holder.android.ui.screens.AddMilestoneScreen
 import team.holder.android.ui.screens.AppearanceSettingsScreen
@@ -532,9 +534,33 @@ private fun HolderNavHost(
         }
     }
 
-    NavHost(navController = navController, startDestination = "projects") {
+    // Every way into a card from outside its project's own list (start screen, global search)
+    // goes through here, so the card view's title fallback is always set first.
+    fun openCard(projectId: String, cardId: String, title: String) {
+        selectedCardTitle = title
+        navController.navigate("projects/$projectId/cards/$cardId")
+    }
+
+    NavHost(navController = navController, startDestination = "start") {
+        // Writing-first start screen (issue #449): quick entry, recent cards across projects,
+        // and anything due. The project list is one tap away rather than the front door.
+        composable("start") {
+            StartScreen(
+                refreshKey = cardListRefreshKey,
+                onOpenCard = ::openCard,
+                onProjectsClick = { navController.navigate("projects") },
+                onSearchClick = { navController.navigate("search") },
+            )
+        }
+        composable("search") {
+            SearchScreen(
+                onOpenCard = ::openCard,
+                onBack = { navController.popBackStack() },
+            )
+        }
         composable("projects") {
             ProjectListScreen(
+                onBack = { navController.popBackStack() },
                 onProjectClick = { project ->
                     selectedProjectName = project.name
                     navController.navigate("projects/${project.projectId}/cards")
@@ -757,7 +783,12 @@ private fun HolderNavHost(
                 // got here -- CardViewScreen is the only screen that chains into itself, so it's
                 // the only back arrow that needs to jump rather than pop one level. The system
                 // back gesture still retraces those hops one at a time on its own.
-                onBack = { navController.popBackStack("projects/$projectId/cards", inclusive = false) },
+                // Opened from the start screen or global search, the project's card list was never
+                // on the back stack; fall back to the start screen in that case.
+                onBack = {
+                    navController.popBackStack("projects/$projectId/cards", inclusive = false) ||
+                        navController.popBackStack("start", inclusive = false)
+                },
                 // Swiping to a sibling never calls onNavigateToCard (see CardViewPagerScreen's
                 // doc comment), so without this, selectedCardTitle would keep reporting whichever
                 // card was last explicitly navigated to -- stale the moment Edit/Tools/Connections

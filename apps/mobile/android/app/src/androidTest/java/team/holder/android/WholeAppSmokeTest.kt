@@ -58,6 +58,9 @@ class WholeAppSmokeTest {
         smokeTitle = title
         val initialBody = "Created by whole-app smoke test."
 
+        // The app opens on the start screen; the project list is behind its Projects icon.
+        awaitContentDescription("Projects")
+        composeRule.onNodeWithContentDescription("Projects").performClick()
         awaitText("Home")
         composeRule.onNodeWithText("Home").performClick()
 
@@ -105,6 +108,24 @@ class WholeAppSmokeTest {
                 .fetchSemanticsNodes()
                 .isNotEmpty(),
         )
+    }
+
+    @Test
+    fun startScreen_quickEntrySavesCardIntoRecent() {
+        val title = "Quick entry ${UUID.randomUUID()}"
+        smokeTitle = title
+
+        awaitText("Recent")
+        composeRule.waitUntil(timeoutMillis = settleTimeoutMs) {
+            composeRule.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onAllNodes(hasSetTextAction())[0].performTextInput("$title\nCaptured from the start screen.")
+        composeRule.onNodeWithText("Save card").performClick()
+
+        // The new card lands at the top of Recent, and opens in the ordinary card view.
+        awaitText(title)
+        composeRule.onNodeWithText(title).performClick()
+        awaitText("Captured from the start screen.", substring = true)
     }
 
     private fun awaitText(text: String, substring: Boolean = false) =

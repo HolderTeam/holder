@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
@@ -62,6 +63,8 @@ fun ProjectListScreen(
     onGitSyncClick: (HolderProject) -> Unit,
     onRecoverProjectClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    /** Back to the start screen; null hides the arrow (the list is then the root). */
+    onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     var state by remember { mutableStateOf<LoadState<List<HolderProject>>>(LoadState.Loading) }
@@ -101,7 +104,14 @@ fun ProjectListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Holder") },
+                title = { Text(if (onBack != null) "Projects" else "Holder") },
+                navigationIcon = {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    }
+                },
                 actions = {
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Filled.Settings, contentDescription = "Settings")
