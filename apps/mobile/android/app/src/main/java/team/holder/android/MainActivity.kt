@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import android.os.Parcelable
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
@@ -43,6 +44,9 @@ import team.holder.android.resource.attachPickedFile
 import team.holder.android.sync.GitSyncScheduler
 import team.holder.android.ui.CenteredMessage
 import team.holder.android.ui.ProjectPickerDialog
+import team.holder.android.editor.EditorRecoveryStore
+import team.holder.android.editor.HolderCardWriter
+import team.holder.android.editor.RecoveryReplay
 import team.holder.android.ui.screens.AboutSettingsScreen
 import team.holder.android.ui.screens.SearchScreen
 import team.holder.android.ui.screens.StartScreen
@@ -206,6 +210,7 @@ class MainActivity : ComponentActivity() {
                     }
                 } else {
                     HolderNavHost(
+                        coldStart = savedInstanceState == null,
                         pendingRecoveryToken = pendingRecoveryToken,
                         pendingSharedContent = pendingSharedContent,
                         onSharedContentHandled = { pendingSharedContent = null },
@@ -329,6 +334,9 @@ private fun queryDisplayName(context: Context, uri: Uri): String? {
 
 @Composable
 private fun HolderNavHost(
+    // False when Android recreated the activity from saved state: the back stack and any open
+    // editor's text come back on their own then, so there's nothing to replay or reopen.
+    coldStart: Boolean = true,
     pendingRecoveryToken: String? = null,
     pendingSharedContent: PendingSharedContent? = null,
     onSharedContentHandled: () -> Unit = {},
@@ -350,6 +358,9 @@ private fun HolderNavHost(
     var selectedProjectForSync by remember { mutableStateOf<HolderProject?>(null) }
     var selectedCardTitle by rememberSaveable { mutableStateOf("") }
     var selectedCardContent by remember { mutableStateOf("") }
+    // Which card selectedCardContent belongs to, so the edit route never seeds one card's
+    // editor with another's content.
+    var selectedCardContentId by remember { mutableStateOf<String?>(null) }
     // Set alongside selectedCardTitle/selectedCardContent by the same onEdit callback below,
     // right before navigating into the edit route -- always freshly overwritten there (there's
     // exactly one navigation path into "cards/{cardId}/edit", so unlike pendingNewCardShortcut
@@ -367,8 +378,6 @@ private fun HolderNavHost(
     // passes as defaultTitle; unused (and left stale, harmlessly) whenever pendingParentCardId
     // is null.
     var pendingParentCardTitle by remember { mutableStateOf("") }
-    var saving by remember { mutableStateOf(false) }
-    var saveError by remember { mutableStateOf<String?>(null) }
     // Non-null only while more than one project exists and pendingSharedContent needs one
     // picked before it can be turned into a card -- see the ProjectPickerDialog call below.
     var sharedContentProjectChoices by remember { mutableStateOf<List<HolderProject>?>(null) }
@@ -514,6 +523,47 @@ private fun HolderNavHost(
     // notification's tap target (see team.holder.android.diagnostics.ReliabilityNotifier) --
     // same onCreate/onNewIntent shape as pendingNewCardShortcut above, just without a
     // project-choice step to defer to.
+    // Cold start (issue #447): first save any editor text a previous process didn't get to
+    // save, then reopen the card editor that was open when Holder went away -- unless this
+    // launch came with somewhere specific to go (a share, a shortcut, a recovery file...).
+    LaunchedEffect(Unit) {
+        if (!coldStart) return@LaunchedEffect
+        val outcomes = withContext(Dispatchers.IO) {
+            RecoveryReplay.replay(EditorRecoveryStore.forContext(context), HolderCardWriter) { projectId, cardId ->
+                runCatching {
+                    val card = HolderNative.getCard(projectId, cardId)
+                    if (card.deletedAt != null) null else HolderNative.getCardContent(projectId, cardId)
+                }.getOrNull()
+            }
+        }
+        val recovered = outcomes.count { it.saved }
+        if (recovered > 0) {
+            cardListRefreshKey++
+            Toast.makeText(
+                context,
+                if (recovered == 1) "Saved text from your last session" else "Saved text from your last session in $recovered cards",
+                Toast.LENGTH_LONG,
+            ).show()
+        }
+        val session = HolderSettings.editorSession(context).first() ?: return@LaunchedEffect
+        val elsewhere = pendingRecoveryToken != null || pendingSharedContent != null ||
+            pendingNewCardShortcut || pendingOpenDiagnostics
+        val cardId = session.cardId ?: outcomes.firstOrNull { it.key == session.recoveryKey }?.cardId
+        val exists = cardId != null && runCatching {
+            withContext(Dispatchers.IO) { HolderNative.getCard(session.projectId, cardId).deletedAt == null }
+        }.getOrDefault(false)
+        if (elsewhere || !exists) {
+            HolderSettings.setEditorSession(context, null)
+            return@LaunchedEffect
+        }
+        selectedCardTitle = runCatching {
+            withContext(Dispatchers.IO) { HolderNative.getCard(session.projectId, cardId!!).title }
+        }.getOrDefault("")
+        pendingEditCursorOffset = null
+        navController.navigate("projects/${session.projectId}/cards/$cardId")
+        navController.navigate("projects/${session.projectId}/cards/$cardId/edit")
+    }
+
     LaunchedEffect(pendingOpenDiagnostics) {
         if (pendingOpenDiagnostics) {
             navController.navigate("settings/diagnostics")
@@ -636,13 +686,11 @@ private fun HolderNavHost(
                     navController.navigate("projects/$projectId/cards/$cardId")
                 },
                 onCreateCard = {
-                    saveError = null
                     pendingParentCardId = null
                     pendingParentCardTitle = ""
                     navController.navigate("projects/$projectId/cards/new")
                 },
                 onCreateChildCard = { card ->
-                    saveError = null
                     pendingParentCardId = card.cardId
                     pendingParentCardTitle = card.title
                     navController.navigate("projects/$projectId/cards/new")
@@ -686,12 +734,8 @@ private fun HolderNavHost(
         }
         composable("projects/{projectId}/cards/new") { backStackEntry ->
             val projectId = backStackEntry.arguments?.getString("projectId").orEmpty()
-            // Set the moment CardEditScreen silently creates this card behind an attach action
-            // (see its own ensureCardCreated) -- null the entire time otherwise, right up until
-            // an ordinary Save creates it for real below. Local to this route's own composition,
-            // same as saving/saveError just above being shared across every route instead: a
-            // fresh visit to "new card" always starts with no card yet.
-            var autoCreatedCardId by remember { mutableStateOf<String?>(null) }
+            // The card is created by the editor's first autosave with text in it (issue #447);
+            // there's no Save step here any more.
             CardEditScreen(
                 screenTitle = "New card",
                 initialTitle = "",
@@ -700,44 +744,11 @@ private fun HolderNavHost(
                 projectId = projectId,
                 parentCardId = pendingParentCardId,
                 cardId = null,
-                saving = saving,
-                errorMessage = saveError,
-                onCardCreated = { id -> autoCreatedCardId = id },
-                onSave = { title, content ->
-                    // CardEditScreen's own one-shot guard is what actually prevents a double-tap
-                    // from calling this twice; this is just a secondary guard against onSave
-                    // itself somehow firing twice concurrently.
-                    if (!saving) {
-                        saving = true
-                        saveError = null
-                        scope.launch {
-                            val result = runCatching {
-                                withContext(Dispatchers.IO) {
-                                    // Already created behind an earlier attach action in this
-                                    // same session -- Save updates that same row rather than
-                                    // creating a second card.
-                                    val existingId = autoCreatedCardId
-                                    if (existingId != null) {
-                                        HolderNative.updateCard(projectId, existingId, title, content)
-                                    } else {
-                                        HolderNative.createCard(projectId, title, content, pendingParentCardId)
-                                    }
-                                }
-                            }
-                            withContext(Dispatchers.Main.immediate) {
-                                saving = false
-                                result.fold(
-                                    onSuccess = {
-                                        cardListRefreshKey++
-                                        navController.popBackStack()
-                                    },
-                                    onFailure = { saveError = it.message ?: it::class.java.simpleName },
-                                )
-                            }
-                        }
-                    }
+                onCardCreated = { cardListRefreshKey++ },
+                onDone = {
+                    cardListRefreshKey++
+                    navController.popBackStack()
                 },
-                onCancel = { navController.popBackStack() },
             )
         }
         composable("projects/{projectId}/cards/{cardId}") { backStackEntry ->
@@ -751,8 +762,8 @@ private fun HolderNavHost(
                 onEdit = { activeCardId, title, content, cursorOffset ->
                     selectedCardTitle = title
                     selectedCardContent = content
+                    selectedCardContentId = activeCardId
                     pendingEditCursorOffset = cursorOffset
-                    saveError = null
                     navController.navigate("projects/$projectId/cards/$activeCardId/edit")
                 },
                 onNavigateToCard = { targetCardId, title ->
@@ -767,7 +778,6 @@ private fun HolderNavHost(
                     navController.navigate("projects/$projectId/cards/$activeCardId/connections")
                 },
                 onCreateChildCard = { activeCardId ->
-                    saveError = null
                     pendingParentCardId = activeCardId
                     // selectedCardTitle already holds this exact card's title -- it's what's
                     // currently on screen for the "Child" button to have been tapped from (kept
@@ -984,46 +994,43 @@ private fun HolderNavHost(
         composable("projects/{projectId}/cards/{cardId}/edit") { backStackEntry ->
             val projectId = backStackEntry.arguments?.getString("projectId").orEmpty()
             val cardId = backStackEntry.arguments?.getString("cardId").orEmpty()
+            // Normally the card view hands over the content it's showing. Reopened after a cold
+            // start (or recreated by Android), there's nothing handed over, so load it -- an
+            // editor seeded with "" would treat the whole card as new text.
+            val handedOver = selectedCardContent.takeIf { it.isNotEmpty() && selectedCardContentId == cardId }
+            val loaded by produceState<Pair<String, String>?>(
+                initialValue = handedOver?.let { selectedCardTitle to it },
+                cardId,
+            ) {
+                if (value == null) {
+                    value = runCatching {
+                        withContext(Dispatchers.IO) {
+                            HolderNative.getCard(projectId, cardId).title to HolderNative.getCardContent(projectId, cardId)
+                        }
+                    }.getOrNull()
+                }
+            }
+            val (initialTitle, initialContent) = loaded ?: return@composable
             CardEditScreen(
                 screenTitle = "Edit card",
-                initialTitle = selectedCardTitle,
-                initialContent = selectedCardContent,
+                initialTitle = initialTitle,
+                initialContent = initialContent,
                 initialCursorOffset = pendingEditCursorOffset,
                 projectId = projectId,
                 cardId = cardId,
-                saving = saving,
-                errorMessage = saveError,
-                onSave = { title, content ->
-                    // See the comment in the "new card" route above.
-                    if (!saving) {
-                        saving = true
-                        saveError = null
-                        scope.launch {
-                            val result = runCatching {
-                                withContext(Dispatchers.IO) { HolderNative.updateCard(projectId, cardId, title, content) }
-                            }
-                            withContext(Dispatchers.Main.immediate) {
-                                saving = false
-                                result.fold(
-                                    onSuccess = {
-                                        selectedCardTitle = title
-                                        cardViewRefreshKey++
-                                        cardListRefreshKey++
-                                        navController.popBackStack()
-                                    },
-                                    onFailure = { saveError = it.message ?: it::class.java.simpleName },
-                                )
-                            }
-                        }
-                    }
+                onDone = {
+                    cardViewRefreshKey++
+                    cardListRefreshKey++
+                    navController.popBackStack()
                 },
-                onCancel = { navController.popBackStack() },
                 // Pops back two levels (past the now-nonexistent card's own view), not the one
-                // level onCancel above uses -- same target route CardViewPagerScreen's own
-                // onBack already jumps to for the same "up to the list" reason.
+                // level onDone above uses -- same target route CardViewPagerScreen's own
+                // onBack already jumps to for the same "up to the list" reason, falling back to
+                // the start screen when the list was never on the back stack.
                 onDeleted = {
                     cardListRefreshKey++
-                    navController.popBackStack("projects/$projectId/cards", inclusive = false)
+                    navController.popBackStack("projects/$projectId/cards", inclusive = false) ||
+                        navController.popBackStack("start", inclusive = false)
                 },
             )
         }

@@ -44,10 +44,13 @@ class WholeAppSmokeTest {
     fun tearDown() {
         runCatching {
             val title = smokeTitle ?: return@runCatching
-            val home = HolderNative.listProjects().firstOrNull { it.name == "Home" } ?: return@runCatching
-            HolderNative.listCards(home.projectId)
-                .filter { it.title == title }
-                .forEach { HolderNative.deleteCard(home.projectId, it.cardId) }
+            // Every project, not just Home: quick entry saves to whichever project its chip
+            // last picked, which on a device with several projects needn't be Home.
+            HolderNative.listProjects().forEach { project ->
+                HolderNative.listCards(project.projectId)
+                    .filter { it.title == title }
+                    .forEach { HolderNative.deleteCard(project.projectId, it.cardId) }
+            }
         }
         HolderNative.close()
     }
@@ -71,8 +74,8 @@ class WholeAppSmokeTest {
         val fields = composeRule.onAllNodes(hasSetTextAction())
         fields[0].performTextInput(title)
         fields[1].performTextInput(initialBody)
-        awaitContentDescription("Save")
-        composeRule.onNodeWithContentDescription("Save").performClick()
+        awaitContentDescription("Done")
+        composeRule.onNodeWithContentDescription("Done").performClick()
 
         awaitText(title)
         composeRule.onNodeWithText(title).performClick()
@@ -84,8 +87,8 @@ class WholeAppSmokeTest {
         composeRule
             .onNode(hasSetTextAction() and hasText(initialBody))
             .performTextInput("\nEdited and persisted.")
-        awaitContentDescription("Save")
-        composeRule.onNodeWithContentDescription("Save").performClick()
+        awaitContentDescription("Done")
+        composeRule.onNodeWithContentDescription("Done").performClick()
 
         awaitText("Edited and persisted.", substring = true)
 
@@ -108,6 +111,33 @@ class WholeAppSmokeTest {
                 .fetchSemanticsNodes()
                 .isNotEmpty(),
         )
+    }
+
+    @Test
+    fun editedTextReachesTheCardWithoutDone() {
+        val title = "Autosave ${UUID.randomUUID()}"
+        smokeTitle = title
+
+        awaitContentDescription("Projects")
+        composeRule.onNodeWithContentDescription("Projects").performClick()
+        awaitText("Home")
+        composeRule.onNodeWithText("Home").performClick()
+        awaitContentDescription("New card")
+        composeRule.onNodeWithContentDescription("New card").performClick()
+        awaitTextFields()
+
+        val fields = composeRule.onAllNodes(hasSetTextAction())
+        fields[0].performTextInput(title)
+        fields[1].performTextInput("Typed and never explicitly saved.")
+
+        // No Done, no Back: the card must exist with the text once autosave has run.
+        val home = HolderNative.listProjects().first { it.name == "Home" }
+        composeRule.waitUntil(timeoutMillis = settleTimeoutMs) {
+            HolderNative.listCards(home.projectId).any { card ->
+                card.title == title &&
+                    HolderNative.getCardContent(home.projectId, card.cardId).contains("Typed and never explicitly saved.")
+            }
+        }
     }
 
     @Test

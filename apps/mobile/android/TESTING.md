@@ -66,6 +66,29 @@ Target testing pyramid:
 
 `C API tests >> Kotlin tests > Compose tests > JNI/integration tests > full-app E2E tests`
 
+## Checking that typing survives Android ending Holder
+
+The card editor saves as you type (issue #447): a device-local recovery copy
+250 ms after a change, a real card save 900 ms after typing pauses, and both
+straight away when Holder goes into the background. These hand checks cover
+the ways Android can take Holder away. Run them on an emulator with an editor
+open (`P=team.holder.android.debug`, `E=emulator-5554`):
+
+- **Background process kill.** Type, press Home at once, then
+  `adb -s $E shell am kill $P` and reopen Holder. The editor comes back with
+  the text, saved.
+- **Abrupt kill, no lifecycle callbacks.** Type, wait half a second, then
+  `adb -s $E shell am force-stop $P` and reopen. Holder saves the recovery
+  copy at start-up and reopens that card's editor. Repeat on a new card that
+  hasn't been created yet: it is created from the copy.
+- **Don't keep activities.** `adb -s $E shell settings put global always_finish_activities 1`,
+  type, switch away and back; set it back to `0` afterwards.
+- **Rotation** while typing.
+
+Leftover copies live in `files/editor-recovery-drafts/`
+(`adb -s $E shell run-as $P ls files/editor-recovery-drafts/`); it should be
+empty once everything is saved.
+
 ## Running instrumentation tests on a local emulator
 
 These steps run `androidTest` classes on the Pixel 2 API 30 emulator that

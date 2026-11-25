@@ -65,7 +65,12 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -149,6 +154,19 @@ fun StartScreen(
         val text = draft ?: return@LaunchedEffect
         delay(300)
         HolderSettings.setStartDraft(context, text)
+    }
+    // Going into the background: write the draft now rather than after the debounce, in case
+    // Android ends the process before it fires (issue #447: every keypress is kept).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val latestDraft by rememberUpdatedState(draft)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                latestDraft?.let { text -> EditorSaveScope.launch { HolderSettings.setStartDraft(context, text) } }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(refreshKey, reloadKey) {
         runCatching { withContext(Dispatchers.IO) { loadStartScreenData() } }

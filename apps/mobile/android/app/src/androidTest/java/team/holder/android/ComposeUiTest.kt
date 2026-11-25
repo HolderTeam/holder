@@ -95,54 +95,103 @@ class ComposeUiTest {
     }
 
     @Test
-    fun cardEdit_cancelWithoutChanges_callsCancelImmediately() {
-        var cancelCount = 0
+    fun cardEdit_doneWithoutChanges_leavesWithoutWriting() {
+        val writer = RecordingWriter()
+        var doneWith: String? = "not called"
 
         composeRule.setContent {
             CardEditScreen(
                 screenTitle = "Edit card",
                 initialTitle = "Original",
                 initialContent = "# Original\n\nBody",
-                saving = false,
-                onSave = { _, _ -> },
-                onCancel = { cancelCount++ },
+                projectId = "p1",
+                cardId = "c1",
+                onDone = { doneWith = it },
+                writer = writer,
+                recoveryStore = tempRecoveryStore(),
             )
         }
 
-        composeRule.onNodeWithContentDescription("Cancel").performClick()
+        composeRule.onNodeWithContentDescription("Done").performClick()
+        composeRule.waitUntil(timeoutMillis = backgroundWorkTimeoutMs) { doneWith != "not called" }
 
-        assertEquals(1, cancelCount)
+        assertEquals("c1", doneWith)
+        assertEquals(emptyList<String>(), writer.calls)
     }
 
     @Test
-    fun cardEdit_dirtyCancel_canKeepEditingOrDiscard() {
-        var cancelCount = 0
+    fun cardEdit_changesAreSavedWithoutPressingAnything() {
+        val writer = RecordingWriter()
 
         composeRule.setContent {
             CardEditScreen(
                 screenTitle = "Edit card",
                 initialTitle = "Original",
                 initialContent = "# Original\n\nBody",
-                saving = false,
-                onSave = { _, _ -> },
-                onCancel = { cancelCount++ },
+                projectId = "p1",
+                cardId = "c1",
+                onDone = {},
+                writer = writer,
+                recoveryStore = tempRecoveryStore(),
             )
         }
 
         composeRule
             .onNode(hasSetTextAction() and androidx.compose.ui.test.hasText("Original"))
             .performTextReplacement("Changed")
-        composeRule.onNodeWithContentDescription("Cancel").performClick()
 
-        composeRule.onNodeWithText("Save changes?").assertIsDisplayed()
-        composeRule.onNodeWithText("Keep editing").performClick()
-        composeRule.onNodeWithText("Save changes?").assertDoesNotExist()
-        assertEquals(0, cancelCount)
+        // Autosave fires ~900ms after typing stops; no Done, no Back.
+        composeRule.waitUntil(timeoutMillis = backgroundWorkTimeoutMs) {
+            writer.calls.any { it.startsWith("update c1") && it.contains("Changed") }
+        }
+        composeRule.onNodeWithText("Saved").assertIsDisplayed()
+    }
 
-        composeRule.onNodeWithContentDescription("Cancel").performClick()
-        composeRule.onNodeWithText("Discard").performClick()
+    @Test
+    fun cardEdit_newCardLeftUntouched_createsNothing() {
+        val writer = RecordingWriter()
+        var doneWith: String? = "not called"
 
-        assertEquals(1, cancelCount)
+        composeRule.setContent {
+            CardEditScreen(
+                screenTitle = "New card",
+                initialTitle = "",
+                initialContent = "",
+                projectId = "p1",
+                cardId = null,
+                onDone = { doneWith = it },
+                writer = writer,
+                recoveryStore = tempRecoveryStore(),
+            )
+        }
+
+        composeRule.onNodeWithContentDescription("Done").performClick()
+        composeRule.waitUntil(timeoutMillis = backgroundWorkTimeoutMs) { doneWith != "not called" }
+
+        assertEquals(null, doneWith)
+        assertEquals(emptyList<String>(), writer.calls)
+    }
+
+    private fun tempRecoveryStore(): team.holder.android.editor.EditorRecoveryStore {
+        val dir = java.io.File(
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext.cacheDir,
+            "recovery-test-${java.util.UUID.randomUUID()}",
+        )
+        return team.holder.android.editor.EditorRecoveryStore(dir)
+    }
+
+    private class RecordingWriter : team.holder.android.editor.CardWriter {
+        val calls = java.util.Collections.synchronizedList(mutableListOf<String>())
+        override suspend fun create(projectId: String, title: String, content: String, parentCardId: String?): String {
+            calls += "create: $content"
+            return "created-1"
+        }
+        override suspend fun update(projectId: String, cardId: String, title: String, content: String) {
+            calls += "update $cardId: $content"
+        }
+        override suspend fun trash(projectId: String, cardId: String) {
+            calls += "trash $cardId"
+        }
     }
 
     @Test
