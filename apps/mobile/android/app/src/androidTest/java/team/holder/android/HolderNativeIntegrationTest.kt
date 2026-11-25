@@ -15,6 +15,9 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 import org.junit.Test
 import org.junit.runner.RunWith
 import team.holder.android.contract.Cards
@@ -466,6 +469,30 @@ class HolderNativeIntegrationTest {
         assertTrue(repo.isDirectory)
         HolderNative.updateProjectGitRemote(project.projectId, repo.absolutePath)
         assertEquals("succeeded", HolderNative.pullGit(project.projectId).status)
+    }
+
+    @Test
+    fun projectDataChanged_onlyWhenAPullMovesTheProject() = runBlocking {
+        initialize()
+        val project = HolderNative.createProject("Pull signal", "plain")
+        // The project's commit, as the pull watch reads it, moves with a save.
+        val before = HolderNative.projectHead(project.projectId)
+        assertNotNull(before)
+        HolderNative.createCard(project.projectId, "Moves HEAD", "")
+        assertNotEquals(before, HolderNative.projectHead(project.projectId))
+
+        // Pulling from itself brings nothing, so nothing is published.
+        HolderNative.updateProjectGitRemote(
+            project.projectId, dataDir.resolve("projects/pull-signal").absolutePath,
+        )
+        val published = mutableListOf<String>()
+        val watcher = launch(Dispatchers.Unconfined) { HolderNative.projectDataChanged.collect { published += it } }
+        assertEquals("succeeded", HolderNative.pullGit(project.projectId).status)
+        assertEquals("succeeded", HolderNative.gitSyncNow(project.projectId).pullStatus)
+        // ...while a published change reaches collectors.
+        HolderNative.notifyProjectDataChanged(project.projectId)
+        watcher.cancel()
+        assertEquals(listOf(project.projectId), published)
     }
 
     @Test

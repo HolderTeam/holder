@@ -13,9 +13,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -32,6 +36,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -97,6 +103,34 @@ sealed class PendingSharedContent {
     data class Files(val uris: List<Uri>) : PendingSharedContent()
 }
 
+private sealed interface StoreState {
+    data object Opening : StoreState
+    data object Ready : StoreState
+    data class Failed(val error: Throwable) : StoreState
+}
+
+/** Shown while the native store opens. Blank for the first moment, so an ordinary fast start
+ * doesn't flash a message; says what's happening once it's clearly taking a while (a database
+ * rebuild on a slow phone). */
+@Composable
+private fun OpeningStore() {
+    var slow by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(400)
+        slow = true
+    }
+    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+        if (slow) {
+            CenteredMessage(Modifier.padding(innerPadding)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator()
+                    Text("Opening Holder…", modifier = Modifier.padding(top = 16.dp))
+                }
+            }
+        }
+    }
+}
+
 class MainActivity : ComponentActivity() {
     // Set from a .hrk file opened directly (Files app, email attachment, etc. -- see the
     // ACTION_VIEW intent-filter in AndroidManifest.xml) rather than a token pasted by hand.
@@ -118,6 +152,9 @@ class MainActivity : ComponentActivity() {
     // team.holder.android.diagnostics.ReliabilityNotifier) -- same onCreate/onNewIntent shape as
     // pendingNewCardShortcut above.
     private var pendingOpenDiagnostics by mutableStateOf(false)
+
+    // Whether HolderNative.initialize has finished, set from onCreate's background open.
+    private var storeState by mutableStateOf<StoreState>(StoreState.Opening)
 
     // A non-secret SavedState mirror of the coordinator-owned unresolved Auth Tab marker. It
     // survives process death only so a restored stale result is discarded and a fresh Auth Tab
@@ -161,22 +198,36 @@ class MainActivity : ComponentActivity() {
         val holderDataDir = File(filesDir, "holder")
         val dataDirExistedBeforeInit = holderDataDir.exists()
 
-        val initError = runCatching {
-            HolderNative.initialize(
-                context = this,
-                dataDir = holderDataDir,
-                schemaSql = assets.open("schema.sql").bufferedReader().use { it.readText() },
-            )
-        }.exceptionOrNull()
-
-        // Only meaningful right after a successful initialize -- a failed one never gets far
-        // enough to seed the fresh "Home" project SnapshotProtection is guarding against, and
-        // there's nothing here worth doing on top of an already-broken launch.
-        if (initError == null) {
-            SnapshotProtection.armIfFreshInstallHasAnUnseenSnapshot(filesDir, snapshotFile(this), dataDirExistedBeforeInit)
+        // Opening the native store can take seconds (the first open rebuilds the database
+        // from the project files when it's missing or stale), so it runs off the main thread
+        // (issue #105) and the screen says "Opening Holder…" meanwhile. NonCancellable: if
+        // this activity is recreated mid-open, initialize still finishes, and the snapshot
+        // marker below is still set exactly once, on the launch that found the data dir
+        // missing. Already open (recreation, or a worker opened it first): no wait shown.
+        if (HolderNative.isInitialized) storeState = StoreState.Ready
+        lifecycleScope.launch {
+            val error = withContext(NonCancellable + Dispatchers.IO) {
+                runCatching {
+                    HolderNative.initialize(
+                        context = this@MainActivity,
+                        dataDir = holderDataDir,
+                        schemaSql = assets.open("schema.sql").bufferedReader().use { it.readText() },
+                    )
+                    // Only meaningful right after a successful initialize -- a failed one never
+                    // gets far enough to seed the fresh "Home" project SnapshotProtection is
+                    // guarding against. Must come before SnapshotScheduler.reconcile below.
+                    SnapshotProtection.armIfFreshInstallHasAnUnseenSnapshot(
+                        filesDir, snapshotFile(this@MainActivity), dataDirExistedBeforeInit,
+                    )
+                }.exceptionOrNull()
+            }
+            storeState = error?.let { StoreState.Failed(it) } ?: StoreState.Ready
+            // Always on, no settings to read first -- see SnapshotScheduler's doc comment for
+            // why this doesn't need the enabled/interval dance GitSyncScheduler's call does.
+            SnapshotScheduler.reconcile(applicationContext)
         }
 
-        // Safe and cheap regardless of initError or whether Drive/S3 is actually connected --
+        // Safe and cheap whether or not the store opens, and whether Drive/S3 is actually connected --
         // holder-core only ever calls into either for a project that has a matching Location,
         // including one synced in from desktop rather than created on this device (e.g. a
         // GTK-created s3_compatible Location becomes retrievable here the moment S3 is
@@ -195,21 +246,17 @@ class MainActivity : ComponentActivity() {
             GitSyncScheduler.reconcile(applicationContext, enabled, intervalMinutes)
         }
 
-        // Always on, no settings to read first -- see SnapshotScheduler's doc comment for why
-        // this doesn't need the same enabled/interval dance GitSyncScheduler's call above does.
-        SnapshotScheduler.reconcile(applicationContext)
-
         enableEdgeToEdge()
         setContent {
             HolderTheme {
-                if (initError != null) {
-                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                when (val state = storeState) {
+                    StoreState.Opening -> OpeningStore()
+                    is StoreState.Failed -> Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                         CenteredMessage(Modifier.padding(innerPadding)) {
-                            Text("Failed to open Holder store: ${initError.message ?: initError::class.java.simpleName}")
+                            Text("Failed to open Holder store: ${state.error.message ?: state.error::class.java.simpleName}")
                         }
                     }
-                } else {
-                    HolderNavHost(
+                    StoreState.Ready -> HolderNavHost(
                         coldStart = savedInstanceState == null,
                         pendingRecoveryToken = pendingRecoveryToken,
                         pendingSharedContent = pendingSharedContent,
@@ -370,6 +417,17 @@ private fun HolderNavHost(
     var cardListRefreshKey by remember { mutableIntStateOf(0) }
     var cardViewRefreshKey by remember { mutableIntStateOf(0) }
     var connectionsRefreshKey by remember { mutableIntStateOf(0) }
+
+    // A sync that brought changes from another device (issue #104), foreground or background:
+    // every screen that stays composed reloads. Each keeps its place by identity -- see
+    // CardListScreen's Board reconciliation and CardViewPagerScreen's deckAfterReload.
+    LaunchedEffect(Unit) {
+        HolderNative.projectDataChanged.collect {
+            cardListRefreshKey++
+            cardViewRefreshKey++
+            connectionsRefreshKey++
+        }
+    }
     // Non-null only while navigating from a card's own "+" to create a child of it; the
     // plain card-list "+" leaves this null so the new card lands at the project root.
     var pendingParentCardId by remember { mutableStateOf<String?>(null) }

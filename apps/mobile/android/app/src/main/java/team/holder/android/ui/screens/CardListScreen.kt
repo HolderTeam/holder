@@ -73,6 +73,7 @@ import team.holder.android.HolderSettings
 import team.holder.android.R
 import team.holder.android.ui.CenteredMessage
 import team.holder.android.ui.LoadState
+import team.holder.android.ui.boardPathAfterReload
 import team.holder.android.ui.sortKeyOrderedSiblings
 
 private const val SEARCH_DEBOUNCE_MS = 300L
@@ -131,7 +132,16 @@ fun CardListScreen(
         cardsState = runCatching {
             withContext(Dispatchers.IO) { HolderNative.listCards(projectId) }
         }.fold(
-            onSuccess = { LoadState.Success(it) },
+            onSuccess = { cards ->
+                // The open Board folder may have been moved, renamed, trashed or deleted on
+                // another device since it was opened (issue #104).
+                val (parent, trail) = boardPathAfterReload(currentParentId, breadcrumbs, cards)
+                if (parent != currentParentId || trail != breadcrumbs) {
+                    currentParentId = parent
+                    breadcrumbs = trail
+                }
+                LoadState.Success(cards)
+            },
             onFailure = { LoadState.Error(it.message ?: it::class.java.simpleName) },
         )
     }
