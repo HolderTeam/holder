@@ -443,11 +443,15 @@ object HolderNative {
     private val backgroundLane = NativeLane("holder-background")
 
     /** Runs [block] with the open context's handle on the save lane, for calls to the generated
-     * contract client (team.holder.android.contract), which take the handle first. */
+     * contract client (team.holder.android.contract), which take the handle first. The app goes
+     * through HolderNative's own functions; ContractClientIntegrationTest uses this. */
     internal fun <T> onContract(block: (Long) -> T): T = saveLane.call(block)
 
     @Volatile
     private var isOpen = false
+
+    /** True once [initialize] has opened the native store (and until [close]). */
+    val isInitialized: Boolean get() = isOpen
 
     /** Set once by [initialize], reused by [selectGitSignerForProject] -- the native signer
      * can be re-registered any number of times after the context is first opened (each project
@@ -471,6 +475,9 @@ object HolderNative {
     /**
      * Opens the native store (once; safe to call again) and, on a device with no project,
      * makes Home with core's welcome card (the contract's ensure_home_project).
+     *
+     * Blocks, sometimes for seconds: the first open rebuilds the database from the project
+     * files when it's missing or out of date. Call it off the main thread.
      */
     @Synchronized
     fun initialize(context: Context, dataDir: File, schemaSql: String) {
