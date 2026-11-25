@@ -36,7 +36,9 @@ class MarkdownSpellChecker(context: Context) {
             // callback answers.
         }
 
-        override fun onGetSentenceSuggestions(results: Array<out SentenceSuggestionsInfo>?) {
+        // Entries nullable: the platform's spell checker is Java and can hand back a null one,
+        // which the loop below skips.
+        override fun onGetSentenceSuggestions(results: Array<out SentenceSuggestionsInfo?>?) {
             if (results == null) return
             val items = pendingItems
             val spans = mutableListOf<MisspelledSpan>()
