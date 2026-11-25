@@ -180,7 +180,10 @@ testing sign-in failures on purpose; see [mock-github/README.md](mock-github/REA
 
 `scripts/start-emulators.sh` starts every configured Android Virtual Device
 that isn't already running (skipping ones that are, never starting
-duplicates). Since emulators are meant to stay running while you develop,
+duplicates), including the Gradle-managed test AVDs, which it runs headless
+(see [TESTING.md](TESTING.md#running-instrumentation-tests-on-a-local-emulator)).
+It waits until they have booted; `--no-wait` returns straight away and
+`--stop` stops every running emulator. Since emulators are meant to stay running while you develop,
 you normally only need this once per work session to bring your local
 emulator set up; `scripts/deploy-all.sh` is the one you run repeatedly
 afterward.
