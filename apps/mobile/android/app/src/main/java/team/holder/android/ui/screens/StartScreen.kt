@@ -64,6 +64,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -126,6 +127,7 @@ fun StartScreen(
     onOpenCard: (projectId: String, cardId: String, title: String) -> Unit,
     onProjectsClick: () -> Unit,
     onSearchClick: () -> Unit,
+    onReviewConflicts: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -172,6 +174,12 @@ fun StartScreen(
         runCatching { withContext(Dispatchers.IO) { loadStartScreenData() } }
             .onSuccess { data = it; loadError = null }
             .onFailure { loadError = it.message ?: it::class.java.simpleName }
+    }
+    // Cards a pull kept both devices' versions of, waiting for a choice.
+    var conflictCount by remember { mutableIntStateOf(0) }
+    LaunchedEffect(refreshKey, reloadKey) {
+        conflictCount = runCatching { withContext(Dispatchers.IO) { HolderNative.listAllConflictCopies().size } }
+            .getOrDefault(conflictCount)
     }
 
     // Bring a just-saved card into view once the reload has actually delivered it. Scrolling
@@ -322,6 +330,9 @@ fun StartScreen(
                         .graphicsLayer { alpha = visibleFraction }
                         .clipToBounds(),
                 ) {
+                    if (conflictCount > 0) {
+                        ConflictBanner(conflictCount, onReviewConflicts)
+                    }
                     Text(
                         "Recent",
                         style = MaterialTheme.typography.titleSmall,
@@ -600,3 +611,23 @@ private fun Modifier.collapseVertically(fraction: Float): Modifier = this
         val height = (placeable.height * fraction).roundToInt()
         layout(placeable.width, height) { placeable.place(0, height - placeable.height) }
     }
+
+/** "2 cards changed on two devices · Review", above Recent while any are waiting. */
+@Composable
+private fun ConflictBanner(count: Int, onReview: () -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp)) {
+            Text(
+                if (count == 1) "1 card changed on two devices" else "$count cards changed on two devices",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onReview) { Text("Review") }
+        }
+    }
+}

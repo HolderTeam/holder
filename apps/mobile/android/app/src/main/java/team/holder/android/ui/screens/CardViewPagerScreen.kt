@@ -24,6 +24,9 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Text
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -156,6 +159,7 @@ fun CardViewPagerScreen(
     onNavigateToCard: (cardId: String, title: String) -> Unit,
     onNavigateToTag: (tag: String) -> Unit,
     onConnectionsClick: (cardId: String) -> Unit,
+    onCompareConflict: (copyId: String) -> Unit = {},
     onCreateChildCard: (cardId: String) -> Unit,
     onDeleted: () -> Unit,
     onBack: () -> Unit,
@@ -334,9 +338,37 @@ fun CardViewPagerScreen(
         }.getOrNull()
     }
 
+    // Whether the card on screen changed on two devices: it's either the original or the copy
+    // of a pair waiting for review. Holds the copy's ID, which is what Compare opens.
+    var conflictCopyId by remember(currentCard.cardId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(currentCard.cardId, refreshKey) {
+        conflictCopyId = runCatching {
+            withContext(Dispatchers.IO) { HolderNative.listConflictCopies(projectId) }
+        }.getOrNull()
+            ?.firstOrNull { it.originalCardId == currentCard.cardId || it.copyCardId == currentCard.cardId }
+            ?.copyCardId
+    }
+
     Scaffold(
         bottomBar = {
-            if (!focusMode) {
+            if (!focusMode) Column {
+                conflictCopyId?.let { copyId ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.tertiaryContainer)
+                            .padding(start = 16.dp),
+                    ) {
+                        Text(
+                            "Changed on two devices",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = { onCompareConflict(copyId) }) { Text("Compare") }
+                    }
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

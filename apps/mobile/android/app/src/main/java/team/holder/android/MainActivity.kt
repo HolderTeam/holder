@@ -15,6 +15,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
+import team.holder.android.ui.screens.ConflictListScreen
+import team.holder.android.ui.screens.ConflictCompareScreen
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -649,6 +658,22 @@ private fun HolderNavHost(
         navController.navigate("projects/$projectId/cards/$cardId")
     }
 
+    // A pull that kept both devices' versions of some cards, Sync now or a background sync while
+    // Holder is open: say so, with a way to review them.
+    val snackbarHost = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) {
+        HolderNative.conflictCopiesArrived.collect { arrived ->
+            val cards = if (arrived.count == 1) "1 card was" else "${arrived.count} cards were"
+            val result = snackbarHost.showSnackbar(
+                message = "$cards changed on two devices. Holder kept both versions.",
+                actionLabel = "Review",
+                duration = SnackbarDuration.Long,
+            )
+            if (result == SnackbarResult.ActionPerformed) navController.navigate("conflicts")
+        }
+    }
+
+    Box(Modifier.fillMaxSize()) {
     NavHost(navController = navController, startDestination = "start") {
         // Writing-first start screen (issue #449): quick entry, recent cards across projects,
         // and anything due. The project list is one tap away rather than the front door.
@@ -658,6 +683,7 @@ private fun HolderNavHost(
                 onOpenCard = ::openCard,
                 onProjectsClick = { navController.navigate("projects") },
                 onSearchClick = { navController.navigate("search") },
+                onReviewConflicts = { navController.navigate("conflicts") },
             )
         }
         composable("search") {
@@ -835,6 +861,7 @@ private fun HolderNavHost(
                 onConnectionsClick = { activeCardId ->
                     navController.navigate("projects/$projectId/cards/$activeCardId/connections")
                 },
+                onCompareConflict = { copyId -> navController.navigate("projects/$projectId/conflicts/$copyId") },
                 onCreateChildCard = { activeCardId ->
                     pendingParentCardId = activeCardId
                     // selectedCardTitle already holds this exact card's title -- it's what's
@@ -1092,5 +1119,26 @@ private fun HolderNavHost(
                 },
             )
         }
+        // Cards a pull kept both devices' versions of, and comparing one pair.
+        composable("conflicts") {
+            ConflictListScreen(
+                refreshKey = cardListRefreshKey,
+                onOpen = { projectId, copyId -> navController.navigate("projects/$projectId/conflicts/$copyId") },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable("projects/{projectId}/conflicts/{copyId}") { backStackEntry ->
+            ConflictCompareScreen(
+                projectId = backStackEntry.arguments?.getString("projectId").orEmpty(),
+                copyId = backStackEntry.arguments?.getString("copyId").orEmpty(),
+                onDone = { navController.popBackStack() },
+                onBack = { navController.popBackStack() },
+            )
+        }
+    }
+    SnackbarHost(
+        snackbarHost,
+        Modifier.align(Alignment.BottomCenter).navigationBarsPadding().imePadding(),
+    )
     }
 }
