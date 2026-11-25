@@ -1383,8 +1383,7 @@ TEST_CASE(
   REQUIRE(
       f.order() == std::vector<std::string>{ancestor_id, before_id, child_id, after_id, child2_id}
   );
-  // Only the tied run moves; the cards on either side keep their keys and updated_at, which
-  // takes part in tie-breaking.
+  // Only the tied run moves; the cards on either side keep their keys and updated_at.
   REQUIRE(f.cards.get(ancestor_id)->sort_key == 1);
   REQUIRE(f.cards.get(ancestor_id)->updated_at == 1);
   REQUIRE(f.cards.get(child2_id)->sort_key == 9);
