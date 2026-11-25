@@ -1,6 +1,8 @@
 package team.holder.android.ui.screens
 
 import android.content.ClipData
+import android.content.ClipDescription
+import android.os.PersistableBundle
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -103,8 +105,16 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
     var deviceKeyManuallyToggled by remember(project.projectId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboard.current
-    fun copy(label: String, text: String) {
-        scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(label, text))) }
+    // sensitive: Android 13+ then hides the text in its "copied" preview and keyboard
+    // clipboard suggestions. Older versions ignore the flag.
+    fun copy(label: String, text: String, sensitive: Boolean = false) {
+        val clip = ClipData.newPlainText(label, text)
+        if (sensitive) {
+            clip.description.extras = PersistableBundle().apply {
+                putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+            }
+        }
+        scope.launch { clipboard.setClipEntry(ClipEntry(clip)) }
     }
     val context = LocalContext.current
     val githubOwnerRepo = currentRemoteUrl?.let(::parseGitHubOwnerRepo)
@@ -388,7 +398,7 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
                 exportedToken?.let { token ->
                     Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                         Text(token, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                        IconButton(onClick = { copy("Recovery key", token) }) {
+                        IconButton(onClick = { copy("Recovery key", token, sensitive = true) }) {
                             Icon(painterResource(R.drawable.ic_copy), contentDescription = "Copy recovery key")
                         }
                     }
