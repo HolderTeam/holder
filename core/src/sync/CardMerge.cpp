@@ -119,7 +119,8 @@ std::optional<std::string> merge_body_lines(
 ) {
   ensure_libgit2_initialized();
   const auto input = [](const std::string& text) {
-    git_merge_file_input in = GIT_MERGE_FILE_INPUT_INIT;
+    git_merge_file_input in{};
+    git_merge_file_input_init(&in, GIT_MERGE_FILE_INPUT_VERSION);
     in.ptr = text.data();
     in.size = text.size();
     return in;
@@ -127,7 +128,8 @@ std::optional<std::string> merge_body_lines(
   const auto ancestor = input(base);
   const auto ours = input(local);
   const auto theirs = input(remote);
-  git_merge_file_options options = GIT_MERGE_FILE_OPTIONS_INIT;
+  git_merge_file_options options{};
+  git_merge_file_options_init(&options, GIT_MERGE_FILE_OPTIONS_VERSION);
   options.flags = GIT_MERGE_FILE_DEFAULT;
   git_merge_file_result result{};
   if (git_merge_file(&result, &ancestor, &ours, &theirs, &options) < 0) {

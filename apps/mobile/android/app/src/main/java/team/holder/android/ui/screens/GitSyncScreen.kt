@@ -1,5 +1,6 @@
 package team.holder.android.ui.screens
 
+import android.content.ClipData
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,10 +29,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -101,7 +102,10 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
     // flip it back closed on them mid-session just because a push finally succeeded.
     var deviceKeyManuallyToggled by remember(project.projectId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    fun copy(label: String, text: String) {
+        scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(label, text))) }
+    }
     val context = LocalContext.current
     val githubOwnerRepo = currentRemoteUrl?.let(::parseGitHubOwnerRepo)
     val localNetwork = rememberLocalNetworkPermission()
@@ -329,7 +333,7 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.weight(1f),
                     )
-                    IconButton(onClick = { clipboard.setText(AnnotatedString(pubkeyLine)) }) {
+                    IconButton(onClick = { copy("Public key", pubkeyLine) }) {
                         Icon(painterResource(R.drawable.ic_copy), contentDescription = "Copy public key")
                     }
                 }
@@ -384,7 +388,7 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
                 exportedToken?.let { token ->
                     Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                         Text(token, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                        IconButton(onClick = { clipboard.setText(AnnotatedString(token)) }) {
+                        IconButton(onClick = { copy("Recovery key", token) }) {
                             Icon(painterResource(R.drawable.ic_copy), contentDescription = "Copy recovery key")
                         }
                     }
