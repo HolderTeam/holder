@@ -93,6 +93,12 @@ Gradle keeps it under `~/.android/avd/gradle-managed`, so a plain
 ANDROID_AVD_HOME="$HOME/.android/avd/gradle-managed" "$ANDROID_HOME/emulator/emulator" -list-avds
 ```
 
+**The quick way.** `scripts/start-emulators.sh` does everything in the next
+step for every Gradle-managed AVD (and any ordinary ones), waits until they
+have booted, and lists their serials. `scripts/start-emulators.sh --stop`
+stops them again. The manual steps follow for when that script needs
+debugging.
+
 **Starting it.** Gradle's own `pixel2Api30DebugAndroidTest` snapshot setup,
 and headless launches with `swiftshader_indirect` or `software` graphics,
 crash in the emulator's render thread (exit 139). Launch it directly with host
@@ -108,6 +114,14 @@ export XAUTHORITY="$(ps -C Xwayland -o args= | sed -n 's/.*-auth \([^ ]*\).*/\1/
 export QT_QPA_PLATFORM=xcb
 "$ANDROID_HOME/emulator/emulator" -avd dev30_aosp_atd_x86_64_Pixel_2 \
   -no-window -no-audio -no-boot-anim -gpu host -no-snapshot
+```
+
+If `XAUTHORITY` comes out empty, no Xwayland is running yet: GNOME starts it
+only when an X client asks for it. Use the session's own `XAUTHORITY` if it is
+already set, or else mutter's auth file for that on-demand Xwayland:
+
+```bash
+export XAUTHORITY="$(ls -t /run/user/$(id -u)/.mutter-Xwaylandauth.* | head -1)"
 ```
 
 Keep that running, and in another terminal wait until it has booted:
