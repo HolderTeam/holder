@@ -62,3 +62,78 @@ fun cardSequenceLinks(cardId: String, parentCardId: String?, allCards: List<Hold
         precedes = olderSibling?.takeIf { it.cardId != previous?.cardId },
     )
 }
+
+/** What a swipe deck should show after its cards were reloaded: [deck], opened on [cardId]. */
+data class DeckAfterReload(val deck: List<HolderCard>, val cardId: String)
+
+/**
+ * Keeps a swipe deck on the same card, by identity, when its project's cards are reloaded --
+ * after a sync brought changes from another device, say (issue #104). [shownCardId] is the card
+ * on screen; [previousDeck] the deck it was in.
+ *
+ * - Still there: its deck as it is now, wherever it now lives (moved under another parent, it
+ *   is shown among its new siblings).
+ * - Gone (deleted, trashed, or under a parent that's gone): the nearest card after it in
+ *   [previousDeck] that's still under the same parent, then the nearest before it; failing
+ *   that, the nearest one still there at all.
+ * - Null when nothing in [previousDeck] is left, and the caller leaves the deck.
+ */
+fun deckAfterReload(
+    shownCardId: String,
+    previousDeck: List<HolderCard>?,
+    allCards: List<HolderCard>,
+): DeckAfterReload? {
+    val reachable = reachableCards(allCards)
+    cardDeck(shownCardId, reachable)?.let { return DeckAfterReload(it, shownCardId) }
+    val old = previousDeck ?: return null
+    val index = old.indexOfFirst { it.cardId == shownCardId }
+    val oldParent = old.getOrNull(index)?.parentCardId ?: old.firstOrNull()?.parentCardId
+    val nearestFirst = if (index < 0) old.indices.toList() else (index + 1 until old.size) + (index - 1 downTo 0)
+    val survivors = nearestFirst.mapNotNull { i -> reachable.find { it.cardId == old[i].cardId } }
+    val neighbour = survivors.firstOrNull { it.parentCardId == oldParent } ?: survivors.firstOrNull() ?: return null
+    return DeckAfterReload(requireNotNull(cardDeck(neighbour.cardId, reachable)), neighbour.cardId)
+}
+
+/**
+ * Reconciles Board's open folder with reloaded cards (issue #104). Returns the folder to show
+ * and its breadcrumb trail of (cardId, title) from the root down, rebuilt from the cards
+ * themselves so a folder moved or renamed on another device shows its real place and name.
+ * When the folder is gone or no longer reachable from the root, falls back to the deepest
+ * folder in [breadcrumbs] that still is; to the root (null, empty) when none is.
+ */
+fun boardPathAfterReload(
+    currentParentId: String?,
+    breadcrumbs: List<Pair<String, String>>,
+    allCards: List<HolderCard>,
+): Pair<String?, List<Pair<String, String>>> {
+    if (currentParentId == null) return null to emptyList()
+    val byId = allCards.filter { it.deletedAt == null }.associateBy { it.cardId }
+    fun trail(cardId: String): List<Pair<String, String>>? {
+        val path = ArrayList<Pair<String, String>>()
+        var id: String? = cardId
+        while (id != null) {
+            val card = byId[id] ?: return null
+            if (path.size > byId.size) return null // a cycle: treat as unreachable
+            path += card.cardId to card.title
+            id = card.parentCardId
+        }
+        return path.asReversed()
+    }
+    trail(currentParentId)?.let { return currentParentId to it }
+    for ((cardId, _) in breadcrumbs.asReversed()) {
+        trail(cardId)?.let { return cardId to it }
+    }
+    return null to emptyList()
+}
+
+/** The live cards that can be reached from the root: none trashed, and every ancestor live. */
+private fun reachableCards(allCards: List<HolderCard>): List<HolderCard> {
+    val byId = allCards.filter { it.deletedAt == null }.associateBy { it.cardId }
+    val reachable = HashMap<String, Boolean>()
+    fun isReachable(card: HolderCard, depth: Int = 0): Boolean = reachable.getOrPut(card.cardId) {
+        val parentId = card.parentCardId ?: return@getOrPut true
+        val parent = byId[parentId] ?: return@getOrPut false
+        depth < byId.size && isReachable(parent, depth + 1)
+    }
+    return allCards.filter { it.deletedAt == null && isReachable(it) }
+}

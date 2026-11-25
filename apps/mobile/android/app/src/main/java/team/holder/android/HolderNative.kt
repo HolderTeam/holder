@@ -31,6 +31,10 @@ import team.holder.android.contract.Trash
 import team.holder.android.contract.CardHistoryRestoreResult
 import team.holder.android.contract.CardHistoryVersion
 import team.holder.android.contract.CompareCardHistoryMode
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import team.holder.android.contract.Git
 import team.holder.android.contract.LinkSourceType
 import team.holder.android.contract.LinkTargetType
@@ -446,6 +450,50 @@ object HolderNative {
      * contract client (team.holder.android.contract), which take the handle first. The app goes
      * through HolderNative's own functions; ContractClientIntegrationTest uses this. */
     internal fun <T> onContract(block: (Long) -> T): T = saveLane.call(block)
+
+    private val projectDataChanges = MutableSharedFlow<String>(
+        extraBufferCapacity = 16,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    /**
+     * Project IDs whose cards changed underneath the app: a pull (Sync now, a background sync,
+     * a recovery pull) moved the project's commit. Screens that stay composed reload from this
+     * rather than showing what was there before (issue #104). Emitted from whatever thread ran
+     * the sync, including GitSyncWorker's.
+     */
+    val projectDataChanged: SharedFlow<String> = projectDataChanges.asSharedFlow()
+
+    /** Publishes [projectId] on [projectDataChanged]. Internal so tests can stand in for a sync. */
+    internal fun notifyProjectDataChanged(projectId: String) {
+        projectDataChanges.tryEmit(projectId)
+    }
+
+    /** The project's current commit, or null when unknown (no commits yet, or unreadable). */
+    private fun headOid(contextHandle: Long, projectId: String): String? =
+        runCatching { History.listProjectHistory(contextHandle, projectId, limit = 1).headOid }.getOrNull()
+
+    /** [headOid] on the background lane, for tests. */
+    internal fun projectHead(projectId: String): String? = backgroundLane.call { headOid(it, projectId) }
+
+    /**
+     * Runs [pull] (on the background lane, with [contextHandle]) and reports whether it changed
+     * the project: a successful pull after which the commit moved, or whose before/after commit
+     * couldn't be read. A local save landing on the save lane meanwhile also moves the commit;
+     * that only costs one extra reload.
+     */
+    private inline fun <T> watchingHead(
+        contextHandle: Long,
+        projectId: String,
+        pull: () -> T,
+        pullSucceeded: (T) -> Boolean,
+    ): Pair<T, Boolean> {
+        val before = headOid(contextHandle, projectId)
+        val result = pull()
+        if (!pullSucceeded(result)) return result to false
+        val after = headOid(contextHandle, projectId)
+        return result to (before == null || after == null || before != after)
+    }
 
     @Volatile
     private var isOpen = false
@@ -1177,10 +1225,13 @@ object HolderNative {
     }
 
     fun pullGit(projectId: String): GitPullResult {
-        val pull = backgroundLane.call {
+        val (pull, changed) = backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            Git.pullProject(it, projectId).pull
+            watchingHead(it, projectId, { Git.pullProject(it, projectId).pull }) { pull ->
+                pull.status == team.holder.android.contract.PullPhaseStatus.SUCCEEDED
+            }
         }
+        if (changed) notifyProjectDataChanged(projectId)
         return GitPullResult(
             // The old Android result reports an unset remote as a failed pull.
             status = if (pull.status == team.holder.android.contract.PullPhaseStatus.REMOTE_UNSET) "failed"
@@ -1217,10 +1268,13 @@ object HolderNative {
         pushIntervalSeconds: Int = 0,
         pullIntervalSeconds: Int = 0,
     ): GitSyncIfDueResult {
-        val result = backgroundLane.call {
+        val (result, changed) = backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            Git.syncProjectIfDue(it, projectId, maxOf(pushIntervalSeconds, 0), maxOf(pullIntervalSeconds, 0))
+            watchingHead(it, projectId, {
+                Git.syncProjectIfDue(it, projectId, maxOf(pushIntervalSeconds, 0), maxOf(pullIntervalSeconds, 0))
+            }) { sync -> sync.pull.attempted && sync.pull.status == team.holder.android.contract.PullPhaseStatus.SUCCEEDED }
         }
+        if (changed) notifyProjectDataChanged(projectId)
         return GitSyncIfDueResult(
             pullAttempted = result.pull.attempted,
             pullStatus = attemptedStatus(result.pull),
@@ -1244,14 +1298,18 @@ object HolderNative {
         branch: String? = null,
         setUpstream: Boolean = true,
     ): GitSyncNowResult {
-        return backgroundLane.call {
+        var changed = false
+        val outcome = backgroundLane.call {
             selectGitSignerForProject(it, projectId)
             // The existing Android action leaves a project without a remote untouched.
             if (Projects.getProject(it, projectId).gitRemoteUrl.isNullOrEmpty()) {
                 GitSyncNowResult(false, null, null, 0, false, null, null, 0, 0, null)
             } else {
                 val options = PushOptions(branch = branch?.takeIf { value -> value.isNotEmpty() }, setUpstream = setUpstream)
-                val result = Git.syncProject(it, projectId, options)
+                val (result, pulledChanges) = watchingHead(it, projectId, { Git.syncProject(it, projectId, options) }) { sync ->
+                    sync.pull.attempted && sync.pull.status == team.holder.android.contract.PullPhaseStatus.SUCCEEDED
+                }
+                changed = pulledChanges
                 GitSyncNowResult(
                     pullAttempted = result.pull.attempted,
                     pullStatus = attemptedStatus(result.pull),
@@ -1266,6 +1324,8 @@ object HolderNative {
                 )
             }
         }
+        if (changed) notifyProjectDataChanged(projectId)
+        return outcome
     }
 
     /** A sync phase's status, or null when the phase was not attempted, as Android reports it. */

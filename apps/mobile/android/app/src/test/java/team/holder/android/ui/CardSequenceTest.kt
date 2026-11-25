@@ -11,6 +11,7 @@ private fun card(
     createdAt: Long = 0L,
     updatedAt: Long = createdAt,
     sortKey: Double = 0.0,
+    deletedAt: Long? = null,
 ) = HolderCard(
     cardId = id,
     projectId = "project-1",
@@ -19,6 +20,7 @@ private fun card(
     createdAt = createdAt,
     updatedAt = updatedAt,
     sortKey = sortKey,
+    deletedAt = deletedAt,
 )
 
 class CardSequenceTest {
@@ -176,5 +178,89 @@ class CardSequenceTest {
 
         assertEquals(unrelatedMostRecent, links.next)
         assertEquals(siblingNewer, links.follows)
+    }
+
+    // deckAfterReload (issue #104): a deck reloaded after a sync keeps its card by identity.
+
+    @Test
+    fun deckAfterReload_keepsTheShownCard_whenASiblingIsAddedBeforeIt() {
+        val a = card("a", "p", sortKey = 1.0)
+        val b = card("b", "p", sortKey = 2.0)
+        val inserted = card("new", "p", sortKey = 0.5)
+        val next = deckAfterReload("b", listOf(a, b), listOf(card("p"), a, b, inserted))
+        assertEquals("b", next?.cardId)
+        assertEquals(listOf("new", "a", "b"), next?.deck?.map { it.cardId })
+    }
+
+    @Test
+    fun deckAfterReload_followsACardMovedUnderAnotherParent() {
+        val moved = card("b", "q", sortKey = 1.0)
+        val next = deckAfterReload("b", listOf(card("a", "p"), card("b", "p", sortKey = 1.0)),
+            listOf(card("p"), card("q"), card("a", "p"), moved, card("c", "q", sortKey = 2.0)))
+        assertEquals("b", next?.cardId)
+        assertEquals(listOf("b", "c"), next?.deck?.map { it.cardId })
+    }
+
+    @Test
+    fun deckAfterReload_movesToTheNextSibling_whenTheShownCardIsGone() {
+        val old = listOf(card("a", "p", sortKey = 1.0), card("b", "p", sortKey = 2.0), card("c", "p", sortKey = 3.0))
+        val next = deckAfterReload("b", old, listOf(card("p"), old[0], old[2]))
+        assertEquals("c", next?.cardId)
+        assertEquals(listOf("a", "c"), next?.deck?.map { it.cardId })
+    }
+
+    @Test
+    fun deckAfterReload_movesToThePreviousSibling_whenTheLastCardIsTrashed() {
+        val old = listOf(card("a", "p", sortKey = 1.0), card("b", "p", sortKey = 2.0))
+        val next = deckAfterReload("b", old, listOf(card("p"), old[0], card("b", "p", sortKey = 2.0, deletedAt = 5)))
+        assertEquals("a", next?.cardId)
+    }
+
+    @Test
+    fun deckAfterReload_isNull_whenTheParentWasDeletedWithEveryCardUnderIt() {
+        // A remote deletion of the parent: its children are still live rows, but unreachable.
+        val old = listOf(card("a", "p", sortKey = 1.0), card("b", "p", sortKey = 2.0))
+        assertNull(deckAfterReload("a", old, listOf(card("p", deletedAt = 9), old[0], old[1])))
+    }
+
+    @Test
+    fun deckAfterReload_prefersASurvivorStillUnderTheSameParent() {
+        val old = listOf(card("a", "p", sortKey = 1.0), card("b", "p", sortKey = 2.0), card("c", "p", sortKey = 3.0))
+        val cMoved = card("c", "q")
+        val next = deckAfterReload("b", old, listOf(card("p"), card("q"), old[0], cMoved))
+        assertEquals("a", next?.cardId)
+    }
+
+    // boardPathAfterReload (issue #104): Board's open folder after a reload.
+
+    @Test
+    fun boardPath_staysPut_andRebuildsTheTrailFromTheCards() {
+        val cards = listOf(card("top"), card("mid", "top"), card("leaf", "mid"))
+        val (parent, trail) = boardPathAfterReload("leaf", listOf("top" to "old title", "mid" to "mid", "leaf" to "leaf"), cards)
+        assertEquals("leaf", parent)
+        assertEquals(listOf("top" to "top", "mid" to "mid", "leaf" to "leaf"), trail)
+    }
+
+    @Test
+    fun boardPath_showsAFolderMovedElsewhereInItsNewPlace() {
+        val cards = listOf(card("top"), card("other"), card("leaf", "other"))
+        val (parent, trail) = boardPathAfterReload("leaf", listOf("top" to "top", "leaf" to "leaf"), cards)
+        assertEquals("leaf", parent)
+        assertEquals(listOf("other" to "other", "leaf" to "leaf"), trail)
+    }
+
+    @Test
+    fun boardPath_fallsBackToTheDeepestSurvivingFolder_whenTheOpenOneIsDeleted() {
+        val cards = listOf(card("top"), card("mid", "top"))
+        val (parent, trail) = boardPathAfterReload("leaf", listOf("top" to "top", "mid" to "mid", "leaf" to "leaf"), cards)
+        assertEquals("mid", parent)
+        assertEquals(listOf("top" to "top", "mid" to "mid"), trail)
+    }
+
+    @Test
+    fun boardPath_treatsAFolderUnderATrashedParentAsGone() {
+        val cards = listOf(card("top", deletedAt = 3), card("mid", "top"))
+        assertEquals(null to emptyList<Pair<String, String>>(),
+            boardPathAfterReload("mid", listOf("top" to "top", "mid" to "mid"), cards))
     }
 }
