@@ -37,6 +37,9 @@ object HolderSettings {
     private val SNAPSHOT_CONSECUTIVE_FAILURES = intPreferencesKey("snapshot_consecutive_failures")
     private val START_DRAFT = stringPreferencesKey("start_draft")
     private val START_DRAFT_PROJECT_ID = stringPreferencesKey("start_draft_project_id")
+    private val EDITOR_SESSION_PROJECT_ID = stringPreferencesKey("editor_session_project_id")
+    private val EDITOR_SESSION_CARD_ID = stringPreferencesKey("editor_session_card_id")
+    private val EDITOR_SESSION_RECOVERY_KEY = stringPreferencesKey("editor_session_recovery_key")
 
     const val DEFAULT_BACKGROUND_SYNC_INTERVAL_MINUTES = 15
 
@@ -279,6 +282,32 @@ object HolderSettings {
     suspend fun setStartDraftProjectId(context: Context, projectId: String?) {
         context.settingsDataStore.edit {
             if (projectId == null) it.remove(START_DRAFT_PROJECT_ID) else it[START_DRAFT_PROJECT_ID] = projectId
+        }
+    }
+
+    /** The card editor that was open when Holder last went away, so a cold start can reopen it
+     * (issue #447). [cardId] is null for a new card not created yet; [recoveryKey] then finds
+     * the card its recovery copy was saved into. */
+    data class EditorSession(val projectId: String, val cardId: String?, val recoveryKey: String)
+
+    fun editorSession(context: Context): Flow<EditorSession?> =
+        context.settingsDataStore.data.map { prefs ->
+            val projectId = prefs[EDITOR_SESSION_PROJECT_ID] ?: return@map null
+            val key = prefs[EDITOR_SESSION_RECOVERY_KEY] ?: return@map null
+            EditorSession(projectId, prefs[EDITOR_SESSION_CARD_ID], key)
+        }
+
+    suspend fun setEditorSession(context: Context, session: EditorSession?) {
+        context.settingsDataStore.edit {
+            if (session == null) {
+                it.remove(EDITOR_SESSION_PROJECT_ID)
+                it.remove(EDITOR_SESSION_CARD_ID)
+                it.remove(EDITOR_SESSION_RECOVERY_KEY)
+            } else {
+                it[EDITOR_SESSION_PROJECT_ID] = session.projectId
+                if (session.cardId == null) it.remove(EDITOR_SESSION_CARD_ID) else it[EDITOR_SESSION_CARD_ID] = session.cardId
+                it[EDITOR_SESSION_RECOVERY_KEY] = session.recoveryKey
+            }
         }
     }
 }

@@ -43,6 +43,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import team.holder.android.editor.CardAutosaver
+import team.holder.android.editor.CardWriter
+import team.holder.android.editor.EditorRecoveryStore
+import team.holder.android.editor.EditorSnapshot
+import team.holder.android.editor.HolderCardWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,14 +72,23 @@ import team.holder.android.ui.markdown.HolderMarkdownEditor
 import team.holder.android.ui.markdown.MarkdownFormattingToolbar
 import team.holder.android.ui.markdown.trimTrailingWhitespaceForSave
 
+/**
+ * Edits a card, or writes a new one, saving as the user types (issue #447): nothing typed here
+ * is ever thrown away. There is no Save button and no "discard changes" -- Done (or Back) just
+ * leaves once the latest text is in the card. Any earlier version can be restored from the
+ * card's history.
+ *
+ * See [CardAutosaver] for the two layers (a device-local recovery copy on every keypress, a
+ * real save 900ms after typing pauses). On top of those, this screen saves immediately when the app
+ * goes into the background or the screen goes away, and records itself as the open editor so
+ * a cold start can reopen it.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun CardEditScreen(
     screenTitle: String,
     initialTitle: String,
     initialContent: String,
-    saving: Boolean,
-    errorMessage: String? = null,
     // Non-null only when this screen was reached by tapping a specific spot in the rendered
     // body (see HolderMarkdownViewer's onRequestEditAt / click_to_edit_position.md) -- null for
     // every other path in (the bottom-bar Edit button, long-press-anywhere, a fresh "new card"),
@@ -78,30 +100,39 @@ fun CardEditScreen(
     // Never blank itself.
     defaultTitle: String = "Untitled",
     projectId: String = "",
-    // Only relevant on the "new card" screen (cardId == null) -- what a card silently created by
-    // ensureCardCreated below should record as its parent, mirroring whatever "Create child
-    // card" already passes MainActivity's own createCard call in the ordinary (Save-button)
-    // path.
+    // Only relevant on the "new card" screen (cardId == null): the parent the card is created
+    // under once there's something in it.
     parentCardId: String? = null,
     cardId: String? = null,
-    onSave: (title: String, content: String) -> Unit,
-    onCancel: () -> Unit,
+    // Leaving with everything saved. The id is the card's (a new card's, once created), or null
+    // for a new card that ended up with nothing in it and so was never kept.
+    onDone: (cardId: String?) -> Unit,
     // Only ever called for an existing card (cardId != null) confirmed-deleted from the
-    // "Delete this empty card?" dialog below -- unlike onCancel, this needs to pop back past the
-    // now-nonexistent card's own view, not just one level. Never called for a "new card" screen,
-    // so the default no-op is never actually exercised there.
+    // "Delete this empty card?" dialog below -- unlike onDone, this needs to pop back past the
+    // now-nonexistent card's own view, not just one level.
     onDeleted: () -> Unit = {},
-    // Fired the moment a "new card" screen silently creates its card behind an attach action
-    // (see ensureCardCreated below) -- lets MainActivity switch that screen's eventual Save over
-    // to an update of this same card instead of creating a second one.
+    // Fired the moment a "new card" screen's card is first created (first autosave with text in
+    // it, or an attach action).
     onCardCreated: (cardId: String) -> Unit = {},
+    // Where cards are written; tests substitute a fake for libholder.
+    writer: CardWriter = HolderCardWriter,
+    // Null: the app's own store under filesDir.
+    recoveryStore: EditorRecoveryStore? = null,
 ) {
     val context = LocalContext.current
+    // Every launch on this scope says Dispatchers.Main.immediate explicitly: under the Compose
+    // test harness the scope doesn't bring work back to the main thread after a withContext(IO)
+    // save, and what follows (navigation, focus) has to run there.
     val scope = rememberCoroutineScope()
-    val separateTitle by HolderSettings.separateTitleEnabled(context).collectAsState(initial = true)
-    val preserveTrailingWhitespace by HolderSettings.preserveTrailingWhitespace(context).collectAsState(initial = false)
-    val trimTwoSpaceLineEndings by HolderSettings.trimTwoSpaceLineEndings(context).collectAsState(initial = false)
-    val trimWhitespaceInCodeBlocks by HolderSettings.trimWhitespaceInCodeBlocks(context).collectAsState(initial = false)
+    // Null until DataStore has answered: the editor's text depends on these (title mode, how
+    // whitespace is trimmed), so autosave waits for them rather than "saving" a reformatting.
+    val separateTitleSetting by HolderSettings.separateTitleEnabled(context).collectAsState(initial = null)
+    val preserveTrailingWhitespaceSetting by HolderSettings.preserveTrailingWhitespace(context).collectAsState(initial = null)
+    val trimTwoSpaceLineEndingsSetting by HolderSettings.trimTwoSpaceLineEndings(context).collectAsState(initial = null)
+    val trimWhitespaceInCodeBlocksSetting by HolderSettings.trimWhitespaceInCodeBlocks(context).collectAsState(initial = null)
+    val settingsLoaded = separateTitleSetting != null && preserveTrailingWhitespaceSetting != null &&
+        trimTwoSpaceLineEndingsSetting != null && trimWhitespaceInCodeBlocksSetting != null
+    val separateTitle = separateTitleSetting ?: true
 
     // Two independent field states, one per mode -- only one is ever shown, but both are
     // deterministically derived from initialContent regardless of which value `separateTitle`
@@ -148,16 +179,43 @@ fun CardEditScreen(
     }
     val activeBodyState = if (separateTitle) separateBodyState else firstLineBodyState
 
-    // Starts as the passed-in cardId (null on a fresh "new card" screen) but can gain a real
-    // value mid-session the moment ensureCardCreated below silently creates one -- everything
-    // that needs "is there an actual persisted card right now" (attaching, the blank-card
-    // dialogs) reads this, not the original cardId param, which stays around only to answer
-    // "was this card here before this screen ever opened" (see wasAutoCreated below).
-    var currentCardId by remember { mutableStateOf(cardId) }
+    // Starts as the passed-in cardId (null on a fresh "new card" screen) and gains a real value
+    // the moment the autosaver creates the card. Saveable, with the recovery key, so an
+    // activity recreated by Android carries on with the same card and recovery copy instead of
+    // creating a second one.
+    var currentCardId by rememberSaveable { mutableStateOf(cardId) }
+    var recoveryKey by rememberSaveable { mutableStateOf<String?>(null) }
+    // Null until there's something to report (a new card with nothing typed shows no status).
+    var status by remember { mutableStateOf<CardAutosaver.Status?>(if (cardId != null) CardAutosaver.Status.Saved else null) }
+    val store = recoveryStore ?: remember { EditorRecoveryStore.forContext(context) }
+    val autosaver = remember {
+        CardAutosaver(
+            scope = scope,
+            writer = writer,
+            store = store,
+            projectId = projectId,
+            parentCardId = parentCardId,
+            initialCardId = currentCardId,
+            initialRecoveryKey = recoveryKey,
+            initialSaved = null,
+            onCardCreated = { id ->
+                currentCardId = id
+                recoveryKey = EditorRecoveryStore.keyFor(projectId, id)
+                onCardCreated(id)
+            },
+            onStatus = { status = it },
+        )
+    }
+    LaunchedEffect(Unit) { if (recoveryKey == null) recoveryKey = autosaver.recoveryKey }
+
+    // The open editor, for reopening after a cold start; cleared when it's left normally.
+    LaunchedEffect(currentCardId, recoveryKey) {
+        val key = recoveryKey ?: return@LaunchedEffect
+        runCatching { HolderSettings.setEditorSession(context, HolderSettings.EditorSession(projectId, currentCardId, key)) }
+    }
 
     // rememberAttachFlow re-keys on cardId changes (see its own remember(projectId, cardId)),
-    // so this picks up currentCardId's real value automatically the moment ensureCardCreated
-    // sets it, with no extra wiring needed here.
+    // so this picks up currentCardId's real value automatically the moment the card is created.
     val attachFlow = rememberAttachFlow(projectId, currentCardId.orEmpty()) { markdown ->
         insertOwnLine(activeBodyState, markdown)
     }
@@ -173,145 +231,127 @@ fun CardEditScreen(
         pendingCameraUri = null
     }
 
-    // One-shot guard, local to this screen instance. `saving` isn't enough: it resets to
-    // false as soon as the save completes (createCard/updateCard can finish in well under
-    // 100ms), which is exactly what a later, independent save needs -- but it means a second
-    // tap that reaches this same composed button *after* the first save already finished
-    // (e.g. while the pop-back-stack transition is still settling) reads `saving == false`
-    // and is treated as a legitimate new save. hasSubmitted never resets once tripped, so a
-    // second tap on this specific instance is always a no-op, regardless of timing. It's
-    // reset on failure so the user can retry.
-    var hasSubmitted by remember { mutableStateOf(false) }
-    LaunchedEffect(errorMessage) {
-        if (errorMessage != null) hasSubmitted = false
-    }
-
-    // Falls all the way back to defaultTitle (never blank) rather than gating Save on a
-    // non-blank title at all -- a card with real content shouldn't be unsaveable just because
-    // its Title field (Separate mode) was left empty. The middle step (the body's first line)
-    // is exactly what First line mode already does unconditionally, reused here as the same
-    // "something reasonable" a person would expect ("buy milk" typed straight into the body is
-    // a perfectly good title on its own).
-    val derivedTitle = if (separateTitle) {
-        titleState.text.toString().ifBlank {
-            titleFromFirstLine(separateBodyState.text.toString()).ifBlank { defaultTitle }
-        }
-    } else {
-        titleFromFirstLine(firstLineBodyState.text.toString()).ifBlank { defaultTitle }
-    }
-
-    // Title and body both empty (Separate mode) or the one body field empty (First line mode)
-    // -- nothing a fallback title alone can paper over, since there's no content either.
-    // Handled by the two dialogs below instead of a plain save.
-    val isCompletelyBlank = if (separateTitle) {
-        titleState.text.isBlank() && separateBodyState.text.isBlank()
-    } else {
-        firstLineBodyState.text.isBlank()
-    }
-
-    // True only on the "new card" screen (cardId == null) once ensureCardCreated has silently
-    // created one -- distinct from currentCardId != null in general, which is also true for an
-    // ordinary edit of a card that already existed before this screen ever opened.
-    val wasAutoCreated = cardId == null && currentCardId != null
-
-    // A silently-created draft counts as dirty on its own, even if the text still matches its
-    // (blank) initial values -- e.g. tapping "Attach photo" then cancelling the picker before
-    // choosing anything leaves a real, empty row behind that still needs a chance to be cleaned
-    // up via Discard below, not a request that quietly no-ops because nothing looked different.
-    val isDirty = wasAutoCreated || if (separateTitle) {
-        titleState.text.toString() != initialTitle || separateBodyState.text.toString() != initialSeparateBody
-    } else {
-        firstLineBodyState.text.toString() != initialFirstLineBody
-    }
-    var showDiscardDialog by remember { mutableStateOf(false) }
-    val requestCancel = { if (isDirty) showDiscardDialog = true else onCancel() }
-
-    // Walking away without saving: an ordinary edit of a card that already existed just leaves
-    // (nothing was ever written), but a draft this screen silently created behind an attach
-    // action needs deleting first -- otherwise every cancelled "Attach photo" tap would leave a
-    // real, permanent "Untitled" card behind with nothing pointing back at it.
-    val discard = {
-        val idToDelete = if (wasAutoCreated) currentCardId else null
-        if (idToDelete != null) {
-            scope.launch {
-                runCatching { withContext(Dispatchers.IO) { HolderNative.deleteCard(projectId, idToDelete) } }
-                withContext(Dispatchers.Main.immediate) { onCancel() }
-            }
+    // What would be saved for the given field texts. Shared by the live editor and by the text
+    // the editor opened with, so the two compare equal unless the user actually changed
+    // something (the same trimming and title rules apply to both).
+    fun snapshotOf(title: String, separateBody: String, firstLineBody: String, cursor: Int): EditorSnapshot {
+        // Falls all the way back to defaultTitle (never blank): a card with real content
+        // shouldn't be unsaveable just because its Title field (Separate mode) was left empty.
+        val derivedTitle = if (separateTitle) {
+            title.ifBlank { titleFromFirstLine(separateBody).ifBlank { defaultTitle } }
         } else {
-            onCancel()
+            titleFromFirstLine(firstLineBody).ifBlank { defaultTitle }
+        }
+        val raw = if (separateTitle) {
+            combineTitleAndBody(derivedTitle, separateBody)
+        } else {
+            firstLineBody.ifBlank { "# $derivedTitle\n\n" }
+        }
+        val content = trimTrailingWhitespaceForSave(
+            raw,
+            preserve = preserveTrailingWhitespaceSetting ?: false,
+            trimTwoSpaceLineEndings = trimTwoSpaceLineEndingsSetting ?: false,
+            trimWhitespaceInCodeBlocks = trimWhitespaceInCodeBlocksSetting ?: false,
+        )
+        val blank = if (separateTitle) title.isBlank() && separateBody.isBlank() else firstLineBody.isBlank()
+        return EditorSnapshot(derivedTitle, content, blank, cursor)
+    }
+
+    val opening = remember(settingsLoaded, separateTitle) {
+        snapshotOf(initialTitle, initialSeparateBody, initialFirstLineBody, 0)
+    }
+
+    fun liveSnapshot(): EditorSnapshot {
+        val live = snapshotOf(
+            titleState.text.toString(),
+            separateBodyState.text.toString(),
+            firstLineBodyState.text.toString(),
+            activeBodyState.selection.start,
+        )
+        // A new card still showing exactly what it opened with (e.g. First line mode's
+        // "# Untitled" placeholder) counts as nothing typed: opening the screen alone
+        // shouldn't create a card.
+        val untouched = cardId == null && live.title == opening.title && live.content == opening.content
+        return if (untouched) live.copy(blank = true) else live
+    }
+
+    // Feed every change to the autosaver, once settings are known.
+    LaunchedEffect(settingsLoaded) {
+        if (!settingsLoaded) return@LaunchedEffect
+        if (cardId != null) autosaver.markSaved(opening)
+        snapshotFlow { liveSnapshot() }.collect { autosaver.onEdited(it) }
+    }
+
+    // App going into the background: the recovery copy now (synchronously; the process may be
+    // killed any moment after this), and the real save straight away.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                autosaver.writeRecoveryNow()
+                scope.launch(Dispatchers.Main.immediate) { autosaver.flush() }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            // Leaving by any route other than Done (e.g. a notification navigating elsewhere):
+            // this screen's scope is about to be cancelled, so finish the save on the app's.
+            autosaver.writeRecoveryNow()
+            EditorSaveScope.launch { autosaver.flush() }
         }
     }
 
-    fun buildRawContent(): String = if (separateTitle) {
-        combineTitleAndBody(derivedTitle, separateBodyState.text.toString())
-    } else {
-        firstLineBodyState.text.toString().ifBlank { "# $derivedTitle\n\n" }
-    }
+    // Attaching needs a real card, even on a new card with nothing typed yet.
+    suspend fun ensureCardCreated(): String? = autosaver.ensureCreated(liveSnapshot())
 
-    fun buildContent(): String = trimTrailingWhitespaceForSave(
-        buildRawContent(),
-        preserve = preserveTrailingWhitespace,
-        trimTwoSpaceLineEndings = trimTwoSpaceLineEndings,
-        trimWhitespaceInCodeBlocks = trimWhitespaceInCodeBlocks,
-    )
-
-    // The actual write -- always produces a real, non-blank title (derivedTitle) and, for a
-    // completely blank First line body, synthesizes the same "# {title}\n\n" shape
-    // combineTitleAndBody already gives Separate mode, rather than persisting empty content
-    // with nowhere for that title to live.
-    val performSave = {
-        hasSubmitted = true
-        onSave(derivedTitle, buildContent())
-    }
-
-    // The first attach action on a still-uncreated "new card" screen creates the card right
-    // then, using whatever title/content exist at that exact moment -- silent, no dialog, since
-    // attaching is itself the deliberate action here, distinct from the two blank-card dialogs
-    // below (which only ever gate an explicit Save). Runs at most once per screen instance:
-    // every call after the first just returns the same currentCardId without touching the
-    // network/DB again. Fails silently (matching this codebase's usual "external call failed,
-    // don't block, don't crash" convention) -- callers treat a null result as "couldn't attach
-    // right now" and simply don't proceed to the picker/camera.
-    suspend fun ensureCardCreated(): String? {
-        currentCardId?.let { return it }
-        val created = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.createCard(projectId, derivedTitle, buildContent(), parentCardId) }
-        }.getOrNull() ?: return null
-        currentCardId = created.cardId
-        onCardCreated(created.cardId)
-        return created.cardId
-    }
-
-    var showCreateEmptyDialog by remember { mutableStateOf(false) }
+    var leaving by remember { mutableStateOf(false) }
     var showDeleteEmptyDialog by remember { mutableStateOf(false) }
+    var showLeaveAnywayDialog by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
 
-    // Shared by the app bar's checkmark and the "Save" option on the discard-changes dialog --
-    // hasSubmitted's own doc comment (its double-tap guard) applies identically either way.
-    // Save is never simply blocked: a completely blank card routes to one of the two dialogs
-    // below instead of silently doing nothing. Branches on currentCardId, not the original
-    // cardId param -- a draft already created behind an attach action is a real row now, so
-    // wiping it back to blank means "delete", the same as any other existing card, not "create
-    // a placeholder" (there's nothing left to create, it already exists).
-    val save = {
-        if (!hasSubmitted) {
-            if (isCompletelyBlank) {
-                if (currentCardId == null) showCreateEmptyDialog = true else showDeleteEmptyDialog = true
-            } else {
-                performSave()
+    fun finish(savedCardId: String?) {
+        scope.launch(Dispatchers.Main.immediate) { runCatching { HolderSettings.setEditorSession(context, null) } }
+        onDone(savedCardId)
+    }
+
+    // Done and Back: make sure the latest text is in the card, then leave. An existing card
+    // emptied out asks whether to delete it; a new card with nothing in it just goes.
+    fun done() {
+        if (leaving) return
+        leaving = true
+        scope.launch(Dispatchers.Main.immediate) {
+            val snap = liveSnapshot()
+            autosaver.onEdited(snap)
+            if (snap.blank && cardId == null) {
+                autosaver.discardEmpty()
+                finish(null)
+                return@launch
+            }
+            val saved = autosaver.flush()
+            leaving = false
+            when {
+                !saved -> showLeaveAnywayDialog = true
+                snap.blank -> showDeleteEmptyDialog = true
+                else -> finish(autosaver.cardId)
             }
         }
     }
 
-    BackHandler(onBack = requestCancel)
+    BackHandler(onBack = ::done)
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(screenTitle) },
+                title = {
+                    Column {
+                        Text(screenTitle)
+                        status?.let { SaveStatusLine(it) }
+                    }
+                },
                 navigationIcon = {
-                    IconButton(onClick = requestCancel) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cancel")
+                    IconButton(onClick = ::done) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
@@ -321,11 +361,11 @@ fun CardEditScreen(
                     IconButton(onClick = { activeUndo.redo() }, enabled = activeUndo.canRedo) {
                         Icon(painterResource(R.drawable.ic_redo), contentDescription = "Redo")
                     }
-                    if (saving) {
+                    if (leaving) {
                         CircularProgressIndicator(modifier = Modifier.padding(12.dp))
                     } else {
-                        IconButton(onClick = save) {
-                            Icon(Icons.Filled.Check, contentDescription = "Save")
+                        IconButton(onClick = ::done) {
+                            Icon(Icons.Filled.Check, contentDescription = "Done")
                         }
                     }
                 },
@@ -340,11 +380,10 @@ fun CardEditScreen(
                     state = activeBodyState,
                     modifier = Modifier.fillMaxWidth().imePadding(),
                     // Always offered, even on a still-uncreated "new card" screen: attaching
-                    // itself is what triggers ensureCardCreated, rather than the button waiting
-                    // for a card that would otherwise only ever appear after a Save.
+                    // itself creates the card if there isn't one yet.
                     onAttachPhoto = if (!attachFlow.attaching) {
                         {
-                            scope.launch {
+                            scope.launch(Dispatchers.Main.immediate) {
                                 if (ensureCardCreated() != null) {
                                     photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                                 }
@@ -355,7 +394,7 @@ fun CardEditScreen(
                     },
                     onAttachCamera = if (!attachFlow.attaching) {
                         {
-                            scope.launch {
+                            scope.launch(Dispatchers.Main.immediate) {
                                 if (ensureCardCreated() != null) {
                                     val uri = createCameraCaptureUri(context)
                                     pendingCameraUri = uri
@@ -372,13 +411,6 @@ fun CardEditScreen(
         },
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding).padding(16.dp)) {
-            if (errorMessage != null) {
-                Text(
-                    text = "Failed to save: $errorMessage",
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                )
-            }
             if (attachFlow.attachError != null) {
                 Text(
                     text = "Couldn't attach photo: ${attachFlow.attachError}",
@@ -391,7 +423,7 @@ fun CardEditScreen(
                     state = titleState,
                     label = { Text("Title") },
                     // Previews exactly what leaving this field blank will actually produce --
-                    // the same fallback chain derivedTitle itself uses -- rather than a generic
+                    // the same fallback chain the saved title uses -- rather than a generic
                     // hint, so there's never a surprise between what's shown here and what gets
                     // saved.
                     placeholder = {
@@ -415,55 +447,34 @@ fun CardEditScreen(
         }
     }
 
-    if (showDiscardDialog) {
+    // The save didn't go through (it keeps retrying in the background meanwhile). Leaving is
+    // still safe: the text stays in the recovery copy and is saved when Holder next starts.
+    if (showLeaveAnywayDialog) {
         AlertDialog(
-            onDismissRequest = { showDiscardDialog = false },
-            title = { Text("Save changes?") },
-            // All three in one row here, in this specific order (Save, Keep editing, Discard),
-            // rather than split across confirmButton/dismissButton -- that slot pair only ever
-            // renders two, and "Save" leaving without a trip back into the checkmark button is
-            // the whole point of adding it.
-            confirmButton = {
-                Row {
-                    TextButton(onClick = {
-                        showDiscardDialog = false
-                        save()
-                    }) { Text("Save") }
-                    TextButton(onClick = { showDiscardDialog = false }) { Text("Keep editing") }
-                    TextButton(onClick = {
-                        showDiscardDialog = false
-                        discard()
-                    }) { Text("Discard") }
-                }
+            onDismissRequest = { showLeaveAnywayDialog = false },
+            title = { Text("Not saved yet") },
+            text = {
+                val reason = (status as? CardAutosaver.Status.Failed)?.message
+                Text(
+                    (if (reason != null) "Holder couldn't save this card ($reason). " else "Holder couldn't save this card yet. ") +
+                        "Your text is kept on this device and will be saved when Holder can.",
+                )
             },
-        )
-    }
-
-    // Fresh "new card" screen, still completely blank -- offers a placeholder instead of just
-    // silently refusing to save (or silently creating a pointless empty card without asking).
-    if (showCreateEmptyDialog) {
-        AlertDialog(
-            onDismissRequest = { showCreateEmptyDialog = false },
-            title = { Text("Create placeholder?") },
-            text = { Text("This empty card has no title or content") },
             confirmButton = {
-                TextButton(onClick = {
-                    showCreateEmptyDialog = false
-                    performSave()
-                }) { Text("Create") }
+                TextButton(onClick = { showLeaveAnywayDialog = false }) { Text("Keep editing") }
             },
             dismissButton = {
                 TextButton(onClick = {
-                    showCreateEmptyDialog = false
-                    discard()
-                }) { Text("Discard") }
+                    showLeaveAnywayDialog = false
+                    onDone(currentCardId)
+                }) { Text("Leave") }
             },
         )
     }
 
     // An existing card wiped down to nothing -- almost always means "get rid of this", so this
-    // offers the real delete instead of quietly turning a once-real card into an empty
-    // placeholder without asking.
+    // offers the delete (to the trash) instead of quietly keeping an empty placeholder.
+    // The emptied text is already saved either way, and the card's history has what it was.
     if (showDeleteEmptyDialog) {
         AlertDialog(
             onDismissRequest = { if (!isDeleting) showDeleteEmptyDialog = false },
@@ -473,23 +484,14 @@ fun CardEditScreen(
                 TextButton(
                     enabled = !isDeleting,
                     onClick = {
-                        val idToDelete = currentCardId
-                        if (!isDeleting && idToDelete != null) {
+                        if (!isDeleting) {
                             isDeleting = true
-                            scope.launch {
-                                runCatching { withContext(Dispatchers.IO) { HolderNative.deleteCard(projectId, idToDelete) } }
-                                withContext(Dispatchers.Main.immediate) {
-                                    isDeleting = false
-                                    showDeleteEmptyDialog = false
-                                    // cardId (not currentCardId) decides which route this
-                                    // screen actually is: onDeleted expects to pop back past an
-                                    // intermediate card-view screen that only exists on the
-                                    // "edit an existing card" path -- a draft this same "new
-                                    // card" screen auto-created behind an attach action never
-                                    // had one, so it leaves the same way any other "new card"
-                                    // exit already does.
-                                    if (cardId != null) onDeleted() else onCancel()
-                                }
+                            scope.launch(Dispatchers.Main.immediate) {
+                                runCatching { autosaver.discardEmpty() }
+                                isDeleting = false
+                                showDeleteEmptyDialog = false
+                                runCatching { HolderSettings.setEditorSession(context, null) }
+                                onDeleted()
                             }
                         }
                     },
@@ -500,7 +502,7 @@ fun CardEditScreen(
                     enabled = !isDeleting,
                     onClick = {
                         showDeleteEmptyDialog = false
-                        performSave()
+                        finish(currentCardId)
                     },
                 ) { Text("Keep") }
             },
@@ -509,6 +511,20 @@ fun CardEditScreen(
 
     AttachFlowConnectDialog(attachFlow)
 }
+
+/** "Saved" / "Saving…" / why it isn't, under the editor's title. */
+@Composable
+private fun SaveStatusLine(status: CardAutosaver.Status) {
+    val (text, color) = when (status) {
+        CardAutosaver.Status.Saved -> "Saved" to MaterialTheme.colorScheme.onSurfaceVariant
+        CardAutosaver.Status.Pending -> "Saving…" to MaterialTheme.colorScheme.onSurfaceVariant
+        is CardAutosaver.Status.Failed -> "Not saved yet, retrying: ${status.message}" to MaterialTheme.colorScheme.error
+    }
+    Text(text, style = MaterialTheme.typography.labelMedium, color = color, maxLines = 1)
+}
+
+/** Finishes saves that outlive the editor screen's own scope (see its onDispose). */
+internal object EditorSaveScope : CoroutineScope by CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
 /** Inserts [text] as its own CommonMark paragraph -- a full blank line before it (unless the
  * cursor is at the very start of the document) and after it, mirroring holder-desktop's
