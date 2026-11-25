@@ -36,6 +36,7 @@ import team.holder.android.HolderProject
 import team.holder.android.git.backup.BackupRestore
 import team.holder.android.git.backup.RestoreOutcome
 import team.holder.android.git.backup.RestoreResult
+import team.holder.android.git.backup.SnapshotContents
 import team.holder.android.git.backup.SnapshotGroup
 import team.holder.android.git.backup.SnapshotProtection
 import team.holder.android.git.backup.SnapshotReader
@@ -63,7 +64,7 @@ fun RestoreBackupScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var groupsState by remember { mutableStateOf<LoadState<List<SnapshotGroup>>>(LoadState.Loading) }
+    var groupsState by remember { mutableStateOf<LoadState<SnapshotContents>>(LoadState.Loading) }
     var running by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf<Pair<Int, SnapshotGroup>?>(null) }
     var results by remember { mutableStateOf<List<RestoreResult>?>(null) }
@@ -79,7 +80,7 @@ fun RestoreBackupScreen(onBack: () -> Unit) {
 
     LaunchedEffect(Unit) {
         groupsState = runCatching {
-            withContext(Dispatchers.IO) { SnapshotReader.readGroups(snapshotFile(context)) }
+            withContext(Dispatchers.IO) { SnapshotReader.read(snapshotFile(context)) }
         }.fold(
             onSuccess = { LoadState.Success(it) },
             onFailure = { LoadState.Error(it.message ?: it::class.java.simpleName) },
@@ -118,14 +119,15 @@ fun RestoreBackupScreen(onBack: () -> Unit) {
                     color = MaterialTheme.colorScheme.error,
                 )
                 is LoadState.Success -> RestoreContent(
-                    groups = state.value,
+                    groups = state.value.groups,
+                    unreadableCards = state.value.unreadableCards,
                     running = running,
                     progress = progress,
                     results = results,
                     onRestore = {
                         running = true
                         scope.launch {
-                            val settled = BackupRestore.restoreAll(state.value) { index, _, group ->
+                            val settled = BackupRestore.restoreAll(state.value.groups) { index, _, group ->
                                 progress = index to group
                             }
                             results = settled
@@ -150,6 +152,7 @@ fun RestoreBackupScreen(onBack: () -> Unit) {
 @Composable
 private fun RestoreContent(
     groups: List<SnapshotGroup>,
+    unreadableCards: Int,
     running: Boolean,
     progress: Pair<Int, SnapshotGroup>?,
     results: List<RestoreResult>?,
@@ -157,7 +160,13 @@ private fun RestoreContent(
     onDone: () -> Unit,
 ) {
     if (groups.isEmpty()) {
-        Text("No backup snapshot found on this device.")
+        Text(
+            if (unreadableCards > 0) {
+                "This backup was made by a different version of Holder and can't be read here."
+            } else {
+                "No backup snapshot found on this device."
+            },
+        )
         return
     }
 
@@ -192,6 +201,13 @@ private fun RestoreContent(
             groups.forEach { group ->
                 Text(
                     "• ${group.projectName}: ${group.cardCount} " + (if (group.cardCount == 1) "card" else "cards"),
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            if (unreadableCards > 0) {
+                Text(
+                    "$unreadableCards " + (if (unreadableCards == 1) "card" else "cards") +
+                        " in this backup came from a different version of Holder and can't be restored here.",
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
