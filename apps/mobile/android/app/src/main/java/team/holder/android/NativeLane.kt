@@ -1,5 +1,7 @@
 package team.holder.android
 
+import android.os.Looper
+import android.util.Log
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
@@ -49,6 +51,7 @@ internal class NativeLane(name: String) {
 
     private fun <T> onLane(block: () -> T): T {
         if (Thread.currentThread() === thread) return runOnLane(block)
+        reportMainThreadCall()
         val future = executor.submit(Callable { runOnLane(block) })
         try {
             return future.get()
@@ -60,6 +63,14 @@ internal class NativeLane(name: String) {
             Thread.currentThread().interrupt()
             throw interrupted
         }
+    }
+
+    /** Debug builds only: logs (never throws) when a call would block the main thread, with
+     * the caller's stack, so a new one shows up in logcat under "HolderNative" (issue #105). */
+    private fun reportMainThreadCall() {
+        if (!BuildConfig.DEBUG) return
+        val onMain = runCatching { Looper.getMainLooper()?.isCurrentThread == true }.getOrDefault(false)
+        if (onMain) Log.w("HolderNative", "Native call on the main thread; run it on Dispatchers.IO", Throwable())
     }
 
     private fun <T> runOnLane(block: () -> T): T {
