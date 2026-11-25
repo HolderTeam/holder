@@ -87,6 +87,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -111,6 +112,8 @@ import team.holder.android.titleFromFirstLine
  *  - Recent gets at most half the height in portrait and 30% in landscape, and only as much as
  *    its rows need; the editor takes everything else.
  */
+private val STRIP_MAX_HEIGHT = 112.dp
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun StartScreen(
@@ -153,6 +156,14 @@ fun StartScreen(
             .onFailure { loadError = it.message ?: it::class.java.simpleName }
     }
 
+    // Bring a just-saved card into view once the reload has actually delivered it. Scrolling
+    // any earlier does nothing useful: when the new row then arrives at index 0, the lazy list
+    // keeps the previous first row anchored in place, leaving the new card just off-screen above.
+    LaunchedEffect(data) {
+        val id = highlightedCardId ?: return@LaunchedEffect
+        if (data?.recentCards?.firstOrNull()?.cardId == id) listState.animateScrollToItem(0)
+    }
+
     val projects = data?.projects.orEmpty()
     val multipleProjects = projects.size > 1
     val homeProject = projects.firstOrNull { it.name == HolderNative.DEFAULT_PROJECT_NAME } ?: projects.firstOrNull()
@@ -191,7 +202,6 @@ fun StartScreen(
                 keyboard?.hide()
                 highlightedCardId = card.cardId
                 reloadKey++
-                listState.animateScrollToItem(0)
                 val choice = snackbar.showSnackbar(
                     message = if (multipleProjects) "Saved to ${project.name}" else "Card saved",
                     actionLabel = "Undo",
@@ -248,6 +258,9 @@ fun StartScreen(
                 .fillMaxSize(),
         ) {
             val recentCap = maxHeight * (if (landscape) 0.3f else 0.5f) * visibleFraction
+            // Expanded in landscape, a fixed cap left the editor only a sliver (seen on a Pixel 6
+            // emulator with 3-button navigation), so there it's a quarter of the height instead.
+            val stripCap = if (landscape) minOf(STRIP_MAX_HEIGHT, maxHeight * 0.25f) else STRIP_MAX_HEIGHT
             Column(Modifier.fillMaxSize()) {
                 val milestones = data?.milestones.orEmpty()
                 if (milestones.isNotEmpty()) {
@@ -257,6 +270,7 @@ fun StartScreen(
                             compact = landscape,
                             showProject = multipleProjects,
                             hiddenByKeyboard = imeProgress >= 1f,
+                            maxHeight = stripCap,
                             onOpen = { onOpenCard(it.projectId, it.cardId, it.cardTitle) },
                         )
                     }
@@ -338,6 +352,7 @@ private fun MilestoneStrip(
     compact: Boolean,
     showProject: Boolean,
     hiddenByKeyboard: Boolean,
+    maxHeight: Dp,
     onOpen: (StartMilestone) -> Unit,
 ) {
     // In landscape there's little height, so only the most urgent one shows, plus "+N more".
@@ -354,7 +369,7 @@ private fun MilestoneStrip(
         modifier = Modifier
             .fillMaxWidth()
             // Capped so it never crowds out the editor; scrolls if there are many.
-            .heightIn(max = 112.dp)
+            .heightIn(max = maxHeight)
             .then(if (collapsed) Modifier.clickable(onClickLabel = "Show all milestones") { expanded = true } else Modifier),
     ) {
         Column(
