@@ -44,6 +44,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -304,6 +305,9 @@ fun ConflictCompareScreen(
                     Text(
                         side.title,
                         style = MaterialTheme.typography.titleLarge,
+                        // The highlight's own text colour: the screen's default is light in the
+                        // dark theme, and unreadable on the light highlight.
+                        color = if (titlesDiffer) MaterialTheme.colorScheme.onTertiaryContainer else Color.Unspecified,
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(if (titlesDiffer) Modifier.background(MaterialTheme.colorScheme.tertiaryContainer) else Modifier)
@@ -324,6 +328,7 @@ fun ConflictCompareScreen(
                                 line.ifEmpty { " " },
                                 fontFamily = FontFamily.Monospace,
                                 style = MaterialTheme.typography.bodyMedium,
+                                color = if (changed) MaterialTheme.colorScheme.onTertiaryContainer else Color.Unspecified,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .heightIn(min = 20.dp)

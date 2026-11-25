@@ -57,7 +57,7 @@ import team.holder.android.HolderCard
 import team.holder.android.HolderCardLinks
 import team.holder.android.HolderNative
 import team.holder.android.HolderSettings
-import team.holder.android.splitLeadingHeading
+import team.holder.android.splitTitleLine
 import team.holder.android.ui.CenteredMessage
 import team.holder.android.ui.LoadState
 import team.holder.android.ui.cardSequenceLinks
@@ -185,7 +185,7 @@ fun CardViewScreen(
                 // Focus mode behaves as if separate-title were off, so the title stays visible
                 // in the content even though the app bar (which would normally show it) is gone.
                 val displayed = if (separateTitle && !focusMode) {
-                    splitLeadingHeading(current.value) ?: current.value
+                    splitTitleLine(current.value, cardTitle)?.body ?: current.value
                 } else {
                     current.value
                 }

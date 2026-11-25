@@ -37,9 +37,40 @@ fun splitLeadingHeading(content: String): String? {
     return rest
 }
 
+/** A card body with its title line taken off: what "Separate title" editing shows. */
+data class TitleSplit(
+    val body: String,
+    /** Whether the title line was a `# Title` heading (else the plain title text), so saving
+     * writes it back the way it was. */
+    val asHeading: Boolean,
+)
+
 /**
- * Reconstructs a card body with the title embedded as a leading `# Title` heading, the
- * convention every Holder client expects a card's first line to follow.
+ * Takes the title line off the front of [content] for "Separate title" editing and viewing,
+ * where a distinct Title field (or the app bar) already shows it: a leading `# Title` heading,
+ * or a first line that is the card's [title] as plain text -- the "first line is the title"
+ * convention cards written elsewhere (Desktop, holderctl) follow. Without the second case the
+ * title appeared twice, and saving added a heading above it ("# Ideas", then "Ideas").
+ * Null when there's no title line to take off.
  */
-fun combineTitleAndBody(title: String, body: String): String =
-    if (body.isEmpty()) "# $title\n\n" else "# $title\n\n$body"
+fun splitTitleLine(content: String, title: String): TitleSplit? {
+    splitLeadingHeading(content)?.let { return TitleSplit(it, asHeading = true) }
+    if (title.isBlank()) return null
+    val firstNewline = content.indexOf('\n')
+    val firstLine = if (firstNewline == -1) content else content.substring(0, firstNewline)
+    if (firstLine.trim() != title.trim()) return null
+    if (firstNewline == -1) return TitleSplit("", asHeading = false)
+    var rest = content.substring(firstNewline + 1)
+    if (rest.startsWith("\n")) rest = rest.substring(1)
+    return TitleSplit(rest, asHeading = false)
+}
+
+/**
+ * Reconstructs a card body with its title as the first line: a `# Title` heading, the
+ * convention every Holder client expects, or, for a card that had its title as a plain first
+ * line ([splitTitleLine]'s asHeading false), the plain title again.
+ */
+fun combineTitleAndBody(title: String, body: String, asHeading: Boolean = true): String {
+    val line = if (asHeading) "# $title" else title
+    return if (body.isEmpty()) "$line\n\n" else "$line\n\n$body"
+}
