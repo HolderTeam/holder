@@ -175,7 +175,10 @@ fun StartScreen(
         val project = selectedProject ?: return
         if (saving) return
         saving = true
-        scope.launch {
+        // Explicitly Main: under the Compose test harness the scope's dispatcher doesn't bring
+        // us back to the main thread after withContext(IO), and clearFocus/hide touch Views.
+        // Same reason the new-card route wraps its post-save work in Main.immediate.
+        scope.launch(Dispatchers.Main.immediate) {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
                     HolderNative.createCard(project.projectId, titleFromFirstLine(text).ifBlank { "Untitled" }, text)
