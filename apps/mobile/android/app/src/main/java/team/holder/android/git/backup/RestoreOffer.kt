@@ -2,47 +2,39 @@ package team.holder.android.git.backup
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import team.holder.android.HolderSettings
 
 /**
- * The one-time "we found a backup snapshot, restore it?" offer -- the automatic half of
+ * The "we found a backup snapshot, restore it?" offer on a new device -- the automatic half of
  * BACKUP_RESTORE_IMPLEMENTATION_PLAN.md step 9's detection (the "post-reinstall" case: Auto
  * Backup restored `files/backup/snapshot.jsonl.gz` before this install's first launch, while
  * `files/holder/` -- excluded from backup -- starts out empty). The "deliberate" case (a
- * manual "Restore from backup" entry point in Settings) is separate and unconditional: it
- * doesn't check [HolderSettings.restoreOfferShown] at all, since a user explicitly asking to
- * restore isn't the one-time surprise this guards against firing more than once.
+ * manual "Restore from backup" entry point in Settings) is separate and unconditional.
+ *
+ * Gated only by [SnapshotProtection.isArmed]: armed solely on a fresh install that found a
+ * restored snapshot, never backed up, and disarmed by RestoreBackupScreen once it has read the
+ * snapshot -- which is where this offer navigates, so it fires once per restore. It used to be
+ * gated by a one-time "offer shown" DataStore flag as well, but that flag was itself backed up
+ * and set on every device's first launch, so a replacement phone always restored it as "already
+ * shown" and the offer never appeared exactly when it mattered (found while checking #355).
  *
  * `HolderNative.initialize()` always creates a default "Home" welcome project on a project-
- * less device (see `ensure_home_project`) before this offer ever gets a chance to run, so
- * unlike [team.holder.android.git.github.GitHubBackfill] this can't gate on "zero local
- * projects" -- that's never actually true by the time a caller can check. The flag is the
- * only signal: a device that has already been offered this once, ever, won't be offered again
- * even if a new snapshot file later appears (e.g. from a second Auto Backup run) -- accepted,
- * matching [HolderSettings.githubBackfillOfferShown]'s own precedent, and the manual entry
- * point remains available regardless.
+ * less device (see `ensure_home_project`), so this can't gate on "zero local projects".
  *
- * Checks [SnapshotProtection.isArmed] rather than re-reading [snapshotFile] itself: this runs
- * from a Composable's LaunchedEffect, after MainActivity.onCreate has already called
- * [SnapshotScheduler.reconcile], which can (and in practice often does) start [SnapshotWorker]
- * regenerating that exact file within milliseconds -- a live re-check here would race it and
- * could see a snapshot [SnapshotWorker] itself just wrote, not a genuine Auto Backup restore,
- * and wrongly navigate to Restore Backup mid-composition. [SnapshotProtection.armIfFreshInstall
- * HasAnUnseenSnapshot] already answers the exact right question (was a snapshot already there
- * before this install's first [HolderNative.initialize] call) at the exact right moment
- * (synchronously in onCreate, strictly before [SnapshotScheduler.reconcile] runs), so this
- * reuses that race-free signal instead of taking its own.
+ * Checks the marker rather than re-reading [snapshotFile] itself: this runs from a
+ * Composable's LaunchedEffect, after MainActivity.onCreate has already called
+ * [SnapshotScheduler.reconcile], which can start [SnapshotWorker] regenerating that exact file
+ * within milliseconds -- a live re-check here would race it and could see a snapshot
+ * [SnapshotWorker] itself just wrote, not a genuine Auto Backup restore.
+ * [SnapshotProtection.armIfFreshInstallHasAnUnseenSnapshot] answers the right question (was a
+ * snapshot already there before this install's first [HolderNative.initialize] call) at the
+ * right moment (synchronously in onCreate, before [SnapshotScheduler.reconcile] runs).
  */
 object RestoreOffer {
-    /** Call once at startup (see MainActivity). Returns true if this device had a snapshot
-     * file waiting before this install's first launch AND has never been asked before -- marks
-     * the flag as a side effect of calling this, unconditionally, so it can never re-fire. */
-    suspend fun checkAndMarkOfferedOnce(context: Context): Boolean {
+    /** Call once at startup (see MainActivity). True if Auto Backup restored a snapshot before
+     * this install's first launch and nobody has looked at it yet. */
+    suspend fun shouldOffer(context: Context): Boolean {
         val appContext = context.applicationContext
-        if (HolderSettings.restoreOfferShown(appContext).first()) return false
-        HolderSettings.setRestoreOfferShown(appContext, true)
         return withContext(Dispatchers.IO) { SnapshotProtection.isArmed(appContext.filesDir) }
     }
 }

@@ -22,6 +22,18 @@
        needing to be reconnected.
      - files/datastore/github_credential.preferences_pb, the dedicated encrypted GitHub
        credential state, protected by the same non-exportable device key for the same reason.
+     - files/editor-recovery-drafts/, the editor's copies of text not yet saved into a card
+       (editor/EditorRecoveryStore.kt). Device-local by design: they name projects and cards
+       that only exist on this install (files/holder/ isn't restored), so on another device
+       they could never be saved and would sit there as plaintext card text indefinitely.
+
+     Cloud backup requires client-side encryption (issue #355): disableIfNoEncryptionCapabilities
+     stops the whole cloud backup, not just the snapshot, on a device that can't encrypt it with
+     a client-side secret (backup on, but no screen lock). The snapshot below is readable card
+     text (gzip, not encryption), deliberately not tied to the old device's Keystore so a
+     new phone can restore it, so the backup transport has to supply the confidentiality.
+     That's separate from a project's encrypted_git mode, which protects the Git remote, not
+     this copy. Device-to-device transfer never goes through a server and stays unconditional.
 
      Included (no rule needed, it's just not inside an exclusion above):
      - files/backup/snapshot.jsonl.gz, SnapshotWriter's gzip-compressed rolling export of recent
@@ -33,16 +45,18 @@
        over. See git/backup/SnapshotProtection.kt's doc comment for the one place this default
        inclusion needed a *separate*, non-backed-up guard rather than just living with it. -->
 <data-extraction-rules>
-    <cloud-backup>
+    <cloud-backup disableIfNoEncryptionCapabilities="true">
         <exclude domain="file" path="holder/" />
         <exclude domain="file" path="local_state/" />
         <exclude domain="sharedpref" path="holder_platform_keyring.xml" />
         <exclude domain="file" path="datastore/github_credential.preferences_pb" />
+        <exclude domain="file" path="editor-recovery-drafts/" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="holder/" />
         <exclude domain="file" path="local_state/" />
         <exclude domain="sharedpref" path="holder_platform_keyring.xml" />
         <exclude domain="file" path="datastore/github_credential.preferences_pb" />
+        <exclude domain="file" path="editor-recovery-drafts/" />
     </device-transfer>
 </data-extraction-rules>

@@ -89,6 +89,36 @@ Leftover copies live in `files/editor-recovery-drafts/`
 (`adb -s $E shell run-as $P ls files/editor-recovery-drafts/`); it should be
 empty once everything is saved.
 
+## Checking what Auto Backup takes
+
+Cloud backup must only carry the recovery snapshot (readable card text) when
+it is encrypted with a client-side secret (issue #355). Check it with the
+emulator's local backup transport on a rootable image (`adb -s $E root`):
+
+```bash
+adb -s $E shell bmgr enable true
+adb -s $E shell bmgr transport com.android.localtransport/.LocalTransport
+adb -s $E shell bmgr init com.android.localtransport/.LocalTransport
+# '' (no encryption), 'is_encrypted=true', or 'is_device_transfer=true'
+adb -s $E shell settings put secure backup_local_transport_parameters "'is_encrypted=true'"
+adb -s $E shell monkey -p $P -c android.intent.category.LAUNCHER 1  # a stopped app isn't backed up
+adb -s $E shell bmgr backupnow $P
+adb -s $E pull /data/data/com.android.localtransport/files/1/_full/$P backup.tar && tar tf backup.tar
+```
+
+Expected on API 31+: no encryption gives "Transport rejected package" (an empty
+backup) and no archive; encrypted and device transfer give `f/backup/snapshot.jsonl.gz`
+and `f/datastore/holder_settings.preferences_pb`, and never `f/holder/`,
+`f/local_state/`, `f/editor-recovery-drafts/` or the keyring. API 28–30's
+LocalTransport ignores `is_encrypted` and `is_device_transfer`, so only the
+no-encryption case can be checked there.
+
+To check restore, back up with `is_encrypted=true`, then `adb uninstall` and
+`adb install` the same APK: Auto Backup restores at install, and the first
+launch offers "Restore from backup". Restored `encrypted_git` projects get a
+new key on the new device. Clear the app's data afterwards (`pm clear`), since
+the restore adds a second "Home" project that the smoke tests trip over.
+
 ## Running instrumentation tests on a local emulator
 
 These steps run `androidTest` classes on the Pixel 2 API 30 emulator that

@@ -666,10 +666,11 @@ object HolderNative {
         return fromContractProject(saveLane.call { Recovery.restoreRecoverySnapshot(it, request) })
     }
 
-    /** Android's absent privacy mode means plain; the contract request defaults to encrypted_git. */
+    /** A missing privacy mode means encrypted_git, matching the contract, Desktop and Home. */
     fun createProject(name: String, privacyMode: String? = null): HolderProject {
         val mode = privacyMode?.let { value -> NewProjectPrivacyMode.entries.single { it.value == value } }
-            ?: NewProjectPrivacyMode.PLAIN
+            // The contract's default, as on Desktop and for Home: encrypted unless asked otherwise.
+            ?: NewProjectPrivacyMode.ENCRYPTED_GIT
         return fromContractProject(createProjectContract(NewProject(name = name, privacyMode = mode)))
     }
 
