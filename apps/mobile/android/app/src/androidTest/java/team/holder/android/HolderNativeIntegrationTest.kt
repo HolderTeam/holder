@@ -1204,6 +1204,42 @@ class HolderNativeIntegrationTest {
         assertEquals(other.projectId, HolderNative.listResources(other.projectId).single().projectId)
     }
 
+    @Test
+    fun siblingOrder_onTiedSortKeys_isTheOrderMovesUse() {
+        initialize()
+        val project = HolderNative.createProject("Tied siblings", "plain")
+        // Created in this order, so card IDs ascend; the later one is also more recently updated.
+        val zulu = HolderNative.createCard(project.projectId, "Zulu", "# Zulu")
+        val alpha = HolderNative.createCard(project.projectId, "alpha", "# alpha")
+        // Older or imported data: both on the same sort key. Rewrite the files, then rebuild the
+        // database from them, as a device importing such a project would.
+        // alpha, the higher card ID, is also the more recently updated, so "newest first" and
+        // core's card-ID order disagree about which comes first.
+        for ((card, updatedAt) in listOf(zulu to 1_700_000_000L, alpha to 1_800_000_000L)) {
+            val file = dataDir.walkTopDown().single { it.name == "${card.cardId}.md" }
+            file.writeText(
+                file.readText()
+                    .replace(Regex("(?m)^sort_key: .*$"), "sort_key: 1")
+                    .replace(Regex("(?m)^updated_at: .*$"), "updated_at: $updatedAt"),
+            )
+        }
+        HolderNative.rebuildDatabase(context, dataDir, schemaSql)
+
+        fun shown() = team.holder.android.ui.sortKeyOrderedSiblings(null, HolderNative.listCards(project.projectId))
+        val before = shown()
+        assertEquals(listOf(1.0, 1.0), before.map { it.sortKey })
+        assertTrue(before.single { it.cardId == alpha.cardId }.updatedAt > before.single { it.cardId == zulu.cardId }.updatedAt)
+        // Card ID order, as core lists and moves them -- not most recently updated first.
+        assertEquals(listOf(zulu.cardId, alpha.cardId), before.map { it.cardId })
+
+        // The card shown second moves left past the one shown before it.
+        HolderNative.moveCard(project.projectId, alpha.cardId, CardPlacementIntent.LEFT)
+        assertEquals(listOf(alpha.cardId, zulu.cardId), shown().map { it.cardId })
+        // ...and back right again: distinct keys now, still in step.
+        HolderNative.moveCard(project.projectId, alpha.cardId, CardPlacementIntent.RIGHT)
+        assertEquals(listOf(zulu.cardId, alpha.cardId), shown().map { it.cardId })
+    }
+
     private fun initialize() {
         HolderNative.initialize(
             context = context,
