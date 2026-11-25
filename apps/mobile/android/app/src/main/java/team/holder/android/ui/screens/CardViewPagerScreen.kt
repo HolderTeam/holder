@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -63,7 +64,7 @@ import team.holder.android.ui.CenteredMessage
 import team.holder.android.ui.HolderCardSwipeStyle
 import team.holder.android.ui.ResolvedSwipeStyle
 import team.holder.android.ui.SwingPivot
-import team.holder.android.ui.cardDeck
+import team.holder.android.ui.deckAfterReload
 import team.holder.android.ui.initialDeckPage
 import team.holder.android.ui.resolve
 import team.holder.android.ui.sortKeyOrderedSiblings
@@ -167,14 +168,37 @@ fun CardViewPagerScreen(
     // place below rather than resetting it to null first, so an already-composed pager never
     // sees a momentary single-page deck and loses its current page/scroll state to it.
     var deck by remember(cardId) { mutableStateOf<List<HolderCard>?>(null) }
+    // The card on screen, by identity: where a reload re-opens the deck. Saveable, so rotation
+    // and process death come back to the card swiped to, not the one first opened.
+    var shownCardId by rememberSaveable(cardId) { mutableStateOf(cardId) }
 
     LaunchedEffect(cardId, projectId, refreshKey) {
         val allCards = runCatching {
             withContext(Dispatchers.IO) { HolderNative.listCards(projectId) }
-        }.getOrDefault(emptyList())
-        // A miss (the fetch raced or failed) keeps whatever deck we already had rather than
-        // collapsing a working pager down to a single placeholder page.
-        deck = cardDeck(cardId, allCards) ?: deck ?: listOf(HolderCard(cardId, projectId, cardTitle, null, 0L, 0L, 0.0))
+        }.getOrNull()
+        if (allCards == null) {
+            // The fetch failed: keep whatever deck we already had rather than collapsing a
+            // working pager down to a single placeholder page.
+            if (deck == null) deck = listOf(HolderCard(cardId, projectId, cardTitle, null, 0L, 0L, 0.0))
+            return@LaunchedEffect
+        }
+        // Cards may have been added, moved, trashed or deleted since the deck was built -- on
+        // another device, arriving by sync (issue #104) -- so keep the shown card by identity,
+        // or move to its nearest surviving sibling.
+        val next = deckAfterReload(shownCardId, deck, allCards)
+            // Restored after process death with no deck yet, and the card swiped to is gone:
+            // fall back to the one the deck was opened on.
+            ?: if (deck == null && shownCardId != cardId) deckAfterReload(cardId, null, allCards) else null
+        when {
+            next != null -> {
+                shownCardId = next.cardId
+                deck = next.deck
+            }
+            // First load and the card isn't listed yet (it was only just created): show it alone.
+            deck == null -> deck = listOf(HolderCard(cardId, projectId, cardTitle, null, 0L, 0L, 0.0))
+            // Nothing in this deck is left: leave it, as after deleting the card here.
+            else -> onDeleted()
+        }
     }
 
     val loadedDeck = deck
@@ -183,8 +207,13 @@ fun CardViewPagerScreen(
         return
     }
 
-    val initialPage = remember(cardId) { initialDeckPage(cardId, loadedDeck) }
-    val pagerState = rememberPagerState(initialPage = initialPage) { loadedDeck.size }
+    // A new pager, opened on the shown card, whenever the deck's cards or their order change;
+    // otherwise the same one, so a reload that changed nothing in the deck (or only titles and
+    // text) keeps the page and its scroll position as they were.
+    val deckIds = loadedDeck.map { it.cardId }
+    val pagerState = remember(deckIds) {
+        PagerState(currentPage = initialDeckPage(shownCardId, loadedDeck)) { deckIds.size }
+    }
     val saveableStateHolder = rememberSaveableStateHolder()
     val currentCard = loadedDeck[pagerState.currentPage.coerceIn(loadedDeck.indices)]
 
@@ -246,7 +275,10 @@ fun CardViewPagerScreen(
 
     LaunchedEffect(pagerState, loadedDeck) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
-            loadedDeck.getOrNull(page)?.let { onPageChanged(it.cardId, it.title) }
+            loadedDeck.getOrNull(page)?.let {
+                shownCardId = it.cardId
+                onPageChanged(it.cardId, it.title)
+            }
         }
     }
 
@@ -352,6 +384,10 @@ fun CardViewPagerScreen(
                 .nestedScroll(boundaryHaptics),
             beyondViewportPageCount = 1,
             flingBehavior = flingBehavior,
+            // Pages by card, not by position: when a reload changes the deck (issue #104), a
+            // card that moved position keeps its page, and the SaveableStateProvider below never
+            // sees one card ID at two positions in the same frame.
+            key = { page -> loadedDeck.getOrNull(page)?.cardId ?: page },
         ) { page ->
             val card = loadedDeck[page]
             val isFront = page == pagerState.currentPage

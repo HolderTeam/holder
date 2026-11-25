@@ -370,6 +370,17 @@ private fun HolderNavHost(
     var cardListRefreshKey by remember { mutableIntStateOf(0) }
     var cardViewRefreshKey by remember { mutableIntStateOf(0) }
     var connectionsRefreshKey by remember { mutableIntStateOf(0) }
+
+    // A sync that brought changes from another device (issue #104), foreground or background:
+    // every screen that stays composed reloads. Each keeps its place by identity -- see
+    // CardListScreen's Board reconciliation and CardViewPagerScreen's deckAfterReload.
+    LaunchedEffect(Unit) {
+        HolderNative.projectDataChanged.collect {
+            cardListRefreshKey++
+            cardViewRefreshKey++
+            connectionsRefreshKey++
+        }
+    }
     // Non-null only while navigating from a card's own "+" to create a child of it; the
     // plain card-list "+" leaves this null so the new card lands at the project root.
     var pendingParentCardId by remember { mutableStateOf<String?>(null) }
