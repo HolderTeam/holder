@@ -35,6 +35,8 @@ object HolderSettings {
     private val CARD_LIST_BOARD_VIEW_ENABLED = booleanPreferencesKey("card_list_board_view_enabled")
     private val GIT_SYNC_CONSECUTIVE_FAILURES = intPreferencesKey("git_sync_consecutive_failures")
     private val SNAPSHOT_CONSECUTIVE_FAILURES = intPreferencesKey("snapshot_consecutive_failures")
+    private val START_DRAFT = stringPreferencesKey("start_draft")
+    private val START_DRAFT_PROJECT_ID = stringPreferencesKey("start_draft_project_id")
 
     const val DEFAULT_BACKGROUND_SYNC_INTERVAL_MINUTES = 15
 
@@ -258,4 +260,25 @@ object HolderSettings {
     private val GITHUB_BACKFILL_OFFER_SHOWN = booleanPreferencesKey("github_backfill_offer_shown")
     private val RESTORE_OFFER_SHOWN = booleanPreferencesKey("restore_offer_shown")
     private val LAST_SNAPSHOT_MAX_UPDATED_AT = longPreferencesKey("last_snapshot_max_updated_at")
+
+    /** The start screen's unsaved quick-entry text, kept across app restarts. Device-local and
+     * transient on purpose: it becomes a real card (in the project files) only when saved. */
+    fun startDraft(context: Context): Flow<String> =
+        context.settingsDataStore.data.map { it[START_DRAFT] ?: "" }
+
+    suspend fun setStartDraft(context: Context, draft: String) {
+        context.settingsDataStore.edit {
+            if (draft.isEmpty()) it.remove(START_DRAFT) else it[START_DRAFT] = draft
+        }
+    }
+
+    /** The project last picked for the start screen's quick entry; null means Home. */
+    fun startDraftProjectId(context: Context): Flow<String?> =
+        context.settingsDataStore.data.map { it[START_DRAFT_PROJECT_ID] }
+
+    suspend fun setStartDraftProjectId(context: Context, projectId: String?) {
+        context.settingsDataStore.edit {
+            if (projectId == null) it.remove(START_DRAFT_PROJECT_ID) else it[START_DRAFT_PROJECT_ID] = projectId
+        }
+    }
 }
