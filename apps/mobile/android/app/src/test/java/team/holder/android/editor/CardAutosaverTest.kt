@@ -42,7 +42,6 @@ class CardAutosaverTest {
     private fun autosaver(
         cardId: String? = "c1",
         autosaveMs: Long = 50,
-        recoveryMs: Long = 10,
         retry: List<Long> = listOf(30),
     ) = CardAutosaver(
         scope = scope,
@@ -53,7 +52,6 @@ class CardAutosaverTest {
         initialCardId = cardId,
         initialSaved = null,
         autosaveDelayMs = autosaveMs,
-        recoveryDelayMs = recoveryMs,
         retryDelaysMs = retry,
     )
 
@@ -68,11 +66,11 @@ class CardAutosaverTest {
     }
 
     @Test
-    fun recoveryCopyIsWrittenBeforeTheSave() = runBlocking {
+    fun recoveryCopyIsWrittenOnTheKeypressItself() {
         val saver = autosaver(autosaveMs = 10_000)
         saver.markSaved(snap("Original"))
         saver.onEdited(snap("Typed text"))
-        delay(150)
+        // No waiting: the copy must already be on disk when onEdited returns.
         assertTrue(writer.calls.isEmpty())
         val copy = store.read(EditorRecoveryStore.keyFor("p1", "c1"))
         assertEquals("Typed text", copy?.content)
@@ -80,7 +78,7 @@ class CardAutosaverTest {
 
     @Test
     fun writeRecoveryNowIsImmediate() {
-        val saver = autosaver(autosaveMs = 10_000, recoveryMs = 10_000)
+        val saver = autosaver(autosaveMs = 10_000)
         saver.markSaved(snap("Original"))
         saver.onEdited(snap("Typed just before the process died"))
         saver.writeRecoveryNow()

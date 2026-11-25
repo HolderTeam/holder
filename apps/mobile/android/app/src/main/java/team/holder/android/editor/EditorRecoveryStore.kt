@@ -8,7 +8,7 @@ import org.json.JSONObject
 /**
  * Device-local copies of editor text that may not have reached the project yet (issue #447).
  *
- * The editor writes one of these within [CardAutosaver.recoveryDelayMs] of every change and
+ * The editor writes one of these on every change ([CardAutosaver.onEdited]) and
  * removes it once the same text has been saved into the card. Anything still here when the app
  * starts is text Android took away before it could be saved -- [RecoveryReplay] saves it then.
  *

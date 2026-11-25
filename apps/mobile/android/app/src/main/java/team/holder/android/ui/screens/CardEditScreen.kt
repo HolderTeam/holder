@@ -78,8 +78,8 @@ import team.holder.android.ui.markdown.trimTrailingWhitespaceForSave
  * leaves once the latest text is in the card. Any earlier version can be restored from the
  * card's history.
  *
- * See [CardAutosaver] for the two layers (a device-local recovery copy within 250ms, a real
- * save 900ms after typing pauses). On top of those, this screen saves immediately when the app
+ * See [CardAutosaver] for the two layers (a device-local recovery copy on every keypress, a
+ * real save 900ms after typing pauses). On top of those, this screen saves immediately when the app
  * goes into the background or the screen goes away, and records itself as the open editor so
  * a cold start can reopen it.
  */

@@ -46,8 +46,9 @@ data class EditorSnapshot(
  * Saves the editor's text without the user asking (issue #447), the same two layers as the
  * desktop's EditorSaveController:
  *
- *  1. A recovery copy in [store], [recoveryDelayMs] after each change. Cheap, local, survives
- *     the process being killed; removed once the same text is in the card.
+ *  1. A recovery copy in [store], written synchronously on every change, so no keypress is
+ *     lost even if the process dies the next instant. Cheap, local; removed once the same
+ *     text is in the card. (The desktop waits 250ms; here Android can kill us at any time.)
  *  2. A real save into the card, [autosaveDelayMs] after typing pauses. That's a normal card
  *     update, so card history groups the run of autosaves into one entry and any earlier
  *     version can be restored from there.
@@ -70,7 +71,6 @@ class CardAutosaver(
     private val onCardCreated: (String) -> Unit = {},
     private val onStatus: (Status) -> Unit = {},
     private val autosaveDelayMs: Long = AUTOSAVE_DELAY_MS,
-    private val recoveryDelayMs: Long = RECOVERY_DELAY_MS,
     private val retryDelaysMs: List<Long> = RETRY_DELAYS_MS,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
@@ -91,7 +91,6 @@ class CardAutosaver(
         ?: initialCardId?.let { EditorRecoveryStore.keyFor(projectId, it) }
         ?: EditorRecoveryStore.newCardKey()
         private set
-    private var recoveryJob: Job? = null
     private var saveJob: Job? = null
     private var retryAttempt = 0
     // Set by discardEmpty: the card is gone, so nothing after that may write it again.
@@ -103,35 +102,28 @@ class CardAutosaver(
         if (latest == null) latest = snapshot
     }
 
-    /** Call on every change. Schedules the recovery copy and the save. */
+    /** Call on every change. Writes the recovery copy now and schedules the save. */
     fun onEdited(snapshot: EditorSnapshot) {
         if (discarded || latest == snapshot) return
         latest = snapshot
         if (sameText(snapshot, lastSaved)) return
         if (cardId == null && snapshot.blank) {
             // A new card with nothing typed (or typed and erased again): nothing to keep.
-            recoveryJob?.cancel()
             saveJob?.cancel()
             runCatching { store.remove(recoveryKey) }
             return
         }
         onStatus(Status.Pending)
-        recoveryJob?.cancel()
-        recoveryJob = scope.launch {
-            delay(recoveryDelayMs)
-            writeRecovery()
-        }
+        writeRecovery()
         scheduleSave(autosaveDelayMs)
     }
 
     /**
-     * Writes the recovery copy now and saves now, returning once the latest text is in the card
+     * Saves now, returning once the latest text is in the card
      * (or the save failed). For leaving the editor, and for the app going into the background.
      */
     suspend fun flush(): Boolean {
-        recoveryJob?.cancel()
         saveJob?.cancel()
-        if (latest?.let { !sameText(it, lastSaved) } == true) writeRecovery()
         return saveNow()
     }
 
@@ -146,9 +138,11 @@ class CardAutosaver(
         return cardId
     }
 
-    /** The recovery copy only, synchronously -- for when the process may die any moment. */
+    /**
+     * The recovery copy only, synchronously -- for when the process may die any moment. Already
+     * written on every change, so this only re-writes it; kept for the lifecycle hooks.
+     */
     fun writeRecoveryNow() {
-        recoveryJob?.cancel()
         if (latest?.let { !sameText(it, lastSaved) } == true) writeRecovery()
     }
 
@@ -157,7 +151,6 @@ class CardAutosaver(
      * Trashes it if it was ever created, and drops the recovery copy either way.
      */
     suspend fun discardEmpty() {
-        recoveryJob?.cancel()
         saveJob?.cancel()
         discarded = true
         withContext(NonCancellable) { mutex.withLock {
@@ -249,7 +242,6 @@ class CardAutosaver(
     companion object {
         /** Same as the desktop editor. */
         const val AUTOSAVE_DELAY_MS = 900L
-        const val RECOVERY_DELAY_MS = 250L
         val RETRY_DELAYS_MS = listOf(2_000L, 5_000L, 15_000L, 30_000L)
     }
 }
