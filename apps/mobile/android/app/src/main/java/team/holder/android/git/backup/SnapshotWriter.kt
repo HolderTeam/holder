@@ -179,10 +179,23 @@ object SnapshotWriter {
     }
 }
 
+/**
+ * The version of this file's own line wrapper (the fields around [snapshotLine]'s `line`), on
+ * every line rather than in a header so a snapshot cut off mid-write still says what it is.
+ * Bump it when the wrapper changes in a way an older reader can't follow; [SnapshotReader]
+ * treats any other version as unreadable rather than guessing. The card inside `line` has its
+ * own format and version, which core checks on restore.
+ *
+ * Lines without a version are version 1 too: the wrapper was introduced unversioned
+ * (November 2026) and only gained the field later, unchanged otherwise.
+ */
+const val SNAPSHOT_LINE_VERSION = 1
+
 /** One snapshot file line: the card's project, for [SnapshotReader] to group by, and [line],
  * the card as core's recovery snapshot encodes it, which only core reads back. */
 fun snapshotLine(projectId: String, projectName: String, privacyMode: String, line: String): String =
     JSONObject()
+        .put("version", SNAPSHOT_LINE_VERSION)
         .put("project_id", projectId)
         .put("project_name", projectName)
         .put("privacy_mode", privacyMode)

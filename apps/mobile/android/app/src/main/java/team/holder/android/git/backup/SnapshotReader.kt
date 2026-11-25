@@ -15,6 +15,17 @@ data class SnapshotGroup(
     val snapshot: String,
 )
 
+/** What [SnapshotReader.read] found in a snapshot file. */
+data class SnapshotContents(
+    val groups: List<SnapshotGroup>,
+    /**
+     * Records this reader couldn't use: another [SNAPSHOT_LINE_VERSION], or a record missing
+     * its project or card (e.g. a snapshot from before the current format). Text that isn't a
+     * JSON record at all -- typically a last line cut off mid-write -- isn't counted.
+     */
+    val unreadableCards: Int,
+)
+
 /** The inverse of [SnapshotWriter]: reads a gzip-JSONL snapshot file back into one
  * [SnapshotGroup] per original project. */
 object SnapshotReader {
@@ -31,9 +42,9 @@ object SnapshotReader {
      * later cards in the same group only contribute their own content, not a second identity
      * for the same project.
      *
-     * A malformed or incomplete line (valid JSON but missing `project_id` or `line`, or not valid JSON
-     * at all -- e.g. the very last line of a snapshot Auto Backup captured mid-write) is
-     * skipped, not fatal: a snapshot is a best-effort recovery aid, and one bad line
+     * A malformed or incomplete line (valid JSON but missing `project_id` or `line` or with
+     * another [SNAPSHOT_LINE_VERSION], or not valid JSON at all -- e.g. the very last line of
+     * a snapshot Auto Backup captured mid-write) is skipped, not fatal: a snapshot is a best-effort recovery aid, and one bad line
      * shouldn't sink everything else in it.
      *
      * Returns an empty list, rather than throwing, when [source] doesn't exist at all -- by far
@@ -44,8 +55,13 @@ object SnapshotReader {
      * instead of [RestoreBackupScreen]'s own friendly "No backup snapshot found on this device."
      * empty-groups message, which is exactly what this should look like instead.
      */
-    fun readGroups(source: File): List<SnapshotGroup> {
-        if (!hasSnapshot(source)) return emptyList()
+    fun readGroups(source: File): List<SnapshotGroup> = read(source).groups
+
+    /** [readGroups], plus how many cards were there but couldn't be read, so the restore
+     * screen can say "made by a different version of Holder" instead of "no backup found". */
+    fun read(source: File): SnapshotContents {
+        if (!hasSnapshot(source)) return SnapshotContents(emptyList(), unreadableCards = 0)
+        var unreadable = 0
 
         val order = mutableListOf<String>()
         val cardsByProject = mutableMapOf<String, MutableList<String>>()
@@ -56,8 +72,14 @@ object SnapshotReader {
             for (line in lines) {
                 if (line.isBlank()) continue
                 val card = runCatching { JSONObject(line) }.getOrNull() ?: continue
-                val projectId = card.optString("project_id").takeIf { it.isNotBlank() } ?: continue
-                val coreLine = card.optString("line").takeIf { it.isNotBlank() } ?: continue
+                val projectId = card.optString("project_id").takeIf { it.isNotBlank() }
+                val coreLine = card.optString("line").takeIf { it.isNotBlank() }
+                if (card.optInt("version", SNAPSHOT_LINE_VERSION) != SNAPSHOT_LINE_VERSION ||
+                    projectId == null || coreLine == null
+                ) {
+                    unreadable++
+                    continue
+                }
 
                 val cards = cardsByProject.getOrPut(projectId) {
                     order.add(projectId)
@@ -69,7 +91,7 @@ object SnapshotReader {
             }
         }
 
-        return order.map { projectId ->
+        val groups = order.map { projectId ->
             val cards = cardsByProject.getValue(projectId)
             SnapshotGroup(
                 projectName = nameByProject.getValue(projectId),
@@ -78,5 +100,6 @@ object SnapshotReader {
                 snapshot = cards.joinToString("\n"),
             )
         }
+        return SnapshotContents(groups, unreadable)
     }
 }

@@ -127,4 +127,47 @@ class SnapshotReaderTest {
         assertEquals("Restored project", group.projectName)
         assertEquals("plain", group.privacyMode)
     }
+
+    @Test
+    fun snapshotLine_carriesTheWrapperVersion() {
+        val json = JSONObject(card("p1", "House", "plain", "c1"))
+        assertEquals(SNAPSHOT_LINE_VERSION, json.getInt("version"))
+    }
+
+    @Test
+    fun read_acceptsLinesWrittenBeforeTheVersionField() {
+        // The same wrapper, as written before it was labelled: still version 1.
+        val unlabelled = JSONObject(card("p1", "House", "plain", "c1")).apply { remove("version") }.toString()
+        val contents = SnapshotReader.read(gzipJsonl(listOf(unlabelled)))
+        assertEquals(1, contents.groups.single().cardCount)
+        assertEquals(0, contents.unreadableCards)
+    }
+
+    @Test
+    fun read_countsLinesFromAnotherVersionAsUnreadable_ratherThanGuessing() {
+        val future = JSONObject(card("p1", "House", "plain", "c2")).put("version", SNAPSHOT_LINE_VERSION + 1).toString()
+        val contents = SnapshotReader.read(gzipJsonl(listOf(card("p1", "House", "plain", "c1"), future)))
+        assertEquals("core line c1", contents.groups.single().snapshot)
+        assertEquals(1, contents.unreadableCards)
+    }
+
+    @Test
+    fun read_reportsASnapshotFromBeforeTheCurrentFormat_insteadOfFindingNothing() {
+        // The pre-November 2026 layout: the card's fields directly, no core `line`.
+        val old = listOf(
+            """{"project_id":"p1","project_name":"Home","privacy_mode":"plain","card_id":"c1","title":"One","body":"# One"}""",
+            """{"project_id":"p1","project_name":"Home","privacy_mode":"plain","card_id":"c2","title":"Two","body":"# Two"}""",
+        )
+        val contents = SnapshotReader.read(gzipJsonl(old))
+        assertTrue(contents.groups.isEmpty())
+        assertEquals(2, contents.unreadableCards)
+    }
+
+    @Test
+    fun read_doesNotCountATruncatedLastLine() {
+        val whole = card("p1", "House", "plain", "c1")
+        val contents = SnapshotReader.read(gzipJsonl(listOf(whole, whole.take(20))))
+        assertEquals(1, contents.groups.single().cardCount)
+        assertEquals(0, contents.unreadableCards)
+    }
 }
