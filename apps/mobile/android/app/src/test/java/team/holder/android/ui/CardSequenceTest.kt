@@ -137,15 +137,27 @@ class CardSequenceTest {
     }
 
     @Test
-    fun followsAndPrecedes_breakSortKeyTiesByMostRecentlyUpdatedFirst() {
-        val staleTie = card("stale-tie", parentCardId = "parent", sortKey = 1.0, updatedAt = 1L)
-        val freshTie = card("fresh-tie", parentCardId = "parent", sortKey = 1.0, updatedAt = 2L)
-        val subject = card("subject", parentCardId = "parent", sortKey = 0.0)
-        val all = listOf(subject, staleTie, freshTie)
+    fun followsAndPrecedes_breakSortKeyTiesByCardId_asCoreDoes() {
+        // Issue #102: the most recently updated of two tied cards used to come first, while
+        // core's move resolver puts the lower card ID first -- so "Move Up" could do nothing.
+        val lowerIdOlder = card("a-tie", parentCardId = "parent", sortKey = 1.0, updatedAt = 1L)
+        val higherIdNewer = card("b-tie", parentCardId = "parent", sortKey = 1.0, updatedAt = 2L)
+        // Most recently updated, so Next is empty and Follows isn't dropped as a duplicate of it.
+        val subject = card("subject", parentCardId = "parent", sortKey = 0.0, updatedAt = 5L)
+        val all = listOf(subject, higherIdNewer, lowerIdOlder)
 
         val links = cardSequenceLinks("subject", "parent", all)
 
-        assertEquals(freshTie, links.follows)
+        assertEquals(lowerIdOlder, links.follows)
+    }
+
+    @Test
+    fun siblingOrder_onCompleteTies_isCardIdOrder_whateverTheTitlesOrRecency() {
+        val zulu = card("01-z", sortKey = 1.0, updatedAt = 1L).copy(title = "Zulu")
+        val alpha = card("02-a", sortKey = 1.0, updatedAt = 9L).copy(title = "alpha")
+        val first = card("00-first", sortKey = 0.5)
+
+        assertEquals(listOf("00-first", "01-z", "02-a"), sortKeyOrderedSiblings(null, listOf(alpha, zulu, first)).map { it.cardId })
     }
 
     @Test

@@ -82,6 +82,8 @@ object GoogleDriveAuth {
         // toGoogleSignInAccount() is deprecated, but AuthorizationResult has no non-deprecated
         // way to read back which account was authorized -- it's used here purely for display
         // (Settings' "Connected as <email>"), never for anything security-relevant.
-        return DriveAuthorization(accessToken, resolved.toGoogleSignInAccount()?.email)
+        @Suppress("DEPRECATION")
+        val email = resolved.toGoogleSignInAccount()?.email
+        return DriveAuthorization(accessToken, email)
     }
 }

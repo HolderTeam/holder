@@ -17,14 +17,17 @@ data class CardSequenceLinks(
 )
 
 /** parentCardId's children (or, when null, every root card in the project), in Holder's
- * canonical sibling order -- sort_key ascending, falling back to most-recently-updated first,
- * matching holder-core's own `ORDER BY sort_key ASC, updated_at DESC`. The single source of
- * truth for sibling order: [cardSequenceLinks]'s Follows/Precedes and the swipeable card deck
- * (see CardViewPagerScreen) both walk this same list rather than each re-deriving it. */
+ * canonical sibling order: sort_key ascending, then card ID ascending for equal keys. That is
+ * the order core lists cards in (`ORDER BY sort_key ASC, card_id ASC`) and the order its move
+ * resolver uses (`card_tree_less`), so the sibling shown beside a card is the one Move Up/Down
+ * swaps it with, even on older or imported data where sort keys tie (issue #102). Card IDs are
+ * ASCII, so String comparison here matches core's byte order. The single source of truth for
+ * sibling order on Android: Board, [cardSequenceLinks]'s Follows/Precedes and the swipe deck
+ * (see CardViewPagerScreen) all walk this same list. */
 fun sortKeyOrderedSiblings(parentCardId: String?, allCards: List<HolderCard>): List<HolderCard> =
     allCards
         .filter { it.parentCardId == parentCardId }
-        .sortedWith(compareBy<HolderCard> { it.sortKey }.thenByDescending { it.updatedAt })
+        .sortedWith(compareBy<HolderCard> { it.sortKey }.thenBy { it.cardId })
 
 /** [cardId]'s deck for swipeable card navigation (see CardViewPagerScreen): its siblings in
  * Holder's existing sort_key order, including itself. Null when [cardId] isn't found in
