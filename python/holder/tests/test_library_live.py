@@ -873,6 +873,7 @@ def test_shared_card_operations(backend, request, tmp_path):
             {
                 "dates": [
                     {"role": "review", "date": "2026-11-30"},
+                    {"role": "review", "date": "2026-12-01"},
                     {"role": "review", "datetime": "2026-11-30T09:30:00+01:00"},
                 ],
                 "kind": "plan",
@@ -882,8 +883,27 @@ def test_shared_card_operations(backend, request, tmp_path):
         assert dated.keys() == Milestone.__required_keys__
         assert dated["dates"] == [
             {"role": "review", "date": "2026-11-30"},
+            {"role": "review", "date": "2026-12-01"},
             {"role": "review", "datetime": "2026-11-30T09:30:00+01:00"},
         ]
+        first_day, last_day = "2026-11-30", "2026-12-01"
+        instant = int(datetime.fromisoformat("2026-11-30T09:30:00+01:00").timestamp())
+        assert active.list_milestones_by_day(project_id, first_day, last_day) == [dated]
+        assert active.list_milestones_by_day(project_id, first_day, first_day, role="review") == [dated]
+        assert active.list_milestones_by_day(project_id, first_day, last_day, role="due") == []
+        assert active.list_milestones_by_day(project_id, last_day, first_day) == []
+        assert active.list_milestones_by_instant(project_id, instant, instant, role="review") == [dated]
+        assert active.list_milestones_by_instant(project_id, instant + 1, instant + 1) == []
+        assert active.list_milestones_by_instant(project_id, instant, instant, role="due") == []
+        assert active.list_milestones_by_instant(project_id, instant + 1, instant) == []
+        with pytest.raises(NotFoundError):
+            active.list_milestones_by_day("missing", first_day, last_day)
+        with pytest.raises(NotFoundError):
+            active.list_milestones_by_instant("missing", instant, instant)
+        cards.trash_card(project_id, child_id)
+        assert active.list_milestones_by_day(project_id, first_day, last_day) == []
+        assert active.list_milestones_by_instant(project_id, instant, instant) == []
+        cards.restore_card(project_id, child_id)
         undated = cards.add_card_milestone(project_id, child_id, {"dates": []})
         assert (undated["dates"], undated["kind"], undated["description"]) == ([], None, None)
         milestone_id = dated["milestone_id"]

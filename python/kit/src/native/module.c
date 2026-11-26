@@ -1553,6 +1553,58 @@ Context_remove_milestone(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
+milestone_query_result(ContextObject *self, int result, const holder_milestone_list *items,
+                       holder_error *error, holder_arena *arena)
+{
+    PyObject *records = NULL;
+    if (result == HOLDER_OK) {
+        holder_error_destroy(error);
+        records = milestone_list_record(items);
+    } else {
+        raise_holder_error(self, result, error);
+    }
+    holder_arena_free(arena);
+    return records;
+}
+
+static PyObject *
+Context_list_milestones_by_day(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id, *first_day, *last_day;
+    const char *role = NULL;
+    static char *keywords[] = {"project_id", "first_day", "last_day", "role", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sss|$z:list_milestones_by_day", keywords,
+        &project_id, &first_day, &last_day, &role) || !ensure_context_open(self)) return NULL;
+
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_milestone_list *items = NULL;
+    holder_error *error = NULL;
+    const int result = holder_list_milestones_by_day(self->context, project_id, first_day,
+        last_day, role, arena, &items, &error);
+    return milestone_query_result(self, result, items, error, arena);
+}
+
+static PyObject *
+Context_list_milestones_by_instant(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id;
+    long long first_instant, last_instant;
+    const char *role = NULL;
+    static char *keywords[] = {"project_id", "first_instant", "last_instant", "role", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sLL|$z:list_milestones_by_instant", keywords,
+        &project_id, &first_instant, &last_instant, &role) || !ensure_context_open(self)) return NULL;
+
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_milestone_list *items = NULL;
+    holder_error *error = NULL;
+    const int result = holder_list_milestones_by_instant(self->context, project_id,
+        first_instant, last_instant, role, arena, &items, &error);
+    return milestone_query_result(self, result, items, error, arena);
+}
+
+static PyObject *
 Context_calendar_milestones(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
     const char *project_id = NULL;
@@ -2201,6 +2253,10 @@ static PyMethodDef Context_methods[] = {
      PyDoc_STR("Partially update a milestone: absent keeps a field, None clears it.")},
     {"remove_milestone", PyCFunction_CAST(Context_remove_milestone), METH_VARARGS | METH_KEYWORDS,
      PyDoc_STR("Remove a milestone and return the card's remaining milestones.")},
+    {"list_milestones_by_day", PyCFunction_CAST(Context_list_milestones_by_day), METH_VARARGS | METH_KEYWORDS,
+     "List project milestones by an inclusive range of calendar days."},
+    {"list_milestones_by_instant", PyCFunction_CAST(Context_list_milestones_by_instant), METH_VARARGS | METH_KEYWORDS,
+     "List project milestones by an inclusive range of Unix timestamps."},
     {"calendar_milestones", PyCFunction_CAST(Context_calendar_milestones), METH_VARARGS | METH_KEYWORDS,
      PyDoc_STR("List a project's live milestones with a date in days in a time zone.")},
     {"list_tags", PyCFunction_CAST(Context_list_tags), METH_VARARGS | METH_KEYWORDS,

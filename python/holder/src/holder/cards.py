@@ -395,7 +395,7 @@ class EmbeddedWorkspace:
                 "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(native.Context, "list_link_kinds"):
+        if not hasattr(native.Context, "list_milestones_by_instant"):
             raise EmbeddedUnavailableError(
                 "This Holder Kit build is too old for the shared Card API."
             )
@@ -437,6 +437,37 @@ class EmbeddedWorkspace:
     def list_link_kinds(self) -> list[LinkKindLabels]:
         """List Holder's known link kinds and their forward and reverse labels."""
         return cast("list[LinkKindLabels]", self._call("list_link_kinds"))
+
+    def list_milestones_by_day(
+        self, project_id: str, first_day: str, last_day: str, *, role: str | None = None
+    ) -> list[Milestone]:
+        """List milestones with a calendar day in the inclusive range."""
+        return cast(
+            "list[Milestone]",
+            self._call(
+                "list_milestones_by_day", project_id, first_day, last_day, role=role
+            ),
+        )
+
+    def list_milestones_by_instant(
+        self,
+        project_id: str,
+        first_instant: int,
+        last_instant: int,
+        *,
+        role: str | None = None,
+    ) -> list[Milestone]:
+        """List milestones with a Unix timestamp in the inclusive range."""
+        return cast(
+            "list[Milestone]",
+            self._call(
+                "list_milestones_by_instant",
+                project_id,
+                first_instant,
+                last_instant,
+                role=role,
+            ),
+        )
 
     def _call(self, method: str, *args: object, **kwargs: object) -> object:
         if self._closed or self._context is None:

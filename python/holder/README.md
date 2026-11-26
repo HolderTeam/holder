@@ -187,6 +187,12 @@ milestones. To add one, pass an ordered list of dates to
 `remove_card_milestone` to remove one by ID. On update, omit fields to keep them,
 use `None` to clear the kind or description, or pass `dates=[]` to clear dates.
 
+To find milestones across a project, call
+`session.list_milestones_by_day(project_id, first_day, last_day)` for calendar
+dates or `session.list_milestones_by_instant(project_id, first, last)` for Unix
+timestamps in seconds. Both ranges are inclusive. Pass `role="due"` to match
+only dates with that role. Each matching milestone appears once.
+
 ## Run with or without a local Holder installation
 
 Use `open_session(fallback_workspace=path)` when a script can work on live

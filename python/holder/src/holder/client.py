@@ -11,7 +11,7 @@ from typing import Any, Self, cast
 
 import httpx
 
-from ._workspace_contract import LinkKindLabels, TagCount
+from ._workspace_contract import LinkKindLabels, Milestone, TagCount
 from ._workspace_contract import Project as ProjectRecord
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .cards import CardOperations, EmbeddedWorkspace, _DaemonCards, open_workspace
@@ -30,6 +30,8 @@ from .generated.api.default import (
     get_link_kinds,
     get_projects,
     get_projects_project_id,
+    get_projects_project_id_milestones_days,
+    get_projects_project_id_milestones_instants,
     get_projects_project_id_tags,
     get_trash,
     post_projects,
@@ -195,6 +197,37 @@ class Holder:
         """List Holder's known link kinds and their forward and reverse labels."""
         kinds = self._call(get_link_kinds)
         return [cast("LinkKindLabels", kind.to_dict()) for kind in kinds]
+
+    def list_milestones_by_day(
+        self, project_id: str, first_day: str, last_day: str, *, role: str | None = None
+    ) -> list[Milestone]:
+        """List milestones with a calendar day in the inclusive range."""
+        rows = self._call(
+            get_projects_project_id_milestones_days,
+            project_id,
+            first_day=first_day,
+            last_day=last_day,
+            role=role,
+        )
+        return [cast("Milestone", row.to_dict()) for row in rows]
+
+    def list_milestones_by_instant(
+        self,
+        project_id: str,
+        first_instant: int,
+        last_instant: int,
+        *,
+        role: str | None = None,
+    ) -> list[Milestone]:
+        """List milestones with a Unix timestamp in the inclusive range."""
+        rows = self._call(
+            get_projects_project_id_milestones_instants,
+            project_id,
+            first_instant=first_instant,
+            last_instant=last_instant,
+            role=role,
+        )
+        return [cast("Milestone", row.to_dict()) for row in rows]
 
     def _call(
         self,
