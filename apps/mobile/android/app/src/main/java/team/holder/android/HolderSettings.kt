@@ -52,9 +52,18 @@ object HolderSettings {
         context.settingsDataStore.edit { it[SEPARATE_TITLE_ENABLED] = enabled }
     }
 
-    /** Off by default: background sync uses battery/data even when the app isn't open. */
+    /** On by default: pulling in the background is how changes from another device arrive
+     * without a manual "Sync now". It costs little when nothing has a remote (the worker finds
+     * no project to sync) and can be switched off in Settings > Sync. */
     fun gitBackgroundSyncEnabled(context: Context): Flow<Boolean> =
-        context.settingsDataStore.data.map { it[GIT_BACKGROUND_SYNC_ENABLED] ?: false }
+        context.settingsDataStore.data.map { it[GIT_BACKGROUND_SYNC_ENABLED] ?: GIT_BACKGROUND_SYNC_DEFAULT }
+
+    const val GIT_BACKGROUND_SYNC_DEFAULT = true
+
+    /** Forgets the user's choice, so [gitBackgroundSyncEnabled] reports the default again. */
+    internal suspend fun clearGitBackgroundSyncEnabled(context: Context) {
+        context.settingsDataStore.edit { it.remove(GIT_BACKGROUND_SYNC_ENABLED) }
+    }
 
     suspend fun setGitBackgroundSyncEnabled(context: Context, enabled: Boolean) {
         context.settingsDataStore.edit { it[GIT_BACKGROUND_SYNC_ENABLED] = enabled }
