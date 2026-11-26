@@ -642,24 +642,14 @@ Context_list_links(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
-Context_resolve_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+resolve_card_reference(ContextObject *self, const holder_card_reference_resolve_request *request,
+                       bool omit_absent)
 {
-    const char *project_id = NULL;
-    const char *card_id = NULL;
-    static char *keywords[] = {"project_id", "card_id", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:resolve_card", keywords,
-                                    &project_id, &card_id) || !ensure_context_open(self)) {
-        return NULL;
-    }
-    holder_card_reference_resolve_request request = {0};
-    request.project_id = project_id;
-    request.reference = card_id;
-    request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_EITHER;
     holder_arena *arena = holder_arena_new();
     if (arena == NULL) return PyErr_NoMemory();
     const holder_card_reference_resolve_data *resolved = NULL;
     holder_error *error = NULL;
-    const int result = holder_resolve_card_reference(self->context, &request,
+    const int result = holder_resolve_card_reference(self->context, request,
         arena, &resolved, &error);
     if (result != HOLDER_OK) {
         raise_holder_error(self, result, error);
@@ -672,7 +662,8 @@ Context_resolve_card(ContextObject *self, PyObject *args, PyObject *kwargs)
         ? "ambiguous" : "not_found";
     PyObject *record = PyDict_New();
     if (record == NULL || put_text(record, "status", status) < 0 ||
-        put_text(record, "match_kind", resolved->match_kind) < 0) {
+        ((!omit_absent || resolved->match_kind != NULL) &&
+         put_text(record, "match_kind", resolved->match_kind) < 0)) {
         Py_XDECREF(record);
         holder_arena_free(arena);
         return NULL;
@@ -715,6 +706,45 @@ Context_resolve_card(ContextObject *self, PyObject *args, PyObject *kwargs)
     }
     holder_arena_free(arena);
     return record;
+}
+
+static PyObject *
+Context_resolve_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id = NULL;
+    const char *card_id = NULL;
+    static char *keywords[] = {"project_id", "card_id", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:resolve_card", keywords,
+                                    &project_id, &card_id) || !ensure_context_open(self)) {
+        return NULL;
+    }
+    holder_card_reference_resolve_request request = {0};
+    request.project_id = project_id;
+    request.reference = card_id;
+    request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_EITHER;
+    return resolve_card_reference(self, &request, false);
+}
+
+static PyObject *
+Context_resolve_card_reference(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *scope;
+    holder_card_reference_resolve_request request = {0};
+    static char *keywords[] = {"project_id", "reference", "scope", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sss:resolve_card_reference", keywords,
+                                    &request.project_id, &request.reference, &scope) ||
+        !ensure_context_open(self)) return NULL;
+    if (strcmp(scope, "live") == 0) {
+        request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_LIVE;
+    } else if (strcmp(scope, "trashed") == 0) {
+        request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_TRASHED;
+    } else if (strcmp(scope, "either") == 0) {
+        request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_EITHER;
+    } else {
+        PyErr_SetString(PyExc_ValueError, "scope must be 'live', 'trashed', or 'either'");
+        return NULL;
+    }
+    return resolve_card_reference(self, &request, true);
 }
 
 static PyObject *
@@ -2015,6 +2045,8 @@ static PyMethodDef Context_methods[] = {
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Permanently remove a card that is already in Trash.")},
     {"list_cards_page", PyCFunction_CAST(Context_list_cards_page), METH_VARARGS | METH_KEYWORDS,
      PyDoc_STR("Return one page of a project's live cards, by parent, tag and order.")},
+    {"resolve_card_reference", PyCFunction_CAST(Context_resolve_card_reference), METH_VARARGS | METH_KEYWORDS,
+     "Resolve a card reference within a project and deletion scope."},
     {"get_card_metadata", PyCFunction_CAST(Context_get_card_metadata), METH_VARARGS | METH_KEYWORDS,
      "Read live card metadata without loading the card body."},
     {"get_card_breadcrumbs", PyCFunction_CAST(Context_get_card_breadcrumbs), METH_VARARGS | METH_KEYWORDS,

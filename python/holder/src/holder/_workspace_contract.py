@@ -131,6 +131,31 @@ class TagCount(TypedDict):
     card_count: int
 
 
+class CardReferenceResolveRequest(TypedDict):
+    """A reference to resolve among one project's cards."""
+
+    project_id: ProjectId
+    reference: str
+    scope: Literal["live", "trashed", "either"]
+
+
+class CardReferenceCandidate(TypedDict):
+    """A card that matches a reference."""
+
+    card_id: CardId
+    title: str
+    deleted_at: int | None
+
+
+class CardReferenceResolveData(TypedDict):
+    """A resolved, ambiguous, or absent card reference."""
+
+    status: Literal["resolved", "ambiguous", "not_found"]
+    match_kind: NotRequired[str]
+    card: NotRequired[CardReferenceCandidate]
+    candidates: NotRequired[list[CardReferenceCandidate]]
+
+
 class CardOperations(Protocol):
     """The Card operations shared by daemon and embedded sessions."""
 
@@ -193,6 +218,13 @@ class CardOperations(Protocol):
         missing or trashed card is not found; a broken or cyclic ancestor chain is
         invalid.
         """
+        ...
+
+    def resolve_card_reference(
+        self,
+        request: CardReferenceResolveRequest,
+    ) -> CardReferenceResolveData:
+        """Resolve a card reference within a project and deletion scope."""
         ...
 
     def create_card(

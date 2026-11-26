@@ -133,6 +133,12 @@ parent, and other metadata without reading its body.
 `cards.get_card_breadcrumbs(project_id, card_id)` returns the path from the
 project through the card's live ancestors to the card itself.
 
+To look up an exact title, full ID, or eligible ID prefix, use
+`cards.resolve_card_reference({"project_id": project_id, "reference": "An idea",
+"scope": "live"})`. Use `trashed` to search Trash or `either` to search both.
+The result reports a match, two example candidates for an ambiguous reference,
+or no match.
+
 Use `cards.move_card(project_id, card_id, {"intent": "into",
 "target_card_id": another_card_id})` to move a card into another one.
 For reordering among siblings, use `left`, `right`, `to_start`, or `to_end`.

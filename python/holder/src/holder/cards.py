@@ -15,6 +15,9 @@ from ._workspace_contract import (
     CardMetadata,
     CardMove,
     CardOperations,
+    CardReferenceCandidate,
+    CardReferenceResolveData,
+    CardReferenceResolveRequest,
     CardUpdate,
     NewCard,
     Page,
@@ -31,6 +34,7 @@ from .generated.api.default import (
     get_projects_project_id_cards_card_id_breadcrumbs,
     get_projects_project_id_cards_card_id_metadata,
     patch_projects_project_id_cards_card_id,
+    post_card_references_resolve,
     post_projects_project_id_cards,
     post_projects_project_id_cards_card_id_move,
     post_projects_project_id_cards_card_id_restore,
@@ -39,8 +43,12 @@ from .generated.api.default import (
 from .generated.models import CardMove as HTTPCardMove
 from .generated.models import (
     CardMoveIntent,
+    CardReferenceResolveRequestScope,
     DeleteProjectsProjectIdCardsCardIdChildren,
     GetProjectsProjectIdCardsOrder,
+)
+from .generated.models import (
+    CardReferenceResolveRequest as HTTPCardReferenceResolveRequest,
 )
 from .generated.models import CardUpdate as HTTPCardUpdate
 from .generated.models import NewCard as HTTPNewCard
@@ -57,6 +65,9 @@ __all__ = [
     "CardMetadata",
     "CardMove",
     "CardOperations",
+    "CardReferenceCandidate",
+    "CardReferenceResolveData",
+    "CardReferenceResolveRequest",
     "CardUpdate",
     "EmbeddedUnavailableError",
     "NewCard",
@@ -117,6 +128,19 @@ class _DaemonCards:
             get_projects_project_id_cards_card_id_breadcrumbs, project_id, card_id
         )
         return [cast("CardBreadcrumb", result.to_dict()) for result in results]
+
+    def resolve_card_reference(
+        self, request: CardReferenceResolveRequest
+    ) -> CardReferenceResolveData:
+        result = self._holder._call(
+            post_card_references_resolve,
+            body=HTTPCardReferenceResolveRequest(
+                project_id=request["project_id"],
+                reference=request["reference"],
+                scope=CardReferenceResolveRequestScope(request["scope"]),
+            ),
+        )
+        return cast("CardReferenceResolveData", result.to_dict())
 
     def create_card(self, project_id: str, card: NewCard) -> Card:
         result = self._holder._call(
@@ -227,7 +251,7 @@ class EmbeddedWorkspace:
                 "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(native.Context, "get_card_breadcrumbs"):
+        if not hasattr(native.Context, "resolve_card_reference"):
             raise EmbeddedUnavailableError(
                 "This Holder Kit build is too old for the shared Card API."
             )
@@ -343,6 +367,14 @@ class _EmbeddedCards:
         return cast(
             "list[CardBreadcrumb]",
             self._workspace._call("get_card_breadcrumbs", project_id, card_id),
+        )
+
+    def resolve_card_reference(
+        self, request: CardReferenceResolveRequest
+    ) -> CardReferenceResolveData:
+        return cast(
+            "CardReferenceResolveData",
+            self._workspace._call("resolve_card_reference", **request),
         )
 
     def create_card(self, project_id: str, card: NewCard) -> Card:

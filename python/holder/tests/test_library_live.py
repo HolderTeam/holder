@@ -730,6 +730,36 @@ def test_shared_card_operations(backend, request, tmp_path):
         assert (error.value.status, error.value.code) == (409, "conflict")
         assert cards.get_card(project_id, child_id) == prose
 
+        def lookup(reference, scope="live"):
+            return cards.resolve_card_reference(
+                {"project_id": project_id, "reference": reference, "scope": scope}
+            )
+
+        expected = {"card_id": child_id, "title": prose["title"], "deleted_at": None}
+        assert lookup(child_id) == {"status": "resolved", "match_kind": "full_id", "card": expected}
+        assert lookup(child_id[:-4].upper()) == {
+            "status": "resolved", "match_kind": "id_prefix", "card": expected
+        }
+        assert lookup(prose["title"]) == {
+            "status": "resolved", "match_kind": "exact_title", "card": expected
+        }
+        assert lookup(child_id, "trashed") == {"status": "not_found"}
+        assert lookup("no such title") == {"status": "not_found"}
+
+        cards.update_card(project_id, extra_id, {"title": prose["title"]})
+        ambiguous = lookup(prose["title"])
+        assert set(ambiguous) == {"status", "match_kind", "candidates"}
+        assert ambiguous["status"] == "ambiguous"
+        assert ambiguous["match_kind"] == "exact_title"
+        assert {item["card_id"] for item in ambiguous["candidates"]} == {child_id, extra_id}
+        trashed = cards.trash_card(project_id, child_id)
+        assert lookup(child_id) == {"status": "not_found"}
+        trashed_match = lookup(child_id, "trashed")
+        assert trashed_match["card"] == {**expected, "deleted_at": trashed["deleted_at"]}
+        assert lookup(child_id, "either") == trashed_match
+        assert lookup(prose["title"])["card"]["card_id"] == extra_id
+        cards.restore_card(project_id, child_id)
+
     with pytest.raises(ClosedError):
         cards.get_card(project_id, child_id)
     with pytest.raises(ClosedError):
