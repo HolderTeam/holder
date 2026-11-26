@@ -9,7 +9,14 @@ from unittest.mock import Mock
 import httpx
 import pytest
 
-from holder import Card, Holder, Project, iter_card_records, open_session, open_workspace
+from holder import (
+    Card,
+    Holder,
+    Project,
+    iter_card_records,
+    open_session,
+    open_workspace,
+)
 from holder.exceptions import (
     APIError,
     AuthenticationError,
