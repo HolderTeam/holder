@@ -11,8 +11,8 @@ from typing import Any, Self, cast
 
 import httpx
 
+from ._workspace_contract import LinkKindLabels, TagCount
 from ._workspace_contract import Project as ProjectRecord
-from ._workspace_contract import TagCount
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .cards import CardOperations, EmbeddedWorkspace, _DaemonCards, open_workspace
 from .changes import Changes
@@ -27,6 +27,7 @@ from .exceptions import (
 )
 from .generated import AuthenticatedClient
 from .generated.api.default import (
+    get_link_kinds,
     get_projects,
     get_projects_project_id,
     get_projects_project_id_tags,
@@ -189,6 +190,11 @@ class Holder:
         """List project tags and their live card counts."""
         tags = self._call(get_projects_project_id_tags, project_id)
         return [cast("TagCount", tag.to_dict()) for tag in tags]
+
+    def list_link_kinds(self) -> list[LinkKindLabels]:
+        """List Holder's known link kinds and their forward and reverse labels."""
+        kinds = self._call(get_link_kinds)
+        return [cast("LinkKindLabels", kind.to_dict()) for kind in kinds]
 
     def _call(
         self,

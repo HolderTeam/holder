@@ -15,7 +15,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from holder import Holder, MilestoneDate, ProjectRecord, open_session
+from holder import Holder, LinkKindLabels, MilestoneDate, ProjectRecord, open_session
 from holder.cards import Card, CardListItem, CardMetadata, Link, SearchCard
 from holder.exceptions import APIError, ClosedError, NotFoundError
 
@@ -786,6 +786,16 @@ def test_shared_card_operations(backend, request, tmp_path):
         assert [row["card_id"] for row in cards.search_cards(project_id, query)] == [second_id]
 
         other_project_id = other_project["project_id"]
+        kinds = active.list_link_kinds()
+        assert all(row.keys() == LinkKindLabels.__required_keys__ for row in kinds)
+        kinds_by_name = {row["kind"]: row for row in kinds}
+        assert len(kinds_by_name) == len(kinds)
+        assert kinds_by_name["depends_on"] == {
+            "kind": "depends_on",
+            "forward_label": "Depends on",
+            "reverse_label": "Required by",
+        }
+
         original = cards.add_card_link(
             project_id,
             second_id,
@@ -845,6 +855,8 @@ def test_shared_card_operations(backend, request, tmp_path):
         sibling_link = cards.add_card_link(
             project_id, second_id, {"target_type": "card", "target_id": child_id, "kind": "related"}
         )
+        assert sibling_link["kind"] == "related"
+        assert sibling_link["kind"] not in kinds_by_name
         assert cards.remove_card_link(project_id, second_id, "card", child_id) == [sibling_link]
         assert cards.remove_card_link(project_id, second_id, "card", child_id) == [sibling_link]
         assert cards.remove_card_link(

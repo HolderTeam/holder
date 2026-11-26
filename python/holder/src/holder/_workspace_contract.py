@@ -198,6 +198,17 @@ class NewLink(TypedDict):
     created_at: NotRequired[int]
 
 
+class LinkKindLabels(TypedDict):
+    """
+    One of the link kinds Holder knows, with how it reads from each end of a link. A
+    link's kind is free text; a kind Holder does not know has no labels of its own.
+    """
+
+    kind: LinkKind
+    forward_label: str
+    reverse_label: str
+
+
 class CardOperations(Protocol):
     """The Card operations shared by daemon and embedded sessions."""
 

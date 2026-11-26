@@ -20,6 +20,7 @@ from ._workspace_contract import (
     CardReferenceResolveRequest,
     CardUpdate,
     Link,
+    LinkKindLabels,
     LinkTargetType,
     NewCard,
     NewLink,
@@ -337,7 +338,7 @@ class EmbeddedWorkspace:
                 "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(native.Context, "remove_card_link"):
+        if not hasattr(native.Context, "list_link_kinds"):
             raise EmbeddedUnavailableError(
                 "This Holder Kit build is too old for the shared Card API."
             )
@@ -375,6 +376,10 @@ class EmbeddedWorkspace:
     def list_project_tags(self, project_id: str) -> list[TagCount]:
         """List project tags and their live card counts."""
         return cast("list[TagCount]", self._call("list_project_tag_counts", project_id))
+
+    def list_link_kinds(self) -> list[LinkKindLabels]:
+        """List Holder's known link kinds and their forward and reverse labels."""
+        return cast("list[LinkKindLabels]", self._call("list_link_kinds"))
 
     def _call(self, method: str, *args: object, **kwargs: object) -> object:
         if self._closed or self._context is None:

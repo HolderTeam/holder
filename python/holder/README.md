@@ -176,6 +176,8 @@ its label and preserves its creation time. Use
 `cards.remove_card_link(project_id, card_id, "card", target_id)` to remove
 that link and get the remaining outgoing links. Specify `kind` or
 `target_project_id` when they differ from `"ref"` and the source project.
+`session.list_link_kinds()` returns the built-in kinds and their forward and
+reverse labels. You can also use custom kinds.
 
 ## Run with or without a local Holder installation
 

@@ -58,7 +58,7 @@ def generate_python_workspace(ir: ContractView) -> str:
     for name in ("ProjectId", "ProjectName", "GitRemoteUrl", "PrivacyMode", "CardId", "Tag", "TrashItemType", "LinkKind", "LinkTargetType", "LinkTargetId"):
         lines.append(f"{name} = {annotation(ir.alias(name))}")
     lines.extend(["", 'T = TypeVar("T")'])
-    for name in ("CardMetadata", "CardBreadcrumb", "TagOccurrence", "CardListItem", "Card", "NewCard", "CardUpdate", "CardMove", "Page", "Project", "TrashItem", "TagCount", "CardReferenceResolveRequest", "CardReferenceCandidate", "CardReferenceResolveData", "SearchCard", "Link", "NewLink"):
+    for name in ("CardMetadata", "CardBreadcrumb", "TagOccurrence", "CardListItem", "Card", "NewCard", "CardUpdate", "CardMove", "Page", "Project", "TrashItem", "TagCount", "CardReferenceResolveRequest", "CardReferenceCandidate", "CardReferenceResolveData", "SearchCard", "Link", "NewLink", "LinkKindLabels"):
         record = ir.record(name)
         bases = [record.base or "TypedDict"]
         if record.type_parameters:

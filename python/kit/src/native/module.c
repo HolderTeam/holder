@@ -625,6 +625,38 @@ link_list_record(const holder_link_list *list)
 }
 
 static PyObject *
+Context_list_link_kinds(ContextObject *self, PyObject *Py_UNUSED(ignored))
+{
+    if (!ensure_context_open(self)) return NULL;
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_link_kind_labels_list *kinds = NULL;
+    holder_error *error = NULL;
+    const int result = holder_list_link_kinds(self->context, arena, &kinds, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+
+    PyObject *records = PyList_New(0);
+    if (records != NULL) for (size_t i = 0; i < kinds->count; ++i) {
+        const holder_link_kind_labels *kind = &kinds->items[i];
+        PyObject *record = Py_BuildValue("{s:s,s:s,s:s}", "kind", kind->kind,
+            "forward_label", kind->forward_label, "reverse_label", kind->reverse_label);
+        if (record == NULL || PyList_Append(records, record) < 0) {
+            Py_XDECREF(record);
+            Py_CLEAR(records);
+            break;
+        }
+        Py_DECREF(record);
+    }
+    holder_arena_free(arena);
+    return records;
+}
+
+static PyObject *
 Context_list_links(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
     const char *project_id = NULL;
@@ -2223,6 +2255,8 @@ static PyMethodDef Context_methods[] = {
      "Create a qualified link and return its record."},
     {"remove_card_link", PyCFunction_CAST(Context_remove_card_link), METH_VARARGS | METH_KEYWORDS,
      "Remove a qualified link and return the remaining visible links."},
+    {"list_link_kinds", PyCFunction_CAST(Context_list_link_kinds), METH_NOARGS,
+     "List the known link kinds with their labels."},
     {"list_card_backlinks", PyCFunction_CAST(Context_list_card_backlinks), METH_VARARGS | METH_KEYWORDS,
      "List the links to a live card."},
     {"search_cards", PyCFunction_CAST(Context_search_cards), METH_VARARGS | METH_KEYWORDS,
