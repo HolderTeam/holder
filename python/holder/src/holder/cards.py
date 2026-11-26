@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from importlib import import_module
 from importlib.resources import files
-from os import PathLike, fspath
+from os import PathLike, fspath, getenv
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Self, TypedDict, cast
 
 from ._workspace_contract import (
@@ -376,6 +377,23 @@ class EmbeddedWorkspace:
         if self._closed or self._context is not None:
             raise ClosedError("Embedded workspace contexts cannot be reused")
 
+        data_dir = fspath(self._data_dir)
+        if not data_dir:
+            raise ValueError("Supply a directory for the private Holder workspace")
+        workspace = Path(data_dir).resolve()
+        # Match the daemon's Paths::resolve("holder") and XDG data home rules.
+        data_home = Path(getenv("XDG_DATA_HOME") or "")
+        if not data_home.is_absolute():
+            home = Path(getenv("HOME") or Path.home())
+            data_home = home / ".local" / "share"
+        server_dir = workspace / "server"
+        desktop_db = (data_home / "holder" / "server" / "holder.db").resolve()
+        if (server_dir / "holder.db").resolve() == desktop_db or (server_dir / "holder.json").is_file():
+            raise ValueError(
+                "The desktop Holder profile requires open_session(); "
+                "choose a separate directory for open_workspace()"
+            )
+
         package = f"{__package__}._embedded"
         try:
             native = import_module(f"{package}._native")
@@ -396,13 +414,18 @@ class EmbeddedWorkspace:
                 "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(native.Context, "get_calendar"):
+        if getattr(native, "WORKSPACE_BRIDGE_VERSION", None) != 1:
             raise EmbeddedUnavailableError(
-                "This Holder Kit build is too old for the shared Card API."
+                "This native Holder build is incompatible with the shared workspace API."
             )
 
         schema = files(package).joinpath("_schema.sql").read_text(encoding="utf-8")
-        self._context = native.Context(fspath(self._data_dir), schema)
+        try:
+            self._context = native.Context(fspath(workspace), schema)
+        except native.HolderError as error:
+            if getattr(error, "native_status", None) == 4090:
+                raise APIError(409, "conflict", str(error)) from error
+            raise
         self._native_error = native.HolderError
         return self
 

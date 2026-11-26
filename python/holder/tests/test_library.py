@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import httpx
 import pytest
 
-from holder import Card, Holder, Project, open_session
+from holder import Card, Holder, Project, open_session, open_workspace
 from holder.exceptions import (
     APIError,
     AuthenticationError,
@@ -774,6 +774,47 @@ def test_open_session_prefers_local_daemon(monkeypatch, tmp_path):
         assert session.list_projects()[0]["project_id"] == "p-0"
     assert cli.call_count == 2
     assert not fallback.exists()
+
+
+@pytest.mark.parametrize("xdg_data_home", ["absolute", "relative"])
+def test_embedded_rejects_desktop_profile_without_daemon(monkeypatch, tmp_path, xdg_data_home):
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    if xdg_data_home == "absolute":
+        data_home = tmp_path / "xdg-data"
+        monkeypatch.setenv("XDG_DATA_HOME", str(data_home))
+    else:
+        data_home = home / ".local" / "share"
+        monkeypatch.setenv("XDG_DATA_HOME", "relative-data")
+
+    profile = data_home / "holder"
+    with pytest.raises(ValueError, match="desktop Holder profile"), open_workspace(profile):
+        pass
+    assert not profile.exists()
+
+
+def test_embedded_rejects_symlink_to_desktop_profile(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    profile = tmp_path / "holder"
+    profile.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(profile, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="desktop Holder profile"), open_workspace(alias):
+        pass
+    assert not (profile / "server").exists()
+
+
+def test_embedded_rejects_existing_daemon_profile_outside_current_data_home(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "current"))
+    profile = tmp_path / "previous" / "holder"
+    server_dir = profile / "server"
+    server_dir.mkdir(parents=True)
+    (server_dir / "holder.json").write_text("{}")
+
+    with pytest.raises(ValueError, match="desktop Holder profile"), open_workspace(profile):
+        pass
+    assert not (server_dir / "holder.db").exists()
 
 
 @pytest.mark.parametrize("unavailable", [FileNotFoundError(), 14])

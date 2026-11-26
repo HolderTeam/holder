@@ -2448,7 +2448,8 @@ holder_module_clear(PyObject *module)
 static int
 holder_module_exec(PyObject *module)
 {
-    if (PyModule_AddIntConstant(module, "CARD_PAGE_MAX_LIMIT", 1000) < 0) {
+    if (PyModule_AddIntConstant(module, "CARD_PAGE_MAX_LIMIT", 1000) < 0 ||
+        PyModule_AddIntConstant(module, "WORKSPACE_BRIDGE_VERSION", 1) < 0) {
         return -1;
     }
     holder_module_state *state = PyModule_GetState(module);

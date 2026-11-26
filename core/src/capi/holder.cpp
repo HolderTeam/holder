@@ -32,6 +32,14 @@ namespace {
 
 using holder::capi::rebuild_readiness_path;
 
+std::unique_ptr<holder::platform::ProfileLock> lock_profile(const std::filesystem::path& data_dir) {
+  const auto server_dir = data_dir / "server";
+  std::filesystem::create_directories(server_dir);
+  auto lock = holder::platform::ProfileLock::try_acquire(server_dir / "holder.lock");
+  if (!lock) throw holder::contract::Conflict("Holder workspace is in use");
+  return lock;
+}
+
 bool looks_like_project(const std::filesystem::path& root) {
   return std::filesystem::is_directory(root) &&
          (std::filesystem::is_regular_file(root / holder::project::kProjectManifestPath) ||
@@ -104,7 +112,7 @@ holder_context* holder::contract::context_open(
   context->data_dir = std::filesystem::path(data_dir);
   context->db_path = context->data_dir / "server" / "holder.db";
   context->projects_root = context->data_dir / "projects";
-  std::filesystem::create_directories(context->db_path.parent_path());
+  context->profile_lock = lock_profile(context->data_dir);
 
   const auto health = holder::platform::inspect_database_health(context->db_path);
   const auto roots = discover_managed_project_roots(context->data_dir);
@@ -169,6 +177,7 @@ holder::contract::DatabaseRebuildReport holder::contract::database_rebuild(
     std::string schema_sql,
     bool dry_run
 ) {
+  const auto profile_lock = lock_profile(data_dir);
   const auto report =
       rebuild_managed_database(std::filesystem::path(data_dir), schema_sql, dry_run);
   const auto count = [](std::size_t value) {

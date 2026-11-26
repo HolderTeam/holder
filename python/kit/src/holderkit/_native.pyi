@@ -1,6 +1,7 @@
 from typing import Any, Literal
 
 CARD_PAGE_MAX_LIMIT: int
+WORKSPACE_BRIDGE_VERSION: int
 
 class HolderError(RuntimeError):
     native_status: int

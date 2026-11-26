@@ -9,13 +9,15 @@ import os
 import subprocess
 import time
 from datetime import UTC, date, datetime, timedelta, timezone
+from importlib import import_module
+from importlib.resources import files
 from importlib.util import find_spec
 from pathlib import Path
 
 import httpx
 import pytest
 
-from holder import Holder, LinkKindLabels, MilestoneDate, ProjectRecord, open_session
+from holder import Holder, LinkKindLabels, MilestoneDate, ProjectRecord, open_session, open_workspace
 from holder.cards import Card, CardListItem, CardMetadata, Link, Milestone, SearchCard
 from holder.exceptions import APIError, ClosedError, NotFoundError
 
@@ -498,6 +500,37 @@ def test_project_scoped_collections_against_daemon(daemon):
     # Exercise the zero-argument discovery path against the same isolated env.
     with Holder(holderctl=str(cli)) as h:
         assert h.projects.get(project_id).name == "Collection integration"
+
+
+def test_embedded_profile_ownership(daemon, tmp_path):
+    if find_spec("holder._embedded._native"):
+        package = "holder._embedded"
+    elif find_spec("holderkit"):
+        package = "holderkit"
+    else:
+        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+
+    profile = tmp_path / "data" / "holder"
+    with pytest.raises(ValueError, match="desktop Holder profile"), open_workspace(profile):
+        pass
+
+    # Bypass the Python policy so this also verifies daemon/native lock compatibility.
+    native = import_module(f"{package}._native")
+    schema = files(package).joinpath("_schema.sql").read_text(encoding="utf-8")
+    with pytest.raises(native.HolderError, match="workspace is in use") as busy:
+        native.Context(str(profile), schema)
+    assert busy.value.native_status == 4090
+
+    private = tmp_path / "private"
+    with open_workspace(private) as workspace:
+        project = workspace.create_plain_project(name="Private project")
+        with pytest.raises(APIError, match="workspace is in use"):
+            with open_workspace(private):
+                pytest.fail("Opened a second embedded session on the same profile")
+        assert workspace.get_project(project["project_id"]) == project
+
+    with open_workspace(private) as workspace:
+        assert workspace.get_project(project["project_id"]) == project
 
 
 @pytest.mark.parametrize("backend", ["daemon", "embedded"])

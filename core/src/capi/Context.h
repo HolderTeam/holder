@@ -6,6 +6,7 @@
 #include "git/GitCredentialProvider.h"
 #include "index/FtsIndexer.h"
 #include "platform/Db.h"
+#include "platform/ProfileLock.h"
 
 #include <filesystem>
 #include <memory>
@@ -48,6 +49,9 @@ struct holder_context {
   // The host's project registry (project/ProjectRegistry.h), which finds projects outside
   // projects_root and remembers removals; empty for none.
   std::filesystem::path registry_path;
+
+  // Declare before the owned services so they close before releasing the profile.
+  std::unique_ptr<holder::platform::ProfileLock> profile_lock;
 
  private:
   std::unique_ptr<holder::platform::Db> owned_db;

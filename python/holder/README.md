@@ -121,7 +121,10 @@ with open_workspace("private-holder-workspace") as session:
 
 Opening a private workspace requires a native Holder wheel or a same-checkout
 Holder Kit build. Use a separate data directory for embedded work. To run this
-code against a live Holder installation, open the session with `Holder()`.
+code against the desktop Holder profile, open the session with `Holder()` or
+`open_session()`. The desktop profile requires HTTP even when its daemon is stopped.
+Opening a directory already in use by a daemon or another embedded session
+raises a workspace conflict.
 `create_plain_project` stores project files without encryption in both modes.
 
 `list_cards` returns one page at a time. Pass its `next_cursor` with the same
