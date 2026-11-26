@@ -102,7 +102,8 @@ Trash matches. See [reference lookup](docs/scripting.md#find-a-card-by-name-or-p
 
 The contract-based Card API provides detached records and the same three
 operations for a running Holder installation or a private embedded workspace.
-Pass a project ID and a card ID from the workspace you open:
+Use `session.list_projects()` to find a project and `session.get_project(id)`
+to fetch its record. The same code works with either backend:
 
 ```python
 from holder import Holder
@@ -115,7 +116,12 @@ def retitle(cards: CardOperations, project_id: str, card_id: str) -> None:
 
 
 with Holder() as session:
-    retitle(session.card_operations, project_id, card_id)
+    for project in session.list_projects():
+        project_id = project["project_id"]
+        page = session.card_operations.list_cards(project_id, limit=1)
+        if page["items"]:
+            retitle(session.card_operations, project_id, page["items"][0]["card_id"])
+            break
 ```
 
 With a native Holder wheel or a same-checkout Holder Kit build installed,

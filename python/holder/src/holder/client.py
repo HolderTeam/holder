@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 import subprocess
 from collections.abc import Iterator
-from typing import Any, Self
+from typing import Any, Self, cast
 
 import httpx
 
+from ._workspace_contract import Project as ProjectRecord
 from .cards import CardOperations, _DaemonCards
 from .changes import Changes
 from .exceptions import (
@@ -20,6 +21,7 @@ from .exceptions import (
     ProtocolError,
 )
 from .generated import AuthenticatedClient
+from .generated.api.default import get_projects, get_projects_project_id
 from .generated.models import ErrorResponse
 from .models.intelligence_device import HolderIntelligence
 from .models.project import Project, ProjectCollection
@@ -129,6 +131,22 @@ class Holder:
 
     def __iter__(self) -> Iterator[Project]:
         return iter(self.projects)
+
+    def list_projects(self) -> list[ProjectRecord]:
+        """List the projects visible in this session as detached records."""
+        projects: list[ProjectRecord] = []
+        page_size = 100
+        for offset in range(0, 2**31, page_size):
+            page = self._call(get_projects, limit=page_size, offset=offset)
+            projects.extend(cast("ProjectRecord", item.to_dict()) for item in page)
+            if len(page) < page_size:
+                return projects
+        raise OverflowError("too many projects to list")
+
+    def get_project(self, project_id: str) -> ProjectRecord:
+        """Fetch a detached project record by its ID."""
+        project = self._call(get_projects_project_id, project_id)
+        return cast("ProjectRecord", project.to_dict())
 
     def _call(
         self,

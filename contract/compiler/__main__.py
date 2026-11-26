@@ -14,8 +14,8 @@ from generators.android.client import generate_android_client
 from generators.common import Unsupported
 from generators.core import CORE_PATHS, generate_core
 from generators.daemon import DAEMON_PATHS, OPENAPI_PATHS, api_documents, generate_daemon
-from generators.python import PATH as PYTHON_CARDS_PATH
-from generators.python import generate_python_cards
+from generators.python import PATH as PYTHON_WORKSPACE_PATH
+from generators.python import generate_python_workspace
 
 from .ir import ContractView
 from .pipeline import Compiler, ContractSource
@@ -27,7 +27,7 @@ COMMANDS = {
              "out of date",
     "ir": "write the contract's IR as JSON",
     "generate": "write every generated file into --output, a directory: core's C API, Android's Card and Project bridges, "
-                "the daemon's routes, their JSON codec and their OpenAPI paths, and the shared Python Card API",
+                "the daemon's routes, their JSON codec and their OpenAPI paths, and the shared Python workspace API",
     "update": "write the generated files into their consuming projects",
 }
 
@@ -37,7 +37,7 @@ def repository_files(ir: ContractView, files: dict[str, str]) -> dict[str, str]:
     daemon = generate_daemon(ir)
     return {**{CORE_PATHS[name]: text for name, text in files.items()},
             **generate_android_client(ir),
-            PYTHON_CARDS_PATH: generate_python_cards(ir),
+            PYTHON_WORKSPACE_PATH: generate_python_workspace(ir),
             **{DAEMON_PATHS[name]: daemon[name] for name in DAEMON_PATHS},
             **{OPENAPI_PATHS[name]: text for name, text in api_documents(ir, REPOSITORY).items()}}
 
@@ -103,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
                      **{path.rsplit('/', 1)[-1]: text
                         for path, text in generate_android_client(ir).items()}}
             if (args.root.resolve(), args.package) == (CONTRACT, "interface"):
-                files[Path(PYTHON_CARDS_PATH).name] = generate_python_cards(ir)
+                files[Path(PYTHON_WORKSPACE_PATH).name] = generate_python_workspace(ir)
         except (Unsupported, ValueError) as error:
             print(f"A generator does not support this yet: {error}", file=sys.stderr)
             return 1

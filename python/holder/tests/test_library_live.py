@@ -9,12 +9,13 @@ import os
 import subprocess
 import time
 from datetime import UTC, date, datetime, timedelta, timezone
+from importlib.util import find_spec
 from pathlib import Path
 
 import httpx
 import pytest
 
-from holder import Holder, MilestoneDate, open_workspace
+from holder import Holder, MilestoneDate, ProjectRecord, open_workspace
 from holder.cards import Card, CardListItem
 from holder.exceptions import APIError, ClosedError, NotFoundError
 
@@ -508,18 +509,30 @@ def test_shared_card_operations(backend, request, tmp_path):
         child_id = create_card(raw, project_id, 2, parent_id)
         session = Holder(url=url, token=token)
     else:
-        kit = pytest.importorskip("holderkit")
+        if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
+            pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
         data_dir = tmp_path / "workspace"
         data_dir.mkdir()
-        with kit.open(data_dir) as setup:
-            project_id = setup.create_project("Shared Card API").project_id
-            parent_id = setup.create_card(project_id, "Card 1", "body 1\n#research").card_id
-            child_id = setup.create_card(
+        with open_workspace(data_dir) as setup:
+            native = setup._context
+            assert native is not None
+            project_id = native.create_project("Shared Card API")["project_id"]
+            parent_id = native.create_card(project_id, "Card 1", "body 1\n#research")["card_id"]
+            child_id = native.create_card(
                 project_id, "Card 2", "body 2\n#research", parent_card_id=parent_id
-            ).card_id
+            )["card_id"]
         session = open_workspace(data_dir)
 
     with session as active:
+        projects = active.list_projects()
+        project = next(row for row in projects if row["name"] == "Shared Card API")
+        assert project.keys() == ProjectRecord.__required_keys__
+        assert project["project_id"] == project_id
+        assert active.get_project(project_id) == project
+        with pytest.raises(NotFoundError):
+            active.get_project("missing")
+
+        project_id = project["project_id"]
         cards = active.card_operations
         roots = cards.list_cards(project_id, parent="roots", include_child_count=True)
         assert roots["next_cursor"] is None
@@ -564,3 +577,5 @@ def test_shared_card_operations(backend, request, tmp_path):
 
     with pytest.raises(ClosedError):
         cards.get_card(project_id, child_id)
+    with pytest.raises(ClosedError):
+        active.list_projects()

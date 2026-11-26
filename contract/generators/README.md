@@ -25,6 +25,6 @@ Regenerate the repository outputs with `make -C contract update` and review them
 
   [`boundary.py`](daemon/boundary.py) validates the first complete daemon-only binding, including its generated types, handler signature and request/response boundary. [`inventory.py`](daemon/inventory.py) keeps remaining handwritten and partially generated boundaries explicit. See [HTTP.md](../HTTP.md#complete-daemon-only-boundary-proof) for the scope and validation evidence.
 - [`android/`](android/): the Kotlin client and JNI bridge to core's C API.
-- [`python/`](python/): shared Python Card records, typed operations and native error mappings.
+- [`python/`](python/): shared Python workspace records, typed Card operations and native error mappings.
 
 Every generator consumes the typed compiler result described in [IR.md](../IR.md). The result includes a detached FastAPI document with additional response declarations, alongside typed HTTP metadata and named SSE event payload references. Backends do not import declarations or load a contract package. The daemon backend owns OpenAPI normalization, security merging, runtime service bindings and C++ event helper conventions.

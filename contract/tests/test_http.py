@@ -276,7 +276,7 @@ def test_generate_command_writes_all_targets(tmp_path):
     assert {"Cards.kt", "Client.kt", "contract_client.cpp"} <= client
     assert sorted(p.name for p in tmp_path.iterdir()) == sorted([
         "AiJson.h", "AiRoutes.h", "DaemonTypes.h", "DaemonJson.h", "DaemonRoutes.h", "DaemonBoundaries.md", "Contract.h", "ContractCApi.cpp", "HostCApi.cpp", "ContractJson.h", "ContractRoutes.h",
-        "holder_api.h", "openapi.json", "_card_contract.py", *client])
+        "holder_api.h", "openapi.json", "_workspace_contract.py", *client])
 
 
 def daemon_document(paths):

@@ -1,5 +1,6 @@
 """Holder Python Library - control your knowledge using Python."""
 
+from ._workspace_contract import Project as ProjectRecord
 from .cards import EmbeddedUnavailableError, open_workspace
 from .changes import ChangeCheckpoint, ChangeReady, EntityChange, ResyncRequired
 from .client import Holder
@@ -96,6 +97,7 @@ __all__ = [
     "ProjectActivity",
     "ProjectGit",
     "ProjectIntelligence",
+    "ProjectRecord",
     "Provider",
     "PullChanges",
     "PullEventStream",

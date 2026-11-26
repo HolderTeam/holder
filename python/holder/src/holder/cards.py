@@ -7,7 +7,7 @@ from importlib.resources import files
 from os import PathLike, fspath
 from typing import TYPE_CHECKING, Literal, Self, TypedDict, cast
 
-from ._card_contract import (
+from ._workspace_contract import (
     NATIVE_ERRORS,
     Card,
     CardListItem,
@@ -15,6 +15,7 @@ from ._card_contract import (
     CardUpdate,
     Page,
 )
+from ._workspace_contract import Project as ProjectRecord
 from .exceptions import APIError, ClosedError, HolderError, NotFoundError
 from .generated.api.default import (
     get_projects_project_id_cards,
@@ -138,6 +139,14 @@ class EmbeddedWorkspace:
         self._closed = True
         if self._context is not None:
             self._context.close()
+
+    def list_projects(self) -> list[ProjectRecord]:
+        """List the projects visible in this session as detached records."""
+        return cast("list[ProjectRecord]", self._call("list_projects"))
+
+    def get_project(self, project_id: str) -> ProjectRecord:
+        """Fetch a detached project record by its ID."""
+        return cast("ProjectRecord", self._call("get_project", project_id))
 
     def _call(self, method: str, *args: object, **kwargs: object) -> object:
         if self._closed or self._context is None:

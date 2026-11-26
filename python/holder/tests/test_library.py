@@ -298,6 +298,9 @@ def test_lazy_projects_pages_cache_queries_indexing_and_close():
         with pytest.raises(TypeError):
             h.projects.filter(unknown=True)
         assert not hasattr(h, "cards")
+        assert [row["project_id"] for row in h.list_projects()] == [
+            f"p-{i}" for i in range(205)
+        ]
         client = h._active().get_httpx_client()
     assert client.is_closed
     with pytest.raises(ClosedError):

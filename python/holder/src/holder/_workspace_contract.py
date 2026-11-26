@@ -3,6 +3,9 @@
 from typing import Generic, Literal, NotRequired, Protocol, TypedDict, TypeVar
 
 ProjectId = str
+ProjectName = str
+GitRemoteUrl = str
+PrivacyMode = Literal["encrypted_git", "plain"]
 CardId = str
 Tag = str
 
@@ -62,6 +65,20 @@ class Page(TypedDict, Generic[T]):
 
     items: list[T]
     next_cursor: str | None
+
+
+class Project(TypedDict):
+    """A project on this device."""
+
+    project_id: ProjectId
+    name: ProjectName
+    root_path: str
+    git_remote_url: GitRemoteUrl | None
+    git_provider: str | None
+    privacy_mode: PrivacyMode
+    project_key_id: str | None
+    created_at: int
+    updated_at: int
 
 
 class CardOperations(Protocol):

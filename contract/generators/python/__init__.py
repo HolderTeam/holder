@@ -1,4 +1,4 @@
-"""Generate the shared Python Card surface from the compiler result."""
+"""Generate shared Python workspace types from the compiler result."""
 
 import json
 from textwrap import wrap
@@ -7,7 +7,7 @@ from compiler.ir import ContractView, TypeRef
 from generators.common import Unsupported
 from generators.core.abi import snake
 
-PATH = "python/holder/src/holder/_card_contract.py"
+PATH = "python/holder/src/holder/_workspace_contract.py"
 OPERATIONS = ("list_cards", "get_card", "update_card")
 
 SCALARS = {"string": "str", "int32": "int", "int64": "int", "float64": "float", "bool": "bool"}
@@ -47,7 +47,7 @@ def docstring(text: str, indent: str) -> list[str]:
     return [*lines, f'{indent}"""']
 
 
-def generate_python_cards(ir: ContractView) -> str:
+def generate_python_workspace(ir: ContractView) -> str:
     operations = [ir.operation(name) for name in OPERATIONS]
     lines = [
         '"""Generated from the Holder contract. Run make -C contract update."""',
@@ -55,10 +55,10 @@ def generate_python_cards(ir: ContractView) -> str:
         "from typing import Generic, Literal, NotRequired, Protocol, TypedDict, TypeVar",
         "",
     ]
-    for name in ("ProjectId", "CardId", "Tag"):
+    for name in ("ProjectId", "ProjectName", "GitRemoteUrl", "PrivacyMode", "CardId", "Tag"):
         lines.append(f"{name} = {annotation(ir.alias(name))}")
     lines.extend(["", 'T = TypeVar("T")'])
-    for name in ("CardMetadata", "TagOccurrence", "CardListItem", "Card", "CardUpdate", "Page"):
+    for name in ("CardMetadata", "TagOccurrence", "CardListItem", "Card", "CardUpdate", "Page", "Project"):
         record = ir.record(name)
         bases = [record.base or "TypedDict"]
         if record.type_parameters:
