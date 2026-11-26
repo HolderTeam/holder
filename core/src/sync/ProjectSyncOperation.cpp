@@ -1,6 +1,7 @@
 #include "sync/ProjectSyncOperation.h"
 
 #include "card/CardStore.h"
+#include "git/RepoLocks.h"
 #include "git/RepoSyncMetrics.h"
 #include "privacy/ProjectPrivacy.h"
 #include "project/ProjectRepo.h"
@@ -9,6 +10,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <mutex>
 #include <stdexcept>
 
 namespace holder::sync {
@@ -102,12 +104,26 @@ ProjectSyncResult run_project_sync(
   const auto initial = projects.get(project_id);
   if (!initial.has_value()) throw std::runtime_error("project not found: " + project_id);
 
-  auto operation = git.lock_operation(initial->root_path);
-  const auto current = projects.get(project_id);
-  if (!current.has_value()) throw std::runtime_error("project not found: " + project_id);
-  if (current->root_path != initial->root_path) {
-    throw std::runtime_error("project root changed while waiting for sync: " + project_id);
-  }
+  // The project's lock is held only while this sync changes the repository or reads it for a
+  // decision, never across the network: fetch and push run under the adapter's own lock, so
+  // the user's saves to this project don't wait for the connection. Each locked step first
+  // checks the project is still where the sync found it.
+  const auto root = initial->root_path;
+  // Two syncs of this project never overlap: their fetches would race on refs/remotes.
+  const auto sync_mutex = holder::git::sync_mutex_for(root);
+  const std::lock_guard<std::mutex> one_sync_at_a_time(*sync_mutex);
+  const auto locked = [&](const auto& step) {
+    auto operation = git.lock_operation(root);
+    const auto now_project = projects.get(project_id);
+    if (!now_project.has_value()) throw std::runtime_error("project not found: " + project_id);
+    if (now_project->root_path != root) {
+      throw std::runtime_error("project root changed while waiting for sync: " + project_id);
+    }
+    return step();
+  };
+  const auto current = locked([&] {
+    return projects.get(project_id);
+  });
 
   const auto& project = *current;
   holder::project::ProjectSyncRepo sync(db);
@@ -158,59 +174,80 @@ ProjectSyncResult run_project_sync(
       );
     };
     try {
-      git.open_or_init(project.root_path);
-      git.set_remote("origin", *project.git_remote_url);
-      try {
-        git.pull_remote_ff_only("origin");
-      } catch (const holder::git::NonFastForwardPullError& diverged) {
+      locked([&] {
+        git.open_or_init(project.root_path);
+        git.set_remote("origin", *project.git_remote_url);
+      });
+      {
+        // Network: objects and refs/remotes only, so cards can be saved meanwhile.
+        const auto adapter = git.lock_adapter();
+        git.fetch_remote("origin");
+      }
+      locked([&] {
+        // A card saved during the fetch leaves the branch ahead of what was fetched: that is
+        // "local already ahead" or, if the remote moved too, the diverged merge below. Either
+        // way the saved commit is kept.
+        try {
+          git.pull_fetched_ff_only("origin");
+        } catch (const holder::git::NonFastForwardPullError& diverged) {
+          allow_push_after_pull_failure = false;
+          resolve_pull_conflicts(
+              db,
+              fts,
+              project,
+              git,
+              diverged,
+              request.now,
+              &result.pull.conflicts_resolved,
+              &result.pull.changes
+          );
+        }
+        // A failed rebuild or recovery completion needs attention before we can
+        // report a push or replace the recorded pull error.
         allow_push_after_pull_failure = false;
-        resolve_pull_conflicts(
-            db,
-            fts,
-            project,
-            git,
-            diverged,
+        reconcile_index_after_pull(db, fts, project);
+        complete_recovery_manifest(db, git, project, request.now);
+        result.pull.hidden_cards_repaired =
+            repair_hierarchy_after_pull(db, fts, project, request.now);
+        result.pull.changes.hidden_cards_repaired = result.pull.hidden_cards_repaired;
+        result.pull.status = PullPhaseStatus::Succeeded;
+        sync.record_pull_result(
+            project_id,
+            pull_phase_status_name(result.pull.status),
+            true,
+            std::nullopt,
             request.now,
-            &result.pull.conflicts_resolved,
             &result.pull.changes
         );
-      }
-      // A failed rebuild or recovery completion needs attention before we can
-      // report a push or replace the recorded pull error.
-      allow_push_after_pull_failure = false;
-      reconcile_index_after_pull(db, fts, project);
-      complete_recovery_manifest(db, git, project, request.now);
-      result.pull.hidden_cards_repaired =
-          repair_hierarchy_after_pull(db, fts, project, request.now);
-      result.pull.changes.hidden_cards_repaired = result.pull.hidden_cards_repaired;
-      result.pull.status = PullPhaseStatus::Succeeded;
-      sync.record_pull_result(
-          project_id,
-          pull_phase_status_name(result.pull.status),
-          true,
-          std::nullopt,
-          request.now,
-          &result.pull.changes
-      );
+      });
     } catch (const holder::git::PullBlockedByLocalChanges& ex) {
       allow_push_after_pull_failure = false;
       record_pull_failure(ex);
     } catch (const std::exception& ex) {
       record_pull_failure(ex);
     }
-    refresh_activity_best_effort(db, project, request.now);
+    locked([&] {
+      refresh_activity_best_effort(db, project, request.now);
+    });
   }
 
   if (request.push && (!request.pull || result.pull.status == PullPhaseStatus::Succeeded ||
                        allow_push_after_pull_failure)) {
     result.push.attempted = true;
     try {
-      git.open_or_init(project.root_path);
-      git.set_remote("origin", *project.git_remote_url);
-      if (project.privacy_mode == "encrypted_git") {
-        holder::privacy::assert_encryption_push_safe(project.root_path);
-      }
-      const auto push = git.push_branch("origin", request.branch, request.set_upstream);
+      locked([&] {
+        git.open_or_init(project.root_path);
+        git.set_remote("origin", *project.git_remote_url);
+        if (project.privacy_mode == "encrypted_git") {
+          holder::privacy::assert_encryption_push_safe(project.root_path);
+        }
+      });
+      // Network: sends the branch as it is when the push starts. A card saved meanwhile is a
+      // later commit, which the next sync pushes.
+      const auto push = [&] {
+        const auto adapter = git.lock_adapter();
+        return git.push_branch("origin", request.branch, request.set_upstream);
+      }();
       result.push.status = push.status;
       result.push.ahead_count = push.ahead_count;
       result.push.behind_count = push.behind_count;
@@ -234,7 +271,9 @@ ProjectSyncResult run_project_sync(
           request.now
       );
     }
-    refresh_activity_best_effort(db, project, request.now);
+    locked([&] {
+      refresh_activity_best_effort(db, project, request.now);
+    });
   }
 
   return result;

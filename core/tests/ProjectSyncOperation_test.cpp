@@ -20,11 +20,14 @@
 #include "project/ProjectSyncRepo.h"
 #include "project/Rebuilder.h"
 
+#include <git2.h>
 #include <sqlite3.h>
 
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <iterator>
 #include <stdexcept>
 #include <string>
@@ -881,4 +884,263 @@ TEST_CASE(
   CHECK(
       holder::project::ProjectSyncRepo(local_db).get("proj-1")->last_pull_changes->pulled_at == 400
   );
+}
+
+namespace {
+
+// The real adapter, except that one network call (fetch or push) stops until the test lets it
+// go, as a slow connection would. Every other call goes straight through.
+class StallingGitOps final : public holder::git::GitOps {
+ public:
+  explicit StallingGitOps(std::string stall_in)
+      : stall_in_(std::move(stall_in)) {}
+
+  std::promise<void> entered;
+  std::promise<void> release;
+
+  void open_or_init(const std::filesystem::path& path) override { inner_.open_or_init(path); }
+  void write_file(const std::filesystem::path& path, const std::string& content) override {
+    inner_.write_file(path, content);
+  }
+  void stage_path(const std::filesystem::path& path) override { inner_.stage_path(path); }
+  void remove_path(const std::filesystem::path& path) override { inner_.remove_path(path); }
+  void commit(const std::string& message) override { inner_.commit(message); }
+  void set_remote(const std::string& name, const std::string& url) override {
+    inner_.set_remote(name, url);
+  }
+  void remove_remote(const std::string& name) override { inner_.remove_remote(name); }
+  // Stalls here too, so the test also holds a sync that fetches as part of a whole pull.
+  void pull_remote_ff_only(const std::string& name) override {
+    stall("fetch");
+    inner_.pull_remote_ff_only(name);
+  }
+  void fetch_remote(const std::string& name) override {
+    stall("fetch");
+    inner_.fetch_remote(name);
+  }
+  void pull_fetched_ff_only(const std::string& name) override { inner_.pull_fetched_ff_only(name); }
+  holder::git::RemoteProbeResult probe_remote(const std::string& name) override {
+    return inner_.probe_remote(name);
+  }
+  holder::git::PushResult push_branch(const std::string& name, const std::string& branch, bool up)
+      override {
+    stall("push");
+    return inner_.push_branch(name, branch, up);
+  }
+  holder::git::GitRepo::DivergedMergeResult merge_remote_taking_theirs_for_conflicts(
+      const std::string& name,
+      const std::string& local,
+      const std::string& remote
+  ) override {
+    return inner_.merge_remote_taking_theirs_for_conflicts(name, local, remote);
+  }
+  std::optional<std::string> read_blob_at(const std::string& oid, const std::filesystem::path& path)
+      override {
+    return inner_.read_blob_at(oid, path);
+  }
+  std::filesystem::path repo_dir() const override { return inner_.repo_dir(); }
+
+ private:
+  void stall(const std::string& where) {
+    if (where != stall_in_) return;
+    entered.set_value();
+    release.get_future().wait();
+  }
+
+  std::string stall_in_;
+  holder::git::RealGitOps inner_;
+};
+
+void init_bare_hub(const std::filesystem::path& path) {
+  git_libgit2_init();
+  git_repository* repo = nullptr;
+  git_repository_init_options opts{};
+  REQUIRE(git_repository_init_options_init(&opts, GIT_REPOSITORY_INIT_OPTIONS_VERSION) == 0);
+  opts.flags = GIT_REPOSITORY_INIT_BARE | GIT_REPOSITORY_INIT_MKPATH;
+  REQUIRE(git_repository_init_ext(&repo, path.string().c_str(), &opts) == 0);
+  git_repository_free(repo);
+  git_libgit2_shutdown();
+}
+
+holder::model::Card titled(const std::string& card_id, const std::string& title) {
+  holder::model::Card card;
+  card.card_id = card_id;
+  card.project_id = "proj-1";
+  card.title = title;
+  return card;
+}
+
+// One device: its project's repository and database, and a second connection with its own
+// adapter to save cards on, as another lane of the same app would.
+struct Device {
+  Device(
+      const std::filesystem::path& dir,
+      const std::string& name,
+      const std::filesystem::path& hub
+  )
+      : root(dir / name),
+        db(holder::test::open_db_with_schema(dir / (name + ".db"))),
+        fts(db) {
+    create_project(db, "proj-1", root, hub.string());
+    other_db.open(dir / (name + ".db"));
+  }
+
+  void save(const holder::model::Card& card, const std::string& body) {
+    holder::card::CardStore(other_db, nullptr, nullptr, &card_git).create(card, body);
+  }
+
+  holder::sync::ProjectSyncResult sync(
+      holder::git::GitOps& git,
+      bool pull,
+      bool push,
+      long long now
+  ) {
+    return holder::sync::run_project_sync(
+        db,
+        &fts,
+        git,
+        "proj-1",
+        {.pull = pull,
+         .push = push,
+         .push_after_failed_pull = false,
+         .branch = "",
+         .set_upstream = true,
+         .now = now}
+    );
+  }
+
+  bool has_card_file(const std::string& card_id) const {
+    return std::filesystem::exists(root / holder::core::card_rel_path(card_id));
+  }
+
+  std::filesystem::path root;
+  holder::platform::Db db;
+  holder::index::FtsIndexer fts;
+  holder::platform::Db other_db;
+  holder::git::RealGitOps card_git;
+};
+
+// How long a save may take while the sync is held in its network call. A save that has to wait
+// for the sync's lock takes as long as the stall, which the test ends only afterwards.
+constexpr auto kPrompt = std::chrono::seconds(5);
+
+const std::string kFirst = "11111111-1111-4111-8111-111111111111";
+const std::string kFromOther = "22222222-2222-4222-8222-222222222222";
+const std::string kDuringSync = "33333333-3333-4333-8333-333333333333";
+
+} // namespace
+
+TEST_CASE(
+    "A card saved while a sync fetches is not held up, and is kept",
+    "[sync][operation][lock]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  const auto hub = dir / "hub.git";
+  init_bare_hub(hub);
+  Device phone(dir, "phone", hub);
+  Device other(dir, "other", hub);
+  holder::git::RealGitOps phone_git;
+  holder::git::RealGitOps other_git;
+
+  phone.save(titled(kFirst, "First"), "first");
+  REQUIRE(phone.sync(phone_git, false, true, 100).succeeded());
+  REQUIRE(other.sync(other_git, true, false, 110).succeeded());
+  other.save(titled(kFromOther, "From the other device"), "other");
+  REQUIRE(other.sync(other_git, false, true, 120).succeeded());
+
+  StallingGitOps stalling("fetch");
+  auto syncing = std::async(std::launch::async, [&] {
+    return phone.sync(stalling, true, true, 200);
+  });
+  REQUIRE(
+      stalling.entered.get_future().wait_for(std::chrono::seconds(10)) == std::future_status::ready
+  );
+  auto saving = std::async(std::launch::async, [&] {
+    phone.save(titled(kDuringSync, "Saved during sync"), "mid");
+  });
+  const bool prompt = saving.wait_for(kPrompt) == std::future_status::ready;
+  stalling.release.set_value();
+  saving.get();
+  const auto result = syncing.get();
+
+  CHECK(prompt);
+  REQUIRE(result.succeeded());
+  // The branch moved during the fetch and the remote moved too: the diverged merge keeps both.
+  CHECK(phone.has_card_file(kFromOther));
+  CHECK(phone.has_card_file(kDuringSync));
+  REQUIRE(other.sync(other_git, true, false, 300).succeeded());
+  CHECK(other.has_card_file(kDuringSync));
+}
+
+TEST_CASE(
+    "A card saved while a sync pushes is not held up, and goes in the next push",
+    "[sync][operation][lock]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  const auto hub = dir / "hub.git";
+  init_bare_hub(hub);
+  Device phone(dir, "phone", hub);
+  Device other(dir, "other", hub);
+  holder::git::RealGitOps other_git;
+
+  phone.save(titled(kFirst, "First"), "first");
+  StallingGitOps stalling("push");
+  auto syncing = std::async(std::launch::async, [&] {
+    return phone.sync(stalling, false, true, 100);
+  });
+  REQUIRE(
+      stalling.entered.get_future().wait_for(std::chrono::seconds(10)) == std::future_status::ready
+  );
+  auto saving = std::async(std::launch::async, [&] {
+    phone.save(titled(kDuringSync, "Saved during sync"), "mid");
+  });
+  const bool prompt = saving.wait_for(kPrompt) == std::future_status::ready;
+  stalling.release.set_value();
+  saving.get();
+  const auto result = syncing.get();
+
+  CHECK(prompt);
+  REQUIRE(result.succeeded());
+  holder::git::RealGitOps phone_git;
+  REQUIRE(phone.sync(phone_git, true, true, 200).succeeded());
+  REQUIRE(other.sync(other_git, true, false, 300).succeeded());
+  CHECK(other.has_card_file(kFirst));
+  CHECK(other.has_card_file(kDuringSync));
+}
+
+TEST_CASE("Two syncs of one project take turns, network included", "[sync][operation][lock]") {
+  const auto dir = holder::test::make_temp_dir();
+  const auto hub = dir / "hub.git";
+  init_bare_hub(hub);
+  Device phone(dir, "phone", hub);
+  holder::git::RealGitOps phone_git;
+  phone.save(titled(kFirst, "First"), "first");
+  REQUIRE(phone.sync(phone_git, false, true, 50).succeeded());
+
+  StallingGitOps first("fetch");
+  StallingGitOps second("fetch");
+  auto second_entered = second.entered.get_future();
+  auto first_sync = std::async(std::launch::async, [&] {
+    return phone.sync(first, true, true, 100);
+  });
+  const bool first_entered = first.entered.get_future().wait_for(std::chrono::seconds(10)) ==
+                             std::future_status::ready;
+  auto second_sync = std::async(std::launch::async, [&] {
+    return phone.sync(second, true, true, 110);
+  });
+  // Their fetches would race on refs/remotes, so the second waits for the whole first sync.
+  const bool second_waited = second_entered.wait_for(std::chrono::milliseconds(500)) ==
+                             std::future_status::timeout;
+  first.release.set_value();
+  const auto first_result = first_sync.get();
+  const bool second_ran = second_entered.wait_for(std::chrono::seconds(10)) ==
+                          std::future_status::ready;
+  second.release.set_value();
+  const auto second_result = second_sync.get();
+
+  CHECK(first_entered);
+  CHECK(second_waited);
+  CHECK(second_ran);
+  CHECK(first_result.succeeded());
+  CHECK(second_result.succeeded());
 }

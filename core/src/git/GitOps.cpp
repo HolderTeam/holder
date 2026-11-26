@@ -41,6 +41,10 @@ void RealGitOps::remove_remote(const std::string& name) { repo_.remove_remote(na
 void RealGitOps::pull_remote_ff_only(const std::string& name) { repo_.pull_remote_ff_only(name); }
 // LCOV_EXCL_STOP
 
+void RealGitOps::fetch_remote(const std::string& name) { repo_.fetch_remote(name); }
+
+void RealGitOps::pull_fetched_ff_only(const std::string& name) { repo_.pull_fetched_ff_only(name); }
+
 RemoteProbeResult RealGitOps::probe_remote(const std::string& name) {
   return repo_.probe_remote(name);
 }

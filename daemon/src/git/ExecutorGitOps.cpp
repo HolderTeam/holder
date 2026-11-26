@@ -57,6 +57,18 @@ void ExecutorGitOps::pull_remote_ff_only(const std::string& name) {
   });
 }
 
+void ExecutorGitOps::fetch_remote(const std::string& name) {
+  executor_.call([&]() {
+    inner_.fetch_remote(name);
+  });
+}
+
+void ExecutorGitOps::pull_fetched_ff_only(const std::string& name) {
+  executor_.call([&]() {
+    inner_.pull_fetched_ff_only(name);
+  });
+}
+
 RemoteProbeResult ExecutorGitOps::probe_remote(const std::string& name) {
   return executor_.call([&]() {
     return inner_.probe_remote(name);
