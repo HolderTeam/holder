@@ -25,6 +25,17 @@ private fun card(
 
 class CardSequenceTest {
     @Test
+    fun lastModifiedFirstOrdersTheWholeProjectByEditTimeWhateverItsSortKeys() {
+        val cards = listOf(
+            card("old-root", updatedAt = 10, sortKey = 1.0),
+            card("new-child", parentCardId = "old-root", updatedAt = 30, sortKey = 9.0),
+            card("tie-b", updatedAt = 20, sortKey = 2.0),
+            card("tie-a", updatedAt = 20, sortKey = 3.0),
+        )
+        assertEquals(listOf("new-child", "tie-a", "tie-b", "old-root"), lastModifiedFirst(cards).map { it.cardId })
+    }
+
+    @Test
     fun cardDeck_isTheCardsSiblingsInSortKeyOrderIncludingItself() {
         val first = card("first", parentCardId = "parent", sortKey = 0.0)
         val middle = card("middle", parentCardId = "parent", sortKey = 1.0)
