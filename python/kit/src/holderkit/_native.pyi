@@ -2,7 +2,8 @@ from typing import Any
 
 CARD_PAGE_MAX_LIMIT: int
 
-class HolderError(RuntimeError): ...
+class HolderError(RuntimeError):
+    native_status: int
 
 class Context:
     def __init__(self, data_dir: str, schema_sql: str) -> None: ...
@@ -59,7 +60,13 @@ class Context:
     def list_cards_page(
         self, project_id: str, *, parent_card_id: str | None = None, roots: bool = False,
         tag: str | None = None, order: str = "card_id", limit: int = 256,
-        cursor: str | None = None, include_content: bool = False,
+        cursor: str | None = None, include_content: bool = False, include_child_count: bool = False,
+    ) -> dict[str, Any]: ...
+    def get_live_card(self, project_id: str, card_id: str, /) -> dict[str, Any]: ...
+    def patch_card(
+        self, project_id: str, card_id: str, *,
+        title: str = ..., content: str = ..., parent_card_id: str | None = ...,
+        sort_key: float = ..., updated_at: int = ...,
     ) -> dict[str, Any]: ...
     def get_card_content(self, project_id: str, card_id: str) -> str: ...
     def update_card(

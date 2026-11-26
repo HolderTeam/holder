@@ -9,6 +9,7 @@ from typing import Any, Self
 
 import httpx
 
+from .cards import CardOperations, _DaemonCards
 from .changes import Changes
 from .exceptions import (
     APIError,
@@ -50,6 +51,7 @@ class Holder:
         self._transport = transport
         self._client: AuthenticatedClient | None = None
         self._closed = False
+        self.card_operations: CardOperations = _DaemonCards(self)
         self.projects = ProjectCollection(self)
         self.changes = Changes(self)
         self.intelligence = HolderIntelligence(self)

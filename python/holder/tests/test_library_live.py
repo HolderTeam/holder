@@ -14,17 +14,17 @@ from pathlib import Path
 import httpx
 import pytest
 
-from holder import Holder, MilestoneDate
-from holder.exceptions import APIError, NotFoundError
+from holder import Holder, MilestoneDate, open_workspace
+from holder.cards import Card, CardListItem
+from holder.exceptions import APIError, ClosedError, NotFoundError
 
 DAEMON = os.environ.get("HOLDER_TEST_DAEMON")
-pytestmark = pytest.mark.skipif(
-    not DAEMON, reason="Set HOLDER_TEST_DAEMON for live integration"
-)
 
 
 @pytest.fixture
 def daemon(tmp_path, monkeypatch):
+    if not DAEMON:
+        pytest.skip("Set HOLDER_TEST_DAEMON for live integration")
     binary = Path(DAEMON).resolve()
     for variable, directory in (
         ("XDG_DATA_HOME", "data"),
@@ -497,3 +497,70 @@ def test_project_scoped_collections_against_daemon(daemon):
     # Exercise the zero-argument discovery path against the same isolated env.
     with Holder(holderctl=str(cli)) as h:
         assert h.projects.get(project_id).name == "Collection integration"
+
+
+@pytest.mark.parametrize("backend", ["daemon", "embedded"])
+def test_shared_card_operations(backend, request, tmp_path):
+    if backend == "daemon":
+        url, token, raw, _ = request.getfixturevalue("daemon")
+        project_id = create_project(raw, "Shared Card API")
+        parent_id = create_card(raw, project_id, 1)
+        child_id = create_card(raw, project_id, 2, parent_id)
+        session = Holder(url=url, token=token)
+    else:
+        kit = pytest.importorskip("holderkit")
+        data_dir = tmp_path / "workspace"
+        data_dir.mkdir()
+        with kit.open(data_dir) as setup:
+            project_id = setup.create_project("Shared Card API").project_id
+            parent_id = setup.create_card(project_id, "Card 1", "body 1\n#research").card_id
+            child_id = setup.create_card(
+                project_id, "Card 2", "body 2\n#research", parent_card_id=parent_id
+            ).card_id
+        session = open_workspace(data_dir)
+
+    with session as active:
+        cards = active.card_operations
+        roots = cards.list_cards(project_id, parent="roots", include_child_count=True)
+        assert roots["next_cursor"] is None
+        assert [item["card_id"] for item in roots["items"]] == [parent_id]
+        assert roots["items"][0]["child_count"] == 1
+        assert roots["items"][0].keys() == CardListItem.__required_keys__ | {"child_count"}
+
+        parent_page = cards.list_cards(project_id, limit=1, include_content=True)
+        assert len(parent_page["items"]) == 1
+        assert "content" in parent_page["items"][0]
+        cursor = parent_page["next_cursor"]
+        assert cursor is not None
+        next_page = cards.list_cards(project_id, limit=1, include_content=True, cursor=cursor)
+        assert next_page["next_cursor"] is None
+        assert {item["card_id"] for item in parent_page["items"] + next_page["items"]} == {
+            parent_id,
+            child_id,
+        }
+
+        child = cards.get_card(project_id, child_id)
+        assert child.keys() == Card.__required_keys__
+        assert child["parent_card_id"] == parent_id
+        assert child["tags"] == ["research"]
+        assert child["tag_occurrences"][0]["tag"] == "research"
+        assert child["removable_tags"] == ["research"]
+        assert cards.update_card(project_id, child_id, {}) == child
+        edited = cards.update_card(project_id, child_id, {"title": "Edited"})
+        assert edited["parent_card_id"] == parent_id
+        assert edited["content"] == child["content"]
+        detached = cards.update_card(project_id, child_id, {"parent_card_id": None})
+        assert detached["parent_card_id"] is None
+        assert detached["title"] == "Edited"
+        assert cards.get_card(project_id, child_id) == detached
+
+        with pytest.raises(NotFoundError) as error:
+            cards.get_card(project_id, "missing")
+        assert (error.value.status, error.value.code) == (404, "not_found")
+
+        with pytest.raises(APIError) as error:
+            cards.update_card(project_id, child_id, {"parent_card_id": child_id})
+        assert (error.value.status, error.value.code) == (422, "invalid_move")
+
+    with pytest.raises(ClosedError):
+        cards.get_card(project_id, child_id)

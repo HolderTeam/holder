@@ -98,6 +98,33 @@ Use `project.cards.resolve("Roadmap")` to open a live card by exact title or
 unambiguous ID prefix; `project.cards.lookup(...)` also reports ambiguous and
 Trash matches. See [reference lookup](docs/scripting.md#find-a-card-by-name-or-partial-id).
 
+## Shared Card operations
+
+The contract-based Card API provides detached records and the same three
+operations for a running Holder installation or a private embedded workspace.
+Pass a project ID and a card ID from the workspace you open:
+
+```python
+from holder import Holder
+from holder.cards import CardOperations
+
+
+def retitle(cards: CardOperations, project_id: str, card_id: str) -> None:
+    cards.update_card(project_id, card_id, {"title": "A better title"})
+    print(cards.get_card(project_id, card_id)["title"])
+
+
+with Holder() as session:
+    retitle(session.card_operations, project_id, card_id)
+```
+
+With a same-checkout Holder Kit build installed, open an existing private
+workspace using `with holder.open_workspace(data_dir) as session:` and pass
+`session.card_operations` to the same function. Use a separate data directory for embedded
+work. `list_cards` returns one page at a time. Pass its `next_cursor` with the
+same filters to fetch the next page. For updates, omit fields to keep their
+values and set `parent_card_id` to `None` to move a card to the root.
+
 ## More help
 
 - [More scripting tasks](docs/scripting.md): links, milestones, project-wide

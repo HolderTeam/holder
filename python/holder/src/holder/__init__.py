@@ -1,5 +1,6 @@
 """Holder Python Library - control your knowledge using Python."""
 
+from .cards import EmbeddedUnavailableError, open_workspace
 from .changes import ChangeCheckpoint, ChangeReady, EntityChange, ResyncRequired
 from .client import Holder
 from .intelligence_events import IntelligenceEvent, PullEventStream, RunStream
@@ -75,6 +76,7 @@ __all__ = [
     "ChangeCheckpoint",
     "ChangeReady",
     "DiffLine",
+    "EmbeddedUnavailableError",
     "EncryptionCheck",
     "EntityChange",
     "HierarchyRepair",
@@ -113,4 +115,5 @@ __all__ = [
     "Tag",
     "Thread",
     "TrashItem",
+    "open_workspace",
 ]

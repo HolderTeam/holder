@@ -23,6 +23,7 @@ on:
       - 'api/openapi.yaml'
       - 'api/openapi.json'
       - 'api/openapi-base.json'
+      - 'python/holder/src/holder/_card_contract.py'
       - '.github/workflows/contract-check.yml'
   workflow_dispatch:
 
@@ -54,7 +55,7 @@ jobs:
           printf '%s\n' "$changed"
           # Select every generated output as well as its sources: a handwritten change to an
           # output must run the freshness check. tests/test_ci_paths.py verifies this inventory.
-          if grep -qE '^(contract/|core/include/holder/holder_api\.h$|core/src/api/(Contract\.h|ContractCApi\.cpp|HostCApi\.cpp)$|daemon/src/api/generated/|apps/mobile/android/app/src/main/(java/team/holder/android/contract/|cpp/generated/)|api/openapi\.(yaml|json)$|api/openapi-base\.json$|\.github/workflows/contract-check\.yml$)' <<< "$changed"; then
+          if grep -qE '^(contract/|core/include/holder/holder_api\.h$|core/src/api/(Contract\.h|ContractCApi\.cpp|HostCApi\.cpp)$|daemon/src/api/generated/|apps/mobile/android/app/src/main/(java/team/holder/android/contract/|cpp/generated/)|api/openapi\.(yaml|json)$|api/openapi-base\.json$|python/holder/src/holder/_card_contract\.py$|\.github/workflows/contract-check\.yml$)' <<< "$changed"; then
             echo "contract=true" >> "$GITHUB_OUTPUT"
           else
             echo "contract=false" >> "$GITHUB_OUTPUT"

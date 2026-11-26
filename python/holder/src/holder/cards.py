@@ -1,0 +1,203 @@
+"""Shared, project-scoped Card operations for live and embedded sessions."""
+
+from __future__ import annotations
+
+from os import PathLike
+from typing import TYPE_CHECKING, Literal, Self, TypedDict, cast
+
+from ._card_contract import (
+    NATIVE_ERRORS,
+    Card,
+    CardListItem,
+    CardOperations,
+    CardUpdate,
+    Page,
+)
+from .exceptions import APIError, ClosedError, HolderError, NotFoundError
+from .generated.api.default import (
+    get_projects_project_id_cards,
+    get_projects_project_id_cards_card_id,
+    patch_projects_project_id_cards_card_id,
+)
+from .generated.models import CardUpdate as HTTPCardUpdate
+from .generated.models import GetProjectsProjectIdCardsOrder
+
+if TYPE_CHECKING:
+    from holderkit import Context
+
+    from .client import Holder
+
+__all__ = [
+    "Card",
+    "CardListItem",
+    "CardOperations",
+    "CardUpdate",
+    "EmbeddedUnavailableError",
+    "Page",
+    "open_workspace",
+]
+
+
+class EmbeddedUnavailableError(HolderError):
+    """This installation cannot open an embedded Holder workspace."""
+
+
+class _DaemonCards:
+    def __init__(self, holder: Holder) -> None:
+        self._holder = holder
+
+    def list_cards(
+        self,
+        project_id: str,
+        *,
+        parent: str | None = None,
+        tag: str | None = None,
+        order: Literal["card_id_asc", "updated_desc", "sort_key_asc"] = "card_id_asc",
+        limit: int = 200,
+        cursor: str | None = None,
+        include_content: bool = False,
+        include_child_count: bool = False,
+    ) -> Page[CardListItem]:
+        result = self._holder._call(
+            get_projects_project_id_cards,
+            project_id,
+            parent=parent,
+            tag=tag,
+            order=GetProjectsProjectIdCardsOrder(order),
+            limit=limit,
+            cursor=cursor,
+            include_content=include_content,
+            include_child_count=include_child_count,
+        )
+        return cast("Page[CardListItem]", result.to_dict())
+
+    def get_card(self, project_id: str, card_id: str) -> Card:
+        result = self._holder._call(
+            get_projects_project_id_cards_card_id, project_id, card_id
+        )
+        return cast("Card", result.to_dict())
+
+    def update_card(self, project_id: str, card_id: str, update: CardUpdate) -> Card:
+        result = self._holder._call(
+            patch_projects_project_id_cards_card_id,
+            project_id,
+            card_id,
+            body=HTTPCardUpdate(**update),
+            write=True,
+        )
+        return cast("Card", result.to_dict())
+
+
+class EmbeddedWorkspace:
+    """A session in an explicitly selected, private Holder data directory."""
+
+    def __init__(self, data_dir: str | PathLike[str]) -> None:
+        self._data_dir = data_dir
+        self._context: Context | None = None
+        self._closed = False
+        self.card_operations: CardOperations = _EmbeddedCards(self)
+
+    def __enter__(self) -> Self:
+        if self._closed or self._context is not None:
+            raise ClosedError("Embedded workspace contexts cannot be reused")
+
+        try:
+            from holderkit import _native
+            from holderkit import open as open_kit
+        except ImportError as error:
+            raise EmbeddedUnavailableError(
+                "Embedded Holder support is unavailable. Install a compatible "
+                "Holder Kit build or connect to a Holder daemon."
+            ) from error
+
+        if not hasattr(_native.Context, "patch_card"):
+            raise EmbeddedUnavailableError(
+                "This Holder Kit build is too old for the shared Card API."
+            )
+
+        self._context = open_kit(self._data_dir)
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self._closed = True
+        if self._context is not None:
+            self._context.close()
+
+    def _call(self, method: str, *args: object, **kwargs: object) -> object:
+        if self._closed or self._context is None:
+            raise ClosedError("Use the workspace inside with open_workspace(...)")
+        # Kit owns the context lifetime. Its native calls return detached records.
+        from holderkit import HolderError as KitError
+
+        try:
+            return getattr(self._context._context, method)(*args, **kwargs)
+        except (KitError, ValueError) as error:
+            native_status = getattr(error, "native_status", None)
+            if native_status is None:
+                raise
+            status, code = NATIVE_ERRORS.get(
+                native_status,
+                (400, "invalid_argument")
+                if native_status == 4000
+                else (500, "internal_error"),
+            )
+            error_type = NotFoundError if status == 404 else APIError
+            raise error_type(status, code, str(error)) from error
+
+
+class _NativeCardPage(TypedDict):
+    cards: list[CardListItem]
+    next_cursor: str | None
+
+
+class _EmbeddedCards:
+    def __init__(self, workspace: EmbeddedWorkspace) -> None:
+        self._workspace = workspace
+
+    def list_cards(
+        self,
+        project_id: str,
+        *,
+        parent: str | None = None,
+        tag: str | None = None,
+        order: Literal["card_id_asc", "updated_desc", "sort_key_asc"] = "card_id_asc",
+        limit: int = 200,
+        cursor: str | None = None,
+        include_content: bool = False,
+        include_child_count: bool = False,
+    ) -> Page[CardListItem]:
+        native_order = {
+            "card_id_asc": "card_id",
+            "updated_desc": "updated",
+            "sort_key_asc": "sort_key",
+        }
+        result = cast(
+            _NativeCardPage,
+            self._workspace._call(
+                "list_cards_page",
+                project_id,
+                parent_card_id=None if parent == "roots" else parent,
+                roots=parent == "roots",
+                tag=tag,
+                order=native_order[order],
+                limit=limit,
+                cursor=cursor,
+                include_content=include_content,
+                include_child_count=include_child_count,
+            ),
+        )
+        return {"items": result["cards"], "next_cursor": result["next_cursor"]}
+
+    def get_card(self, project_id: str, card_id: str) -> Card:
+        return cast("Card", self._workspace._call("get_live_card", project_id, card_id))
+
+    def update_card(self, project_id: str, card_id: str, update: CardUpdate) -> Card:
+        return cast(
+            "Card", self._workspace._call("patch_card", project_id, card_id, **update)
+        )
+
+
+def open_workspace(data_dir: str | PathLike[str]) -> EmbeddedWorkspace:
+    """Open a private data directory in-process. Use as a context manager."""
+
+    return EmbeddedWorkspace(data_dir)

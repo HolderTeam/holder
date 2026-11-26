@@ -267,7 +267,7 @@ def test_generated_routes_compile_and_answer_requests(tmp_path):
     assert result.stdout == (TESTS / "http" / "exercise.expected").read_text(encoding="utf-8")
 
 
-def test_generate_command_writes_core_daemon_and_android_files(tmp_path):
+def test_generate_command_writes_all_targets(tmp_path):
     from compiler.__main__ import main
     from generators.android.client import generate_android_client
 
@@ -276,7 +276,7 @@ def test_generate_command_writes_core_daemon_and_android_files(tmp_path):
     assert {"Cards.kt", "Client.kt", "contract_client.cpp"} <= client
     assert sorted(p.name for p in tmp_path.iterdir()) == sorted([
         "AiJson.h", "AiRoutes.h", "DaemonTypes.h", "DaemonJson.h", "DaemonRoutes.h", "DaemonBoundaries.md", "Contract.h", "ContractCApi.cpp", "HostCApi.cpp", "ContractJson.h", "ContractRoutes.h",
-        "holder_api.h", "openapi.json", *client])
+        "holder_api.h", "openapi.json", "_card_contract.py", *client])
 
 
 def daemon_document(paths):
