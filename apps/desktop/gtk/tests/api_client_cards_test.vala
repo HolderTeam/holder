@@ -499,6 +499,17 @@ private void test_milestone_body_keeps_other_dates() {
     var start_value = new DateTime.from_iso8601(timed.get_object_element(0).get_string_member("datetime"), null);
     assert(start_value != null && ((!) start_value).to_unix() == 300);
     assert(timed.get_object_element(1).get_string_member("role") == "end");
+
+    // Without a span, only the shown date changes, in place and under its own role.
+    var unspanned = parse_json_object(
+        HolderLinux.ApiClientCardsEndpoints.milestone_body(kept, start, 400, true, null, null, "due", false)
+    ).get_array_member("dates");
+    assert(unspanned.get_length() == 4);
+    assert(unspanned.get_object_element(0).get_string_member("date") == "2026-01-01");
+    assert(unspanned.get_object_element(1).get_string_member("role") == "due");
+    assert(unspanned.get_object_element(1).get_string_member("date") == "2026-03-01");
+    assert(unspanned.get_object_element(2).get_string_member("date") == "2026-01-03");
+    assert(unspanned.get_object_element(3).get_string_member("datetime") == "2026-02-02T10:00:00Z");
 }
 
 private void test_card_history_endpoints() {

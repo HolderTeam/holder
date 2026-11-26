@@ -268,7 +268,9 @@ public class CardMoveResult : Object {
 
 // A milestone as the calendar shows it: its start, and its end if it has one. Holder's
 // milestones have any number of labelled dates; dates_json keeps them all, as the API gave
-// them, so that an edit here changes only the start and end.
+// them, so that an edit here changes only the start and end. One made elsewhere (the CLI's
+// due=2026-12-01, say) can have no single start: it is shown by its earliest date whose role it
+// holds once, start_at is that date, role names it and has_span is false.
 public class Milestone : Object {
     public string milestone_id { get; construct; }
     public string project_id { get; set; default = ""; }
@@ -282,6 +284,22 @@ public class Milestone : Object {
     public int64 created_at { get; construct; }
     public int64 updated_at { get; construct; }
     public string? card_title { get; construct; }
+    // The role of the date start_at is: "start" unless the milestone has no single start.
+    public string role = "start";
+    // Whether end_at belongs to the shown date: only a start with at most one end has a span.
+    public bool has_span = true;
+
+    // Its kind, or else the role of a shown date other than its start ("Due"); null for neither.
+    public string? display_kind() {
+        if (kind != null && ((!) kind).strip().length > 0) return kind;
+        return role == "start" || role.length == 0 ? null : role_words(role);
+    }
+
+    // A date role as words: "due" is "Due", "review_by" is "Review by".
+    public static string role_words(string role) {
+        var words = role.replace("_", " ");
+        return words.length > 0 ? words.substring(0, 1).up() + words.substring(1) : "Date";
+    }
 
     public Milestone(string milestone_id,
                      string card_id,

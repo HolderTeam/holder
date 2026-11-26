@@ -296,8 +296,9 @@ private void test_parse_project_calendar_and_milestones() {
     assert(parsed.updated_cards.length == 1);
     assert(parsed.updated_cards[0].updated_at == 250);
 
-    // A day starts at its local midnight. Milestones without one start, or with two ends, are
-    // not shown.
+    // A day starts at its local midnight. A milestone with no single start is shown by its
+    // earliest date whose role it holds once (m6's due date), or not at all when every role
+    // repeats (m3, m4). With two ends it is shown by its start, with no span (m5).
     var list_root = parse_json_object(
         "{\"data\":[{\"milestone_id\":\"m2\",\"project_id\":\"p1\",\"card_id\":\"c2\"," +
         "\"dates\":[{\"role\":\"start\",\"date\":\"2026-06-01\"}],\"kind\":null," +
@@ -310,6 +311,10 @@ private void test_parse_project_calendar_and_milestones() {
         "{\"milestone_id\":\"m5\",\"project_id\":\"p1\",\"card_id\":\"c2\"," +
         "\"dates\":[{\"role\":\"start\",\"date\":\"2026-06-01\"},{\"role\":\"end\",\"date\":\"2026-06-02\"}," +
         "{\"role\":\"end\",\"date\":\"2026-06-03\"}]," +
+        "\"kind\":null,\"description\":null,\"created_at\":1,\"updated_at\":1}," +
+        "{\"milestone_id\":\"m6\",\"project_id\":\"p1\",\"card_id\":\"c2\"," +
+        "\"dates\":[{\"role\":\"start\",\"date\":\"2026-06-01\"},{\"role\":\"start\",\"date\":\"2026-06-02\"}," +
+        "{\"role\":\"review_by\",\"date\":\"2026-06-09\"},{\"role\":\"due\",\"date\":\"2026-06-05\"}]," +
         "\"kind\":null,\"description\":null,\"created_at\":1,\"updated_at\":1}]}"
     );
     Gee.ArrayList<HolderLinux.Milestone> listed;
@@ -318,12 +323,26 @@ private void test_parse_project_calendar_and_milestones() {
     } catch (Error e) {
         assert_not_reached();
     }
-    assert(listed.size == 1);
+    assert(listed.size == 3);
     assert(listed[0].milestone_id == "m2");
     assert(listed[0].all_day);
     assert(listed[0].start_at == new DateTime.local(2026, 6, 1, 0, 0, 0).to_unix());
     assert(listed[0].end_at == null);
     assert(listed[0].kind == null);
+    assert(listed[0].role == "start");
+    assert(listed[0].has_span);
+    assert(listed[0].display_kind() == null);
+    assert(listed[1].milestone_id == "m5");
+    assert(listed[1].role == "start");
+    assert(listed[1].end_at == null);
+    assert(!listed[1].has_span);
+    assert(listed[2].milestone_id == "m6");
+    assert(listed[2].role == "due");
+    assert(listed[2].start_at == new DateTime.local(2026, 6, 5, 0, 0, 0).to_unix());
+    assert(listed[2].all_day);
+    assert(!listed[2].has_span);
+    assert(listed[2].display_kind() == "Due");
+    assert(HolderLinux.Milestone.role_words("review_by") == "Review by");
 }
 
 private void test_parse_card_history_page_and_comparison() {

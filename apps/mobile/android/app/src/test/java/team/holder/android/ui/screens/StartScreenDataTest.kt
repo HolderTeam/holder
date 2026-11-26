@@ -82,6 +82,14 @@ class StartScreenDataTest {
     }
 
     @Test
+    fun attention_pastDueDateWithNoKindIsOverdueAndLabelledDue() {
+        val due = allDay("due", today.minusDays(1)).copy(role = "due", hasSpan = false, cardTitle = "Tax return")
+        val result = attentionMilestones(listOf(home to due), today, zone)
+        assertTrue(result.single().overdue)
+        assertEquals("Due: Tax return", result.single().label)
+    }
+
+    @Test
     fun attention_pastDeadlineIsOverdueButPastAppointmentIsDropped() {
         val result = attentionMilestones(
             listOf(

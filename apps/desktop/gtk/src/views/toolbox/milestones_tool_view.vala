@@ -496,7 +496,7 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         var date_columns = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 12);
         var start_column = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
         start_column.set_hexpand(true);
-        start_column.append(form_label("Start"));
+        start_column.append(form_label(MilestoneDraft.date_label(editing)));
         var start_calendar = new Gtk.Calendar();
         CalendarCompat.set_date(start_calendar, defaults.start);
         start_column.append(start_calendar);
@@ -513,6 +513,9 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         end_column.append(end_calendar);
         date_columns.append(end_column);
         content.append(date_columns);
+        // A milestone without a span has no end: its shown date is all there is to change.
+        var can_have_end = MilestoneDraft.can_have_end(editing);
+        end_column.set_visible(can_have_end);
 
         var all_day = new Gtk.Switch();
         all_day.set_active(defaults.all_day);
@@ -526,11 +529,13 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         var end_minute = spin(0, 59, defaults.end_minute);
         end_hour.set_sensitive(include_end.get_active());
         end_minute.set_sensitive(include_end.get_active());
-        time_box.append(form_label("Start time"));
+        time_box.append(form_label(MilestoneDraft.date_label(editing) + " time"));
         time_box.append(start_hour); time_box.append(new Gtk.Label(":")); time_box.append(start_minute);
-        time_box.append(new Gtk.Separator(Gtk.Orientation.VERTICAL));
-        time_box.append(form_label("End time"));
-        time_box.append(end_hour); time_box.append(new Gtk.Label(":")); time_box.append(end_minute);
+        if (can_have_end) {
+            time_box.append(new Gtk.Separator(Gtk.Orientation.VERTICAL));
+            time_box.append(form_label("End time"));
+            time_box.append(end_hour); time_box.append(new Gtk.Label(":")); time_box.append(end_minute);
+        }
         time_box.set_sensitive(!all_day.get_active());
         content.append(time_box);
         handlers.add(all_day, all_day.notify["active"].connect(() => { time_box.set_sensitive(!all_day.get_active()); }));

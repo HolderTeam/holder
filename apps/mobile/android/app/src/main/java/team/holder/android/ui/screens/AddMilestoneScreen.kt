@@ -75,6 +75,11 @@ fun AddMilestoneScreen(
     onCancel: () -> Unit,
 ) {
     val isEditing = existingMilestone != null
+    // A milestone made elsewhere can be shown by a date other than its start (a due date, say).
+    // That date is edited in place under its own name, and it has no end to add.
+    val dateLabel = existingMilestone?.takeIf { it.role != "start" }?.role
+        ?.replace('_', ' ')?.replaceFirstChar { it.uppercaseChar() } ?: "Start"
+    val canHaveEnd = existingMilestone?.hasSpan ?: true
     val startDateState = rememberDatePickerState(
         initialSelectedDateMillis = existingMilestone?.startAt?.let { epochSecondsToUtcMillis(it) }
             ?: System.currentTimeMillis(),
@@ -132,7 +137,7 @@ fun AddMilestoneScreen(
                 .padding(innerPadding)
                 .padding(16.dp),
         ) {
-            Text("Start", style = MaterialTheme.typography.labelLarge)
+            Text(dateLabel, style = MaterialTheme.typography.labelLarge)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(top = 8.dp),
@@ -155,11 +160,12 @@ fun AddMilestoneScreen(
                 Switch(checked = allDay, onCheckedChange = { allDay = it })
             }
 
-            if (!hasEnd) {
+            // hasEnd can only be true when canHaveEnd: a milestone without a span has no endAt.
+            if (canHaveEnd && !hasEnd) {
                 TextButton(onClick = { hasEnd = true }, modifier = Modifier.padding(top = 8.dp)) {
                     Text("+ Add end")
                 }
-            } else {
+            } else if (hasEnd) {
                 Text("End", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 16.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
