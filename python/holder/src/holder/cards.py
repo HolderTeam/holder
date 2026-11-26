@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from os import PathLike
+from importlib import import_module
+from importlib.resources import files
+from os import PathLike, fspath
 from typing import TYPE_CHECKING, Literal, Self, TypedDict, cast
 
 from ._card_contract import (
@@ -23,7 +25,7 @@ from .generated.models import CardUpdate as HTTPCardUpdate
 from .generated.models import GetProjectsProjectIdCardsOrder
 
 if TYPE_CHECKING:
-    from holderkit import Context
+    from holderkit._native import Context
 
     from .client import Holder
 
@@ -95,27 +97,41 @@ class EmbeddedWorkspace:
         self._data_dir = data_dir
         self._context: Context | None = None
         self._closed = False
+        self._native_error: type[RuntimeError] = RuntimeError
         self.card_operations: CardOperations = _EmbeddedCards(self)
 
     def __enter__(self) -> Self:
         if self._closed or self._context is not None:
             raise ClosedError("Embedded workspace contexts cannot be reused")
 
+        package = f"{__package__}._embedded"
         try:
-            from holderkit import _native
-            from holderkit import open as open_kit
+            native = import_module(f"{package}._native")
+        except ModuleNotFoundError as error:
+            if error.name != f"{package}._native":
+                raise
+            # A same-checkout Kit install also supports source development.
+            package = "holderkit"
+            try:
+                native = import_module("holderkit._native")
+            except ImportError as kit_error:
+                raise EmbeddedUnavailableError(
+                    "Embedded Holder support is unavailable. Install a compatible "
+                    "native wheel or connect to a Holder daemon."
+                ) from kit_error
         except ImportError as error:
             raise EmbeddedUnavailableError(
-                "Embedded Holder support is unavailable. Install a compatible "
-                "Holder Kit build or connect to a Holder daemon."
+                "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(_native.Context, "patch_card"):
+        if not hasattr(native.Context, "patch_card"):
             raise EmbeddedUnavailableError(
                 "This Holder Kit build is too old for the shared Card API."
             )
 
-        self._context = open_kit(self._data_dir)
+        schema = files(package).joinpath("_schema.sql").read_text(encoding="utf-8")
+        self._context = native.Context(fspath(self._data_dir), schema)
+        self._native_error = native.HolderError
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -126,12 +142,9 @@ class EmbeddedWorkspace:
     def _call(self, method: str, *args: object, **kwargs: object) -> object:
         if self._closed or self._context is None:
             raise ClosedError("Use the workspace inside with open_workspace(...)")
-        # Kit owns the context lifetime. Its native calls return detached records.
-        from holderkit import HolderError as KitError
-
         try:
-            return getattr(self._context._context, method)(*args, **kwargs)
-        except (KitError, ValueError) as error:
+            return getattr(self._context, method)(*args, **kwargs)
+        except (self._native_error, ValueError) as error:
             native_status = getattr(error, "native_status", None)
             if native_status is None:
                 raise

@@ -118,8 +118,9 @@ with Holder() as session:
     retitle(session.card_operations, project_id, card_id)
 ```
 
-With a same-checkout Holder Kit build installed, open an existing private
-workspace using `with holder.open_workspace(data_dir) as session:` and pass
+With a native Holder wheel or a same-checkout Holder Kit build installed,
+open an existing private workspace using
+`with holder.open_workspace(data_dir) as session:` and pass
 `session.card_operations` to the same function. Use a separate data directory for embedded
 work. `list_cards` returns one page at a time. Pass its `next_cursor` with the
 same filters to fetch the next page. For updates, omit fields to keep their
