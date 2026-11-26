@@ -7,9 +7,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.input.TextFieldLineLimits
@@ -30,39 +30,39 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import team.holder.android.editor.CardAutosaver
-import team.holder.android.editor.CardWriter
-import team.holder.android.editor.EditorRecoveryStore
-import team.holder.android.editor.EditorSnapshot
-import team.holder.android.editor.HolderCardWriter
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import team.holder.android.HolderNative
 import team.holder.android.HolderSettings
 import team.holder.android.R
 import team.holder.android.combineTitleAndBody
+import team.holder.android.editor.CardAutosaver
+import team.holder.android.editor.CardWriter
+import team.holder.android.editor.EditorRecoveryStore
+import team.holder.android.editor.EditorSnapshot
+import team.holder.android.editor.HolderCardWriter
 import team.holder.android.resource.AttachFlowConnectDialog
 import team.holder.android.resource.createCameraCaptureUri
 import team.holder.android.resource.rememberAttachFlow
@@ -70,6 +70,7 @@ import team.holder.android.splitTitleLine
 import team.holder.android.titleFromFirstLine
 import team.holder.android.ui.markdown.HolderMarkdownEditor
 import team.holder.android.ui.markdown.MarkdownFormattingToolbar
+import team.holder.android.ui.markdown.sentenceCapitals
 import team.holder.android.ui.markdown.trimTrailingWhitespaceForSave
 
 /**
@@ -129,6 +130,8 @@ fun CardEditScreen(
     val separateTitleSetting by HolderSettings.separateTitleEnabled(context).collectAsState(initial = null)
     val preserveTrailingWhitespaceSetting by HolderSettings.preserveTrailingWhitespace(context).collectAsState(initial = null)
     val trimTwoSpaceLineEndingsSetting by HolderSettings.trimTwoSpaceLineEndings(context).collectAsState(initial = null)
+    val manualCapitalization by HolderSettings.manualCapitalization(context).collectAsState(initial = false)
+    val capitalizeSentences = !manualCapitalization
     val trimWhitespaceInCodeBlocksSetting by HolderSettings.trimWhitespaceInCodeBlocks(context).collectAsState(initial = null)
     val settingsLoaded = separateTitleSetting != null && preserveTrailingWhitespaceSetting != null &&
         trimTwoSpaceLineEndingsSetting != null && trimWhitespaceInCodeBlocksSetting != null
@@ -434,18 +437,21 @@ fun CardEditScreen(
                         Text(titleFromFirstLine(separateBodyState.text.toString()).ifBlank { defaultTitle })
                     },
                     lineLimits = TextFieldLineLimits.SingleLine,
+                    keyboardOptions = sentenceCapitals(capitalizeSentences),
                     modifier = Modifier.fillMaxWidth().onFocusChanged { titleFocused = it.isFocused },
                 )
                 HolderMarkdownEditor(
                     state = separateBodyState,
                     modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 12.dp),
                     autoFocus = true,
+                    capitalizeSentences = capitalizeSentences,
                 )
             } else {
                 HolderMarkdownEditor(
                     state = firstLineBodyState,
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     autoFocus = true,
+                    capitalizeSentences = capitalizeSentences,
                 )
             }
         }
