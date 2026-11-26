@@ -500,7 +500,12 @@ object HolderNative {
     // Projects are listed in pages of the contract's largest page.
     private const val PROJECT_PAGE = 1000
 
-    private val saveLane = NativeLane("holder-save")
+    private val saveLane = NativeLane("holder-save").apply { afterCall = { onLocalChange?.invoke() } }
+
+    /** Called after each write this app makes (every call on the save lane is one), so the app
+     * can sync it soon; see GitSyncScheduler.syncSoon. */
+    @Volatile
+    var onLocalChange: (() -> Unit)? = null
     private val readLane = NativeLane("holder-read")
     private val backgroundLane = NativeLane("holder-background")
 

@@ -70,8 +70,15 @@ class GitSyncWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
                 schemaSql = applicationContext.assets.open("schema.sql").bufferedReader().use { it.readText() },
             )
 
-            val intervalSeconds =
+            // A sync after a change or on opening Holder runs whatever is due or not; the
+            // periodic one keeps to the user's interval.
+            val soon = inputData.getBoolean(SYNC_SOON_KEY, false)
+            if (soon && !HolderSettings.gitBackgroundSyncEnabled(applicationContext).first()) return@runCatching
+            val intervalSeconds = if (soon) {
+                1
+            } else {
                 HolderSettings.gitBackgroundSyncIntervalMinutes(applicationContext).first() * 60
+            }
 
             for (project in HolderNative.listProjects()) {
                 val remoteHost = project.gitRemoteUrl?.let(LocalNetworkAccess::hostOfGitRemote)
