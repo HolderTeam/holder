@@ -157,6 +157,9 @@ public class ConnectionsController : Object {
     // How a link of this kind reads: from the card it is from when outgoing, otherwise from what
     // it points at. A kind Holder does not know reads the same both ways, its words capitalised.
     public string link_kind_label(string kind, bool outgoing) {
+        // Sync's own link from a conflict copy to its card. It isn't in the catalog, which also
+        // lists the kinds a person can pick, and only sync may make it.
+        if (kind == "conflict_copy_of") return outgoing ? "Conflict copy of" : "Has conflict copy";
         foreach (var entry in link_kinds) {
             if (entry.kind == kind) return outgoing ? entry.forward_label : entry.reverse_label;
         }
