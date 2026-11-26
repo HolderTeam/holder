@@ -15,7 +15,7 @@ import java.util.concurrent.Executors
  * [call] blocks the calling thread (normally Dispatchers.IO) until the call is done, so
  * HolderNative's functions keep their blocking signatures. A callback on this lane cannot
  * start another call on its busy context. */
-internal class NativeLane(name: String) {
+internal class NativeLane(private val name: String) {
     @Volatile
     private var thread: Thread? = null
 
@@ -52,7 +52,16 @@ internal class NativeLane(name: String) {
     private fun <T> onLane(block: () -> T): T {
         if (Thread.currentThread() === thread) return runOnLane(block)
         reportMainThreadCall()
-        val future = executor.submit(Callable { runOnLane(block) })
+        val queuedAt = System.nanoTime()
+        val caller = if (BuildConfig.DEBUG) callerName() else null
+        val future = executor.submit(Callable {
+            val startedAt = System.nanoTime()
+            try {
+                runOnLane(block)
+            } finally {
+                caller?.let { reportSlowCall(it, queuedAt, startedAt) }
+            }
+        })
         try {
             return future.get()
         } catch (failure: ExecutionException) {
@@ -73,6 +82,24 @@ internal class NativeLane(name: String) {
         if (onMain) Log.w("HolderNative", "Native call on the main thread; run it on Dispatchers.IO", Throwable())
     }
 
+    /** Debug builds only: logs a call that took [SLOW_CALL_MS] or more, split into the time it
+     * waited for this lane (an earlier call still running here) and the time it ran, under
+     * "HolderNative". A slow wait means another call on this lane held it up; a slow run means
+     * the call itself, or core waiting on another lane's lock, took the time. */
+    private fun reportSlowCall(caller: String, queuedAt: Long, startedAt: Long) {
+        val waitedMs = (startedAt - queuedAt) / 1_000_000
+        val ranMs = (System.nanoTime() - startedAt) / 1_000_000
+        if (waitedMs + ranMs >= SLOW_CALL_MS) {
+            Log.w("HolderNative", "Slow native call $caller on $name: waited ${waitedMs}ms, ran ${ranMs}ms")
+        }
+    }
+
+    /** The HolderNative function that made this call, for [reportSlowCall]. */
+    private fun callerName(): String =
+        Throwable().stackTrace.firstOrNull { frame ->
+            frame.className.startsWith("team.holder.android.HolderNative")
+        }?.let { "${it.className.substringAfterLast('.')}.${it.methodName}" } ?: "unknown"
+
     private fun <T> runOnLane(block: () -> T): T {
         check(!executing) { "NativeLane is already executing a native call" }
         executing = true
@@ -83,3 +110,6 @@ internal class NativeLane(name: String) {
         }
     }
 }
+
+/** See [NativeLane.reportSlowCall]. */
+private const val SLOW_CALL_MS = 500L
