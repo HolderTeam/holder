@@ -223,6 +223,32 @@ or request error is reported to the caller. Supply a URL and token to connect
 to a specific daemon, or use `open_workspace(path)` to select private data
 regardless of daemon availability.
 
+## Export Card records for analysis
+
+`iter_card_records()` reads one project's live cards through the active session
+and yields detached dictionaries. Use `session.list_projects()` to find the
+project ID. Card bodies are optional, as in
+[Holder Kit's record exports](../kit/docs/walkthrough.md#export-ordinary-python-records).
+
+```python
+import json
+
+from holder import iter_card_records, open_session
+
+project_id = "your-project-id"
+with open_session() as session:
+    records = iter_card_records(session.card_operations, project_id, include_content=True)
+    with open("cards.jsonl", "w", encoding="utf-8") as output:
+        for record in records:
+            output.write(json.dumps(record, ensure_ascii=False) + "\n")
+```
+
+Use `list(records)` inside the session if you want the dictionaries directly
+in a notebook. Each page reads the project's current state, so changes made
+during export can appear in the result. The export contains card listing
+records and optional Markdown bodies. For an encrypted project, including
+bodies writes their decrypted text to the output file.
+
 ## More help
 
 - [More scripting tasks](docs/scripting.md): links, milestones, project-wide

@@ -6,6 +6,7 @@ from ._workspace_contract import TrashItem as TrashItemRecord
 from .cards import EmbeddedUnavailableError, open_workspace
 from .changes import ChangeCheckpoint, ChangeReady, EntityChange, ResyncRequired
 from .client import Holder, open_session
+from .exports import iter_card_records
 from .intelligence_events import IntelligenceEvent, PullEventStream, RunStream
 from .models import (
     ActivityItem,
@@ -124,6 +125,7 @@ __all__ = [
     "Thread",
     "TrashItem",
     "TrashItemRecord",
+    "iter_card_records",
     "open_session",
     "open_workspace",
 ]
