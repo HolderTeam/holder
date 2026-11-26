@@ -47,6 +47,18 @@ private void test_static_labels_and_presets() {
     assert(HolderLinux.MilestoneDraft.card_label(editing_milestone(1, null, true, null, null, "Passport"))
            == "Passport");
     assert(HolderLinux.MilestoneDraft.card_label(editing_milestone(1, null, true)) == "c1");
+
+    // A milestone shown by a due date is edited under that name, with no end to add.
+    assert(HolderLinux.MilestoneDraft.date_label(null) == "Start");
+    assert(HolderLinux.MilestoneDraft.can_have_end(null));
+    var started = editing_milestone(1, null, true);
+    assert(HolderLinux.MilestoneDraft.date_label(started) == "Start");
+    assert(HolderLinux.MilestoneDraft.can_have_end(started));
+    var due = editing_milestone(1, null, true);
+    due.role = "due";
+    due.has_span = false;
+    assert(HolderLinux.MilestoneDraft.date_label(due) == "Due");
+    assert(!HolderLinux.MilestoneDraft.can_have_end(due));
 }
 
 private void test_form_precondition_error() {

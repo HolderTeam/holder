@@ -23,8 +23,9 @@ internal const val START_OVERDUE_DAYS = 7L
 internal const val START_UPCOMING_DAYS = 3L
 
 /** Milestone kinds that are "things to do by a date": only these are shown once their day has
- * passed. Anything else (an appointment, a birthday) simply drops off the strip afterwards. */
-private val OVERDUE_KINDS = setOf("deadline", "expiry", "renewal", "mot", "service", "exam")
+ * passed. Anything else (an appointment, a birthday) simply drops off the strip afterwards. "due"
+ * is for a milestone shown by a due date, which with no kind is labelled by that role. */
+private val OVERDUE_KINDS = setOf("due", "deadline", "expiry", "renewal", "mot", "service", "exam")
 
 data class StartRecentCard(
     val projectId: String,
@@ -137,7 +138,7 @@ internal fun attentionMilestones(
         val ongoing = !start.isAfter(today) && !end.isBefore(today)
         val upcoming = !start.isBefore(today) && !start.isAfter(lastUpcoming)
         val overdue = end.isBefore(today) && !end.isBefore(firstOverdue) &&
-            m.kind?.trim()?.lowercase() in OVERDUE_KINDS
+            m.displayKind?.trim()?.lowercase() in OVERDUE_KINDS
         if (!ongoing && !upcoming && !overdue) return@mapNotNull null
         StartMilestone(
             projectId = project.projectId,
@@ -161,7 +162,7 @@ private fun HolderMilestone.day(epochSeconds: Long, zone: ZoneId): LocalDate =
 
 private fun milestoneLabel(m: HolderMilestone): String =
     m.description?.takeIf { it.isNotBlank() }
-        ?: listOfNotNull(m.kind?.takeIf { it.isNotBlank() }, m.cardTitle?.takeIf { it.isNotBlank() })
+        ?: listOfNotNull(m.displayKind, m.cardTitle?.takeIf { it.isNotBlank() })
             .joinToString(": ")
             .ifEmpty { "Milestone" }
 

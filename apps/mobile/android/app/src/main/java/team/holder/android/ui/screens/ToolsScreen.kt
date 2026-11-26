@@ -465,7 +465,7 @@ private fun MilestonesTileBody(milestones: List<HolderMilestone>) {
     val next = milestones.filter { it.startAt >= now }.minByOrNull { it.startAt }
         ?: milestones.maxByOrNull { it.startAt }
     next?.let { milestone ->
-        val label = milestone.kind?.takeIf { it.isNotBlank() } ?: "Milestone"
+        val label = milestone.displayKind ?: "Milestone"
         SummaryLine("$label: ${DateUtils.formatDateTime(null, milestone.startAt * 1000, DateUtils.FORMAT_SHOW_DATE)}")
     }
     val remaining = milestones.size - 1

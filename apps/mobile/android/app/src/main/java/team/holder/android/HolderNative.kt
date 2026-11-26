@@ -203,7 +203,20 @@ data class HolderMilestone(
     /** Only populated by listMilestonesInRange (the Calendar query) -- null from
      * listCardMilestones, where the caller already knows which card this is. */
     val cardTitle: String? = null,
-)
+    /** The role of the date shown as startAt. "start" for milestones made in the apps; one made
+     * elsewhere (the CLI's due=2026-12-01, say) can have no single start, and is shown by its
+     * earliest date whose role it holds only once. */
+    val role: String = "start",
+    /** Whether endAt belongs to this milestone's shown date: true only when it is shown by its
+     * start and has at most one end. Otherwise there is no end to show or to change. */
+    val hasSpan: Boolean = true,
+) {
+    /** What to call it: its kind, or else the role of a date other than start ("Due"). */
+    val displayKind: String?
+        get() = kind?.takeIf { it.isNotBlank() }
+            ?: role.takeIf { it != "start" && it.isNotBlank() }
+                ?.replace('_', ' ')?.replaceFirstChar { it.uppercaseChar() }
+}
 
 /** A tri-state value for [HolderNative.updateCardMilestone]'s clearable fields (endAt/kind/
  * description): [Unset] leaves the field unchanged, [Clear] explicitly nulls it, [Value] sets
@@ -1126,16 +1139,31 @@ object HolderNative {
     private fun epochOf(date: MilestoneDate): Long = date.date?.let { LocalDate.parse(it).atStartOfDay(ZoneOffset.UTC).toEpochSecond() }
         ?: OffsetDateTime.parse(requireNotNull(date.datetime)).toEpochSecond()
 
-    /** A milestone as Android shows it, or null when it has no single start or more than one end. */
+    /** The date a milestone is shown by, and its end when it has one Android can show. */
+    private class ShownDates(val date: MilestoneDate, val end: MilestoneDate?, val hasSpan: Boolean)
+
+    /** Its single start, with its end if it has at most one. Otherwise, as with a milestone made
+     * elsewhere with only a due date, the earliest date whose role it holds once. Null only when
+     * every role repeats, which only hand-editing makes. */
+    private fun shownDates(dates: List<MilestoneDate>): ShownDates? {
+        val counts = dates.groupingBy { it.role }.eachCount()
+        dates.singleOrNull { it.role == START }?.let { start ->
+            val single = (counts[END] ?: 0) <= 1
+            return ShownDates(start, if (single) dates.singleOrNull { it.role == END } else null, single)
+        }
+        val date = dates.filter { counts[it.role] == 1 }.minByOrNull(::epochOf) ?: return null
+        return ShownDates(date, null, hasSpan = false)
+    }
+
+    /** A milestone as Android shows it (see shownDates), or null when it has no date to show by. */
     private fun holderMilestone(
         milestoneId: String, cardId: String, dates: List<MilestoneDate>, kind: String?, description: String?,
         createdAt: Long, updatedAt: Long, cardTitle: String? = null,
     ): HolderMilestone? {
-        val start = dates.singleOrNull { it.role == START } ?: return null
-        val ends = dates.filter { it.role == END }
-        if (ends.size > 1) return null
-        return HolderMilestone(milestoneId, cardId, epochOf(start), ends.singleOrNull()?.let(::epochOf),
-                               start.date != null, kind, description, createdAt, updatedAt, cardTitle)
+        val shown = shownDates(dates) ?: return null
+        return HolderMilestone(milestoneId, cardId, epochOf(shown.date), shown.end?.let(::epochOf),
+                               shown.date.date != null, kind, description, createdAt, updatedAt, cardTitle,
+                               role = shown.date.role, hasSpan = shown.hasSpan)
     }
 
     private fun holderMilestone(m: Milestone) =
@@ -1168,7 +1196,9 @@ object HolderNative {
 
     /** Partially updates cardId's milestoneId. Each parameter left at its default (Unset) means
      * "leave unchanged"; pass Clear to null a clearable field (endAt/kind/description), or a real
-     * value to set it. Changing its start, end or all-day keeps the milestone's other dates. */
+     * value to set it. Changing its start, end or all-day keeps the milestone's other dates. For one
+     * without a span (see HolderMilestone.hasSpan), startAt and allDay change its shown date in
+     * place, keeping that date's role, and endAt can only be left alone or cleared (a no-op). */
     fun updateCardMilestone(
         projectId: String,
         cardId: String,
@@ -1181,13 +1211,20 @@ object HolderNative {
     ): HolderMilestone = saveLane.call { context ->
         val dates = if (startAt == null && endAt is OptionalLong.Unset && allDay == null) null else {
             val current = Milestones.listCardMilestones(context, projectId, cardId).single { it.milestoneId == milestoneId }
-            val shown = requireNotNull(holderMilestone(current)) { "the milestone has no single start to change" }
-            val end = when (endAt) {
-                is OptionalLong.Unset -> shown.endAt
-                is OptionalLong.Clear -> null
-                is OptionalLong.Value -> endAt.value
+            val shown = requireNotNull(holderMilestone(current)) { "the milestone has no date to change" }
+            if (shown.hasSpan) {
+                val end = when (endAt) {
+                    is OptionalLong.Unset -> shown.endAt
+                    is OptionalLong.Clear -> null
+                    is OptionalLong.Value -> endAt.value
+                }
+                withStartAndEnd(current.dates, startAt ?: shown.startAt, end, allDay ?: shown.allDay)
+            } else {
+                // Change the shown date in place, keeping its role and every other date.
+                require(endAt !is OptionalLong.Value) { "this milestone has no end to change" }
+                val date = milestoneDate(shown.role, startAt ?: shown.startAt, allDay ?: shown.allDay)
+                current.dates.map { if (it.role == shown.role) date else it }
             }
-            withStartAndEnd(current.dates, startAt ?: shown.startAt, end, allDay ?: shown.allDay)
         }
         fun change(value: OptionalString): Change<String> = when (value) {
             is OptionalString.Unset -> Change.Keep

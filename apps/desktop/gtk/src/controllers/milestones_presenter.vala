@@ -156,8 +156,7 @@ public class MilestonesPresenter { // LCOV_EXCL_LINE: declaration-only coverage 
             when += " – " + (same_local_day((!) milestone.end_at, start, tz)
                 ? end.format("%R") : end.format("%e %b %R"));
         }
-        var kind = milestone.kind != null && ((!) milestone.kind).strip().length > 0
-            ? (!) milestone.kind : "Milestone";
+        var kind = milestone.display_kind() ?? "Milestone";
         var result = "%s · %s".printf(kind, when);
         if (milestone.description != null && ((!) milestone.description).strip().length > 0) {
             result += "\n" + (!) milestone.description;
