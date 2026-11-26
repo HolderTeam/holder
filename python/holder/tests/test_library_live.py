@@ -539,6 +539,52 @@ def test_embedded_profile_ownership(daemon, tmp_path):
         assert workspace.get_project(project["project_id"]) == project
 
 
+def test_embedded_recovery_snapshot_restore(tmp_path):
+    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
+        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+
+    def line(card_id, title, parent=None):
+        return json.dumps(
+            {
+                "format": "holder-recovery-snapshot",
+                "version": 1,
+                "card": {
+                    "card_id": card_id,
+                    "project_id": "source-project",
+                    "project_name": "Source project",
+                    "privacy_mode": "plain",
+                    "title": title,
+                    "content": "Snapshot text",
+                    "parent_card_id": parent,
+                    "sort_key": 1,
+                    "created_at": 1700000000,
+                    "updated_at": 1700000001,
+                    "links": [],
+                    "milestones": [],
+                    "resources": [],
+                    "locations": [],
+                },
+            }
+        )
+
+    snapshot = "\n".join((line("child", "Child", "parent"), line("parent", "Parent")))
+    with open_workspace(tmp_path / "private") as workspace:
+        with pytest.raises(APIError):
+            workspace.restore_recovery_snapshot("invalid snapshot", name="Invalid")
+        assert workspace.list_projects() == []
+
+        project = workspace.restore_recovery_snapshot(snapshot, name="Offline copy")
+        assert project["project_id"] != "source-project"
+        assert project["privacy_mode"] == "plain"
+        cards = workspace.card_operations.list_cards(
+            project["project_id"], include_content=True
+        )["items"]
+        by_title = {card["title"]: card for card in cards}
+        assert by_title["Parent"]["card_id"] != "parent"
+        assert by_title["Child"]["parent_card_id"] == by_title["Parent"]["card_id"]
+        assert by_title["Child"]["content"] == "Snapshot text"
+
+
 @pytest.mark.parametrize("backend", ["daemon", "embedded"])
 def test_shared_card_operations(backend, request, tmp_path):
     if backend == "daemon":

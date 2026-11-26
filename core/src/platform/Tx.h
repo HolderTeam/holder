@@ -5,7 +5,10 @@ namespace holder::platform {
 
 class Tx {
  public:
+  enum class Mode { Write, Read };
+
   explicit Tx(Db& db);
+  Tx(Db& db, Mode mode);
   ~Tx();
 
   Tx(const Tx&) = delete;

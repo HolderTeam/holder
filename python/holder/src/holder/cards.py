@@ -446,6 +446,17 @@ class EmbeddedWorkspace:
         """Create a project whose files are stored without encryption."""
         return cast("ProjectRecord", self._call("create_project", name))
 
+    def restore_recovery_snapshot(self, snapshot: str, *, name: str) -> ProjectRecord:
+        """Restore core's recovery snapshot lines into a new unencrypted project.
+
+        Core assigns new IDs and remaps internal links and ancestry. The lines
+        contain declarations for linked resources and their placements. Asset
+        bytes stay in their original storage locations.
+        """
+        return cast(
+            "ProjectRecord", self._call("restore_recovery_snapshot", snapshot, name=name)
+        )
+
     def list_trash(
         self, project_id: str, *, type: str | None = None
     ) -> list[TrashItemRecord]:
@@ -512,8 +523,13 @@ class EmbeddedWorkspace:
     def _call(self, method: str, *args: object, **kwargs: object) -> object:
         if self._closed or self._context is None:
             raise ClosedError("Use the workspace inside with open_workspace(...)")
+        operation = getattr(self._context, method, None)
+        if operation is None:
+            raise EmbeddedUnavailableError(
+                f"This native Holder build does not support {method}."
+            )
         try:
-            return getattr(self._context, method)(*args, **kwargs)
+            return operation(*args, **kwargs)
         except (self._native_error, ValueError) as error:
             native_status = getattr(error, "native_status", None)
             if native_status is None:

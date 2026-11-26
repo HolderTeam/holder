@@ -10,6 +10,7 @@
 #include "ai/AiMessageRepo.h"
 #include "ai/AiThreadRepo.h"
 #include "api/Contract.h"
+#include "api/RecoverySnapshots.h"
 #include "capi/Context.h"
 #include "card/CardPaths.h"
 #include "card/CardRepo.h"
@@ -286,6 +287,36 @@ TEST_CASE(
       host.read(host.project_id, std::nullopt, 2),
       Catch::Matchers::ContainsSubstring("card content missing")
   );
+}
+
+TEST_CASE("A captured recovery snapshot is bounded and restores independently", "[recovery]") {
+  Host host;
+  const auto source = host.card("Source card", std::nullopt, std::nullopt, "Captured body");
+  const auto payload = contract::capture_recovery_snapshot(host.context, host.project_id, 4096);
+  REQUIRE(payload == host.lines(host.project_id).at(0) + "\n");
+  REQUIRE(
+      contract::capture_recovery_snapshot(host.context, host.project_id, payload.size()) == payload
+  );
+  REQUIRE_THROWS_AS(
+      contract::capture_recovery_snapshot(host.context, host.project_id, payload.size() - 1),
+      std::length_error
+  );
+
+  contract::CardUpdate update;
+  update.content = "Later edit";
+  contract::update_card(host.context, host.project_id, source, update);
+
+  contract::RecoverySnapshotRestore request;
+  request.project_name = "Offline copy";
+  request.privacy_mode = contract::RecoverySnapshotRestorePrivacyMode::Plain;
+  request.snapshot = payload;
+  request.commit_message = "Restore an offline copy";
+  const auto restored = contract::restore_recovery_snapshot(host.context, request);
+  const auto copied = host.read(restored.project_id);
+  REQUIRE(copied.cards.size() == 1);
+  CHECK(copied.cards.front().card_id != source);
+  CHECK(copied.cards.front().content == "Captured body");
+  CHECK(host.read(host.project_id).cards.front().content == "Later edit");
 }
 
 TEST_CASE(

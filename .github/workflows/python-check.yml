@@ -154,7 +154,7 @@ jobs:
           python -m venv "$work/test"
           "$work/test/bin/python" -m pip install pytest "$work/dist/"*manylinux_2_39_x86_64.whl
           "$work/test/bin/python" -m pytest -v python/holder/tests/test_library_live.py \
-            -k 'shared_card_operations and embedded'
+            -k '(shared_card_operations and embedded) or embedded_recovery_snapshot_restore'
           multiarch="$(gcc -print-multiarch)"
           LD_LIBRARY_PATH="${STAGE}/usr/lib/${multiarch}:${STAGE}/usr/lib" \
           HOLDER_TEST_DAEMON="${STAGE}/usr/bin/holderd" \

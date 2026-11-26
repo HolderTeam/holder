@@ -11,6 +11,7 @@
 #include "card/LinkKindCatalog.h"
 #include "card/LinkRepo.h"
 #include "card/LinkVisibility.h"
+#include "git/RepoLocks.h"
 #include "platform/Tx.h"
 #include "project/ProjectRepo.h"
 #include "resource/ResourceRepo.h"
@@ -18,6 +19,7 @@
 #include <algorithm>
 #include <array>
 #include <filesystem>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <system_error>
@@ -196,9 +198,14 @@ template <class Change>
 void write_links(
     holder_context& context,
     holder::card::CardStore& store,
+    const std::string& project_id,
     const std::string& card_id,
     Change&& change
 ) {
+  const auto project = holder::project::ProjectRepo(context.db).get(project_id);
+  if (!project) throw NotFound("project not found: " + project_id);
+  const auto mutex = holder::git::repo_mutex_for(project->root_path);
+  const std::lock_guard guard(*mutex);
   holder::platform::Tx tx(context.db);
   change(holder::card::LinkRepo(context.db));
   store.update_links(card_id, now_epoch_seconds());
@@ -242,7 +249,7 @@ Link add(
     if (existing->label == link.label) return to_link(*existing, LinkSourceType::Card);
     link.created_at = existing->created_at;
   }
-  write_links(context, store, card_id, [&](holder::card::LinkRepo repo) {
+  write_links(context, store, project_id, card_id, [&](holder::card::LinkRepo repo) {
     repo.upsert_links(project_id, card_id, {link});
   });
   return to_link(link, LinkSourceType::Card);
@@ -264,7 +271,7 @@ std::vector<Link> remove(
   const auto type = type_name(target_type);
   const auto target_project_id = target_project.value_or(project_id);
   if (find_link(context, project_id, card_id, type, target_id, kind, target_project_id)) {
-    write_links(context, store, card_id, [&](holder::card::LinkRepo repo) {
+    write_links(context, store, project_id, card_id, [&](holder::card::LinkRepo repo) {
       repo.delete_link_exact(project_id, card_id, target_id, type, kind, target_project_id);
     });
   }
