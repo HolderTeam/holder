@@ -1,6 +1,8 @@
 package team.holder.android
 
 import android.os.Build
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -77,7 +79,7 @@ class WholeAppSmokeTest {
         awaitContentDescription("Done")
         composeRule.onNodeWithContentDescription("Done").performClick()
 
-        awaitText(title)
+        awaitCardListRow(title)
         composeRule.onNodeWithText(title).performClick()
         awaitText(initialBody)
         awaitContentDescription("Edit")
@@ -90,19 +92,22 @@ class WholeAppSmokeTest {
         awaitContentDescription("Done")
         composeRule.onNodeWithContentDescription("Done").performClick()
 
+        // The edited text is in the editor's own field too, so wait for the editor to close:
+        // on a slow phone the save keeps it open, and its Back arrow would be tapped below.
+        awaitEditorClosed()
         awaitText("Edited and persisted.", substring = true)
 
-        // Click the first "Back" (the card view's own TopAppBar arrow), not "the" one: the card
-        // sits in a HorizontalPager of its siblings (see CardViewPagerScreen), and more than one
-        // sibling page -- each its own CardViewScreen with its own TopAppBar Back arrow -- can be
-        // composed at once. They all invoke the same onBack. An earlier "exactly one" wait here
-        // predated that pager and was a source of this test's CI flakiness.
+        // Click the Back arrow that is on screen, not "the" one or the first: the card sits in a
+        // HorizontalPager of its siblings (see CardViewPagerScreen), and a neighbouring page --
+        // its own CardViewScreen with its own TopAppBar Back arrow -- can be composed just off
+        // screen. Tapping that one does nothing; on the moto g6 plus it was the first match.
+        val backOnScreen = hasContentDescription("Back") and isOnScreen()
         composeRule.waitUntil(timeoutMillis = settleTimeoutMs) {
-            composeRule.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodes(backOnScreen).fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onAllNodesWithContentDescription("Back").onFirst().performClick()
+        composeRule.onAllNodes(backOnScreen).onFirst().performClick()
 
-        awaitText(title)
+        awaitCardListRow(title)
         composeRule.onNodeWithText(title).performClick()
 
         awaitText("Edited and persisted.", substring = true)
@@ -162,6 +167,28 @@ class WholeAppSmokeTest {
         composeRule.waitUntil(timeoutMillis = settleTimeoutMs) {
             composeRule.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty()
         }
+
+    /** Waits for [title]'s row in the card list, not just the title: after Done (or Back) the
+     * editor (or card view) stays on screen until the save and the navigation finish, showing
+     * the same title. On a slow phone (Android 9, moto g6 plus) the save outlasts Compose's idle
+     * wait, and a tap on "the title" landed on the editor's title field instead of the row.
+     * "New card" is only on the list; one match for the title means the other screen is gone. */
+    private fun awaitCardListRow(title: String) = composeRule.waitUntil(timeoutMillis = settleTimeoutMs) {
+        composeRule.onAllNodesWithContentDescription("New card").fetchSemanticsNodes().isNotEmpty() &&
+            composeRule.onAllNodesWithText(title).fetchSemanticsNodes().size == 1
+    }
+
+    private fun awaitEditorClosed() = composeRule.waitUntil(timeoutMillis = settleTimeoutMs) {
+        composeRule.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().isEmpty()
+    }
+
+    /** Has a visible area inside the window. A pager's neighbouring page is laid out off
+     * screen, and its nodes can also report empty (0, 0, 0, 0) bounds once clipped. */
+    private fun isOnScreen() = SemanticsMatcher("is on screen") { node ->
+        val bounds = node.boundsInWindow
+        val width = composeRule.activity.window.decorView.width
+        bounds.width > 0f && bounds.height > 0f && bounds.left >= 0f && bounds.right <= width
+    }
 
     private fun awaitContentDescription(description: String) =
         composeRule.waitUntil(timeoutMillis = settleTimeoutMs) {
