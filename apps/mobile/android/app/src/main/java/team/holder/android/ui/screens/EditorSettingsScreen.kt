@@ -39,6 +39,7 @@ fun EditorSettingsScreen(onBack: () -> Unit) {
     val preserveTrailingWhitespace by HolderSettings.preserveTrailingWhitespace(context).collectAsState(initial = false)
     val trimTwoSpaceLineEndings by HolderSettings.trimTwoSpaceLineEndings(context).collectAsState(initial = false)
     val trimWhitespaceInCodeBlocks by HolderSettings.trimWhitespaceInCodeBlocks(context).collectAsState(initial = false)
+    val manualCapitalization by HolderSettings.manualCapitalization(context).collectAsState(initial = false)
 
     Scaffold(
         topBar = {
@@ -74,6 +75,22 @@ fun EditorSettingsScreen(onBack: () -> Unit) {
                     checked = !separateTitle,
                     onCheckedChange = { useHeadingAsTitle ->
                         scope.launch { HolderSettings.setSeparateTitleEnabled(context, !useHeadingAsTitle) }
+                    },
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Manual capitalisation")
+                    Text("The keyboard won't add capitals for you.")
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Switch(
+                    checked = manualCapitalization,
+                    onCheckedChange = { enabled ->
+                        scope.launch { HolderSettings.setManualCapitalization(context, enabled) }
                     },
                 )
             }
