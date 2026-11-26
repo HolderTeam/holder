@@ -2,8 +2,6 @@
 # Build the Homebrew-selected GTK version with the macOS accessibility bridge.
 # Shared recipe from PR #26. Output stays isolated from Homebrew.
 set -euo pipefail
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-gtk_patch="${script_dir}/patches/gtk-menu-label-role.patch"
 
 work_dir="${1:?usage: build-macos-accessible-gtk.sh WORK_DIR}"
 mkdir -p "${work_dir}"
@@ -56,7 +54,6 @@ meson install -C "${work_dir}/accesskit-build"
 
 download_verified "${gtk_url}" "${gtk_sha256}" "${work_dir}/gtk.tar.xz"
 tar -xJf "${work_dir}/gtk.tar.xz" -C "${work_dir}"
-patch --batch --forward -p1 -d "${work_dir}/gtk-${gtk_version}" < "${gtk_patch}"
 gettext_prefix="$(brew --prefix gettext)"
 export PKG_CONFIG_PATH="${runtime_prefix}/lib/pkgconfig:${gettext_prefix}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 meson setup "${work_dir}/gtk-build" "${work_dir}/gtk-${gtk_version}" \
@@ -71,19 +68,15 @@ cp -a "${work_dir}/gtk-build/gtk/"libgtk-4*.dylib "${runtime_prefix}/lib/"
 mkdir -p "${runtime_prefix}/share/licenses/accesskit-c"
 cp "${work_dir}/accesskit-c-0.18.0/"LICENSE* "${runtime_prefix}/share/licenses/accesskit-c/"
 
-python3 - "${runtime_prefix}/gtk-accessibility-build.json" "${gtk_version}" "${gtk_url}" "${gtk_sha256}" "${gtk_patch}" <<'PY'
-import hashlib
+python3 - "${runtime_prefix}/gtk-accessibility-build.json" "${gtk_version}" "${gtk_url}" "${gtk_sha256}" <<'PY'
 import json
-from pathlib import Path
 import sys
 
 with open(sys.argv[1], "w") as output:
     json.dump({"gtk": {"version": sys.argv[2], "source_url": sys.argv[3], "sha256": sys.argv[4]},
                "accesskit_c": {"version": "0.18.0", "sha256":
                                "71465b15724cfbe7d54fb27e82e86c6935f922c40703615972c4e79fdce48b40"},
-               "gtk_accesskit": "enabled",
-               "patches": {Path(sys.argv[5]).name:
-                           hashlib.sha256(Path(sys.argv[5]).read_bytes()).hexdigest()}}, output, indent=2)
+               "gtk_accesskit": "enabled"}, output, indent=2)
     output.write("\n")
 PY
 

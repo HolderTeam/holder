@@ -94,10 +94,11 @@ class IdentityTests(unittest.TestCase):
             previous = Path.cwd()
             try:
                 first = runtime.identity()[0]
-                self.assertEqual(first['patches'][runtime.GTK_PATCH.name], runtime.digest(runtime.GTK_PATCH))
+                # A changed recipe must select a fresh runtime.
+                self.assertEqual(first['recipe'], runtime.digest(runtime.RECIPE))
                 original_digest = runtime.digest
                 with patch.object(runtime, 'digest', side_effect=lambda p:
-                                  'changed' if p == runtime.GTK_PATCH else original_digest(p)):
+                                  'changed' if p == runtime.RECIPE else original_digest(p)):
                     self.assertNotEqual(first, runtime.identity()[0])
                 os.chdir(directory)
                 self.assertEqual(first, runtime.identity()[0])
