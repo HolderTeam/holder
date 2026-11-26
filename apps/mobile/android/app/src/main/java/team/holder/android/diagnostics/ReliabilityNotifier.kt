@@ -48,7 +48,7 @@ private const val RELIABILITY_CHANNEL_ID = "background_reliability"
  * killed), so this only ever *checks* POST_NOTIFICATIONS, never requests it: a Worker has no
  * Activity to prompt from, and this codebase's convention (see the dictation feature's mic
  * permission handling in HolderMarkdownEditor.kt) is to request a runtime permission only at its
- * own point of use -- for POST_NOTIFICATIONS, that's SyncSettingsScreen's background-sync toggle.
+ * own point of use -- for POST_NOTIFICATIONS, see ui/SyncNotificationPermission.kt.
  * If the permission was never granted, this just skips posting silently, the same "external
  * capability unavailable, don't block, don't crash" shape as that dictation onError handling. */
 object ReliabilityNotifier {
