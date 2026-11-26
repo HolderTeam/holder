@@ -162,6 +162,43 @@ class CompatibilityBaselineTest {
         }
     }
 
+    @Test
+    fun attachments_importAndReadBackByteForByteAfterReopeningAndARebuild() {
+        val project = HolderNative.createProject("Attachments")
+        val card = HolderNative.createCard(project.projectId, "Trip", "# Trip")
+        val locationId = UUID.randomUUID().toString()
+        HolderNative.createLocation(locationId, project.projectId, "On this device", "local_directory", emptyMap(),
+            System.currentTimeMillis() / 1000)
+        // A photo-sized binary file (a JPEG header, then bytes of every value) and a text file.
+        val photo = ByteArray(300_000) { (it * 31 + 7).toByte() }.also {
+            byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte()).copyInto(it)
+        }
+        val files = mapOf("photo.jpg" to photo, "notes – café.txt" to "Packing list ✓\n".toByteArray())
+        val sources = files.mapValues { (name, bytes) -> File(dataDir, name).apply { writeBytes(bytes) } }
+        val imported = sources.mapValues { (_, file) ->
+            HolderNative.importAsset(project.projectId, card.cardId, locationId, file.absolutePath)
+        }
+        assertTrue(imported.values.all { it.linkCreated && !it.duplicateReused })
+        // The same bytes again reuse the stored asset.
+        assertTrue(HolderNative.importAsset(project.projectId, card.cardId, locationId,
+            sources.getValue("photo.jpg").absolutePath).duplicateReused)
+
+        fun readBack() {
+            val resources = HolderNative.listResources(project.projectId).associateBy { it.resourceId }
+            for ((name, result) in imported) {
+                val asset = resources.getValue(result.resourceId).assets.single { it.assetId == result.assetId }
+                assertEquals(name, asset.originalFilename)
+                val out = File(dataDir, "out-${UUID.randomUUID()}")
+                HolderNative.retrieveAsset(result.resourceId, result.assetId, asset.placements.single().placementId,
+                    out.absolutePath)
+                assertTrue(name, out.readBytes().contentEquals(files.getValue(name)))
+            }
+        }
+        readBack()
+        sources.values.forEach { it.delete() }
+        reopenAndRebuild { readBack() }
+    }
+
     private fun open() = HolderNative.initialize(context, dataDir, schemaSql)
 
     private fun card(project: HolderProject, title: String, parent: HolderCard? = null) =
