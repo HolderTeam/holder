@@ -30,10 +30,14 @@ internal class NativeLane(private val name: String) {
     private var handle = 0L
     private var executing = false
 
+    /** Runs after each [call] that returns normally, on the caller's thread. */
+    @Volatile
+    var afterCall: (() -> Unit)? = null
+
     fun <T> call(block: (Long) -> T): T = onLane {
         check(handle != 0L) { "HolderNative.initialize() must be called first" }
         block(handle)
-    }
+    }.also { afterCall?.invoke() }
 
     /** Hands an opened context to this lane. Runs after any calls already queued here. */
     fun attach(contextHandle: Long) = onLane {
