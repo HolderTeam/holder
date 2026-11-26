@@ -5,6 +5,12 @@ import android.content.Intent
 import android.provider.CalendarContract
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -210,105 +216,124 @@ fun CalendarScreen(
             }
         },
     ) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            MonthGrid(
-                month = visibleMonth,
-                today = today,
-                selectedDay = selectedDay,
-                milestoneDays = milestoneDays,
-                createdDays = createdDays,
-                updatedDays = updatedDays,
-                onPreviousMonth = { visibleMonth = visibleMonth.minusMonths(1) },
-                onNextMonth = { visibleMonth = visibleMonth.plusMonths(1) },
-                onToday = { visibleMonth = YearMonth.from(today) },
-                onDayClick = { date -> selectedDay = if (selectedDay == date) null else date },
-            )
-            HorizontalDivider()
-
-            val selected = selectedDay
-            if (selected != null) {
-                DayDetailPanel(
-                    date = selected,
-                    milestones = milestones.filter { it.startDay() == selected },
-                    createdCards = allCards.filter { it.createdAt.toLocalDate() == selected },
-                    updatedCards = allCards.filter {
-                        it.updatedAt != it.createdAt && it.updatedAt.toLocalDate() == selected
-                    },
-                    menuOpenFor = menuOpenFor,
-                    onDismiss = { selectedDay = null },
-                    onNavigateToCard = onNavigateToCard,
-                    onLongClickMilestone = { menuOpenFor = it },
-                    onDismissMenu = { menuOpenFor = null },
-                    onAddToCalendar = {
-                        menuOpenFor = null
-                        addMilestoneToDeviceCalendar(context, it)
-                    },
-                    onEditMilestone = {
-                        menuOpenFor = null
-                        onEditMilestone(it)
-                    },
-                    onRemoveRequested = {
-                        menuOpenFor = null
-                        pendingRemove = it
-                    },
-                    modifier = Modifier.weight(1f),
+        // A phone on its side has less height than the month grid needs, so stacking the day's
+        // list under it left that list no room at all: side by side there instead.
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            val grid = @Composable {
+                MonthGrid(
+                    month = visibleMonth,
+                    today = today,
+                    selectedDay = selectedDay,
+                    milestoneDays = milestoneDays,
+                    createdDays = createdDays,
+                    updatedDays = updatedDays,
+                    onPreviousMonth = { visibleMonth = visibleMonth.minusMonths(1) },
+                    onNextMonth = { visibleMonth = visibleMonth.plusMonths(1) },
+                    onToday = { visibleMonth = YearMonth.from(today) },
+                    onDayClick = { date -> selectedDay = if (selectedDay == date) null else date },
                 )
-            } else {
-                when (val loaded = state) {
-                    is LoadState.Loading -> CenteredMessage(Modifier.weight(1f)) { CircularProgressIndicator() }
-                    is LoadState.Error -> CenteredMessage(Modifier.weight(1f)) {
-                        Text("Failed to load milestones: ${loaded.message}")
-                    }
-                    is LoadState.Success -> {
-                        if (loaded.value.isEmpty()) {
-                            CenteredMessage(Modifier.weight(1f)) { Text("No milestones yet") }
-                        } else {
-                            val grouped = loaded.value
-                                .groupBy { it.startDay() }
-                                .toSortedMap()
-                            var scrollTarget = 0
-                            var flatIndex = 0
-                            for ((date, dayMilestones) in grouped) {
-                                if (scrollTarget == 0 && !date.isBefore(today)) {
-                                    scrollTarget = flatIndex
+            }
+            val details: @Composable ColumnScope.() -> Unit = {
+                val selected = selectedDay
+                if (selected != null) {
+                    DayDetailPanel(
+                        date = selected,
+                        milestones = milestones.filter { it.startDay() == selected },
+                        createdCards = allCards.filter { it.createdAt.toLocalDate() == selected },
+                        updatedCards = allCards.filter {
+                            it.updatedAt != it.createdAt && it.updatedAt.toLocalDate() == selected
+                        },
+                        menuOpenFor = menuOpenFor,
+                        onDismiss = { selectedDay = null },
+                        onNavigateToCard = onNavigateToCard,
+                        onLongClickMilestone = { menuOpenFor = it },
+                        onDismissMenu = { menuOpenFor = null },
+                        onAddToCalendar = {
+                            menuOpenFor = null
+                            addMilestoneToDeviceCalendar(context, it)
+                        },
+                        onEditMilestone = {
+                            menuOpenFor = null
+                            onEditMilestone(it)
+                        },
+                        onRemoveRequested = {
+                            menuOpenFor = null
+                            pendingRemove = it
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    when (val loaded = state) {
+                        is LoadState.Loading -> CenteredMessage(Modifier.weight(1f)) { CircularProgressIndicator() }
+                        is LoadState.Error -> CenteredMessage(Modifier.weight(1f)) {
+                            Text("Failed to load milestones: ${loaded.message}")
+                        }
+                        is LoadState.Success -> {
+                            if (loaded.value.isEmpty()) {
+                                CenteredMessage(Modifier.weight(1f)) { Text("No milestones yet") }
+                            } else {
+                                val grouped = loaded.value
+                                    .groupBy { it.startDay() }
+                                    .toSortedMap()
+                                var scrollTarget = 0
+                                var flatIndex = 0
+                                for ((date, dayMilestones) in grouped) {
+                                    if (scrollTarget == 0 && !date.isBefore(today)) {
+                                        scrollTarget = flatIndex
+                                    }
+                                    flatIndex += 1 + dayMilestones.size
                                 }
-                                flatIndex += 1 + dayMilestones.size
-                            }
 
-                            LaunchedEffect(grouped.keys) {
-                                listState.animateScrollToItem(scrollTarget)
-                            }
+                                LaunchedEffect(grouped.keys) {
+                                    listState.animateScrollToItem(scrollTarget)
+                                }
 
-                            LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
-                                grouped.forEach { (date, dayMilestones) ->
-                                    item { DayHeader(date, today) }
-                                    items(dayMilestones, key = { it.milestoneId }) { milestone ->
-                                        MilestoneRow(
-                                            milestone = milestone,
-                                            expanded = menuOpenFor == milestone.milestoneId,
-                                            onClick = {
-                                                onNavigateToCard(milestone.cardId, milestone.cardTitle ?: "")
-                                            },
-                                            onLongClick = { menuOpenFor = milestone.milestoneId },
-                                            onDismissMenu = { menuOpenFor = null },
-                                            onAddToCalendar = {
-                                                menuOpenFor = null
-                                                addMilestoneToDeviceCalendar(context, milestone)
-                                            },
-                                            onEditRequested = {
-                                                menuOpenFor = null
-                                                onEditMilestone(milestone)
-                                            },
-                                            onRemoveRequested = {
-                                                menuOpenFor = null
-                                                pendingRemove = milestone
-                                            },
-                                        )
+                                LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
+                                    grouped.forEach { (date, dayMilestones) ->
+                                        item { DayHeader(date, today) }
+                                        items(dayMilestones, key = { it.milestoneId }) { milestone ->
+                                            MilestoneRow(
+                                                milestone = milestone,
+                                                expanded = menuOpenFor == milestone.milestoneId,
+                                                onClick = {
+                                                    onNavigateToCard(milestone.cardId, milestone.cardTitle ?: "")
+                                                },
+                                                onLongClick = { menuOpenFor = milestone.milestoneId },
+                                                onDismissMenu = { menuOpenFor = null },
+                                                onAddToCalendar = {
+                                                    menuOpenFor = null
+                                                    addMilestoneToDeviceCalendar(context, milestone)
+                                                },
+                                                onEditRequested = {
+                                                    menuOpenFor = null
+                                                    onEditMilestone(milestone)
+                                                },
+                                                onRemoveRequested = {
+                                                    menuOpenFor = null
+                                                    pendingRemove = milestone
+                                                },
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                }
+            }
+            if (maxWidth > maxHeight) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Column(modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+                        grid()
+                    }
+                    VerticalDivider()
+                    Column(modifier = Modifier.weight(1f).fillMaxHeight()) { details() }
+                }
+            } else {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    grid()
+                    HorizontalDivider()
+                    details()
                 }
             }
         }

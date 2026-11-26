@@ -24,7 +24,11 @@ import org.junit.runner.RunWith
 /** Critical user journey through the real Activity, Compose navigation, JNI, and libholder. */
 @RunWith(AndroidJUnit4::class)
 class WholeAppSmokeTest {
-    @get:Rule
+    // Before the activity launches: see NoRestoredBackupRule.
+    @get:Rule(order = 0)
+    val noRestoredBackup = NoRestoredBackupRule()
+
+    @get:Rule(order = 1)
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     // Deliberately generous: this test's slow steps each wait on a real libholder round trip
