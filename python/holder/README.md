@@ -132,6 +132,28 @@ work. `list_cards` returns one page at a time. Pass its `next_cursor` with the
 same filters to fetch the next page. For updates, omit fields to keep their
 values and set `parent_card_id` to `None` to move a card to the root.
 
+## Run with or without a local Holder installation
+
+Use `open_session(fallback_workspace=path)` when a script can work on live
+Holder data or on the private workspace you supply. It uses or starts the
+local daemon when available. If the daemon is absent, it opens the private
+workspace with the native extension.
+
+```python
+from pathlib import Path
+
+from holder import open_session
+
+with open_session(fallback_workspace=Path("private-holder-workspace")) as session:
+    for project in session.list_projects():
+        print(project["name"])
+```
+
+The backend is chosen when entering the session. A startup, authentication,
+or request error is reported to the caller. Supply a URL and token to connect
+to a specific daemon, or use `open_workspace(path)` to select private data
+regardless of daemon availability.
+
 ## More help
 
 - [More scripting tasks](docs/scripting.md): links, milestones, project-wide

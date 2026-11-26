@@ -5,18 +5,21 @@ from __future__ import annotations
 import json
 import subprocess
 from collections.abc import Iterator
+from contextlib import ExitStack, contextmanager
+from os import PathLike
 from typing import Any, Self, cast
 
 import httpx
 
 from ._workspace_contract import Project as ProjectRecord
-from .cards import CardOperations, _DaemonCards
+from .cards import CardOperations, EmbeddedWorkspace, _DaemonCards, open_workspace
 from .changes import Changes
 from .exceptions import (
     APIError,
     AuthenticationError,
     ClosedError,
     ConnectionError,
+    DaemonUnavailableError,
     NotFoundError,
     ProtocolError,
 )
@@ -67,10 +70,20 @@ class Holder:
                 timeout=65,
                 check=False,
             )
+        except FileNotFoundError:
+            error = DaemonUnavailableError if args[0] == "ensure" else ConnectionError
+            raise error(
+                "Could not find holderctl; install Holder or supply url and token"
+            ) from None
         except (OSError, subprocess.TimeoutExpired):
             raise ConnectionError(
                 "Could not run holderctl; install Holder or supply url and token"
             ) from None
+        # holderctl ensure documents exit 14 as daemon_not_found.
+        if args[0] == "ensure" and result.returncode == 14:
+            raise DaemonUnavailableError(
+                "holderctl could not find a local Holder daemon"
+            )
         if result.returncode:
             # CLI output and stderr may contain local credentials; never echo them.
             raise ConnectionError(
@@ -209,3 +222,31 @@ class Holder:
         raise AuthenticationError(
             401, "unauthorized", "Daemon rejected refreshed credentials"
         )
+
+
+@contextmanager
+def open_session(
+    *,
+    fallback_workspace: str | PathLike[str] | None = None,
+    url: str | None = None,
+    token: str | None = None,
+    holderctl: str = "holderctl",
+    timeout: float | httpx.Timeout = 10.0,
+    transport: httpx.BaseTransport | None = None,
+) -> Iterator[Holder | EmbeddedWorkspace]:
+    """Open a daemon session, with an optional private workspace for offline use.
+
+    Use the private workspace only if local discovery finds no installed daemon.
+    An explicit URL always selects HTTP. Backend selection ends at session entry.
+    """
+    daemon = Holder(
+        url=url, token=token, holderctl=holderctl, timeout=timeout, transport=transport
+    )
+    with ExitStack() as stack:
+        try:
+            session: Holder | EmbeddedWorkspace = stack.enter_context(daemon)
+        except DaemonUnavailableError:
+            if fallback_workspace is None or url is not None:
+                raise
+            session = stack.enter_context(open_workspace(fallback_workspace))
+        yield session

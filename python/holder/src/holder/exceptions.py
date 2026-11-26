@@ -16,6 +16,10 @@ class ConnectionError(HolderError):
     """Daemon discovery, startup or transport failed."""
 
 
+class DaemonUnavailableError(ConnectionError):
+    """No local Holder daemon or discovery command could be found."""
+
+
 class ClosedError(HolderError):
     """The client is outside its active context."""
 

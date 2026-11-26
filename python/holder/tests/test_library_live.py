@@ -15,7 +15,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from holder import Holder, MilestoneDate, ProjectRecord, open_workspace
+from holder import Holder, MilestoneDate, ProjectRecord, open_session, open_workspace
 from holder.cards import Card, CardListItem
 from holder.exceptions import APIError, ClosedError, NotFoundError
 
@@ -503,11 +503,15 @@ def test_project_scoped_collections_against_daemon(daemon):
 @pytest.mark.parametrize("backend", ["daemon", "embedded"])
 def test_shared_card_operations(backend, request, tmp_path):
     if backend == "daemon":
-        url, token, raw, _ = request.getfixturevalue("daemon")
+        url, token, raw, cli = request.getfixturevalue("daemon")
         project_id = create_project(raw, "Shared Card API")
         parent_id = create_card(raw, project_id, 1)
         child_id = create_card(raw, project_id, 2, parent_id)
-        session = Holder(url=url, token=token)
+        session = (
+            open_session(holderctl=str(cli), fallback_workspace=tmp_path / "unused")
+            if cli.is_file()
+            else open_session(url=url, token=token)
+        )
     else:
         if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
             pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
@@ -521,7 +525,9 @@ def test_shared_card_operations(backend, request, tmp_path):
             child_id = native.create_card(
                 project_id, "Card 2", "body 2\n#research", parent_card_id=parent_id
             )["card_id"]
-        session = open_workspace(data_dir)
+        session = open_session(
+            fallback_workspace=data_dir, holderctl=str(tmp_path / "missing-holderctl")
+        )
 
     with session as active:
         projects = active.list_projects()

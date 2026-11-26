@@ -2,18 +2,20 @@
 
 import json
 import subprocess
+from contextlib import nullcontext
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock
 
 import httpx
 import pytest
 
-from holder import Card, Holder, Project
+from holder import Card, Holder, Project, open_session
 from holder.exceptions import (
     APIError,
     AuthenticationError,
     ClosedError,
     ConnectionError,
+    DaemonUnavailableError,
     NotFoundError,
     ProtocolError,
 )
@@ -762,3 +764,69 @@ def test_invalid_card_continuation_is_rejected(items, cursor):
             collection._next = "same"
         with pytest.raises(ProtocolError, match="did not advance"):
             list(collection)
+
+
+def test_open_session_prefers_local_daemon(monkeypatch, tmp_path):
+    cli = mock_cli(monkeypatch)
+    fallback = tmp_path / "private"
+    transport = httpx.MockTransport(lambda request: ok([project_payload(0)]))
+    with open_session(fallback_workspace=fallback, transport=transport) as session:
+        assert session.list_projects()[0]["project_id"] == "p-0"
+    assert cli.call_count == 2
+    assert not fallback.exists()
+
+
+@pytest.mark.parametrize("unavailable", [FileNotFoundError(), 14])
+def test_open_session_uses_private_workspace_when_local_daemon_is_missing(
+    monkeypatch, tmp_path, unavailable
+):
+    runner = Mock(
+        side_effect=unavailable if isinstance(unavailable, OSError) else None,
+        return_value=subprocess.CompletedProcess([], 14, ""),
+    )
+    monkeypatch.setattr("holder.client.subprocess.run", runner)
+    workspace = object()
+    open_private = Mock(return_value=nullcontext(workspace))
+    monkeypatch.setattr("holder.client.open_workspace", open_private)
+    with pytest.raises(DaemonUnavailableError), open_session():
+        pass
+    with open_session(fallback_workspace=tmp_path) as session:
+        assert session is workspace
+    open_private.assert_called_once_with(tmp_path)
+
+
+@pytest.mark.parametrize("exit_code", [10, 12, 13])
+def test_open_session_surfaces_daemon_discovery_failures(monkeypatch, tmp_path, exit_code):
+    runner = Mock(return_value=subprocess.CompletedProcess([], exit_code, ""))
+    monkeypatch.setattr("holder.client.subprocess.run", runner)
+    fallback = tmp_path / "private"
+    with pytest.raises(ConnectionError, match=f"exit {exit_code}"), open_session(
+        fallback_workspace=fallback
+    ):
+        pass
+    assert not fallback.exists()
+
+
+def test_open_session_surfaces_explicit_http_failures(monkeypatch, tmp_path):
+    cli = mock_cli(monkeypatch)
+    fallback = tmp_path / "private"
+    transport = httpx.MockTransport(lambda request: failure(401))
+    with open_session(
+        url="http://holder.test",
+        token="credential",
+        fallback_workspace=fallback,
+        transport=transport,
+    ) as session, pytest.raises(AuthenticationError):
+        session.list_projects()
+    cli.assert_not_called()
+    assert not fallback.exists()
+
+
+def test_open_session_does_not_switch_after_entering(monkeypatch, tmp_path):
+    mock_cli(monkeypatch)
+    fallback = tmp_path / "private"
+    with pytest.raises(DaemonUnavailableError, match="operation failed"), open_session(
+        fallback_workspace=fallback
+    ):
+        raise DaemonUnavailableError("operation failed")
+    assert not fallback.exists()

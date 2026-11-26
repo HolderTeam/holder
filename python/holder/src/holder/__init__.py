@@ -3,7 +3,7 @@
 from ._workspace_contract import Project as ProjectRecord
 from .cards import EmbeddedUnavailableError, open_workspace
 from .changes import ChangeCheckpoint, ChangeReady, EntityChange, ResyncRequired
-from .client import Holder
+from .client import Holder, open_session
 from .intelligence_events import IntelligenceEvent, PullEventStream, RunStream
 from .models import (
     ActivityItem,
@@ -117,5 +117,6 @@ __all__ = [
     "Tag",
     "Thread",
     "TrashItem",
+    "open_session",
     "open_workspace",
 ]
