@@ -21,6 +21,7 @@ from ._workspace_contract import (
     CardUpdate,
     NewCard,
     Page,
+    SearchCard,
     TagCount,
 )
 from ._workspace_contract import Project as ProjectRecord
@@ -33,6 +34,7 @@ from .generated.api.default import (
     get_projects_project_id_cards_card_id,
     get_projects_project_id_cards_card_id_breadcrumbs,
     get_projects_project_id_cards_card_id_metadata,
+    get_search_cards,
     patch_projects_project_id_cards_card_id,
     post_card_references_resolve,
     post_projects_project_id_cards,
@@ -72,6 +74,7 @@ __all__ = [
     "EmbeddedUnavailableError",
     "NewCard",
     "Page",
+    "SearchCard",
     "open_workspace",
 ]
 
@@ -108,6 +111,14 @@ class _DaemonCards:
             include_child_count=include_child_count,
         )
         return cast("Page[CardListItem]", result.to_dict())
+
+    def search_cards(
+        self, project_id: str, q: str, *, limit: int = 20, offset: int = 0
+    ) -> list[SearchCard]:
+        results = self._holder._call(
+            get_search_cards, project_id=project_id, q=q, limit=limit, offset=offset
+        )
+        return [cast("SearchCard", result.to_dict()) for result in results]
 
     def get_card(self, project_id: str, card_id: str) -> Card:
         result = self._holder._call(
@@ -251,7 +262,7 @@ class EmbeddedWorkspace:
                 "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(native.Context, "resolve_card_reference"):
+        if not hasattr(native.Context, "search_cards"):
             raise EmbeddedUnavailableError(
                 "This Holder Kit build is too old for the shared Card API."
             )
@@ -351,6 +362,16 @@ class _EmbeddedCards:
             ),
         )
         return {"items": result["cards"], "next_cursor": result["next_cursor"]}
+
+    def search_cards(
+        self, project_id: str, q: str, *, limit: int = 20, offset: int = 0
+    ) -> list[SearchCard]:
+        return cast(
+            "list[SearchCard]",
+            self._workspace._call(
+                "search_cards", project_id, q, limit=limit, offset=offset
+            ),
+        )
 
     def get_card(self, project_id: str, card_id: str) -> Card:
         return cast("Card", self._workspace._call("get_live_card", project_id, card_id))

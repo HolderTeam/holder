@@ -133,6 +133,11 @@ parent, and other metadata without reading its body.
 `cards.get_card_breadcrumbs(project_id, card_id)` returns the path from the
 project through the card's live ancestors to the card itself.
 
+Use `cards.search_cards(project_id, '"café notes"')` to search live card
+titles and bodies with an SQLite FTS5 query. Results are ordered by relevance
+and include excerpts from the card body. Use `limit` and `offset` to read
+additional results.
+
 To look up an exact title, full ID, or eligible ID prefix, use
 `cards.resolve_card_reference({"project_id": project_id, "reference": "An idea",
 "scope": "live"})`. Use `trashed` to search Trash or `either` to search both.

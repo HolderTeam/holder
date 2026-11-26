@@ -156,6 +156,17 @@ class CardReferenceResolveData(TypedDict):
     candidates: NotRequired[list[CardReferenceCandidate]]
 
 
+class SearchCard(TypedDict):
+    """A card matching a full-text query."""
+
+    card_id: str
+    title: str
+    updated_at: int
+    created_at: int
+    snippet: str
+    rank: float
+
+
 class CardOperations(Protocol):
     """The Card operations shared by daemon and embedded sessions."""
 
@@ -180,6 +191,17 @@ class CardOperations(Protocol):
 
         Filters combine. Each page reads current data; iterating is not a snapshot.
         """
+        ...
+
+    def search_cards(
+        self,
+        project_id: ProjectId,
+        q: str,
+        *,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[SearchCard]:
+        """Search a project's cards, ordered by relevance, best first."""
         ...
 
     def get_card(

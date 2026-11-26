@@ -790,6 +790,49 @@ Context_get_card_metadata(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
+Context_search_cards(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id, *query;
+    int limit = 20;
+    int offset = 0;
+    static char *keywords[] = {"project_id", "q", "limit", "offset", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|$ii:search_cards", keywords,
+                                    &project_id, &query, &limit, &offset) ||
+        !ensure_context_open(self)) return NULL;
+
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const int32_t page_limit = limit;
+    const holder_search_card_list *items = NULL;
+    holder_error *error = NULL;
+    const int result = holder_search_cards(self->context, project_id, query, &page_limit,
+        offset, arena, &items, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+
+    PyObject *records = PyList_New(0);
+    if (records != NULL) for (size_t i = 0; i < items->count; ++i) {
+        const holder_search_card *item = &items->items[i];
+        PyObject *record = Py_BuildValue("{s:s,s:s,s:L,s:L,s:s,s:d}",
+            "card_id", item->card_id, "title", item->title,
+            "updated_at", (long long)item->updated_at, "created_at", (long long)item->created_at,
+            "snippet", item->snippet, "rank", item->rank);
+        if (record == NULL || PyList_Append(records, record) < 0) {
+            Py_XDECREF(record);
+            Py_CLEAR(records);
+            break;
+        }
+        Py_DECREF(record);
+    }
+    holder_arena_free(arena);
+    return records;
+}
+
+static PyObject *
 Context_get_card_breadcrumbs(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
     const char *project_id, *card_id;
@@ -2045,6 +2088,8 @@ static PyMethodDef Context_methods[] = {
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Permanently remove a card that is already in Trash.")},
     {"list_cards_page", PyCFunction_CAST(Context_list_cards_page), METH_VARARGS | METH_KEYWORDS,
      PyDoc_STR("Return one page of a project's live cards, by parent, tag and order.")},
+    {"search_cards", PyCFunction_CAST(Context_search_cards), METH_VARARGS | METH_KEYWORDS,
+     "Search live cards in a project by relevance."},
     {"resolve_card_reference", PyCFunction_CAST(Context_resolve_card_reference), METH_VARARGS | METH_KEYWORDS,
      "Resolve a card reference within a project and deletion scope."},
     {"get_card_metadata", PyCFunction_CAST(Context_get_card_metadata), METH_VARARGS | METH_KEYWORDS,

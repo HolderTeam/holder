@@ -16,7 +16,7 @@ import httpx
 import pytest
 
 from holder import Holder, MilestoneDate, ProjectRecord, open_session
-from holder.cards import Card, CardListItem, CardMetadata
+from holder.cards import Card, CardListItem, CardMetadata, SearchCard
 from holder.exceptions import APIError, ClosedError, NotFoundError
 
 DAEMON = os.environ.get("HOLDER_TEST_DAEMON")
@@ -759,6 +759,31 @@ def test_shared_card_operations(backend, request, tmp_path):
         assert lookup(child_id, "either") == trashed_match
         assert lookup(prose["title"])["card"]["card_id"] == extra_id
         cards.restore_card(project_id, child_id)
+
+        query = '"café notes"'
+        first_id = cards.create_card(project_id, {"title": "First café notes"})["card_id"]
+        second_id = cards.create_card(
+            project_id, {"title": "Second result", "content": "More café notes"}
+        )["card_id"]
+        other_project = active.create_plain_project(name="Other search project")
+        other_id = cards.create_card(
+            other_project["project_id"], {"title": "Other café notes"}
+        )["card_id"]
+
+        results = cards.search_cards(project_id, query)
+        assert {row["card_id"] for row in results} == {first_id, second_id}
+        assert [row["rank"] for row in results] == sorted(row["rank"] for row in results)
+        assert all(row.keys() == SearchCard.__required_keys__ for row in results)
+        assert "café" in next(row["snippet"] for row in results if row["card_id"] == second_id)
+        assert cards.search_cards(project_id, query, limit=1) == results[:1]
+        assert cards.search_cards(project_id, query, limit=1, offset=1) == results[1:]
+        assert [row["card_id"] for row in cards.search_cards(other_project["project_id"], query)] == [other_id]
+        assert cards.search_cards(project_id, "quartzunfindable") == []
+        with pytest.raises(APIError) as error:
+            cards.search_cards(project_id, '"')
+        assert (error.value.status, error.value.code) == (400, "invalid_argument")
+        cards.trash_card(project_id, first_id)
+        assert [row["card_id"] for row in cards.search_cards(project_id, query)] == [second_id]
 
     with pytest.raises(ClosedError):
         cards.get_card(project_id, child_id)
