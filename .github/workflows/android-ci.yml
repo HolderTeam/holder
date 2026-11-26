@@ -104,7 +104,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
-          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
@@ -143,6 +142,22 @@ jobs:
           "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
           mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
 
+      # Each kind of job keeps its own Gradle cache, holding what that job downloads: one shared
+      # cache was saved by whichever job finished first (usually this one), so the emulator jobs
+      # restored a "hit" without any androidTest libraries and fetched them from Maven Central
+      # on every run, where three legs at once were sometimes refused with HTTP 429. Saved only
+      # from main (pull requests read it), and only when the build files changed.
+      - name: Restore Gradle cache
+        id: gradle-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-android-build-${{ runner.os }}-${{ hashFiles('apps/mobile/android/**/*.gradle*', 'apps/mobile/android/**/gradle-wrapper.properties', 'apps/mobile/android/gradle/*.versions.toml') }}
+          restore-keys: |
+            gradle-android-build-${{ runner.os }}-
+
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug -Pholder.android.abis=arm64-v8a
 
@@ -151,6 +166,19 @@ jobs:
 
       - name: Run unit tests
         run: ./gradlew :app:testDebugUnitTest
+
+      - name: Stop Gradle so its cache files are closed
+        if: success() && github.event_name != 'pull_request' && steps.gradle-cache.outputs.cache-hit != 'true'
+        run: ./gradlew --stop
+
+      - name: Save Gradle cache
+        if: success() && github.event_name != 'pull_request' && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-android-build-${{ runner.os }}-${{ hashFiles('apps/mobile/android/**/*.gradle*', 'apps/mobile/android/**/gradle-wrapper.properties', 'apps/mobile/android/gradle/*.versions.toml') }}
 
       - name: Save vcpkg binary package cache
         if: success() && github.event_name != 'pull_request' && steps.vcpkg-cache.outputs.cache-hit != 'true'
@@ -203,7 +231,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
-          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
@@ -246,6 +273,27 @@ jobs:
           "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
           mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
 
+      # The emulator legs share one Gradle cache (same dependencies), saved from one leg only.
+      - name: Restore Gradle cache
+        id: gradle-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-android-devicetests-${{ runner.os }}-${{ hashFiles('apps/mobile/android/**/*.gradle*', 'apps/mobile/android/**/gradle-wrapper.properties', 'apps/mobile/android/gradle/*.versions.toml') }}
+          restore-keys: |
+            gradle-android-devicetests-${{ runner.os }}-
+
+      - name: Restore ${{ matrix.device }} system image
+        id: system-image-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.ANDROID_HOME }}/system-images
+          key: android-system-image-${{ matrix.device }}-${{ runner.os }}-${{ hashFiles('apps/mobile/android/app/build.gradle.kts') }}
+          restore-keys: |
+            android-system-image-${{ matrix.device }}-${{ runner.os }}-
+
       - name: Run ${{ matrix.device }} managed-device tests
         run: >-
           ./gradlew :app:${{ matrix.device }}DebugAndroidTest
@@ -262,6 +310,29 @@ jobs:
             apps/mobile/android/app/build/outputs/androidTest-results/
           if-no-files-found: warn
           retention-days: 7
+
+      - name: Stop Gradle so its cache files are closed
+        if: success() && github.event_name != 'pull_request' && steps.gradle-cache.outputs.cache-hit != 'true' && matrix.device == 'pixel2Api30'
+        run: ./gradlew --stop
+
+      - name: Save Gradle cache
+        if: success() && github.event_name != 'pull_request' && steps.gradle-cache.outputs.cache-hit != 'true' && matrix.device == 'pixel2Api30'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-android-devicetests-${{ runner.os }}-${{ hashFiles('apps/mobile/android/**/*.gradle*', 'apps/mobile/android/**/gradle-wrapper.properties', 'apps/mobile/android/gradle/*.versions.toml') }}
+
+      - name: Save ${{ matrix.device }} system image
+        # Managed devices download their image on first use; each leg caches its own.
+        if: >-
+          success() && github.event_name != 'pull_request' &&
+          steps.system-image-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.ANDROID_HOME }}/system-images
+          key: android-system-image-${{ matrix.device }}-${{ runner.os }}-${{ hashFiles('apps/mobile/android/app/build.gradle.kts') }}
 
       - name: Save x86_64 vcpkg binary package cache
         # All matrix legs build the identical x86_64 cache -- gated to one of them so they
@@ -302,7 +373,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
-          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
@@ -344,6 +414,18 @@ jobs:
           git clone https://github.com/microsoft/vcpkg "$VCPKG_ROOT"
           "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
           mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+
+      # Read-only: the emulator legs above save this cache.
+      - name: Restore Gradle cache
+        id: gradle-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-android-devicetests-${{ runner.os }}-${{ hashFiles('apps/mobile/android/**/*.gradle*', 'apps/mobile/android/**/gradle-wrapper.properties', 'apps/mobile/android/gradle/*.versions.toml') }}
+          restore-keys: |
+            gradle-android-devicetests-${{ runner.os }}-
 
       - name: Run pixel2Api28 managed-device tests
         run: >-
