@@ -584,28 +584,37 @@ change_from_python(PyObject *changes, const char *name, holder_string_change *ou
 }
 
 static PyObject *
+link_record(const holder_link *link)
+{
+    static const char *source_types[] = {"", "card", "ai_message"};
+    static const char *target_types[] = {"", "card", "ai_message", "ai_thread", "resource"};
+    const unsigned source = (unsigned)link->source_type;
+    const unsigned target = (unsigned)link->target_type;
+    PyObject *record = PyDict_New();
+    if (record == NULL ||
+        put_text(record, "source_project_id", link->source_project_id) < 0 ||
+        put_text(record, "source_type", source < 3 ? source_types[source] : NULL) < 0 ||
+        put_text(record, "source_id", link->source_id) < 0 ||
+        put_text(record, "target_project_id", link->target_project_id) < 0 ||
+        put_text(record, "target_type", target < 5 ? target_types[target] : NULL) < 0 ||
+        put_text(record, "target_id", link->target_id) < 0 ||
+        put_text(record, "kind", link->kind) < 0 ||
+        put_text(record, "label", link->label) < 0 ||
+        put_epoch(record, "created_at", link->created_at) < 0) {
+        Py_XDECREF(record);
+        return NULL;
+    }
+    return record;
+}
+
+static PyObject *
 link_list_record(const holder_link_list *list)
 {
     PyObject *out = PyList_New(0);
     if (out == NULL) return NULL;
-    static const char *source_types[] = {"", "card", "ai_message"};
-    static const char *target_types[] = {"", "card", "ai_message", "ai_thread", "resource"};
     for (size_t i = 0; i < list->count; ++i) {
-        const holder_link *link = &list->items[i];
-        PyObject *record = PyDict_New();
-        const unsigned source = (unsigned)link->source_type;
-        const unsigned target = (unsigned)link->target_type;
-        if (record == NULL ||
-            put_text(record, "source_project_id", link->source_project_id) < 0 ||
-            put_text(record, "source_type", source < 3 ? source_types[source] : NULL) < 0 ||
-            put_text(record, "source_id", link->source_id) < 0 ||
-            put_text(record, "target_project_id", link->target_project_id) < 0 ||
-            put_text(record, "target_type", target < 5 ? target_types[target] : NULL) < 0 ||
-            put_text(record, "target_id", link->target_id) < 0 ||
-            put_text(record, "kind", link->kind) < 0 ||
-            put_text(record, "label", link->label) < 0 ||
-            put_epoch(record, "created_at", link->created_at) < 0 ||
-            PyList_Append(out, record) < 0) {
+        PyObject *record = link_record(&list->items[i]);
+        if (record == NULL || PyList_Append(out, record) < 0) {
             Py_XDECREF(record);
             Py_DECREF(out);
             return NULL;
@@ -1676,6 +1685,27 @@ Context_cards_with_tag(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
+add_card_link(ContextObject *self, const char *project_id, const char *from_card_id,
+              const holder_new_link *link, bool return_record)
+{
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_link *created = NULL;
+    holder_error *error = NULL;
+    const int result = holder_add_card_link(self->context, project_id, from_card_id,
+        link, arena, &created, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+    PyObject *record = return_record ? link_record(created) : Py_NewRef(Py_None);
+    holder_arena_free(arena);
+    return record;
+}
+
+static PyObject *
 Context_add_link(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
     const char *project_id = NULL;
@@ -1693,26 +1723,36 @@ Context_add_link(ContextObject *self, PyObject *args, PyObject *kwargs)
     if (!ensure_context_open(self)) {
         return NULL;
     }
-    holder_arena *arena = holder_arena_new();
-    if (arena == NULL) return PyErr_NoMemory();
     holder_new_link link = {0};
     link.target_type = HOLDER_NEW_LINK_TARGET_TYPE_CARD;
     link.target_id = to_card_id;
     link.target_project_id = target_project_id;
     link.kind = kind;
     link.label = label;
-    const holder_link *created = NULL;
+    return add_card_link(self, project_id, from_card_id, &link, false);
+}
+
+static PyObject *
+remove_card_link(ContextObject *self, const char *project_id, const char *from_card_id,
+                 holder_remove_card_link_target_type target_type, const char *to_card_id,
+                 const char *kind, const char *target_project_id, bool return_records)
+{
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_link_list *remaining = NULL;
     holder_error *error = NULL;
-    const int result = holder_add_card_link(self->context, project_id, from_card_id,
-        &link, arena, &created, &error);
+    const int result = holder_remove_card_link(self->context, project_id,
+        from_card_id, target_type, to_card_id,
+        kind, target_project_id, arena, &remaining, &error);
     if (result != HOLDER_OK) {
         raise_holder_error(self, result, error);
         holder_arena_free(arena);
         return NULL;
     }
     holder_error_destroy(error);
+    PyObject *records = return_records ? link_list_record(remaining) : Py_NewRef(Py_None);
     holder_arena_free(arena);
-    Py_RETURN_NONE;
+    return records;
 }
 
 static PyObject *
@@ -1732,21 +1772,69 @@ Context_remove_link(ContextObject *self, PyObject *args, PyObject *kwargs)
     if (!ensure_context_open(self)) {
         return NULL;
     }
-    holder_arena *arena = holder_arena_new();
-    if (arena == NULL) return PyErr_NoMemory();
-    const holder_link_list *remaining = NULL;
-    holder_error *error = NULL;
-    const int result = holder_remove_card_link(self->context, project_id,
-        from_card_id, HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_CARD, to_card_id,
-        kind, target_project_id, arena, &remaining, &error);
-    if (result != HOLDER_OK) {
-        raise_holder_error(self, result, error);
-        holder_arena_free(arena);
-        return NULL;
+    return remove_card_link(self, project_id, from_card_id, HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_CARD,
+        to_card_id, kind, target_project_id, false);
+}
+
+typedef struct {
+    const char *name;
+    holder_new_link_target_type add;
+    holder_remove_card_link_target_type remove;
+} link_target_type;
+
+static const link_target_type *
+parse_link_target_type(const char *name)
+{
+    static const link_target_type targets[] = {
+        {"card", HOLDER_NEW_LINK_TARGET_TYPE_CARD, HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_CARD},
+        {"ai_message", HOLDER_NEW_LINK_TARGET_TYPE_AI_MESSAGE, HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_MESSAGE},
+        {"ai_thread", HOLDER_NEW_LINK_TARGET_TYPE_AI_THREAD, HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_THREAD},
+        {"resource", HOLDER_NEW_LINK_TARGET_TYPE_RESOURCE, HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_RESOURCE},
+    };
+    for (size_t i = 0; i < sizeof targets / sizeof targets[0]; ++i) {
+        if (strcmp(name, targets[i].name) == 0) return &targets[i];
     }
-    holder_error_destroy(error);
-    holder_arena_free(arena);
-    Py_RETURN_NONE;
+    PyErr_SetString(PyExc_ValueError, "unknown link target type");
+    return NULL;
+}
+
+static PyObject *
+Context_add_card_link(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id, *card_id, *type;
+    long long timestamp = 0;
+    holder_new_link link = {0};
+    static char *keywords[] = {
+        "project_id", "card_id", "target_type", "target_id",
+        "target_project_id", "kind", "label", "created_at", NULL
+    };
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ssss|$sszL:add_card_link", keywords,
+        &project_id, &card_id, &type, &link.target_id, &link.target_project_id,
+        &link.kind, &link.label, &timestamp) || !ensure_context_open(self)) return NULL;
+
+    const link_target_type *target_type = parse_link_target_type(type);
+    if (target_type == NULL) return NULL;
+    link.target_type = target_type->add;
+    const int64_t created_at = timestamp;
+    if (kwargs != NULL && PyDict_GetItemString(kwargs, "created_at") != NULL) {
+        link.created_at = &created_at;
+    }
+    return add_card_link(self, project_id, card_id, &link, true);
+}
+
+static PyObject *
+Context_remove_card_link(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id, *card_id, *type, *target_id;
+    const char *kind = NULL, *target_project_id = NULL;
+    static char *keywords[] = {"project_id", "card_id", "target_type", "target_id", "kind", "target_project_id", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ssss|$sz:remove_card_link", keywords,
+        &project_id, &card_id, &type, &target_id, &kind, &target_project_id) ||
+        !ensure_context_open(self)) return NULL;
+    const link_target_type *target_type = parse_link_target_type(type);
+    if (target_type == NULL) return NULL;
+    return remove_card_link(self, project_id, card_id, target_type->remove,
+        target_id, kind, target_project_id, true);
 }
 
 static PyObject *
@@ -2131,6 +2219,10 @@ static PyMethodDef Context_methods[] = {
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Permanently remove a card that is already in Trash.")},
     {"list_cards_page", PyCFunction_CAST(Context_list_cards_page), METH_VARARGS | METH_KEYWORDS,
      PyDoc_STR("Return one page of a project's live cards, by parent, tag and order.")},
+    {"add_card_link", PyCFunction_CAST(Context_add_card_link), METH_VARARGS | METH_KEYWORDS,
+     "Create a qualified link and return its record."},
+    {"remove_card_link", PyCFunction_CAST(Context_remove_card_link), METH_VARARGS | METH_KEYWORDS,
+     "Remove a qualified link and return the remaining visible links."},
     {"list_card_backlinks", PyCFunction_CAST(Context_list_card_backlinks), METH_VARARGS | METH_KEYWORDS,
      "List the links to a live card."},
     {"search_cards", PyCFunction_CAST(Context_search_cards), METH_VARARGS | METH_KEYWORDS,

@@ -20,7 +20,9 @@ from ._workspace_contract import (
     CardReferenceResolveRequest,
     CardUpdate,
     Link,
+    LinkTargetType,
     NewCard,
+    NewLink,
     Page,
     SearchCard,
     TagCount,
@@ -30,6 +32,7 @@ from ._workspace_contract import TrashItem as TrashItemRecord
 from .exceptions import APIError, ClosedError, HolderError, NotFoundError
 from .generated.api.default import (
     delete_projects_project_id_cards_card_id,
+    delete_projects_project_id_cards_card_id_links,
     delete_projects_project_id_cards_card_id_tags_tag,
     get_projects_project_id_cards,
     get_projects_project_id_cards_card_id,
@@ -41,6 +44,7 @@ from .generated.api.default import (
     patch_projects_project_id_cards_card_id,
     post_card_references_resolve,
     post_projects_project_id_cards,
+    post_projects_project_id_cards_card_id_links,
     post_projects_project_id_cards_card_id_move,
     post_projects_project_id_cards_card_id_restore,
     put_projects_project_id_cards_card_id_tags_tag,
@@ -57,7 +61,9 @@ from .generated.models import (
     CardReferenceResolveRequest as HTTPCardReferenceResolveRequest,
 )
 from .generated.models import CardUpdate as HTTPCardUpdate
+from .generated.models import LinkTargetType as HTTPLinkTargetType
 from .generated.models import NewCard as HTTPNewCard
+from .generated.models import NewLink as HTTPNewLink
 
 if TYPE_CHECKING:
     from holderkit._native import Context
@@ -77,7 +83,9 @@ __all__ = [
     "CardUpdate",
     "EmbeddedUnavailableError",
     "Link",
+    "LinkTargetType",
     "NewCard",
+    "NewLink",
     "Page",
     "SearchCard",
     "open_workspace",
@@ -260,6 +268,40 @@ class _DaemonCards:
         )
         return [cast("Link", result.to_dict()) for result in results]
 
+    def add_card_link(self, project_id: str, card_id: str, link: NewLink) -> Link:
+        result = self._holder._call(
+            post_projects_project_id_cards_card_id_links,
+            project_id,
+            card_id,
+            body=HTTPNewLink(
+                **{**link, "target_type": HTTPLinkTargetType(link["target_type"])}
+            ),
+            write=True,
+        )
+        return cast("Link", result.to_dict())
+
+    def remove_card_link(
+        self,
+        project_id: str,
+        card_id: str,
+        target_type: LinkTargetType,
+        target_id: str,
+        *,
+        kind: str = "ref",
+        target_project_id: str | None = None,
+    ) -> list[Link]:
+        results = self._holder._call(
+            delete_projects_project_id_cards_card_id_links,
+            project_id,
+            card_id,
+            target_type=HTTPLinkTargetType(target_type),
+            target_id=target_id,
+            kind=kind,
+            target_project_id=target_project_id,
+            write=True,
+        )
+        return [cast("Link", result.to_dict()) for result in results]
+
 
 class EmbeddedWorkspace:
     """A session in an explicitly selected, private Holder data directory."""
@@ -295,7 +337,7 @@ class EmbeddedWorkspace:
                 "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(native.Context, "list_card_backlinks"):
+        if not hasattr(native.Context, "remove_card_link"):
             raise EmbeddedUnavailableError(
                 "This Holder Kit build is too old for the shared Card API."
             )
@@ -502,6 +544,34 @@ class _EmbeddedCards:
                 card_id,
                 scope=scope,
                 include_deleted=include_deleted,
+            ),
+        )
+
+    def add_card_link(self, project_id: str, card_id: str, link: NewLink) -> Link:
+        return cast(
+            "Link", self._workspace._call("add_card_link", project_id, card_id, **link)
+        )
+
+    def remove_card_link(
+        self,
+        project_id: str,
+        card_id: str,
+        target_type: LinkTargetType,
+        target_id: str,
+        *,
+        kind: str = "ref",
+        target_project_id: str | None = None,
+    ) -> list[Link]:
+        return cast(
+            "list[Link]",
+            self._workspace._call(
+                "remove_card_link",
+                project_id,
+                card_id,
+                target_type,
+                target_id,
+                kind=kind,
+                target_project_id=target_project_id,
             ),
         )
 

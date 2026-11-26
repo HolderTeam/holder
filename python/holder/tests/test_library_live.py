@@ -786,19 +786,30 @@ def test_shared_card_operations(backend, request, tmp_path):
         assert [row["card_id"] for row in cards.search_cards(project_id, query)] == [second_id]
 
         other_project_id = other_project["project_id"]
-        if isinstance(active, Holder):
-            local_source = active.projects.get(project_id).cards.get(second_id)
-            local_source.links.add(child_id, kind="ref", label="Local")
-            external_source = active.projects.get(other_project_id).cards.get(other_id)
-            external_source.links.add(child_id, target_project_id=project_id, kind="ref")
-        else:
-            native = active._context
-            assert native is not None
-            native.add_link(project_id, second_id, None, child_id, "ref", "Local")
-            native.add_link(other_project_id, other_id, project_id, child_id, "ref")
+        original = cards.add_card_link(
+            project_id,
+            second_id,
+            {"target_type": "card", "target_id": child_id, "created_at": 1_700_000_000},
+        )
+        assert original["kind"] == "ref"
+        assert original["label"] is None
+        assert original["created_at"] == 1_700_000_000
+        updated = cards.add_card_link(
+            project_id,
+            second_id,
+            {"target_type": "card", "target_id": child_id, "label": "Local", "created_at": 1_700_000_001},
+        )
+        assert updated == {**original, "label": "Local"}
+        foreign = cards.add_card_link(
+            other_project_id,
+            other_id,
+            {"target_type": "card", "target_id": child_id, "target_project_id": project_id},
+        )
 
         [local] = cards.list_card_links(project_id, second_id)
         [external] = cards.list_card_links(other_project_id, other_id)
+        assert local == updated
+        assert external == foreign
         assert local.keys() == external.keys() == Link.__required_keys__
         assert (local["source_project_id"], local["source_id"], local["label"]) == (
             project_id, second_id, "Local"
@@ -829,6 +840,19 @@ def test_shared_card_operations(backend, request, tmp_path):
         assert cards.list_card_links(other_project_id, other_id) == [external]
         with pytest.raises(NotFoundError):
             cards.list_card_backlinks(project_id, child_id, include_deleted=True)
+
+        cards.restore_card(project_id, child_id)
+        sibling_link = cards.add_card_link(
+            project_id, second_id, {"target_type": "card", "target_id": child_id, "kind": "related"}
+        )
+        assert cards.remove_card_link(project_id, second_id, "card", child_id) == [sibling_link]
+        assert cards.remove_card_link(project_id, second_id, "card", child_id) == [sibling_link]
+        assert cards.remove_card_link(
+            other_project_id, other_id, "card", child_id, target_project_id=project_id
+        ) == []
+        assert cards.list_card_backlinks(project_id, child_id, scope="all_available") == [sibling_link]
+        with pytest.raises(NotFoundError):
+            cards.add_card_link(project_id, second_id, {"target_type": "resource", "target_id": "missing"})
 
     with pytest.raises(ClosedError):
         cards.get_card(project_id, child_id)

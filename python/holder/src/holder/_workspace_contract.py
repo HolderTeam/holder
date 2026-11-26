@@ -187,6 +187,17 @@ class Link(TypedDict):
     created_at: int
 
 
+class NewLink(TypedDict):
+    """A link to make from a card. Its source is the card it is made from."""
+
+    target_type: LinkTargetType
+    target_id: LinkTargetId
+    target_project_id: NotRequired[ProjectId]
+    kind: NotRequired[LinkKind]
+    label: NotRequired[str | None]
+    created_at: NotRequired[int]
+
+
 class CardOperations(Protocol):
     """The Card operations shared by daemon and embedded sessions."""
 
@@ -408,6 +419,43 @@ class CardOperations(Protocol):
         Links from cards and AI messages, newest first. External links come only from
         projects on this device, so they are never all there may be. A card in the trash
         or in another project is not found.
+        """
+        ...
+
+    def add_card_link(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+        link: NewLink,
+    ) -> Link:
+        """
+        Link a card to something.
+
+        A link is one target, of one type in one project, with one kind. Making a link
+        that already exists sets its label and keeps when it was made. A target in the
+        card's project must exist and not be in the trash; a card in another project may
+        be one this device does not have. A card in the trash or in another project is
+        not found, and neither is a target that does not exist or is in the trash.
+        """
+        ...
+
+    def remove_card_link(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+        target_type: LinkTargetType,
+        target_id: LinkTargetId,
+        *,
+        kind: LinkKind = "ref",
+        target_project_id: ProjectId | None = None,
+    ) -> list[Link]:
+        """
+        Remove a link from a card.
+
+        Removes the one link to that target, of that type in that project, with that
+        kind, and returns the card's remaining links as list_card_links lists them by
+        default. A card without that link is left as it is. A card in the trash or in
+        another project is not found.
         """
         ...
 

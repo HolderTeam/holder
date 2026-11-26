@@ -170,6 +170,13 @@ the current project. Pass `scope="external"` for other projects on this
 device or `scope="all_available"` for both. Use `include_deleted=True` to
 include trashed targets in outgoing links or trashed sources in backlinks.
 
+Use `cards.add_card_link(project_id, card_id, {"target_type": "card",
+"target_id": target_id})` to create a link. Adding the same link again updates
+its label and preserves its creation time. Use
+`cards.remove_card_link(project_id, card_id, "card", target_id)` to remove
+that link and get the remaining outgoing links. Specify `kind` or
+`target_project_id` when they differ from `"ref"` and the source project.
+
 ## Run with or without a local Holder installation
 
 Use `open_session(fallback_workspace=path)` when a script can work on live
