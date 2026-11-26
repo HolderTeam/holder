@@ -16605,7 +16605,7 @@
           "content": {
             "type": "string",
             "title": "Content",
-            "description": "The card's body; present when asked for, except for a card whose file is missing or\ncan't be read, so that one bad file doesn't fail the whole listing."
+            "description": "The card's body; present when asked for."
           }
         },
         "additionalProperties": false,

@@ -91,8 +91,7 @@ class CardListItem(CardMetadata):
     child_count: Int32 | MISSING = MISSING
     """The card's live children; present when asked for."""
     content: str | MISSING = MISSING
-    """The card's body; present when asked for, except for a card whose file is missing or
-    can't be read, so that one bad file doesn't fail the whole listing."""
+    """The card's body; present when asked for."""
 
 
 class TagOccurrence(Record):

@@ -645,15 +645,10 @@ RecoverySnapshotPage read(
   holder::card::CardPageQuery query;
   query.order = holder::card::CardPageOrder::UpdatedDesc;
   if (cursor) query.cursor = decode_cursor(*cursor, scope, false);
-  auto page = card_store(context).list_collection_page(
-      project_id,
-      query,
-      limit,
-      holder::card::CollectionContent::Required
-  );
+  auto page = card_store(context).list_collection_page(project_id, query, limit, true);
   RecoverySnapshotPage out;
   for (auto& [card, content] : page.cards) {
-    out.cards.push_back(to_snapshot(context, *project, card, std::move(content).value()));
+    out.cards.push_back(to_snapshot(context, *project, card, std::move(content)));
     out.lines.push_back(encode_line(out.cards.back()));
   }
   if (page.next_cursor) {

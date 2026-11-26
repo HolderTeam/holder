@@ -8454,10 +8454,7 @@ components:
           description: When the card was moved to the trash; null when it is not in the trash.
         child_count: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32, title: Child
             Count, description: The card's live children; present when asked for.}
-        content: {type: string, title: Content, description: 'The card''s body; present when asked for,
-            except for a card whose file is missing or
-
-            can''t be read, so that one bad file doesn''t fail the whole listing.'}
+        content: {type: string, title: Content, description: The card's body; present when asked for.}
       additionalProperties: false
       type: object
       required: [card_id, project_id, title, rel_path, parent_card_id, sort_key, created_at, updated_at,

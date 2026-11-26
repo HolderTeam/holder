@@ -38,6 +38,7 @@ import team.holder.android.contract.StorageHosts
 import team.holder.android.contract.StorageProvider
 import team.holder.android.contract.TimeZoneProvider
 import team.holder.android.time.AndroidTimeZones
+import team.holder.android.ui.screens.loadStartScreenData
 
 /**
  * Representative Kotlin -> JNI -> C API -> libholder tests.
@@ -1080,6 +1081,23 @@ class HolderNativeIntegrationTest {
 
         HolderNative.deleteCard(project.projectId, card.cardId)
         assertTrue(HolderNative.listMilestonesInRange(project.projectId, start - 3600, end + 3600).isEmpty())
+    }
+
+    @Test
+    fun startScreen_aMissingCardFileLeavesTheRestOfRecent() {
+        initialize()
+        val root = dataDir.resolve("recent-missing-file").absolutePath
+        val project = HolderNative.createProjectContract(NewProject(
+            name = "Recent missing file", rootPath = root, privacyMode = NewProjectPrivacyMode.PLAIN))
+        val cards = (1..3).map { HolderNative.createCard(project.projectId, "Recent $it", "Body $it") }
+        val gone = cards[1]
+        val relPath = HolderNative.listCardsPage(project.projectId).items.single { it.cardId == gone.cardId }.relPath
+        assertTrue(File(root, relPath).delete())
+
+        val recent = loadStartScreenData().recentCards.filter { it.projectId == project.projectId }
+        assertEquals(cards.map { it.cardId }.toSet(), recent.map { it.cardId }.toSet())
+        assertEquals("", recent.single { it.cardId == gone.cardId }.snippet)
+        assertEquals("Body 1", recent.single { it.cardId == cards[0].cardId }.snippet)
     }
 
     @Test

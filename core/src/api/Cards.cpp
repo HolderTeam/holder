@@ -116,12 +116,7 @@ Page<CardListItem> list_page(
   holder::card::CollectionCardPage page;
   holder::card::CardRepo cards(context.db);
   if (include_content) {
-    page = card_store(context).list_collection_page(
-        project_id,
-        query,
-        limit,
-        holder::card::CollectionContent::WhenReadable
-    );
+    page = card_store(context).list_collection_page(project_id, query, limit, true);
   } else {
     auto rows = cards.list_collection_page(project_id, query, limit + 1);
     if (rows.size() > static_cast<std::size_t>(limit)) {
@@ -150,8 +145,6 @@ Page<CardListItem> list_page(
     CardListItem item{card, std::nullopt, std::nullopt};
     if (include_child_count)
       item.child_count = cards.count_children_not_deleted(project_id, card.card_id);
-    // Left out for a card whose file is missing or can't be read: the rest of the page still
-    // lists, and that card can still be opened, where the real error shows.
     if (include_content) item.content = std::move(content);
     out.items.push_back(std::move(item));
   }

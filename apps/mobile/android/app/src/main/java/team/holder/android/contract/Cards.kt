@@ -168,7 +168,7 @@ data class CardListItem(
     val deletedAt: Long? = null,
     /** The card's live children; present when asked for. */
     val childCount: Int? = null,
-    /** The card's body; present when asked for, except for a card whose file is missing or can't be read, so that one bad file doesn't fail the whole listing. */
+    /** The card's body; present when asked for. */
     val content: String? = null,
 )
 
