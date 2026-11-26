@@ -74,4 +74,31 @@ class CardTitleFormatTest {
         assertEquals("The body", splitLeadingHeading(stored))
         assertEquals("My card", titleFromFirstLine(stored))
     }
+
+    @Test
+    fun splitTitleLine_takesOffAHeading() {
+        assertEquals(TitleSplit("Body", asHeading = true), splitTitleLine("# Trip plan\n\nBody", "Trip plan"))
+    }
+
+    @Test
+    fun splitTitleLine_takesOffAPlainFirstLineThatIsTheTitle() {
+        // Cards from Desktop or holderctl: the title is the plain first line.
+        assertEquals(TitleSplit("Body\nmore", asHeading = false), splitTitleLine("Trip plan\n\nBody\nmore", "Trip plan"))
+        assertEquals(TitleSplit("", asHeading = false), splitTitleLine("Trip plan", "Trip plan"))
+    }
+
+    @Test
+    fun splitTitleLine_leavesABodyWhoseFirstLineIsNotTheTitle() {
+        assertNull(splitTitleLine("Something else\n\nBody", "Trip plan"))
+        assertNull(splitTitleLine("Body", ""))
+    }
+
+    @Test
+    fun combineTitleAndBody_writesAPlainTitleBackPlain() {
+        assertEquals("Trip plan\n\nBody", combineTitleAndBody("Trip plan", "Body", asHeading = false))
+        val stored = "Ideas\n\nA loose note."
+        val split = requireNotNull(splitTitleLine(stored, "Ideas"))
+        // Round trip: nothing added, no "# Ideas" above "Ideas".
+        assertEquals(stored, combineTitleAndBody("Ideas", split.body, split.asHeading))
+    }
 }
