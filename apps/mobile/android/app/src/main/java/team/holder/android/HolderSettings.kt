@@ -12,6 +12,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
+import team.holder.android.ui.CardListOrder
 import team.holder.android.ui.HolderCardSwipeStyle
 import team.holder.android.ui.theme.HolderFontFamilyOption
 import team.holder.android.ui.theme.HolderFontSizeOption
@@ -33,6 +34,7 @@ object HolderSettings {
     private val TRIM_TWO_SPACE_LINE_ENDINGS = booleanPreferencesKey("trim_two_space_line_endings")
     private val TRIM_WHITESPACE_IN_CODE_BLOCKS = booleanPreferencesKey("trim_whitespace_in_code_blocks")
     private val CARD_LIST_BOARD_VIEW_ENABLED = booleanPreferencesKey("card_list_board_view_enabled")
+    private val CARD_LIST_ORDER = stringPreferencesKey("card_list_order")
     private val GIT_SYNC_CONSECUTIVE_FAILURES = intPreferencesKey("git_sync_consecutive_failures")
     private val SNAPSHOT_CONSECUTIVE_FAILURES = intPreferencesKey("snapshot_consecutive_failures")
     private val START_DRAFT = stringPreferencesKey("start_draft")
@@ -174,6 +176,19 @@ object HolderSettings {
 
     suspend fun setBoardViewEnabled(context: Context, enabled: Boolean) {
         context.settingsDataStore.edit { it[CARD_LIST_BOARD_VIEW_ENABLED] = enabled }
+    }
+
+    /** The plain card list's order (Board view off), the same for every project. Last
+     * modified by default. */
+    fun cardListOrder(context: Context): Flow<CardListOrder> =
+        context.settingsDataStore.data.map { prefs ->
+            prefs[CARD_LIST_ORDER]?.let { stored ->
+                runCatching { CardListOrder.valueOf(stored) }.getOrNull()
+            } ?: CardListOrder.LAST_MODIFIED
+        }
+
+    suspend fun setCardListOrder(context: Context, order: CardListOrder) {
+        context.settingsDataStore.edit { it[CARD_LIST_ORDER] = order.name }
     }
 
     /** Non-secret local config for a connected storage provider (e.g. Drive's connected

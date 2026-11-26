@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
@@ -59,6 +60,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -71,10 +73,11 @@ import team.holder.android.HolderNative
 import team.holder.android.HolderSearchResult
 import team.holder.android.HolderSettings
 import team.holder.android.R
+import team.holder.android.ui.CardListOrder
 import team.holder.android.ui.CenteredMessage
 import team.holder.android.ui.LoadState
 import team.holder.android.ui.boardPathAfterReload
-import team.holder.android.ui.lastModifiedFirst
+import team.holder.android.ui.plainListOrder
 import team.holder.android.ui.sortKeyOrderedSiblings
 
 private const val SEARCH_DEBOUNCE_MS = 300L
@@ -107,6 +110,8 @@ fun CardListScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val boardViewEnabled by HolderSettings.boardViewEnabled(context).collectAsState(initial = false)
+    val listOrder by HolderSettings.cardListOrder(context).collectAsState(initial = CardListOrder.LAST_MODIFIED)
+    var orderMenuOpen by remember { mutableStateOf(false) }
     var currentParentId by remember(projectId) { mutableStateOf<String?>(null) }
     // (cardId, title) trail from the project root down to the folder currently open; root excluded.
     var breadcrumbs by remember(projectId) { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
@@ -201,6 +206,31 @@ fun CardListScreen(
                             Icon(painterResource(R.drawable.ic_folder), contentDescription = "Switch to Board view")
                         }
                     }
+                    // Board view keeps each folder's own order, so the choice is the plain list's only.
+                    if (!boardViewEnabled) {
+                        Box {
+                            IconButton(onClick = { orderMenuOpen = true }) {
+                                Icon(painterResource(R.drawable.ic_sort), contentDescription = "Order: ${listOrder.label}")
+                            }
+                            DropdownMenu(expanded = orderMenuOpen, onDismissRequest = { orderMenuOpen = false }) {
+                                CardListOrder.entries.forEach { order ->
+                                    DropdownMenuItem(
+                                        text = { Text(order.label) },
+                                        onClick = {
+                                            orderMenuOpen = false
+                                            scope.launch { HolderSettings.setCardListOrder(context, order) }
+                                        },
+                                        trailingIcon = if (order == listOrder) {
+                                            { Icon(Icons.Filled.Check, contentDescription = null) }
+                                        } else {
+                                            null
+                                        },
+                                        modifier = Modifier.semantics { selected = order == listOrder },
+                                    )
+                                }
+                            }
+                        }
+                    }
                     IconButton(onClick = onCalendarClick) {
                         Icon(Icons.Filled.DateRange, contentDescription = "Calendar")
                     }
@@ -284,6 +314,7 @@ fun CardListScreen(
                             onCreateChildCard(it)
                         },
                         boardViewEnabled = boardViewEnabled,
+                        listOrder = listOrder,
                         currentParentId = currentParentId,
                         onDrillIn = { card ->
                             breadcrumbs = breadcrumbs + (card.cardId to card.title)
@@ -363,6 +394,7 @@ private fun CardListBody(
     onDeleteRequested: (HolderCard) -> Unit,
     onCreateChildCardRequested: (HolderCard) -> Unit,
     boardViewEnabled: Boolean,
+    listOrder: CardListOrder,
     currentParentId: String?,
     onDrillIn: (HolderCard) -> Unit,
     onMove: (card: HolderCard, intent: CardPlacementIntent, targetCardId: String?) -> Unit,
@@ -372,7 +404,7 @@ private fun CardListBody(
         is LoadState.Error -> CenteredMessage { Text("Failed to load cards: ${state.message}") }
         is LoadState.Success -> {
             val allCards = state.value
-            val cards = if (boardViewEnabled) sortKeyOrderedSiblings(currentParentId, allCards) else lastModifiedFirst(allCards)
+            val cards = if (boardViewEnabled) sortKeyOrderedSiblings(currentParentId, allCards) else plainListOrder(listOrder, allCards)
             if (cards.isEmpty()) {
                 CenteredMessage { Text("No cards yet") }
             } else {

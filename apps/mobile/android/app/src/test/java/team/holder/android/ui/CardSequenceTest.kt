@@ -36,6 +36,23 @@ class CardSequenceTest {
     }
 
     @Test
+    fun plainListOrder_eachChoiceOrdersTheWholeProject() {
+        val cards = listOf(
+            card("banana", createdAt = 10, updatedAt = 40),
+            card("Apple", parentCardId = "banana", createdAt = 30, updatedAt = 30),
+            card("cherry", createdAt = 20, updatedAt = 50),
+            card("apple", createdAt = 5, updatedAt = 5),
+        )
+        assertEquals(listOf("cherry", "banana", "Apple", "apple"),
+            plainListOrder(CardListOrder.LAST_MODIFIED, cards).map { it.cardId })
+        assertEquals(listOf("Apple", "cherry", "banana", "apple"),
+            plainListOrder(CardListOrder.CREATED, cards).map { it.cardId })
+        // A to Z ignoring case; "Apple" and "apple" tie on title and fall back to card ID.
+        assertEquals(listOf("Apple", "apple", "banana", "cherry"),
+            plainListOrder(CardListOrder.TITLE, cards).map { it.cardId })
+    }
+
+    @Test
     fun cardDeck_isTheCardsSiblingsInSortKeyOrderIncludingItself() {
         val first = card("first", parentCardId = "parent", sortKey = 0.0)
         val middle = card("middle", parentCardId = "parent", sortKey = 1.0)
