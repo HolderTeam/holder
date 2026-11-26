@@ -32,6 +32,7 @@ object HolderSettings {
     private val CARD_SWIPE_HAPTICS_DISABLED = booleanPreferencesKey("card_swipe_haptics_disabled")
     private val PRESERVE_TRAILING_WHITESPACE = booleanPreferencesKey("preserve_trailing_whitespace")
     private val TRIM_TWO_SPACE_LINE_ENDINGS = booleanPreferencesKey("trim_two_space_line_endings")
+    private val MANUAL_CAPITALIZATION = booleanPreferencesKey("manual_capitalization")
     private val TRIM_WHITESPACE_IN_CODE_BLOCKS = booleanPreferencesKey("trim_whitespace_in_code_blocks")
     private val CARD_LIST_BOARD_VIEW_ENABLED = booleanPreferencesKey("card_list_board_view_enabled")
     private val CARD_LIST_ORDER = stringPreferencesKey("card_list_order")
@@ -156,6 +157,16 @@ object HolderSettings {
 
     suspend fun setTrimTwoSpaceLineEndings(context: Context, enabled: Boolean) {
         context.settingsDataStore.edit { it[TRIM_TWO_SPACE_LINE_ENDINGS] = enabled }
+    }
+
+    /** Off by default: the card editor asks the keyboard to start each sentence (after a full
+     * stop or a line break) with a capital letter, as notes apps do. On leaves capitals to the
+     * user, for code, commands or other lower-case text. */
+    fun manualCapitalization(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[MANUAL_CAPITALIZATION] ?: false }
+
+    suspend fun setManualCapitalization(context: Context, enabled: Boolean) {
+        context.settingsDataStore.edit { it[MANUAL_CAPITALIZATION] = enabled }
     }
 
     /** Off by default: lines inside a fenced code block are exempt from all trailing-whitespace

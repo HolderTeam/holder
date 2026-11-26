@@ -36,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -55,11 +56,13 @@ import team.holder.android.ConflictKeepOutcome
 import team.holder.android.HolderConflictCopy
 import team.holder.android.HolderNative
 import team.holder.android.HolderProject
+import team.holder.android.HolderSettings
 import team.holder.android.contract.ConflictComparison
 import team.holder.android.contract.ConflictComparisonCopyEditedOn
 import team.holder.android.contract.ConflictComparisonOriginalEditedOn
 import team.holder.android.ui.CenteredMessage
 import team.holder.android.ui.LoadState
+import team.holder.android.ui.markdown.sentenceCapitals
 
 /** One version of a card that changed on two devices, as the compare screen shows it. */
 data class ConflictSide(
@@ -377,11 +380,16 @@ fun ConflictCompareScreen(
                 title = { Text("Edit the version to keep") },
                 text = {
                     Column {
-                        OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, singleLine = true)
+                        val context = LocalContext.current
+                        val manualCapitals by HolderSettings.manualCapitalization(context).collectAsState(initial = false)
+                        val capitals = !manualCapitals
+                        OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, singleLine = true,
+                            keyboardOptions = sentenceCapitals(capitals))
                         OutlinedTextField(
                             value = content,
                             onValueChange = { content = it },
                             label = { Text("Text") },
+                            keyboardOptions = sentenceCapitals(capitals),
                             modifier = Modifier.padding(top = 8.dp).heightIn(min = 160.dp, max = 360.dp),
                         )
                         Text(

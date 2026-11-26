@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.InputTransformation
 import androidx.compose.foundation.text.input.OutputTransformation
 import androidx.compose.foundation.text.input.TextFieldBuffer
@@ -64,6 +65,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -509,6 +511,11 @@ fun MarkdownFormattingToolbar(
 
 private const val SPELL_CHECK_DEBOUNCE_MS = 500L
 
+/** Keyboard options asking for a capital at the start of each sentence, or for none. */
+fun sentenceCapitals(enabled: Boolean) = KeyboardOptions(
+    capitalization = if (enabled) KeyboardCapitalization.Sentences else KeyboardCapitalization.None,
+)
+
 /**
  * Source editor for a card's raw Markdown text. Tapping only places the cursor -- links are
  * never followed here, only in [HolderMarkdownViewer].
@@ -525,6 +532,8 @@ fun HolderMarkdownEditor(
     // here is only for a hypothetical future caller that shows this editor without expecting to
     // be typed into immediately.
     autoFocus: Boolean = false,
+    // HolderSettings.capitalizeSentences: whether the keyboard starts each sentence with a capital.
+    capitalizeSentences: Boolean = true,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val context = LocalContext.current
@@ -589,6 +598,7 @@ fun HolderMarkdownEditor(
             cursorBrush = SolidColor(colorScheme.primary),
             inputTransformation = ListContinuation,
             outputTransformation = highlighter,
+            keyboardOptions = sentenceCapitals(capitalizeSentences),
             onTextLayout = { getResult -> textLayoutResult = getResult() },
         )
 
