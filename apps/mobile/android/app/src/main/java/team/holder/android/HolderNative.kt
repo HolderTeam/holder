@@ -458,6 +458,22 @@ object HolderNative {
         System.loadLibrary("holder_jni")
     }.exceptionOrNull()
 
+    /**
+     * Gives core's SQLite somewhere to put temporary files. A large statement (deleting a
+     * project with many cards, a big sort) spills to a temporary file, and SQLite looks for one
+     * in SQLITE_TMPDIR, TMPDIR, /var/tmp, /usr/tmp, /tmp and then the working directory. An app
+     * may have none of those writable: on a moto g(6) plus (Android 9) it fell back to the
+     * read-only root and failed with "disk I/O error" (SQLITE_IOERR_GETTEMPPATH, EROFS). SQLite
+     * reads the variable once, when it first starts, so this must run before any native call
+     * that opens a database. SQLITE_TMPDIR rather than TMPDIR: only SQLite reads it.
+     */
+    private fun configureSqliteTempDir(context: Context) {
+        runCatching {
+            val dir = File(context.cacheDir, "sqlite-tmp").apply { mkdirs() }
+            android.system.Os.setenv("SQLITE_TMPDIR", dir.absolutePath, true)
+        }
+    }
+
     /** Every native call runs on one of three lanes, each a thread with its own holder-core
      * context (see [NativeLane]), split the way holder-daemon splits its request lanes:
      * - [saveLane]: every write, in the order the user made them, so a slow write (each one is
@@ -572,6 +588,7 @@ object HolderNative {
     @Synchronized
     fun initialize(context: Context, dataDir: File, schemaSql: String) {
         loadError?.let { throw it }
+        configureSqliteTempDir(context)
 
         if (!isOpen) {
             // Recovery of encrypted projects needs the platform keyring before
@@ -618,6 +635,7 @@ object HolderNative {
         dryRun: Boolean = false,
     ): DatabaseRebuildReport {
         loadError?.let { throw it }
+        configureSqliteTempDir(context)
         var primaryFailure: Throwable? = null
         return try {
             close()

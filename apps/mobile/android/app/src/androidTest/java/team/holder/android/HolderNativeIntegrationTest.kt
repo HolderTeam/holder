@@ -1305,6 +1305,20 @@ class HolderNativeIntegrationTest {
         assertEquals(listOf(zulu.cardId, alpha.cardId), shown().map { it.cardId })
     }
 
+    @Test
+    fun deleteProject_withEnoughDataToSpillSQLitesTemporaryFiles() {
+        initialize()
+        val project = HolderNative.createProject("Big project", "plain")
+        // Enough rows that deleting the project (a cascade through cards, tags, history and the
+        // search index) outgrows SQLite's in-memory statement journal and spills it to a file.
+        val body = "Line of text for the search index. ".repeat(40)
+        repeat(200) { i -> HolderNative.createCard(project.projectId, "Card $i", "Card $i\n\n$body #tag$i") }
+
+        HolderNative.deleteProject(project.projectId)
+
+        assertTrue(HolderNative.listProjects().none { it.projectId == project.projectId })
+    }
+
     private fun initialize() {
         HolderNative.initialize(
             context = context,
