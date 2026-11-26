@@ -850,7 +850,7 @@ Context_list_trashed_cards(ContextObject *self, PyObject *args, PyObject *kwargs
 }
 
 static PyObject *
-Context_restore_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+restore_card(ContextObject *self, PyObject *args, PyObject *kwargs, bool complete_record)
 {
     const char *project_id = NULL, *card_id = NULL;
     static char *keywords[] = {"project_id", "card_id", NULL};
@@ -867,9 +867,43 @@ Context_restore_card(ContextObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
     holder_error_destroy(error);
-    PyObject *record = card_record(card->card_id, card->project_id, card->title,
-        card->rel_path, card->parent_card_id, card->sort_key, card->created_at,
-        card->updated_at, card->deleted_at, NULL);
+    PyObject *record = complete_record ? full_card_record(card) :
+        card_record(card->card_id, card->project_id, card->title, card->rel_path,
+            card->parent_card_id, card->sort_key, card->created_at, card->updated_at,
+            card->deleted_at, NULL);
+    holder_arena_free(arena);
+    return record;
+}
+
+static PyObject *
+Context_restore_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return restore_card(self, args, kwargs, false);
+}
+
+static PyObject *
+Context_restore_card_record(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return restore_card(self, args, kwargs, true);
+}
+
+static PyObject *
+trash_card(ContextObject *self, const char *project_id, const char *card_id,
+           holder_trash_card_children children, bool complete_record)
+{
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_card *card = NULL;
+    holder_error *error = NULL;
+    const int result = holder_trash_card(self->context, project_id, card_id,
+        children, arena, &card, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+    PyObject *record = complete_record ? full_card_record(card) : Py_NewRef(Py_None);
     holder_arena_free(arena);
     return record;
 }
@@ -881,20 +915,28 @@ Context_trash_card(ContextObject *self, PyObject *args, PyObject *kwargs)
     static char *keywords[] = {"project_id", "card_id", NULL};
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:trash_card", keywords,
                                     &project_id, &card_id) || !ensure_context_open(self)) return NULL;
-    holder_arena *arena = holder_arena_new();
-    if (arena == NULL) return PyErr_NoMemory();
-    const holder_card *card = NULL;
-    holder_error *error = NULL;
-    const int result = holder_trash_card(self->context, project_id, card_id,
-        HOLDER_TRASH_CARD_CHILDREN_DEFAULT, arena, &card, &error);
-    if (result != HOLDER_OK) {
-        raise_holder_error(self, result, error);
-        holder_arena_free(arena);
+    return trash_card(self, project_id, card_id, HOLDER_TRASH_CARD_CHILDREN_DEFAULT, false);
+}
+
+static PyObject *
+Context_trash_card_record(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id = NULL, *card_id = NULL;
+    const char *mode = "promote";
+    static char *keywords[] = {"project_id", "card_id", "children", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|$s:trash_card", keywords,
+                                    &project_id, &card_id, &mode) ||
+        !ensure_context_open(self)) return NULL;
+    holder_trash_card_children children;
+    if (strcmp(mode, "promote") == 0) {
+        children = HOLDER_TRASH_CARD_CHILDREN_PROMOTE;
+    } else if (strcmp(mode, "trash_subtree") == 0) {
+        children = HOLDER_TRASH_CARD_CHILDREN_TRASH_SUBTREE;
+    } else {
+        PyErr_SetString(PyExc_ValueError, "children must be 'promote' or 'trash_subtree'");
         return NULL;
     }
-    holder_error_destroy(error);
-    holder_arena_free(arena);
-    Py_RETURN_NONE;
+    return trash_card(self, project_id, card_id, children, true);
 }
 
 static PyObject *
@@ -1809,6 +1851,10 @@ static PyMethodDef Context_methods[] = {
      PyDoc_STR("Return one page of a project's live cards, by parent, tag and order.")},
     {"get_live_card", PyCFunction_CAST(Context_get_live_card), METH_VARARGS,
      "Read a live card with content and tags."},
+    {"trash_card_record", PyCFunction_CAST(Context_trash_card_record), METH_VARARGS | METH_KEYWORDS,
+     "Trash a card and return its complete record."},
+    {"restore_card_record", PyCFunction_CAST(Context_restore_card_record), METH_VARARGS | METH_KEYWORDS,
+     "Restore a card and return its complete record."},
     {"create_card_record", PyCFunction_CAST(Context_create_card_record), METH_VARARGS | METH_KEYWORDS,
      "Create a card and return its complete record."},
     {"patch_card", PyCFunction_CAST(Context_patch_card), METH_VARARGS | METH_KEYWORDS,

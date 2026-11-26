@@ -19,13 +19,18 @@ from ._workspace_contract import (
 from ._workspace_contract import Project as ProjectRecord
 from .exceptions import APIError, ClosedError, HolderError, NotFoundError
 from .generated.api.default import (
+    delete_projects_project_id_cards_card_id,
     get_projects_project_id_cards,
     get_projects_project_id_cards_card_id,
     patch_projects_project_id_cards_card_id,
     post_projects_project_id_cards,
+    post_projects_project_id_cards_card_id_restore,
 )
 from .generated.models import CardUpdate as HTTPCardUpdate
-from .generated.models import GetProjectsProjectIdCardsOrder
+from .generated.models import (
+    DeleteProjectsProjectIdCardsCardIdChildren,
+    GetProjectsProjectIdCardsOrder,
+)
 from .generated.models import NewCard as HTTPNewCard
 
 if TYPE_CHECKING:
@@ -103,6 +108,31 @@ class _DaemonCards:
         )
         return cast("Card", result.to_dict())
 
+    def trash_card(
+        self,
+        project_id: str,
+        card_id: str,
+        *,
+        children: Literal["promote", "trash_subtree"] = "promote",
+    ) -> Card:
+        result = self._holder._call(
+            delete_projects_project_id_cards_card_id,
+            project_id,
+            card_id,
+            children=DeleteProjectsProjectIdCardsCardIdChildren(children),
+            write=True,
+        )
+        return cast("Card", result.to_dict())
+
+    def restore_card(self, project_id: str, card_id: str) -> Card:
+        result = self._holder._call(
+            post_projects_project_id_cards_card_id_restore,
+            project_id,
+            card_id,
+            write=True,
+        )
+        return cast("Card", result.to_dict())
+
 
 class EmbeddedWorkspace:
     """A session in an explicitly selected, private Holder data directory."""
@@ -138,7 +168,7 @@ class EmbeddedWorkspace:
                 "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(native.Context, "create_card_record"):
+        if not hasattr(native.Context, "trash_card_record"):
             raise EmbeddedUnavailableError(
                 "This Holder Kit build is too old for the shared Card API."
             )
@@ -238,6 +268,25 @@ class _EmbeddedCards:
     def update_card(self, project_id: str, card_id: str, update: CardUpdate) -> Card:
         return cast(
             "Card", self._workspace._call("patch_card", project_id, card_id, **update)
+        )
+
+    def trash_card(
+        self,
+        project_id: str,
+        card_id: str,
+        *,
+        children: Literal["promote", "trash_subtree"] = "promote",
+    ) -> Card:
+        return cast(
+            "Card",
+            self._workspace._call(
+                "trash_card_record", project_id, card_id, children=children
+            ),
+        )
+
+    def restore_card(self, project_id: str, card_id: str) -> Card:
+        return cast(
+            "Card", self._workspace._call("restore_card_record", project_id, card_id)
         )
 
 

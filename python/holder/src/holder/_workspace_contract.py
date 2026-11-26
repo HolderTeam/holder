@@ -159,6 +159,38 @@ class CardOperations(Protocol):
         """
         ...
 
+    def trash_card(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+        *,
+        children: Literal["promote", "trash_subtree"] = "promote",
+    ) -> Card:
+        """
+        Move a card to the trash.
+
+        The card and every card that changes with it are written as one change in the
+        project's history. A card already in the trash, or in another project, is not
+        found. Returns the card as it is in the trash.
+        """
+        ...
+
+    def restore_card(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+    ) -> Card:
+        """
+        Restore a card from the trash.
+
+        Restores this card only. It returns to its parent when that parent is live and
+        reachable, otherwise to its nearest live, reachable ancestor or the top level.
+        Children promoted when it was trashed stay where they are; descendants trashed
+        with it stay in the trash, and come back under it when restored. A card in
+        another project is not found, and one that is not in the trash is a Conflict.
+        """
+        ...
+
 
 NATIVE_ERRORS = {
     4040: (404, "not_found"),

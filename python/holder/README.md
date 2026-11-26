@@ -128,6 +128,11 @@ code against a live Holder installation, open the session with `Holder()`.
 filters to fetch the next page. For updates, omit fields to keep their values
 and set `parent_card_id` to `None` to move a card to the root.
 
+Use `cards.trash_card(project_id, card_id)` to move a card to Trash and
+promote its children. Pass `children="trash_subtree"` to trash the descendants
+too. `cards.restore_card(project_id, card_id)` restores one card at a time.
+Both calls return the card's record after the change.
+
 ## Run with or without a local Holder installation
 
 Use `open_session(fallback_workspace=path)` when a script can work on live

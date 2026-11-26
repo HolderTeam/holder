@@ -8,7 +8,7 @@ from generators.common import Unsupported
 from generators.core.abi import snake
 
 PATH = "python/holder/src/holder/_workspace_contract.py"
-OPERATIONS = ("list_cards", "get_card", "create_card", "update_card")
+OPERATIONS = ("list_cards", "get_card", "create_card", "update_card", "trash_card", "restore_card")
 
 SCALARS = {"string": "str", "int32": "int", "int64": "int", "float64": "float", "bool": "bool"}
 

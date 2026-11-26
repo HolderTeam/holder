@@ -596,6 +596,35 @@ def test_shared_card_operations(backend, request, tmp_path):
             cards.update_card(project_id, child_id, {"parent_card_id": child_id})
         assert (error.value.status, error.value.code) == (422, "invalid_move")
 
+        trashed = cards.trash_card(project_id, child_id)
+        assert trashed.keys() == Card.__required_keys__
+        assert trashed["deleted_at"] is not None
+        assert trashed["content"] == detached["content"]
+        assert trashed["tags"] == detached["tags"]
+        with pytest.raises(NotFoundError):
+            cards.get_card(project_id, child_id)
+        with pytest.raises(NotFoundError):
+            cards.trash_card(project_id, child_id)
+        restored = cards.restore_card(project_id, child_id)
+        assert restored["deleted_at"] is None
+        assert cards.get_card(project_id, child_id) == restored
+        with pytest.raises(APIError) as error:
+            cards.restore_card(project_id, child_id)
+        assert (error.value.status, error.value.code) == (409, "conflict")
+
+        cards.update_card(project_id, child_id, {"parent_card_id": parent_id})
+        cards.trash_card(project_id, parent_id)
+        assert cards.get_card(project_id, child_id)["parent_card_id"] is None
+        cards.restore_card(project_id, parent_id)
+        assert cards.get_card(project_id, child_id)["parent_card_id"] is None
+
+        cards.update_card(project_id, child_id, {"parent_card_id": parent_id})
+        cards.trash_card(project_id, parent_id, children="trash_subtree")
+        cards.restore_card(project_id, parent_id)
+        with pytest.raises(NotFoundError):
+            cards.get_card(project_id, child_id)
+        assert cards.restore_card(project_id, child_id)["parent_card_id"] == parent_id
+
     with pytest.raises(ClosedError):
         cards.get_card(project_id, child_id)
     with pytest.raises(ClosedError):
