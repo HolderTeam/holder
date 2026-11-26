@@ -7,8 +7,11 @@ accessible label, matching ordinary `GtkButton` behavior. This fixes GTK's own
 name calculation as well as the native AccessKit output.
 
 [GTK MR !10510](https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/10510)
-landed the same code change with a name regression test. The fix is in GTK's
-`gtk-4-24` stable branch and shipped GTK 4.24.1 predates it.
+landed the same code change with a name regression test. It shipped in GTK
+4.24.2: from that version the recipe finds the change already in the source, skips
+the patch and records it under `patches_already_upstream` in
+`gtk-accessibility-build.json` instead of `patches`. GTK 4.24.1 and older still
+get the patch.
 
 This replaces Holder's earlier AccessKit bridge workaround, which preserved
 plain text on a presentation label only in the backend. The normal-role change
@@ -23,8 +26,8 @@ those cases, but only the normal-role approach also fixed GTK's computed name.
 The focused GTK button and name tests passed for all candidates.
 
 The shared runtime recipe applies this one-line patch with
-`patch --batch --forward`; a future incompatible source fails preparation for
-review. The patch name and checksum are part of the runtime cache identity and
+`patch --batch --forward` unless the source already contains it; any other
+source it doesn't apply to fails preparation for review. The patch name and checksum are part of the runtime cache identity and
 retained source provenance, so replacing the bridge patch selects a fresh cache.
 Remove the patch when an upstream runtime passes the regression without it.
 
