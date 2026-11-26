@@ -16,7 +16,7 @@ import httpx
 import pytest
 
 from holder import Holder, MilestoneDate, ProjectRecord, open_session
-from holder.cards import Card, CardListItem
+from holder.cards import Card, CardListItem, CardMetadata
 from holder.exceptions import APIError, ClosedError, NotFoundError
 
 DAEMON = os.environ.get("HOLDER_TEST_DAEMON")
@@ -575,6 +575,17 @@ def test_shared_card_operations(backend, request, tmp_path):
         child = cards.get_card(project_id, child_id)
         assert child == new_child
         assert child.keys() == Card.__required_keys__
+        metadata = cards.get_card_metadata(project_id, child_id)
+        assert metadata == {key: child[key] for key in CardMetadata.__required_keys__}
+        assert cards.get_card_breadcrumbs(project_id, child_id) == [
+            {"kind": "project", "id": project_id, "title": "Shared Card API"},
+            {"kind": "card", "id": parent_id, "title": "Card 1"},
+            {"kind": "card", "id": child_id, "title": "Card 2"},
+        ]
+        with pytest.raises(NotFoundError):
+            cards.get_card_metadata("missing", child_id)
+        with pytest.raises(NotFoundError):
+            cards.get_card_breadcrumbs("missing", child_id)
         assert child["parent_card_id"] == parent_id
         assert child["tags"] == ["research"]
         assert child["tag_occurrences"][0]["tag"] == "research"
@@ -586,6 +597,10 @@ def test_shared_card_operations(backend, request, tmp_path):
         detached = cards.update_card(project_id, child_id, {"parent_card_id": None})
         assert detached["parent_card_id"] is None
         assert detached["title"] == "Edited"
+        assert cards.get_card_breadcrumbs(project_id, child_id) == [
+            {"kind": "project", "id": project_id, "title": "Shared Card API"},
+            {"kind": "card", "id": child_id, "title": "Edited"},
+        ]
         assert cards.get_card(project_id, child_id) == detached
 
         with pytest.raises(NotFoundError) as error:
@@ -602,6 +617,10 @@ def test_shared_card_operations(backend, request, tmp_path):
         assert trashed["deleted_at"] is not None
         assert trashed["content"] == detached["content"]
         assert trashed["tags"] == detached["tags"]
+        with pytest.raises(NotFoundError):
+            cards.get_card_metadata(project_id, child_id)
+        with pytest.raises(NotFoundError):
+            cards.get_card_breadcrumbs(project_id, child_id)
         with pytest.raises(NotFoundError):
             cards.get_card(project_id, child_id)
         with pytest.raises(NotFoundError):

@@ -128,6 +128,11 @@ code against a live Holder installation, open the session with `Holder()`.
 filters to fetch the next page. For updates, omit fields to keep their values
 and set `parent_card_id` to `None` to move a card to the root.
 
+Use `cards.get_card_metadata(project_id, card_id)` for the card's title,
+parent, and other metadata without reading its body.
+`cards.get_card_breadcrumbs(project_id, card_id)` returns the path from the
+project through the card's live ancestors to the card itself.
+
 Use `cards.move_card(project_id, card_id, {"intent": "into",
 "target_card_id": another_card_id})` to move a card into another one.
 For reordering among siblings, use `left`, `right`, `to_start`, or `to_end`.

@@ -718,7 +718,7 @@ Context_resolve_card(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
-Context_get_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+get_card_metadata(ContextObject *self, PyObject *args, PyObject *kwargs, bool include_trash)
 {
     const char *project_id = NULL;
     const char *card_id = NULL;
@@ -731,8 +731,9 @@ Context_get_card(ContextObject *self, PyObject *args, PyObject *kwargs)
     if (arena == NULL) return PyErr_NoMemory();
     const holder_card_metadata *card = NULL;
     holder_error *error = NULL;
-    const int result = holder_get_card_any_state(self->context, project_id, card_id,
-                                                  arena, &card, &error);
+    const int result = include_trash
+        ? holder_get_card_any_state(self->context, project_id, card_id, arena, &card, &error)
+        : holder_get_card_metadata(self->context, project_id, card_id, arena, &card, &error);
     if (result != HOLDER_OK) {
         raise_holder_error(self, result, error);
         holder_arena_free(arena);
@@ -744,6 +745,55 @@ Context_get_card(ContextObject *self, PyObject *args, PyObject *kwargs)
         card->updated_at, card->deleted_at, NULL);
     holder_arena_free(arena);
     return record;
+}
+
+static PyObject *
+Context_get_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return get_card_metadata(self, args, kwargs, true);
+}
+
+static PyObject *
+Context_get_card_metadata(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return get_card_metadata(self, args, kwargs, false);
+}
+
+static PyObject *
+Context_get_card_breadcrumbs(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id, *card_id;
+    static char *keywords[] = {"project_id", "card_id", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:get_card_breadcrumbs", keywords,
+                                    &project_id, &card_id) || !ensure_context_open(self)) return NULL;
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_card_breadcrumb_list *breadcrumbs = NULL;
+    holder_error *error = NULL;
+    const int result = holder_get_card_breadcrumbs(self->context, project_id, card_id,
+        arena, &breadcrumbs, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+
+    PyObject *records = PyList_New(0);
+    if (records != NULL) for (size_t i = 0; i < breadcrumbs->count; ++i) {
+        const holder_card_breadcrumb *step = &breadcrumbs->items[i];
+        const char *kind = step->kind == HOLDER_CARD_BREADCRUMB_KIND_PROJECT ? "project" : "card";
+        PyObject *record = Py_BuildValue("{s:s,s:s,s:s}",
+            "kind", kind, "id", step->id, "title", step->title);
+        if (record == NULL || PyList_Append(records, record) < 0) {
+            Py_XDECREF(record);
+            Py_CLEAR(records);
+            break;
+        }
+        Py_DECREF(record);
+    }
+    holder_arena_free(arena);
+    return records;
 }
 
 static PyObject *
@@ -1965,6 +2015,10 @@ static PyMethodDef Context_methods[] = {
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Permanently remove a card that is already in Trash.")},
     {"list_cards_page", PyCFunction_CAST(Context_list_cards_page), METH_VARARGS | METH_KEYWORDS,
      PyDoc_STR("Return one page of a project's live cards, by parent, tag and order.")},
+    {"get_card_metadata", PyCFunction_CAST(Context_get_card_metadata), METH_VARARGS | METH_KEYWORDS,
+     "Read live card metadata without loading the card body."},
+    {"get_card_breadcrumbs", PyCFunction_CAST(Context_get_card_breadcrumbs), METH_VARARGS | METH_KEYWORDS,
+     "Read the project-to-card path of a live card."},
     {"get_live_card", PyCFunction_CAST(Context_get_live_card), METH_VARARGS,
      "Read a live card with content and tags."},
     {"add_card_tag", PyCFunction_CAST(Context_add_card_tag), METH_VARARGS | METH_KEYWORDS,

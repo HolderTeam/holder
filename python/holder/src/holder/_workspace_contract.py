@@ -27,6 +27,14 @@ class CardMetadata(TypedDict):
     deleted_at: int | None
 
 
+class CardBreadcrumb(TypedDict):
+    """One project or live card in a card's path from its project root."""
+
+    kind: Literal["project", "card"]
+    id: str
+    title: str
+
+
 class TagOccurrence(TypedDict):
     """A tag written in a card's content."""
 
@@ -161,6 +169,32 @@ class CardOperations(Protocol):
         """
         ...
 
+    def get_card_metadata(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+    ) -> CardMetadata:
+        """
+        Fetch a live card's metadata without reading its content.
+
+        A card in the trash or in another project is not found.
+        """
+        ...
+
+    def get_card_breadcrumbs(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+    ) -> list[CardBreadcrumb]:
+        """
+        Read a live card's path from its project root.
+
+        The project comes first, then live ancestor cards and the requested card. A
+        missing or trashed card is not found; a broken or cyclic ancestor chain is
+        invalid.
+        """
+        ...
+
     def create_card(
         self,
         project_id: ProjectId,
@@ -279,4 +313,5 @@ NATIVE_ERRORS = {
     4091: (409, "key_missing"),
     5002: (500, "data_corrupted"),
     4220: (422, "invalid_move"),
+    4092: (409, "hierarchy_invalid"),
 }

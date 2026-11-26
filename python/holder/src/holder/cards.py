@@ -10,7 +10,9 @@ from typing import TYPE_CHECKING, Literal, Self, TypedDict, cast
 from ._workspace_contract import (
     NATIVE_ERRORS,
     Card,
+    CardBreadcrumb,
     CardListItem,
+    CardMetadata,
     CardMove,
     CardOperations,
     CardUpdate,
@@ -26,6 +28,8 @@ from .generated.api.default import (
     delete_projects_project_id_cards_card_id_tags_tag,
     get_projects_project_id_cards,
     get_projects_project_id_cards_card_id,
+    get_projects_project_id_cards_card_id_breadcrumbs,
+    get_projects_project_id_cards_card_id_metadata,
     patch_projects_project_id_cards_card_id,
     post_projects_project_id_cards,
     post_projects_project_id_cards_card_id_move,
@@ -48,7 +52,9 @@ if TYPE_CHECKING:
 
 __all__ = [
     "Card",
+    "CardBreadcrumb",
     "CardListItem",
+    "CardMetadata",
     "CardMove",
     "CardOperations",
     "CardUpdate",
@@ -97,6 +103,20 @@ class _DaemonCards:
             get_projects_project_id_cards_card_id, project_id, card_id
         )
         return cast("Card", result.to_dict())
+
+    def get_card_metadata(self, project_id: str, card_id: str) -> CardMetadata:
+        result = self._holder._call(
+            get_projects_project_id_cards_card_id_metadata, project_id, card_id
+        )
+        return cast("CardMetadata", result.to_dict())
+
+    def get_card_breadcrumbs(
+        self, project_id: str, card_id: str
+    ) -> list[CardBreadcrumb]:
+        results = self._holder._call(
+            get_projects_project_id_cards_card_id_breadcrumbs, project_id, card_id
+        )
+        return [cast("CardBreadcrumb", result.to_dict()) for result in results]
 
     def create_card(self, project_id: str, card: NewCard) -> Card:
         result = self._holder._call(
@@ -207,7 +227,7 @@ class EmbeddedWorkspace:
                 "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(native.Context, "list_project_tag_counts"):
+        if not hasattr(native.Context, "get_card_breadcrumbs"):
             raise EmbeddedUnavailableError(
                 "This Holder Kit build is too old for the shared Card API."
             )
@@ -310,6 +330,20 @@ class _EmbeddedCards:
 
     def get_card(self, project_id: str, card_id: str) -> Card:
         return cast("Card", self._workspace._call("get_live_card", project_id, card_id))
+
+    def get_card_metadata(self, project_id: str, card_id: str) -> CardMetadata:
+        return cast(
+            "CardMetadata",
+            self._workspace._call("get_card_metadata", project_id, card_id),
+        )
+
+    def get_card_breadcrumbs(
+        self, project_id: str, card_id: str
+    ) -> list[CardBreadcrumb]:
+        return cast(
+            "list[CardBreadcrumb]",
+            self._workspace._call("get_card_breadcrumbs", project_id, card_id),
+        )
 
     def create_card(self, project_id: str, card: NewCard) -> Card:
         return cast(
