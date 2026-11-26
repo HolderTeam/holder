@@ -46,6 +46,7 @@ import team.holder.android.git.github.GitHubError
 import team.holder.android.git.github.GitHubResult
 import team.holder.android.git.github.GitHubStatus
 import team.holder.android.git.github.parseGitHubOwnerRepo
+import team.holder.android.ui.rememberSyncNotificationPermissionRequest
 import team.holder.android.ui.GitHubBackfillDialog
 import team.holder.android.ui.githubCheckFailureReason
 import team.holder.android.ui.githubErrorMessage
@@ -96,6 +97,7 @@ fun RecoverProjectScreen(
     var backfillCandidates by remember { mutableStateOf<List<HolderProject>?>(null) }
 
     val scope = rememberCoroutineScope()
+    val requestNotificationPermission = rememberSyncNotificationPermissionRequest()
 
     /** Registers this device's key against [owner]/[repo] and retries the pull -- the
      * "register device → resync" half of the plan's authorize → install → register →
@@ -160,7 +162,10 @@ fun RecoverProjectScreen(
             if (run != githubRun) return
             connectOutcome.onFailure { failure -> githubError = failure.message ?: "Could not connect to GitHub" }
             when (val connectResult = connectOutcome.getOrNull()) {
-                is GitHubResult.Success -> status = connectResult.value
+                is GitHubResult.Success -> {
+                    status = connectResult.value
+                    requestNotificationPermission()
+                }
                 is GitHubResult.Failure -> githubError = githubErrorMessage(connectResult.error)
                 null -> {} // exception already recorded above
             }
