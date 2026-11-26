@@ -1029,11 +1029,16 @@ object HolderNative {
         return parsed
     }
 
+    private const val CONFLICT_COPY_LINK_KIND = "conflict_copy_of"
+
     /** Resolves kind to a display label: the catalog's forward/reverse label if it's one of
      * Holder's built-in link kinds, otherwise a humanized (snake_case -> "Snake case") fallback
      * shown the same regardless of direction, since an arbitrary custom kind has no known
      * reverse. */
     fun linkKindLabel(kind: String, forward: Boolean): String {
+        // Sync's own link from a conflict copy to its card. It isn't in the catalog, which also
+        // lists the kinds a person can pick, and only sync may make it.
+        if (kind == CONFLICT_COPY_LINK_KIND) return if (forward) "Conflict copy of" else "Has conflict copy"
         val entry = listLinkKinds().firstOrNull { it.id == kind }
         if (entry != null) return if (forward) entry.forward else entry.reverse
         return kind.replace('_', ' ').replaceFirstChar { it.uppercase() }

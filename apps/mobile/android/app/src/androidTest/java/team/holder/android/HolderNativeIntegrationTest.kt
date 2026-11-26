@@ -902,6 +902,9 @@ class HolderNativeIntegrationTest {
         assertEquals("Depends on", HolderNative.linkKindLabel("depends_on", forward = true))
         assertEquals("Required by", HolderNative.linkKindLabel("depends_on", forward = false))
         assertEquals("My custom kind", HolderNative.linkKindLabel("my_custom_kind", forward = false))
+        // Sync's link from a conflict copy to its card: the card's side must not read "copy of".
+        assertEquals("Conflict copy of", HolderNative.linkKindLabel("conflict_copy_of", forward = true))
+        assertEquals("Has conflict copy", HolderNative.linkKindLabel("conflict_copy_of", forward = false))
     }
 
     @Test

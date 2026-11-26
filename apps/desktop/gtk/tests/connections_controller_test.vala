@@ -253,6 +253,14 @@ private void test_link_kind_label_reads_each_end_and_capitalises_unknown_kinds()
     assert(controller.link_kind_label("my_kind", false) == "My kind");
 }
 
+private void test_link_kind_label_reads_a_conflict_copy_link_from_each_end() {
+    var controller = new ConnectionsController();
+    controller.set_link_kinds(test_link_kind_catalog());
+    // Sync's link from a conflict copy to its card: the card's side must not read "copy of".
+    assert(controller.link_kind_label("conflict_copy_of", true) == "Conflict copy of");
+    assert(controller.link_kind_label("conflict_copy_of", false) == "Has conflict copy");
+}
+
 private void test_list_available_link_kinds_merges_custom_kinds_from_settings() {
     var controller = new ConnectionsController();
     controller.set_link_kinds(test_link_kind_catalog());
@@ -927,6 +935,8 @@ public static int main(string[] args) {
                   test_list_available_link_kinds_null_settings_defaults);
     Test.add_func("/holder/connections/link_kind_label_reads_each_end_and_capitalises_unknown_kinds",
                   test_link_kind_label_reads_each_end_and_capitalises_unknown_kinds);
+    Test.add_func("/holder/connections/link_kind_label_reads_a_conflict_copy_link_from_each_end",
+                  test_link_kind_label_reads_a_conflict_copy_link_from_each_end);
     Test.add_func("/holder/connections/list_available_link_kinds_merges_custom_kinds_from_settings",
                   test_list_available_link_kinds_merges_custom_kinds_from_settings);
     Test.add_func("/holder/connections/remember_custom_link_kind_with_settings",
