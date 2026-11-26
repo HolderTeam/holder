@@ -1,5 +1,6 @@
 package team.holder.android.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -441,6 +442,14 @@ fun ProjectListScreen(
                         projectPendingDelete = null
                         scope.launch {
                             runCatching { withContext(Dispatchers.IO) { HolderNative.deleteProject(project.projectId) } }
+                                .onFailure {
+                                    // It used to fail silently, leaving the project listed with no clue why.
+                                    Toast.makeText(
+                                        context,
+                                        "Couldn't delete \"${project.name}\": ${it.message ?: it::class.java.simpleName}",
+                                        Toast.LENGTH_LONG,
+                                    ).show()
+                                }
                             isSubmitting = false
                             refresh()
                         }
