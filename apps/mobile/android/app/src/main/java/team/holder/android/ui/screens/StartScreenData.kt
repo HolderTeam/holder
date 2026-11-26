@@ -11,6 +11,9 @@ import java.util.Locale
 import team.holder.android.HolderMilestone
 import team.holder.android.HolderNative
 import team.holder.android.HolderProject
+import team.holder.android.contract.CardListItem
+import team.holder.android.contract.ContractException
+import team.holder.android.contract.KeyMissingException
 import team.holder.android.contract.ListCardsOrder
 
 /** How many recently edited cards the start screen lists, across all projects. */
@@ -63,12 +66,17 @@ internal fun loadStartScreenData(
     val projects = HolderNative.listProjects()
 
     val recent = projects.flatMap { project ->
-        HolderNative.listCardsPage(
+        fun page(includeContent: Boolean) = HolderNative.listCardsPage(
             project.projectId,
             order = ListCardsOrder.UPDATED_DESC,
             limit = START_RECENT_LIMIT,
-            includeContent = true,
+            includeContent = includeContent,
         ).items
+        recentItemsReadingEachBodyOnFailure(
+            withContent = { page(includeContent = true) },
+            withoutContent = { page(includeContent = false) },
+            content = { HolderNative.getCardContent(project.projectId, it.cardId) },
+        )
             .filter { it.deletedAt == null }
             .map { card ->
                 StartRecentCard(
@@ -90,6 +98,32 @@ internal fun loadStartScreenData(
     }
     return StartScreenData(projects, recentCards, attentionMilestones(milestones, today, zone))
 }
+
+/** A project's recent cards with their bodies, for the previews. A listing with bodies fails
+ * as a whole when any one body can't be read (a card file missing, or one that won't decrypt),
+ * which would empty Recent. Then list without bodies and read each on its own: an unreadable
+ * card keeps its row with no preview. A missing key still fails, so the app can ask for it. */
+internal fun recentItemsReadingEachBodyOnFailure(
+    withContent: () -> List<CardListItem>,
+    withoutContent: () -> List<CardListItem>,
+    content: (CardListItem) -> String,
+): List<CardListItem> =
+    try {
+        withContent()
+    } catch (e: KeyMissingException) {
+        throw e
+    } catch (_: ContractException) {
+        withoutContent().map { card ->
+            val body = try {
+                content(card)
+            } catch (e: KeyMissingException) {
+                throw e
+            } catch (_: ContractException) {
+                null
+            }
+            card.copy(content = body)
+        }
+    }
 
 /** Most recently edited first across every project, at most [limit]. */
 internal fun mergeRecentCards(cards: List<StartRecentCard>, limit: Int): List<StartRecentCard> =

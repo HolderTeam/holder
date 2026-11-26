@@ -4,10 +4,14 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import team.holder.android.HolderMilestone
 import team.holder.android.HolderProject
+import team.holder.android.contract.CardListItem
+import team.holder.android.contract.ContractException
+import team.holder.android.contract.KeyMissingException
 
 class StartScreenDataTest {
     private val zone = ZoneId.of("Europe/London")
@@ -154,5 +158,42 @@ class StartScreenDataTest {
     fun overdueLabel_singularAndPlural() {
         assertEquals("Overdue 1 day", overdueLabel(today.minusDays(1), today))
         assertEquals("Overdue 3 days", overdueLabel(today.minusDays(3), today))
+    }
+
+    private fun listed(id: String, content: String? = null) = CardListItem(
+        cardId = id, projectId = "p-home", title = "Card $id", relPath = "cards/$id.md",
+        sortKey = 0.0, createdAt = 0, updatedAt = 0, content = content,
+    )
+
+    @Test
+    fun recentItems_useTheListingWithBodiesWhenItReadsThemAll() {
+        val items = recentItemsReadingEachBodyOnFailure(
+            withContent = { listOf(listed("a", "Body a")) },
+            withoutContent = { error("not needed") },
+            content = { error("not needed") },
+        )
+        assertEquals(listOf("Body a"), items.map { it.content })
+    }
+
+    @Test
+    fun recentItems_oneUnreadableBodyLeavesOnlyThatPreviewOut() {
+        val items = recentItemsReadingEachBodyOnFailure(
+            withContent = { throw ContractException(4040, "card content missing") },
+            withoutContent = { listOf(listed("a"), listed("bad"), listed("c")) },
+            content = { if (it.cardId == "bad") throw ContractException(5000, "envelope invalid") else "Body ${it.cardId}" },
+        )
+        assertEquals(listOf("a", "bad", "c"), items.map { it.cardId })
+        assertEquals(listOf("Body a", null, "Body c"), items.map { it.content })
+    }
+
+    @Test
+    fun recentItems_aMissingKeyStillFails() {
+        assertThrows(KeyMissingException::class.java) {
+            recentItemsReadingEachBodyOnFailure(
+                withContent = { throw KeyMissingException("no key") },
+                withoutContent = { listOf(listed("a")) },
+                content = { "Body" },
+            )
+        }
     }
 }
