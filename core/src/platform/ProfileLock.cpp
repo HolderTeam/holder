@@ -85,7 +85,7 @@ std::unique_ptr<ProfileLock> ProfileLock::try_acquire(const std::filesystem::pat
 #else
   constexpr int command = F_SETLK;
 #endif
-  struct flock region{};
+  struct flock region {};
   region.l_type = F_WRLCK;
   region.l_whence = SEEK_SET;
   int result;
