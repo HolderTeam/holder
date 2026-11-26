@@ -14,7 +14,6 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[4]
 RECIPE = ROOT / 'release/staging/scripts/build-macos-accessible-gtk.sh'
-GTK_PATCH = RECIPE.parent / 'patches/gtk-menu-label-role.patch'
 PACKAGES = ('gtk4', 'libadwaita-1', 'gtksourceview-5', 'vte-2.91-gtk4',
             'libspelling-1', 'gio-2.0', 'gee-0.8', 'libsoup-3.0', 'json-glib-1.0')
 
@@ -75,7 +74,6 @@ def identity() -> tuple[dict, dict]:
     return {
         'format': 1, 'arch': platform.machine(), 'macos': platform.mac_ver()[0],
         'source': gtk['urls']['stable'], 'recipe': digest(RECIPE),
-        'patches': {GTK_PATCH.name: digest(GTK_PATCH)},
         'selector': digest(Path(__file__)), 'dependencies': dependencies,
         'compiler': output('cc', '--version'), 'rust': output('rustc', '--version'),
         'sdk': output('xcrun', '--show-sdk-path'),

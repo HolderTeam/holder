@@ -2,8 +2,6 @@
 # Build the Homebrew-selected GTK version with the macOS accessibility bridge.
 # Shared recipe from PR #26. Output stays isolated from Homebrew.
 set -euo pipefail
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-gtk_patch="${script_dir}/patches/gtk-menu-label-role.patch"
 
 work_dir="${1:?usage: build-macos-accessible-gtk.sh WORK_DIR}"
 mkdir -p "${work_dir}"
@@ -56,16 +54,6 @@ meson install -C "${work_dir}/accesskit-build"
 
 download_verified "${gtk_url}" "${gtk_sha256}" "${work_dir}/gtk.tar.xz"
 tar -xJf "${work_dir}/gtk.tar.xz" -C "${work_dir}"
-# GTK 4.24.2 ships this fix itself. A source that already has it gets it from GTK, not from
-# here: the patch is recorded as upstream instead of applied. Anything else that doesn't
-# apply still fails preparation for review.
-if patch --dry-run --batch --reverse --force -p1 -d "${work_dir}/gtk-${gtk_version}" < "${gtk_patch}" > /dev/null; then
-  echo "GTK ${gtk_version} already includes $(basename "${gtk_patch}"); not applying it."
-  gtk_patch_state=upstream
-else
-  patch --batch --forward -p1 -d "${work_dir}/gtk-${gtk_version}" < "${gtk_patch}"
-  gtk_patch_state=applied
-fi
 gettext_prefix="$(brew --prefix gettext)"
 export PKG_CONFIG_PATH="${runtime_prefix}/lib/pkgconfig:${gettext_prefix}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 meson setup "${work_dir}/gtk-build" "${work_dir}/gtk-${gtk_version}" \
@@ -80,21 +68,15 @@ cp -a "${work_dir}/gtk-build/gtk/"libgtk-4*.dylib "${runtime_prefix}/lib/"
 mkdir -p "${runtime_prefix}/share/licenses/accesskit-c"
 cp "${work_dir}/accesskit-c-0.18.0/"LICENSE* "${runtime_prefix}/share/licenses/accesskit-c/"
 
-python3 - "${runtime_prefix}/gtk-accessibility-build.json" "${gtk_version}" "${gtk_url}" "${gtk_sha256}" "${gtk_patch}" "${gtk_patch_state}" <<'PY'
-import hashlib
+python3 - "${runtime_prefix}/gtk-accessibility-build.json" "${gtk_version}" "${gtk_url}" "${gtk_sha256}" <<'PY'
 import json
-from pathlib import Path
 import sys
 
 with open(sys.argv[1], "w") as output:
     json.dump({"gtk": {"version": sys.argv[2], "source_url": sys.argv[3], "sha256": sys.argv[4]},
                "accesskit_c": {"version": "0.18.0", "sha256":
                                "71465b15724cfbe7d54fb27e82e86c6935f922c40703615972c4e79fdce48b40"},
-               "gtk_accesskit": "enabled",
-               # "patches" lists only what was applied to the source built here.
-               ("patches" if sys.argv[6] == "applied" else "patches_already_upstream"):
-                   {Path(sys.argv[5]).name: hashlib.sha256(Path(sys.argv[5]).read_bytes()).hexdigest()}},
-              output, indent=2)
+               "gtk_accesskit": "enabled"}, output, indent=2)
     output.write("\n")
 PY
 
