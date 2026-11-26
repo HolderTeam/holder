@@ -260,8 +260,8 @@ updates and reset. It does not use Holder data or require external accessibility
 permissions. GTK's internal menu label uses its normal `LABEL` role from GTK
 4.24.2 on ([GTK MR !10510](https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/10510),
 backported in !10582), so the shared recipe builds Homebrew's GTK source
-unpatched. Holder patched it locally until then; that patch and the comparison
-with the earlier AccessKit bridge workaround are in Git history.
+unpatched. Upgrade GTK with `brew upgrade gtk4` before preparing the runtime
+if the installed version predates 4.24.2.
 
 The launcher sets `GTK_A11Y=accesskit` and `DYLD_LIBRARY_PATH` immediately before
 executing the native Holder binary. Do not put `/bin/sh`, `/usr/bin/env`, or
@@ -283,35 +283,18 @@ tools) or turn on VoiceOver and inspect the launched Holder process. Check named
 project/card controls, search, editor text/caret and keyboard focus; open and
 close a dialog and the app-menu popover. Check actual app mappings with
 `vmmap <PID>` and confirm one `libgtk-4.1.dylib` from the printed runtime plus its
-AccessKit library. PR #26 found that the bridge exposes named controls but did
-not establish complete VoiceOver usability. Check menu navigation and actions
-with VoiceOver as well as the automated native menu test.
+AccessKit library. Check menu navigation and actions with VoiceOver as well as
+the automated native menu test; full VoiceOver usability remains unverified.
 The normal label role exposes a text child under each menu item; specifically
 check for duplicate announcements or extra navigation stops.
 
 Cache lifecycle tests can be run with
 `python3 tests/accessible_runtime_test.py`.
 
-Native validation on 2026-10-15 (Apple Silicon, GTK 4.24.1, AccessKit C 0.18.0):
-first-use preparation and reuse passed, including reuse from both the repository
-root and desktop directory. `./make.sh access` passed all 157 Meson tests and
-launched; `vmmap` confirmed one isolated GTK/AccessKit pair alongside Homebrew
-libadwaita 1.10.0, GtkSourceView 5.22.0 and VTE 0.84.1. The native observer needed
-a temporary `.app` wrapper containing a copy of the same source binary. It
-exposed named toolbar controls, toggle states, project/card lists, search and
-the editor role; keyboard focus and opening/dismissing the new-project dialog
-worked. The initial unpatched runtime exposed menu items with empty native
-titles, which the observer omitted. The normal-label-role patch fixes those
-names and GTK's own name calculation, replacing the initial backend workaround.
-Holder's menu now exposes Find/Replace, Move Card to Trash, Print, Local info,
-Preferences and About in the native observer; activating About opens its dialog.
-Editor text/caret and full VoiceOver usability remain unchecked. Dependency
-changes and damaged or incomplete caches are covered by the cache lifecycle
-tests.
-
-The replacement normal-label-role runtime was freshly prepared and reused on
-the same Mac. Its expanded native regression passes names, markup, explicit
-name preservation/reset, focus, states, activation and reopening; it rejects
-the former bridge workaround's presentation role. `./make.sh access` still
-passes all 157 Meson tests. VoiceOver announcement/navigation behavior remains
-a manual check.
+Native validation on 2026-11-26 (Apple Silicon): a fresh unpatched GTK 4.24.2
+runtime with AccessKit C 0.18.0 passed loaded-library verification and every
+`check-menus` stage. GDK frame-timing warnings and `gdk_surface_thaw_updates`
+assertions appeared, but the test exited successfully. VoiceOver navigation,
+announcements, and editor text/caret behavior remain manual checks. See
+[issue #398](https://github.com/HolderTeam/holder/issues/398#issuecomment-7198144266)
+for the validation details.
