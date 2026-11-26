@@ -43,6 +43,12 @@ class GitOperationGuard {
 // operation guard still holds it.
 std::shared_ptr<std::recursive_mutex> repo_mutex_for(const std::filesystem::path& repo_root);
 
+// Process-wide registry of per-repository sync locks, keyed like repo_mutex_for. A sync holds
+// its project's sync lock from start to end, network included, so two syncs of one project
+// take turns; it holds the repository lock above only for its local steps, so card writes
+// don't wait for the network. Take the sync lock before the repository lock, never after.
+std::shared_ptr<std::mutex> sync_mutex_for(const std::filesystem::path& repo_root);
+
 // Normalizes a repository root to the key used by repo_mutex_for.
 std::filesystem::path canonical_repo_key(const std::filesystem::path& repo_root);
 

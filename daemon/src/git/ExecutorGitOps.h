@@ -17,6 +17,8 @@ class ExecutorGitOps final : public GitOps {
   void set_remote(const std::string& name, const std::string& url) override;
   void remove_remote(const std::string& name) override;
   void pull_remote_ff_only(const std::string& name) override;
+  void fetch_remote(const std::string& name) override;
+  void pull_fetched_ff_only(const std::string& name) override;
   RemoteProbeResult probe_remote(const std::string& name) override;
   RemoteProbeResult probe_remote_url(const std::string& url) override;
   PushResult push_branch(const std::string& name, const std::string& branch, bool set_upstream)

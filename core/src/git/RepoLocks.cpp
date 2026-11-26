@@ -16,6 +16,11 @@ std::map<std::filesystem::path, std::weak_ptr<std::recursive_mutex>>& registry()
   return map;
 }
 
+std::map<std::filesystem::path, std::weak_ptr<std::mutex>>& sync_registry() {
+  static std::map<std::filesystem::path, std::weak_ptr<std::mutex>> map;
+  return map;
+}
+
 } // namespace
 
 GitOperationGuard::GitOperationGuard(
@@ -47,6 +52,19 @@ std::shared_ptr<std::recursive_mutex> repo_mutex_for(const std::filesystem::path
     return existing;
   }
   auto created = std::make_shared<std::recursive_mutex>();
+  slot = created;
+  return created;
+}
+
+std::shared_ptr<std::mutex> sync_mutex_for(const std::filesystem::path& repo_root) {
+  const auto key = canonical_repo_key(repo_root);
+
+  std::lock_guard<std::mutex> guard(registry_mutex());
+  auto& slot = sync_registry()[key];
+  if (auto existing = slot.lock()) {
+    return existing;
+  }
+  auto created = std::make_shared<std::mutex>();
   slot = created;
   return created;
 }
