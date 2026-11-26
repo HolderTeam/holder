@@ -163,6 +163,13 @@ the trailing tag line. Removing a tag mentioned in prose raises a conflict.
 `session.list_project_tags(project_id)` returns tag names and live card
 counts. Pass `tag="research"` to `list_cards` to find matching cards.
 
+Use `cards.list_card_links(project_id, card_id)` for outgoing links and
+`cards.list_card_backlinks(project_id, card_id)` for incoming links. Each
+record identifies both ends by project, type, and ID. Backlinks default to
+the current project. Pass `scope="external"` for other projects on this
+device or `scope="all_available"` for both. Use `include_deleted=True` to
+include trashed targets in outgoing links or trashed sources in backlinks.
+
 ## Run with or without a local Holder installation
 
 Use `open_session(fallback_workspace=path)` when a script can work on live

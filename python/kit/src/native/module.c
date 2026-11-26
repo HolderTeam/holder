@@ -620,8 +620,10 @@ Context_list_links(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
     const char *project_id = NULL;
     const char *card_id = NULL;
-    static char *keywords[] = {"project_id", "card_id", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:list_links", keywords, &project_id, &card_id) ||
+    int include_deleted = 0;
+    static char *keywords[] = {"project_id", "card_id", "include_deleted", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|$p:list_links", keywords,
+                                    &project_id, &card_id, &include_deleted) ||
         !ensure_context_open(self)) {
         return NULL;
     }
@@ -629,7 +631,8 @@ Context_list_links(ContextObject *self, PyObject *args, PyObject *kwargs)
     if (arena == NULL) return PyErr_NoMemory();
     const holder_link_list *links = NULL;
     holder_error *error = NULL;
-    const int result = holder_list_card_links(self->context, project_id, card_id, false, arena, &links, &error);
+    const int result = holder_list_card_links(self->context, project_id, card_id,
+        include_deleted != 0, arena, &links, &error);
     if (result != HOLDER_OK) {
         raise_holder_error(self, result, error);
         holder_arena_free(arena);
@@ -639,6 +642,46 @@ Context_list_links(ContextObject *self, PyObject *args, PyObject *kwargs)
     PyObject *out = link_list_record(links);
     holder_arena_free(arena);
     return out;
+}
+
+static PyObject *
+Context_list_card_backlinks(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id, *card_id;
+    const char *scope = "local";
+    int include_deleted = 0;
+    static char *keywords[] = {"project_id", "card_id", "scope", "include_deleted", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|$sp:list_card_backlinks", keywords,
+                                    &project_id, &card_id, &scope, &include_deleted) ||
+        !ensure_context_open(self)) return NULL;
+
+    holder_list_card_backlinks_scope selection;
+    if (strcmp(scope, "local") == 0) {
+        selection = HOLDER_LIST_CARD_BACKLINKS_SCOPE_LOCAL;
+    } else if (strcmp(scope, "external") == 0) {
+        selection = HOLDER_LIST_CARD_BACKLINKS_SCOPE_EXTERNAL;
+    } else if (strcmp(scope, "all_available") == 0) {
+        selection = HOLDER_LIST_CARD_BACKLINKS_SCOPE_ALL_AVAILABLE;
+    } else {
+        PyErr_SetString(PyExc_ValueError, "scope must be 'local', 'external', or 'all_available'");
+        return NULL;
+    }
+
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_link_list *links = NULL;
+    holder_error *error = NULL;
+    const int result = holder_list_card_backlinks(self->context, project_id, card_id,
+        selection, include_deleted != 0, arena, &links, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+    PyObject *records = link_list_record(links);
+    holder_arena_free(arena);
+    return records;
 }
 
 static PyObject *
@@ -2088,6 +2131,8 @@ static PyMethodDef Context_methods[] = {
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Permanently remove a card that is already in Trash.")},
     {"list_cards_page", PyCFunction_CAST(Context_list_cards_page), METH_VARARGS | METH_KEYWORDS,
      PyDoc_STR("Return one page of a project's live cards, by parent, tag and order.")},
+    {"list_card_backlinks", PyCFunction_CAST(Context_list_card_backlinks), METH_VARARGS | METH_KEYWORDS,
+     "List the links to a live card."},
     {"search_cards", PyCFunction_CAST(Context_search_cards), METH_VARARGS | METH_KEYWORDS,
      "Search live cards in a project by relevance."},
     {"resolve_card_reference", PyCFunction_CAST(Context_resolve_card_reference), METH_VARARGS | METH_KEYWORDS,

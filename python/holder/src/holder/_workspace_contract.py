@@ -9,6 +9,9 @@ PrivacyMode = Literal["encrypted_git", "plain"]
 CardId = str
 Tag = str
 TrashItemType = Literal["card", "ai_message"]
+LinkKind = str
+LinkTargetType = Literal["card", "ai_message", "ai_thread", "resource"]
+LinkTargetId = str
 
 T = TypeVar("T")
 
@@ -165,6 +168,23 @@ class SearchCard(TypedDict):
     created_at: int
     snippet: str
     rank: float
+
+
+class Link(TypedDict):
+    """
+    A link from a card, or from an AI message, to something in a project. A link names
+    both of its ends in full: each end's project, type and ID.
+    """
+
+    source_project_id: ProjectId
+    source_type: Literal["card", "ai_message"]
+    source_id: str
+    target_project_id: ProjectId
+    target_type: LinkTargetType
+    target_id: LinkTargetId
+    kind: LinkKind
+    label: str | None
+    created_at: int
 
 
 class CardOperations(Protocol):
@@ -356,6 +376,38 @@ class CardOperations(Protocol):
         carry the tag is left as it is. Holder does not rewrite prose, so a card that
         would still carry the tag in its prose is a Conflict, and is left as it is. A
         card in the trash or in another project is not found.
+        """
+        ...
+
+    def list_card_links(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+        *,
+        include_deleted: bool = False,
+    ) -> list[Link]:
+        """
+        List a card's links.
+
+        The links the card makes, newest first. A card in the trash or in another
+        project is not found.
+        """
+        ...
+
+    def list_card_backlinks(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+        *,
+        scope: Literal["local", "external", "all_available"] = "local",
+        include_deleted: bool = False,
+    ) -> list[Link]:
+        """
+        List the links to a card.
+
+        Links from cards and AI messages, newest first. External links come only from
+        projects on this device, so they are never all there may be. A card in the trash
+        or in another project is not found.
         """
         ...
 

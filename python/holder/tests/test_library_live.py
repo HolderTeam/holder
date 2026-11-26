@@ -16,7 +16,7 @@ import httpx
 import pytest
 
 from holder import Holder, MilestoneDate, ProjectRecord, open_session
-from holder.cards import Card, CardListItem, CardMetadata, SearchCard
+from holder.cards import Card, CardListItem, CardMetadata, Link, SearchCard
 from holder.exceptions import APIError, ClosedError, NotFoundError
 
 DAEMON = os.environ.get("HOLDER_TEST_DAEMON")
@@ -784,6 +784,51 @@ def test_shared_card_operations(backend, request, tmp_path):
         assert (error.value.status, error.value.code) == (400, "invalid_argument")
         cards.trash_card(project_id, first_id)
         assert [row["card_id"] for row in cards.search_cards(project_id, query)] == [second_id]
+
+        other_project_id = other_project["project_id"]
+        if isinstance(active, Holder):
+            local_source = active.projects.get(project_id).cards.get(second_id)
+            local_source.links.add(child_id, kind="ref", label="Local")
+            external_source = active.projects.get(other_project_id).cards.get(other_id)
+            external_source.links.add(child_id, target_project_id=project_id, kind="ref")
+        else:
+            native = active._context
+            assert native is not None
+            native.add_link(project_id, second_id, None, child_id, "ref", "Local")
+            native.add_link(other_project_id, other_id, project_id, child_id, "ref")
+
+        [local] = cards.list_card_links(project_id, second_id)
+        [external] = cards.list_card_links(other_project_id, other_id)
+        assert local.keys() == external.keys() == Link.__required_keys__
+        assert (local["source_project_id"], local["source_id"], local["label"]) == (
+            project_id, second_id, "Local"
+        )
+        assert (external["source_project_id"], external["source_id"], external["label"]) == (
+            other_project_id, other_id, None
+        )
+        assert all(
+            (link["target_project_id"], link["target_id"], link["target_type"])
+            == (project_id, child_id, "card")
+            for link in (local, external)
+        )
+        assert cards.list_card_backlinks(project_id, child_id) == [local]
+        assert cards.list_card_backlinks(project_id, child_id, scope="external") == [external]
+        all_links = cards.list_card_backlinks(project_id, child_id, scope="all_available")
+        assert {link["source_id"] for link in all_links} == {second_id, other_id}
+
+        cards.trash_card(project_id, second_id)
+        assert cards.list_card_backlinks(project_id, child_id) == []
+        assert cards.list_card_backlinks(project_id, child_id, include_deleted=True) == [local]
+        with pytest.raises(NotFoundError):
+            cards.list_card_links(project_id, second_id)
+        cards.restore_card(project_id, second_id)
+
+        cards.trash_card(project_id, child_id)
+        assert cards.list_card_links(project_id, second_id) == []
+        assert cards.list_card_links(project_id, second_id, include_deleted=True) == [local]
+        assert cards.list_card_links(other_project_id, other_id) == [external]
+        with pytest.raises(NotFoundError):
+            cards.list_card_backlinks(project_id, child_id, include_deleted=True)
 
     with pytest.raises(ClosedError):
         cards.get_card(project_id, child_id)

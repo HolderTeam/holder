@@ -19,6 +19,7 @@ from ._workspace_contract import (
     CardReferenceResolveData,
     CardReferenceResolveRequest,
     CardUpdate,
+    Link,
     NewCard,
     Page,
     SearchCard,
@@ -32,7 +33,9 @@ from .generated.api.default import (
     delete_projects_project_id_cards_card_id_tags_tag,
     get_projects_project_id_cards,
     get_projects_project_id_cards_card_id,
+    get_projects_project_id_cards_card_id_backlinks,
     get_projects_project_id_cards_card_id_breadcrumbs,
+    get_projects_project_id_cards_card_id_links,
     get_projects_project_id_cards_card_id_metadata,
     get_search_cards,
     patch_projects_project_id_cards_card_id,
@@ -47,6 +50,7 @@ from .generated.models import (
     CardMoveIntent,
     CardReferenceResolveRequestScope,
     DeleteProjectsProjectIdCardsCardIdChildren,
+    GetProjectsProjectIdCardsCardIdBacklinksScope,
     GetProjectsProjectIdCardsOrder,
 )
 from .generated.models import (
@@ -72,6 +76,7 @@ __all__ = [
     "CardReferenceResolveRequest",
     "CardUpdate",
     "EmbeddedUnavailableError",
+    "Link",
     "NewCard",
     "Page",
     "SearchCard",
@@ -227,6 +232,34 @@ class _DaemonCards:
         )
         return cast("Card", result.to_dict())
 
+    def list_card_links(
+        self, project_id: str, card_id: str, *, include_deleted: bool = False
+    ) -> list[Link]:
+        results = self._holder._call(
+            get_projects_project_id_cards_card_id_links,
+            project_id,
+            card_id,
+            include_deleted=include_deleted,
+        )
+        return [cast("Link", result.to_dict()) for result in results]
+
+    def list_card_backlinks(
+        self,
+        project_id: str,
+        card_id: str,
+        *,
+        scope: Literal["local", "external", "all_available"] = "local",
+        include_deleted: bool = False,
+    ) -> list[Link]:
+        results = self._holder._call(
+            get_projects_project_id_cards_card_id_backlinks,
+            project_id,
+            card_id,
+            scope=GetProjectsProjectIdCardsCardIdBacklinksScope(scope),
+            include_deleted=include_deleted,
+        )
+        return [cast("Link", result.to_dict()) for result in results]
+
 
 class EmbeddedWorkspace:
     """A session in an explicitly selected, private Holder data directory."""
@@ -262,7 +295,7 @@ class EmbeddedWorkspace:
                 "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(native.Context, "search_cards"):
+        if not hasattr(native.Context, "list_card_backlinks"):
             raise EmbeddedUnavailableError(
                 "This Holder Kit build is too old for the shared Card API."
             )
@@ -441,6 +474,35 @@ class _EmbeddedCards:
     def remove_card_tag(self, project_id: str, card_id: str, tag: str) -> Card:
         return cast(
             "Card", self._workspace._call("remove_card_tag", project_id, card_id, tag)
+        )
+
+    def list_card_links(
+        self, project_id: str, card_id: str, *, include_deleted: bool = False
+    ) -> list[Link]:
+        return cast(
+            "list[Link]",
+            self._workspace._call(
+                "list_links", project_id, card_id, include_deleted=include_deleted
+            ),
+        )
+
+    def list_card_backlinks(
+        self,
+        project_id: str,
+        card_id: str,
+        *,
+        scope: Literal["local", "external", "all_available"] = "local",
+        include_deleted: bool = False,
+    ) -> list[Link]:
+        return cast(
+            "list[Link]",
+            self._workspace._call(
+                "list_card_backlinks",
+                project_id,
+                card_id,
+                scope=scope,
+                include_deleted=include_deleted,
+            ),
         )
 
 
