@@ -797,7 +797,9 @@ object GitHubConnectionCoordinator {
         val result = (query as CredentialStatusQueryResult.Completed).result
         val status = (result as? GitHubResult.Success)?.value ?: run {
             val error = (result as GitHubResult.Failure).error
-            lastStatusCheckError = error
+            // With no saved sign-in there is nothing to check: that is NotConnected, not a
+            // failed check, or a fresh install would say "GitHub needs to be reconnected".
+            lastStatusCheckError = error.takeUnless { snapshot.durableState is DurableGitHubCredentialState.Absent }
             if (error == GitHubError.AuthorizationRequired &&
                 snapshot.durableState is DurableGitHubCredentialState.Refreshing
             ) {

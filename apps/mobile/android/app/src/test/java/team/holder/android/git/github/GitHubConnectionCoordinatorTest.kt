@@ -2582,6 +2582,16 @@ class GitHubConnectionCoordinatorTest {
     }
 
     @Test
+    fun statusWithNoSavedSignInIsNotConnectedWithNoCheckError() = runBlocking {
+        durableBackend.state = DurableGitHubCredentialState.Absent
+        restartCredentialProcess()
+
+        assertEquals(GitHubStatus.NotConnected, GitHubConnectionCoordinator.status(fakeContext))
+        // A fresh install has nothing to reconnect; Settings shows this error under Connect.
+        assertNull(GitHubConnectionCoordinator.lastStatusCheckError)
+    }
+
+    @Test
     fun aSuccessfulCheckReplacesUnchecked() = runBlocking {
         durableBackend.state = DurableGitHubCredentialState.Ready(StoredGitHubCredential("refresh", "cap", Long.MAX_VALUE))
         restartCredentialProcess()
