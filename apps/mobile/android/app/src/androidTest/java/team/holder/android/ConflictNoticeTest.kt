@@ -15,7 +15,11 @@ import org.junit.runner.RunWith
  * the review list. The pull is stood in for by the signal it publishes. */
 @RunWith(AndroidJUnit4::class)
 class ConflictNoticeTest {
-    @get:Rule
+    // Before the activity launches: see NoRestoredBackupRule.
+    @get:Rule(order = 0)
+    val noRestoredBackup = NoRestoredBackupRule()
+
+    @get:Rule(order = 1)
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     private val timeoutMs = if (Build.VERSION.SDK_INT <= 28) 300_000L else 60_000L
