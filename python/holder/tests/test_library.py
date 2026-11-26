@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import httpx
 import pytest
 
-from holder import Card, Holder, Project, open_session, open_workspace
+from holder import Card, Holder, Project, iter_card_records, open_session, open_workspace
 from holder.exceptions import (
     APIError,
     AuthenticationError,
@@ -764,6 +764,43 @@ def test_invalid_card_continuation_is_rejected(items, cursor):
             collection._next = "same"
         with pytest.raises(ProtocolError, match="did not advance"):
             list(collection)
+
+
+def test_card_record_export_follows_pages_lazily():
+    cursors = []
+
+    def respond(request):
+        assert request.url.path == "/projects/p-0/cards"
+        assert request.url.params["include_content"] == "true"
+        assert request.url.params["order"] == "card_id_asc"
+        cursor = request.url.params.get("cursor")
+        cursors.append(cursor)
+        return ok(
+            {
+                "items": [card_payload(len(cursors), content=True)],
+                "next_cursor": "page-two" if cursor is None else None,
+            }
+        )
+
+    with holder_for(respond) as session:
+        records = iter_card_records(session.card_operations, "p-0", include_content=True)
+        assert cursors == []
+        first = next(records)
+        assert cursors == [None]
+        (second,) = records
+
+    assert cursors == [None, "page-two"]
+    assert first["card_id"] != second["card_id"]
+    assert first["content"] == second["content"] == "current body"
+
+
+def test_card_record_export_rejects_repeated_cursor():
+    def respond(request):
+        assert request.url.params["include_content"] == "false"
+        return ok({"items": [card_payload()], "next_cursor": "stuck"})
+
+    with holder_for(respond) as session, pytest.raises(ProtocolError, match="did not advance"):
+        list(iter_card_records(session.card_operations, "p-0"))
 
 
 def test_open_session_prefers_local_daemon(monkeypatch, tmp_path):
