@@ -16,7 +16,7 @@ import httpx
 import pytest
 
 from holder import Holder, LinkKindLabels, MilestoneDate, ProjectRecord, open_session
-from holder.cards import Card, CardListItem, CardMetadata, Link, SearchCard
+from holder.cards import Card, CardListItem, CardMetadata, Link, Milestone, SearchCard
 from holder.exceptions import APIError, ClosedError, NotFoundError
 
 DAEMON = os.environ.get("HOLDER_TEST_DAEMON")
@@ -865,6 +865,52 @@ def test_shared_card_operations(backend, request, tmp_path):
         assert cards.list_card_backlinks(project_id, child_id, scope="all_available") == [sibling_link]
         with pytest.raises(NotFoundError):
             cards.add_card_link(project_id, second_id, {"target_type": "resource", "target_id": "missing"})
+
+        assert cards.list_card_milestones(project_id, child_id) == []
+        dated = cards.add_card_milestone(
+            project_id,
+            child_id,
+            {
+                "dates": [
+                    {"role": "review", "date": "2026-11-30"},
+                    {"role": "review", "datetime": "2026-11-30T09:30:00+01:00"},
+                ],
+                "kind": "plan",
+                "description": "Check the draft",
+            },
+        )
+        assert dated.keys() == Milestone.__required_keys__
+        assert dated["dates"] == [
+            {"role": "review", "date": "2026-11-30"},
+            {"role": "review", "datetime": "2026-11-30T09:30:00+01:00"},
+        ]
+        undated = cards.add_card_milestone(project_id, child_id, {"dates": []})
+        assert (undated["dates"], undated["kind"], undated["description"]) == ([], None, None)
+        milestone_id = dated["milestone_id"]
+        assert cards.update_card_milestone(project_id, child_id, milestone_id, {}) == dated
+        revised = cards.update_card_milestone(
+            project_id, child_id, milestone_id, {"kind": None, "dates": []}
+        )
+        assert (revised["kind"], revised["dates"], revised["description"]) == (
+            None, [], "Check the draft"
+        )
+        assert {row["milestone_id"] for row in cards.list_card_milestones(project_id, child_id)} == {
+            milestone_id, undated["milestone_id"]
+        }
+        with pytest.raises(APIError) as error:
+            cards.add_card_milestone(
+                project_id, child_id, {"dates": [{"role": "due", "date": "2026-02-30"}]}
+            )
+        assert error.value.status == 400
+        with pytest.raises(NotFoundError):
+            cards.update_card_milestone(project_id, parent_id, milestone_id, {"description": None})
+        assert cards.remove_card_milestone(project_id, child_id, milestone_id) == [undated]
+        assert cards.remove_card_milestone(project_id, child_id, milestone_id) == [undated]
+        cards.trash_card(project_id, child_id)
+        with pytest.raises(NotFoundError):
+            cards.list_card_milestones(project_id, child_id)
+        cards.restore_card(project_id, child_id)
+        assert cards.list_card_milestones(project_id, child_id) == [undated]
 
     with pytest.raises(ClosedError):
         cards.get_card(project_id, child_id)

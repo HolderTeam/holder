@@ -12,6 +12,11 @@ TrashItemType = Literal["card", "ai_message"]
 LinkKind = str
 LinkTargetType = Literal["card", "ai_message", "ai_thread", "resource"]
 LinkTargetId = str
+MilestoneId = str
+MilestoneRole = str
+Day = str
+DateTime = str
+MilestoneText = str
 
 T = TypeVar("T")
 
@@ -207,6 +212,46 @@ class LinkKindLabels(TypedDict):
     kind: LinkKind
     forward_label: str
     reverse_label: str
+
+
+class MilestoneDate(TypedDict):
+    """One of a milestone's dates: a role and exactly one of a day or an instant."""
+
+    role: MilestoneRole
+    date: NotRequired[Day]
+    datetime: NotRequired[DateTime]
+
+
+class Milestone(TypedDict):
+    """
+    A milestone on a card: its dates, which may repeat a role or be none, and what it
+    is.
+    """
+
+    milestone_id: MilestoneId
+    project_id: ProjectId
+    card_id: CardId
+    dates: list[MilestoneDate]
+    kind: MilestoneText | None
+    description: MilestoneText | None
+    created_at: int
+    updated_at: int
+
+
+class NewMilestone(TypedDict):
+    """A milestone to put on a card."""
+
+    dates: list[MilestoneDate]
+    kind: NotRequired[MilestoneText | None]
+    description: NotRequired[MilestoneText | None]
+
+
+class MilestoneUpdate(TypedDict):
+    """A change to a milestone. Each field left out keeps its value."""
+
+    dates: NotRequired[list[MilestoneDate]]
+    kind: NotRequired[MilestoneText | None]
+    description: NotRequired[MilestoneText | None]
 
 
 class CardOperations(Protocol):
@@ -467,6 +512,65 @@ class CardOperations(Protocol):
         kind, and returns the card's remaining links as list_card_links lists them by
         default. A card without that link is left as it is. A card in the trash or in
         another project is not found.
+        """
+        ...
+
+    def list_card_milestones(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+    ) -> list[Milestone]:
+        """
+        List a card's milestones.
+
+        By when they were made, then by ID. A card in the trash or in another project is
+        not found.
+        """
+        ...
+
+    def add_card_milestone(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+        milestone: NewMilestone,
+    ) -> Milestone:
+        """
+        Put a milestone on a card.
+
+        The milestone gets a new ID. Each date must be a real day or instant. A card in
+        the trash or in another project is not found.
+        """
+        ...
+
+    def update_card_milestone(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+        milestone_id: MilestoneId,
+        update: MilestoneUpdate,
+    ) -> Milestone:
+        """
+        Change a milestone.
+
+        Each field left out keeps its value, and an update that changes nothing writes
+        nothing. Each date must be a real day or instant. A card in the trash or in
+        another project is not found, and neither is a milestone that is not on the
+        card.
+        """
+        ...
+
+    def remove_card_milestone(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+        milestone_id: MilestoneId,
+    ) -> list[Milestone]:
+        """
+        Take a milestone off a card.
+
+        Returns the card's remaining milestones, as list_card_milestones lists them. A
+        card without the milestone is left as it is. A card in the trash or in another
+        project is not found.
         """
         ...
 

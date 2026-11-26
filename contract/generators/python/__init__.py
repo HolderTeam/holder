@@ -8,7 +8,7 @@ from generators.common import Unsupported
 from generators.core.abi import snake
 
 PATH = "python/holder/src/holder/_workspace_contract.py"
-OPERATIONS = ("list_cards", "search_cards", "get_card", "get_card_metadata", "get_card_breadcrumbs", "resolve_card_reference", "create_card", "update_card", "move_card", "trash_card", "restore_card", "add_card_tag", "remove_card_tag", "list_card_links", "list_card_backlinks", "add_card_link", "remove_card_link")
+OPERATIONS = ("list_cards", "search_cards", "get_card", "get_card_metadata", "get_card_breadcrumbs", "resolve_card_reference", "create_card", "update_card", "move_card", "trash_card", "restore_card", "add_card_tag", "remove_card_tag", "list_card_links", "list_card_backlinks", "add_card_link", "remove_card_link", "list_card_milestones", "add_card_milestone", "update_card_milestone", "remove_card_milestone")
 
 SCALARS = {"string": "str", "int32": "int", "int64": "int", "float64": "float", "bool": "bool"}
 
@@ -55,10 +55,10 @@ def generate_python_workspace(ir: ContractView) -> str:
         "from typing import Generic, Literal, NotRequired, Protocol, TypedDict, TypeVar",
         "",
     ]
-    for name in ("ProjectId", "ProjectName", "GitRemoteUrl", "PrivacyMode", "CardId", "Tag", "TrashItemType", "LinkKind", "LinkTargetType", "LinkTargetId"):
+    for name in ("ProjectId", "ProjectName", "GitRemoteUrl", "PrivacyMode", "CardId", "Tag", "TrashItemType", "LinkKind", "LinkTargetType", "LinkTargetId", "MilestoneId", "MilestoneRole", "Day", "DateTime", "MilestoneText"):
         lines.append(f"{name} = {annotation(ir.alias(name))}")
     lines.extend(["", 'T = TypeVar("T")'])
-    for name in ("CardMetadata", "CardBreadcrumb", "TagOccurrence", "CardListItem", "Card", "NewCard", "CardUpdate", "CardMove", "Page", "Project", "TrashItem", "TagCount", "CardReferenceResolveRequest", "CardReferenceCandidate", "CardReferenceResolveData", "SearchCard", "Link", "NewLink", "LinkKindLabels"):
+    for name in ("CardMetadata", "CardBreadcrumb", "TagOccurrence", "CardListItem", "Card", "NewCard", "CardUpdate", "CardMove", "Page", "Project", "TrashItem", "TagCount", "CardReferenceResolveRequest", "CardReferenceCandidate", "CardReferenceResolveData", "SearchCard", "Link", "NewLink", "LinkKindLabels", "MilestoneDate", "Milestone", "NewMilestone", "MilestoneUpdate"):
         record = ir.record(name)
         bases = [record.base or "TypedDict"]
         if record.type_parameters:

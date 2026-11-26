@@ -22,8 +22,12 @@ from ._workspace_contract import (
     Link,
     LinkKindLabels,
     LinkTargetType,
+    Milestone,
+    MilestoneDate,
+    MilestoneUpdate,
     NewCard,
     NewLink,
+    NewMilestone,
     Page,
     SearchCard,
     TagCount,
@@ -34,6 +38,7 @@ from .exceptions import APIError, ClosedError, HolderError, NotFoundError
 from .generated.api.default import (
     delete_projects_project_id_cards_card_id,
     delete_projects_project_id_cards_card_id_links,
+    delete_projects_project_id_cards_card_id_milestones_milestone_id,
     delete_projects_project_id_cards_card_id_tags_tag,
     get_projects_project_id_cards,
     get_projects_project_id_cards_card_id,
@@ -41,11 +46,14 @@ from .generated.api.default import (
     get_projects_project_id_cards_card_id_breadcrumbs,
     get_projects_project_id_cards_card_id_links,
     get_projects_project_id_cards_card_id_metadata,
+    get_projects_project_id_cards_card_id_milestones,
     get_search_cards,
     patch_projects_project_id_cards_card_id,
+    patch_projects_project_id_cards_card_id_milestones_milestone_id,
     post_card_references_resolve,
     post_projects_project_id_cards,
     post_projects_project_id_cards_card_id_links,
+    post_projects_project_id_cards_card_id_milestones,
     post_projects_project_id_cards_card_id_move,
     post_projects_project_id_cards_card_id_restore,
     put_projects_project_id_cards_card_id_tags_tag,
@@ -63,8 +71,10 @@ from .generated.models import (
 )
 from .generated.models import CardUpdate as HTTPCardUpdate
 from .generated.models import LinkTargetType as HTTPLinkTargetType
+from .generated.models import MilestoneUpdate as HTTPMilestoneUpdate
 from .generated.models import NewCard as HTTPNewCard
 from .generated.models import NewLink as HTTPNewLink
+from .generated.models import NewMilestone as HTTPNewMilestone
 
 if TYPE_CHECKING:
     from holderkit._native import Context
@@ -85,8 +95,12 @@ __all__ = [
     "EmbeddedUnavailableError",
     "Link",
     "LinkTargetType",
+    "Milestone",
+    "MilestoneDate",
+    "MilestoneUpdate",
     "NewCard",
     "NewLink",
+    "NewMilestone",
     "Page",
     "SearchCard",
     "open_workspace",
@@ -302,6 +316,49 @@ class _DaemonCards:
             write=True,
         )
         return [cast("Link", result.to_dict()) for result in results]
+
+    def list_card_milestones(self, project_id: str, card_id: str) -> list[Milestone]:
+        results = self._holder._call(
+            get_projects_project_id_cards_card_id_milestones, project_id, card_id
+        )
+        return [cast("Milestone", result.to_dict()) for result in results]
+
+    def add_card_milestone(
+        self, project_id: str, card_id: str, milestone: NewMilestone
+    ) -> Milestone:
+        result = self._holder._call(
+            post_projects_project_id_cards_card_id_milestones,
+            project_id,
+            card_id,
+            body=HTTPNewMilestone.from_dict(milestone),
+            write=True,
+        )
+        return cast("Milestone", result.to_dict())
+
+    def update_card_milestone(
+        self, project_id: str, card_id: str, milestone_id: str, update: MilestoneUpdate
+    ) -> Milestone:
+        result = self._holder._call(
+            patch_projects_project_id_cards_card_id_milestones_milestone_id,
+            project_id,
+            card_id,
+            milestone_id,
+            body=HTTPMilestoneUpdate.from_dict(update),
+            write=True,
+        )
+        return cast("Milestone", result.to_dict())
+
+    def remove_card_milestone(
+        self, project_id: str, card_id: str, milestone_id: str
+    ) -> list[Milestone]:
+        results = self._holder._call(
+            delete_projects_project_id_cards_card_id_milestones_milestone_id,
+            project_id,
+            card_id,
+            milestone_id,
+            write=True,
+        )
+        return [cast("Milestone", result.to_dict()) for result in results]
 
 
 class EmbeddedWorkspace:
@@ -577,6 +634,40 @@ class _EmbeddedCards:
                 target_id,
                 kind=kind,
                 target_project_id=target_project_id,
+            ),
+        )
+
+    def list_card_milestones(self, project_id: str, card_id: str) -> list[Milestone]:
+        return cast(
+            "list[Milestone]",
+            self._workspace._call("list_milestones", project_id, card_id),
+        )
+
+    def add_card_milestone(
+        self, project_id: str, card_id: str, milestone: NewMilestone
+    ) -> Milestone:
+        return cast(
+            "Milestone",
+            self._workspace._call("add_milestone", project_id, card_id, **milestone),
+        )
+
+    def update_card_milestone(
+        self, project_id: str, card_id: str, milestone_id: str, update: MilestoneUpdate
+    ) -> Milestone:
+        return cast(
+            "Milestone",
+            self._workspace._call(
+                "update_milestone", project_id, card_id, milestone_id, update
+            ),
+        )
+
+    def remove_card_milestone(
+        self, project_id: str, card_id: str, milestone_id: str
+    ) -> list[Milestone]:
+        return cast(
+            "list[Milestone]",
+            self._workspace._call(
+                "remove_milestone", project_id, card_id, milestone_id
             ),
         )
 

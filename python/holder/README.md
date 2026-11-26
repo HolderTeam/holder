@@ -179,6 +179,14 @@ that link and get the remaining outgoing links. Specify `kind` or
 `session.list_link_kinds()` returns the built-in kinds and their forward and
 reverse labels. You can also use custom kinds.
 
+Use `cards.list_card_milestones(project_id, card_id)` to read a card's
+milestones. To add one, pass an ordered list of dates to
+`cards.add_card_milestone(project_id, card_id, {"dates": [{"role": "due",
+"date": "2026-11-30"}]})`. Each entry takes a calendar `date` or an RFC 3339
+`datetime`. Use `update_card_milestone` to change fields and
+`remove_card_milestone` to remove one by ID. On update, omit fields to keep them,
+use `None` to clear the kind or description, or pass `dates=[]` to clear dates.
+
 ## Run with or without a local Holder installation
 
 Use `open_session(fallback_workspace=path)` when a script can work on live
