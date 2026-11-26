@@ -91,14 +91,14 @@ object AndroidKeyringStore : KeyringProvider {
      * relying on [registerWithNative] having already been called, since callers of this may
      * run before that registration happens. */
     fun storeLocalSecret(context: Context, key: String, secret: String) {
-        localSecretPrefs(context).edit().putString(localSecretKey(key), encrypt(secret)).apply()
+        save(localSecretPrefs(context).edit().putString(localSecretKey(key), encrypt(secret)))
     }
 
     fun getLocalSecret(context: Context, key: String): String? =
         localSecretPrefs(context).getString(localSecretKey(key), null)?.let(::decrypt)
 
     fun removeLocalSecret(context: Context, key: String) {
-        localSecretPrefs(context).edit().remove(localSecretKey(key)).apply()
+        save(localSecretPrefs(context).edit().remove(localSecretKey(key)))
     }
 
     private fun localSecretPrefs(context: Context): SharedPreferences =
@@ -128,10 +128,18 @@ object AndroidKeyringStore : KeyringProvider {
     }
 
     override fun store(kind: Int, service: String, account: String, projectId: String?, label: String, secret: String) {
-        prefs.edit().putString(storageKey(kind, service, account, projectId), encrypt(secret)).apply()
+        save(prefs.edit().putString(storageKey(kind, service, account, projectId), encrypt(secret)))
     }
 
     override fun remove(kind: Int, service: String, account: String, projectId: String?) {
-        prefs.edit().remove(storageKey(kind, service, account, projectId)).apply()
+        save(prefs.edit().remove(storageKey(kind, service, account, projectId)))
+    }
+
+    /** Writes [edit] to disk before returning. apply() would only queue the write: a process
+     * killed straight after making an encrypted project (a crash, the system reclaiming it)
+     * lost the project's key, and with it every card. Core treats a store that returns as
+     * durable, and a failure here as a failed store. */
+    private fun save(edit: SharedPreferences.Editor) {
+        check(edit.commit()) { "could not save to the Android keyring" }
     }
 }
