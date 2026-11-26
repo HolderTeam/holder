@@ -17,7 +17,14 @@ from pathlib import Path
 import httpx
 import pytest
 
-from holder import Holder, LinkKindLabels, MilestoneDate, ProjectRecord, open_session, open_workspace
+from holder import (
+    Holder,
+    LinkKindLabels,
+    MilestoneDate,
+    ProjectRecord,
+    open_session,
+    open_workspace,
+)
 from holder.cards import Card, CardListItem, CardMetadata, Link, Milestone, SearchCard
 from holder.exceptions import APIError, ClosedError, NotFoundError
 
@@ -524,9 +531,8 @@ def test_embedded_profile_ownership(daemon, tmp_path):
     private = tmp_path / "private"
     with open_workspace(private) as workspace:
         project = workspace.create_plain_project(name="Private project")
-        with pytest.raises(APIError, match="workspace is in use"):
-            with open_workspace(private):
-                pytest.fail("Opened a second embedded session on the same profile")
+        with pytest.raises(APIError, match="workspace is in use"), open_workspace(private):
+            pass
         assert workspace.get_project(project["project_id"]) == project
 
     with open_workspace(private) as workspace:
