@@ -866,17 +866,38 @@ Context_move_card_record(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
-Context_list_trashed_cards(ContextObject *self, PyObject *args, PyObject *kwargs)
+trash_item_record(const holder_trash_item *item, bool complete_record)
 {
-    const char *project_id = NULL;
-    static char *keywords[] = {"project_id", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s:list_trashed_cards", keywords,
-                                    &project_id) || !ensure_context_open(self)) return NULL;
+    PyObject *record = PyDict_New();
+    if (record == NULL) return NULL;
+    if (put_text(record, "project_id", item->project_id) < 0 ||
+        put_text(record, "card_id", item->card_id) < 0) {
+        Py_DECREF(record);
+        return NULL;
+    }
+    if (complete_record &&
+        (put_text(record, "type", item->type == HOLDER_TRASH_ITEM_TYPE_CARD ? "card" : "ai_message") < 0 ||
+         put_text(record, "message_id", item->message_id) < 0 ||
+         put_text(record, "thread_id", item->thread_id) < 0 ||
+         put_text(record, "title", item->title) < 0 ||
+         put_text(record, "role", item->role) < 0 ||
+         put_epoch(record, "deleted_at", item->deleted_at) < 0 ||
+         put_optional_epoch(record, "created_at", item->created_at) < 0 ||
+         put_text(record, "rel_path", item->rel_path) < 0)) {
+        Py_DECREF(record);
+        return NULL;
+    }
+    return record;
+}
+
+static PyObject *
+list_trash(ContextObject *self, const char *project_id, const char *type, bool complete_record)
+{
     holder_arena *arena = holder_arena_new();
     if (arena == NULL) return PyErr_NoMemory();
     const holder_trash_item_list *items = NULL;
     holder_error *error = NULL;
-    const int result = holder_list_trash(self->context, project_id, "card", arena, &items, &error);
+    const int result = holder_list_trash(self->context, project_id, type, arena, &items, &error);
     if (result != HOLDER_OK) {
         raise_holder_error(self, result, error);
         holder_arena_free(arena);
@@ -886,10 +907,8 @@ Context_list_trashed_cards(ContextObject *self, PyObject *args, PyObject *kwargs
     PyObject *records = PyList_New(0);
     if (records != NULL) for (size_t i = 0; i < items->count; ++i) {
         const holder_trash_item *item = &items->items[i];
-        PyObject *record = PyDict_New();
-        if (record == NULL || put_text(record, "project_id", item->project_id) < 0 ||
-            put_text(record, "card_id", item->card_id) < 0 ||
-            PyList_Append(records, record) < 0) {
+        PyObject *record = trash_item_record(item, complete_record);
+        if (record == NULL || PyList_Append(records, record) < 0) {
             Py_XDECREF(record);
             Py_CLEAR(records);
             break;
@@ -898,6 +917,27 @@ Context_list_trashed_cards(ContextObject *self, PyObject *args, PyObject *kwargs
     }
     holder_arena_free(arena);
     return records;
+}
+
+static PyObject *
+Context_list_trashed_cards(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id = NULL;
+    static char *keywords[] = {"project_id", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s:list_trashed_cards", keywords,
+                                    &project_id) || !ensure_context_open(self)) return NULL;
+    return list_trash(self, project_id, "card", false);
+}
+
+static PyObject *
+Context_list_trash(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id;
+    const char *type = NULL;
+    static char *keywords[] = {"project_id", "type", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|$z:list_trash", keywords,
+                                    &project_id, &type) || !ensure_context_open(self)) return NULL;
+    return list_trash(self, project_id, type, true);
 }
 
 static PyObject *
@@ -1902,6 +1942,8 @@ static PyMethodDef Context_methods[] = {
      PyDoc_STR("Return one page of a project's live cards, by parent, tag and order.")},
     {"get_live_card", PyCFunction_CAST(Context_get_live_card), METH_VARARGS,
      "Read a live card with content and tags."},
+    {"list_trash", PyCFunction_CAST(Context_list_trash), METH_VARARGS | METH_KEYWORDS,
+     "List the detached Trash records for a project."},
     {"move_card_record", PyCFunction_CAST(Context_move_card_record), METH_VARARGS | METH_KEYWORDS,
      "Move a card and return its complete record."},
     {"trash_card_record", PyCFunction_CAST(Context_trash_card_record), METH_VARARGS | METH_KEYWORDS,

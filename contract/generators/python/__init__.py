@@ -55,10 +55,10 @@ def generate_python_workspace(ir: ContractView) -> str:
         "from typing import Generic, Literal, NotRequired, Protocol, TypedDict, TypeVar",
         "",
     ]
-    for name in ("ProjectId", "ProjectName", "GitRemoteUrl", "PrivacyMode", "CardId", "Tag"):
+    for name in ("ProjectId", "ProjectName", "GitRemoteUrl", "PrivacyMode", "CardId", "Tag", "TrashItemType"):
         lines.append(f"{name} = {annotation(ir.alias(name))}")
     lines.extend(["", 'T = TypeVar("T")'])
-    for name in ("CardMetadata", "TagOccurrence", "CardListItem", "Card", "NewCard", "CardUpdate", "CardMove", "Page", "Project"):
+    for name in ("CardMetadata", "TagOccurrence", "CardListItem", "Card", "NewCard", "CardUpdate", "CardMove", "Page", "Project", "TrashItem"):
         record = ir.record(name)
         bases = [record.base or "TypedDict"]
         if record.type_parameters:

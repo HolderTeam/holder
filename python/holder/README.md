@@ -137,7 +137,9 @@ Omit `parent_card_id` to reorder within the current parent or pass
 Use `cards.trash_card(project_id, card_id)` to move a card to Trash and
 promote its children. Pass `children="trash_subtree"` to trash the descendants
 too. `cards.restore_card(project_id, card_id)` restores one card at a time.
-Both calls return the card's record after the change.
+Both calls return the card's record after the change. To find a card to
+restore later, use `session.list_trash(project_id, type="card")`. The listing
+includes titles and IDs. Omit the filter to include trashed AI messages too.
 
 ## Run with or without a local Holder installation
 

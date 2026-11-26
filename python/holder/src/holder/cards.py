@@ -18,6 +18,7 @@ from ._workspace_contract import (
     Page,
 )
 from ._workspace_contract import Project as ProjectRecord
+from ._workspace_contract import TrashItem as TrashItemRecord
 from .exceptions import APIError, ClosedError, HolderError, NotFoundError
 from .generated.api.default import (
     delete_projects_project_id_cards_card_id,
@@ -183,7 +184,7 @@ class EmbeddedWorkspace:
                 "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(native.Context, "move_card_record"):
+        if not hasattr(native.Context, "list_trash"):
             raise EmbeddedUnavailableError(
                 "This Holder Kit build is too old for the shared Card API."
             )
@@ -209,6 +210,14 @@ class EmbeddedWorkspace:
     def create_plain_project(self, *, name: str) -> ProjectRecord:
         """Create a project whose files are stored without encryption."""
         return cast("ProjectRecord", self._call("create_project", name))
+
+    def list_trash(
+        self, project_id: str, *, type: str | None = None
+    ) -> list[TrashItemRecord]:
+        """List detached Trash records, optionally filtered by item type."""
+        return cast(
+            "list[TrashItemRecord]", self._call("list_trash", project_id, type=type)
+        )
 
     def _call(self, method: str, *args: object, **kwargs: object) -> object:
         if self._closed or self._context is None:

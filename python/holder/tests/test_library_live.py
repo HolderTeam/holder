@@ -596,6 +596,7 @@ def test_shared_card_operations(backend, request, tmp_path):
             cards.update_card(project_id, child_id, {"parent_card_id": child_id})
         assert (error.value.status, error.value.code) == (422, "invalid_move")
 
+        assert active.list_trash(project_id) == []
         trashed = cards.trash_card(project_id, child_id)
         assert trashed.keys() == Card.__required_keys__
         assert trashed["deleted_at"] is not None
@@ -605,8 +606,31 @@ def test_shared_card_operations(backend, request, tmp_path):
             cards.get_card(project_id, child_id)
         with pytest.raises(NotFoundError):
             cards.trash_card(project_id, child_id)
-        restored = cards.restore_card(project_id, child_id)
+        expected_trash = {
+            "type": "card",
+            "project_id": project_id,
+            "card_id": child_id,
+            "message_id": None,
+            "thread_id": None,
+            "title": trashed["title"],
+            "role": None,
+            "deleted_at": trashed["deleted_at"],
+            "created_at": None,
+            "rel_path": trashed["rel_path"],
+        }
+        assert active.list_trash(project_id) == [expected_trash]
+        assert active.list_trash(project_id, type="all") == [expected_trash]
+        assert active.list_trash(project_id, type="ai_message") == []
+        assert active.list_trash(project_id, type="unknown") == []
+        assert active.list_trash("missing") == []
+
+        [entry] = active.list_trash(project_id, type="card")
+        assert entry == expected_trash
+        restore_id = entry["card_id"]
+        assert restore_id is not None
+        restored = cards.restore_card(project_id, restore_id)
         assert restored["deleted_at"] is None
+        assert active.list_trash(project_id) == []
         assert cards.get_card(project_id, child_id) == restored
         with pytest.raises(APIError) as error:
             cards.restore_card(project_id, child_id)

@@ -8,6 +8,7 @@ GitRemoteUrl = str
 PrivacyMode = Literal["encrypted_git", "plain"]
 CardId = str
 Tag = str
+TrashItemType = Literal["card", "ai_message"]
 
 T = TypeVar("T")
 
@@ -98,6 +99,21 @@ class Project(TypedDict):
     project_key_id: str | None
     created_at: int
     updated_at: int
+
+
+class TrashItem(TypedDict):
+    """A trashed card or AI message."""
+
+    type: TrashItemType
+    project_id: str
+    card_id: str | None
+    message_id: str | None
+    thread_id: str | None
+    title: str | None
+    role: str | None
+    deleted_at: int
+    created_at: int | None
+    rel_path: str | None
 
 
 class CardOperations(Protocol):

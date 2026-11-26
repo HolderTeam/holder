@@ -12,6 +12,7 @@ from typing import Any, Self, cast
 import httpx
 
 from ._workspace_contract import Project as ProjectRecord
+from ._workspace_contract import TrashItem as TrashItemRecord
 from .cards import CardOperations, EmbeddedWorkspace, _DaemonCards, open_workspace
 from .changes import Changes
 from .exceptions import (
@@ -24,7 +25,12 @@ from .exceptions import (
     ProtocolError,
 )
 from .generated import AuthenticatedClient
-from .generated.api.default import get_projects, get_projects_project_id, post_projects
+from .generated.api.default import (
+    get_projects,
+    get_projects_project_id,
+    get_trash,
+    post_projects,
+)
 from .generated.models import ErrorResponse, NewProject, PrivacyMode
 from .models.intelligence_device import HolderIntelligence
 from .models.project import Project, ProjectCollection
@@ -169,6 +175,13 @@ class Holder:
             write=True,
         )
         return cast("ProjectRecord", project.to_dict())
+
+    def list_trash(
+        self, project_id: str, *, type: str | None = None
+    ) -> list[TrashItemRecord]:
+        """List detached Trash records, optionally filtered by item type."""
+        items = self._call(get_trash, project_id=project_id, type_=type)
+        return [cast("TrashItemRecord", item.to_dict()) for item in items]
 
     def _call(
         self,
