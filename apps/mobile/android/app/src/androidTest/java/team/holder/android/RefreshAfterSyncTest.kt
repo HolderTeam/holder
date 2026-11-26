@@ -23,7 +23,11 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class RefreshAfterSyncTest {
-    @get:Rule
+    // Before the activity launches: see NoRestoredBackupRule.
+    @get:Rule(order = 0)
+    val noRestoredBackup = NoRestoredBackupRule()
+
+    @get:Rule(order = 1)
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     private val timeoutMs = if (Build.VERSION.SDK_INT <= 28) 300_000L else 60_000L

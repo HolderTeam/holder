@@ -74,6 +74,7 @@ import team.holder.android.R
 import team.holder.android.ui.CenteredMessage
 import team.holder.android.ui.LoadState
 import team.holder.android.ui.boardPathAfterReload
+import team.holder.android.ui.lastModifiedFirst
 import team.holder.android.ui.sortKeyOrderedSiblings
 
 private const val SEARCH_DEBOUNCE_MS = 300L
@@ -371,7 +372,7 @@ private fun CardListBody(
         is LoadState.Error -> CenteredMessage { Text("Failed to load cards: ${state.message}") }
         is LoadState.Success -> {
             val allCards = state.value
-            val cards = if (boardViewEnabled) sortKeyOrderedSiblings(currentParentId, allCards) else allCards
+            val cards = if (boardViewEnabled) sortKeyOrderedSiblings(currentParentId, allCards) else lastModifiedFirst(allCards)
             if (cards.isEmpty()) {
                 CenteredMessage { Text("No cards yet") }
             } else {

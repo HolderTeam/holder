@@ -29,6 +29,12 @@ fun sortKeyOrderedSiblings(parentCardId: String?, allCards: List<HolderCard>): L
         .filter { it.parentCardId == parentCardId }
         .sortedWith(compareBy<HolderCard> { it.sortKey }.thenBy { it.cardId })
 
+/** Every card in the project, last modified first: the plain card list's order, as on Desktop.
+ * sort_key only orders siblings, so across a whole project it reads as no order at all. Ties
+ * (cards saved in the same second) fall back to card ID, so the order is stable. */
+fun lastModifiedFirst(allCards: List<HolderCard>): List<HolderCard> =
+    allCards.sortedWith(compareByDescending<HolderCard> { it.updatedAt }.thenBy { it.cardId })
+
 /** [cardId]'s deck for swipeable card navigation (see CardViewPagerScreen): its siblings in
  * Holder's existing sort_key order, including itself. Null when [cardId] isn't found in
  * [allCards] -- a race or a failed fetch -- leaving the caller to decide what to fall back to,
