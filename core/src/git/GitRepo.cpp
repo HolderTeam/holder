@@ -1058,8 +1058,14 @@ PushResult GitRepo::push_branch(
 }
 
 void GitRepo::pull_remote_ff_only(const std::string& name) {
+  fetch_remote(name);
+  pull_fetched_ff_only(name);
+}
+
+void GitRepo::fetch_remote(const std::string& name) {
   ensure_open();
   auto* repo = reinterpret_cast<git_repository*>(repo_);
+  fetched_default_branch_.erase(name);
 
   git_remote* remote = nullptr;
   int rc = git_remote_lookup(&remote, repo, name.c_str());
@@ -1083,6 +1089,18 @@ void GitRepo::pull_remote_ff_only(const std::string& name) {
   }
   git_buf_dispose(&default_branch_buf);
   git_remote_free(remote);
+  if (!remote_branch.empty()) fetched_default_branch_[name] = remote_branch;
+}
+
+void GitRepo::pull_fetched_ff_only(const std::string& name) {
+  ensure_open();
+  auto* repo = reinterpret_cast<git_repository*>(repo_);
+  int rc = 0;
+  std::string remote_branch;
+  if (const auto fetched = fetched_default_branch_.find(name);
+      fetched != fetched_default_branch_.end()) {
+    remote_branch = fetched->second;
+  }
 
   if (remote_branch.empty()) {
     const auto configured = configured_default_branch_name();

@@ -254,6 +254,8 @@ class MainActivity : ComponentActivity() {
             val intervalMinutes = HolderSettings.gitBackgroundSyncIntervalMinutes(applicationContext).first()
             GitSyncScheduler.reconcile(applicationContext, enabled, intervalMinutes)
         }
+        // Sync soon after each change, as well as on the interval above.
+        HolderNative.onLocalChange = { GitSyncScheduler.syncAfterChange(applicationContext) }
 
         enableEdgeToEdge()
         setContent {
@@ -279,6 +281,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Opening Holder (or coming back to it) brings in what other devices changed.
+        GitSyncScheduler.syncOnOpen(this)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

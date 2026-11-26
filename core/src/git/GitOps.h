@@ -27,6 +27,13 @@ class GitOps {
     return GitOperationGuard(operation_mutex_, repo_dir);
   }
 
+  // This adapter's own lock without the project's: for work that only this adapter's state
+  // must not interleave with, such as a sync's network calls, while other contexts keep
+  // writing the project.
+  [[nodiscard]] std::unique_lock<std::recursive_mutex> lock_adapter() {
+    return std::unique_lock<std::recursive_mutex>(operation_mutex_);
+  }
+
   // Default no-op: implementations that don't override this keep whatever
   // default credential behavior their underlying GitRepo already has (see
   // GitRepo::set_credential_provider). Test doubles are not required to
@@ -54,6 +61,11 @@ class GitOps {
   virtual void set_remote(const std::string& name, const std::string& url) = 0;
   virtual void remove_remote(const std::string& name) = 0;
   virtual void pull_remote_ff_only(const std::string& name) = 0;
+  // A pull in two halves, so a sync can fetch without the project's lock (see
+  // GitRepo::fetch_remote). The defaults do nothing on fetch and the whole pull afterwards,
+  // which is correct for any adapter, only without the shorter lock.
+  virtual void fetch_remote(const std::string& /*name*/) {}
+  virtual void pull_fetched_ff_only(const std::string& name) { pull_remote_ff_only(name); }
   virtual RemoteProbeResult probe_remote(const std::string& name) = 0;
   // Probe an explicit URL without opening or changing a repository. Implementations
   // must reuse their configured credential provider. No fetch or ref updates occur.
@@ -103,6 +115,8 @@ class RealGitOps final : public GitOps {
   void set_remote(const std::string& name, const std::string& url) override;
   void remove_remote(const std::string& name) override;
   void pull_remote_ff_only(const std::string& name) override;
+  void fetch_remote(const std::string& name) override;
+  void pull_fetched_ff_only(const std::string& name) override;
   RemoteProbeResult probe_remote(const std::string& name) override;
   RemoteProbeResult probe_remote_url(const std::string& url) override;
   PushResult push_branch(const std::string& name, const std::string& branch, bool set_upstream)

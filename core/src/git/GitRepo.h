@@ -4,6 +4,7 @@
 #include "git/RemoteProbe.h"
 
 #include <filesystem>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -106,8 +107,16 @@ class GitRepo {
   void remove_remote(const std::string& name);
 
   // Pull from remote into current branch (fast-forward only). Throws NonFastForwardPullError
-  // (not a plain std::runtime_error) if local and remote have diverged.
+  // (not a plain std::runtime_error) if local and remote have diverged. The same as
+  // fetch_remote followed by pull_fetched_ff_only.
   void pull_remote_ff_only(const std::string& name);
+  // The network half of a pull: brings the remote's commits into the object database and
+  // updates refs/remotes/<name>/*, and nothing else. The branch, index and working tree are
+  // untouched, so a caller can run it without the project's lock while cards are saved.
+  void fetch_remote(const std::string& name);
+  // The local half: fast-forwards the current branch to what the last fetch_remote brought,
+  // or throws NonFastForwardPullError as pull_remote_ff_only does. No network.
+  void pull_fetched_ff_only(const std::string& name);
   // Probe remote reachability and whether it has a default HEAD.
   RemoteProbeResult probe_remote(const std::string& name);
   // Uses a detached remote and the configured credentials; no repository is needed
@@ -212,6 +221,9 @@ class GitRepo {
   void* repo_ = nullptr; // git_repository*
   std::filesystem::path repo_dir_;
   std::shared_ptr<GitCredentialProvider> credential_provider_;
+  // The default branch each remote advertised at its last fetch_remote, which is only known
+  // while connected, for pull_fetched_ff_only.
+  std::map<std::string, std::string> fetched_default_branch_;
 };
 
 } // namespace holder::git
