@@ -1430,7 +1430,7 @@ CollectionCardPage CardStore::list_collection_page(
     const std::string& project_id,
     const CardPageQuery& query,
     int limit,
-    bool include_content
+    CollectionContent content
 ) {
   if (limit <= 0 || limit > 1000) throw std::invalid_argument("limit must be between 1 and 1000");
   std::optional<holder::model::Project> project;
@@ -1444,17 +1444,27 @@ CollectionCardPage CardStore::list_collection_page(
       page.next_cursor = CardPageCursor{last.card_id, last.updated_at, last.sort_key};
     }
     for (auto& card : metadata) {
-      std::string content;
-      if (include_content) {
-        auto body = read_card_content_locked(*fs_, *git_, *project, card);
+      std::optional<std::string> body;
+      if (content == CollectionContent::Required) {
+        body = read_card_content_locked(*fs_, *git_, *project, card);
         if (!body) throw std::runtime_error("card content missing: " + card.card_id);
-        content = std::move(*body);
+      } else if (content == CollectionContent::WhenReadable) {
+        try {
+          body = read_card_content_locked(*fs_, *git_, *project, card);
+        } catch (const holder::privacy::PrivacyError& error) {
+          // A damaged file is this card's problem, left out like a missing one. A missing key
+          // or keyring is the whole project's, and still fails the page so the app can ask.
+          using holder::privacy::PrivacyErrorCode;
+          if (error.code() != PrivacyErrorCode::EnvelopeInvalid &&
+              error.code() != PrivacyErrorCode::EnvelopeMetadataMismatch)
+            throw;
+        }
       }
-      page.cards.push_back({std::move(card), std::move(content)});
+      page.cards.push_back({std::move(card), std::move(body)});
     }
     return page;
   };
-  if (!include_content) return read();
+  if (content == CollectionContent::None) return read();
   project = require_project(project_id);
   auto operation = git_->lock_operation(project->root_path);
   git_->open_or_init(project->root_path);

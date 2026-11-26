@@ -814,7 +814,9 @@ typedef struct holder_card_list_item {
                                 trash. May be NULL. */
   const int32_t*
       child_count; /* The card's live children; present when asked for. NULL when absent. */
-  const char* content; /* The card's body; present when asked for. NULL when absent. */
+  const char* content; /* The card's body; present when asked for, except for a card whose file is
+                          missing or can't be read, so that one bad file doesn't fail the whole
+                          listing. NULL when absent. */
 } holder_card_list_item;
 
 typedef struct holder_card_list_item_list {

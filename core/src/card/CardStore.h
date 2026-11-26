@@ -86,10 +86,22 @@ struct CompleteCardPage {
   std::optional<std::string> next_cursor;
 };
 
+// A card in a collection page, with its body when that was asked for and could be read.
+struct CollectionCardRecord {
+  holder::model::Card card;
+  std::optional<std::string> content;
+};
+
 struct CollectionCardPage {
-  std::vector<CompleteCardRecord> cards;
+  std::vector<CollectionCardRecord> cards;
   std::optional<CardPageCursor> next_cursor;
 };
+
+// Which card bodies a collection page reads. Required fails the whole page when one card's file
+// is missing or unreadable (a recovery snapshot must not silently lose a card); WhenReadable
+// leaves that card's content out when its file is missing or damaged, so one bad file can't hide
+// the rest of a listing. A missing key or keyring still fails the page either way.
+enum class CollectionContent { None, Required, WhenReadable };
 
 // What trashing a card does with its live children.
 enum class TrashChildren { Promote, TrashSubtree };
@@ -241,7 +253,7 @@ class CardStore {
       const std::string& project_id,
       const CardPageQuery& query,
       int limit,
-      bool include_content
+      CollectionContent content
   );
 
   // add_tag/remove_tag are Holder's semantic tag operations -- the ones a client (Android's

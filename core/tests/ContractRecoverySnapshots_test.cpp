@@ -278,6 +278,14 @@ TEST_CASE(
   REQUIRE_THROWS_AS(host.read(other, first.next_cursor, 2), contract::InvalidArgument);
   REQUIRE_THROWS_AS(host.read(host.project_id, std::string("zz"), 2), contract::InvalidArgument);
   REQUIRE_THROWS_AS(host.read("missing-project"), contract::NotFound);
+
+  // Unlike a card listing, a snapshot never leaves out a card whose file is gone.
+  const auto root = contract::get_project(host.context, host.project_id).root_path;
+  std::filesystem::remove(std::filesystem::path(root) / holder::core::card_rel_path(newest));
+  REQUIRE_THROWS_WITH(
+      host.read(host.project_id, std::nullopt, 2),
+      Catch::Matchers::ContainsSubstring("card content missing")
+  );
 }
 
 TEST_CASE(

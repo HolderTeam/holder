@@ -9,6 +9,7 @@
 
 #include "api/Contract.h"
 #include "capi/Context.h"
+#include "card/CardPaths.h"
 #include "core_test_helpers.h"
 #include "git/GitOps.h"
 #include "project/ProjectRegistry.h"
@@ -305,6 +306,53 @@ TEST_CASE(
       std::istreambuf_iterator<char>()
   };
   REQUIRE(text.find(home.project->project_id) != std::string::npos);
+}
+
+TEST_CASE(
+    "A card listing with content leaves out only the bodies it can't read",
+    "[contract][cards]"
+) {
+  // Home is encrypted, so a damaged card file fails to decrypt rather than reading as text.
+  Host host;
+  const auto project = *contract::ensure_home_project(host.context).project;
+  const auto card = [&](const std::string& title) {
+    contract::NewCard request;
+    request.title = title;
+    request.content = title + " body";
+    return contract::create_card(host.context, project.project_id, request).card_id;
+  };
+  const auto good = card("Good");
+  const auto missing = card("Missing");
+  const auto damaged = card("Damaged");
+  const auto root = std::filesystem::path(project.root_path);
+  std::filesystem::remove(root / holder::core::card_rel_path(missing));
+  std::ofstream(root / holder::core::card_rel_path(damaged), std::ios::binary | std::ios::trunc)
+      << "not an encrypted card";
+
+  const auto list = [&] {
+    return contract::list_cards(
+        host.context,
+        project.project_id,
+        std::nullopt,
+        std::nullopt,
+        contract::ListCardsOrder::UpdatedDesc,
+        10,
+        std::nullopt,
+        true,
+        false
+    );
+  };
+  const auto page = list();
+  REQUIRE(page.items.size() == 4); // and the welcome card
+  for (const auto& item : page.items) {
+    if (item.card_id == missing || item.card_id == damaged)
+      REQUIRE_FALSE(item.content.has_value());
+    else
+      REQUIRE(item.content.has_value());
+    if (item.card_id == good) REQUIRE(*item.content == "Good body");
+  }
+  // Opening the damaged card itself still reports the failure.
+  REQUIRE_THROWS(contract::get_card(host.context, project.project_id, damaged));
 }
 
 TEST_CASE("ensure_home_project leaves a device with any project alone", "[contract][projects]") {

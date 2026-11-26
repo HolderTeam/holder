@@ -560,7 +560,9 @@ struct CardReferenceResolveData {
 /// A card in a listing.
 struct CardListItem : CardMetadata {
   std::optional<std::int32_t> child_count; ///< The card's live children; present when asked for.
-  std::optional<std::string> content; ///< The card's body; present when asked for.
+  std::optional<std::string>
+      content; ///< The card's body; present when asked for, except for a card whose file is missing
+               ///< or can't be read, so that one bad file doesn't fail the whole listing.
 };
 
 /// A tag and how many of a project's live cards carry it.
