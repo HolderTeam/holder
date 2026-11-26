@@ -774,6 +774,30 @@ Context_get_project(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
+move_card(ContextObject *self, const char *project_id, const char *card_id,
+          const holder_card_move *move, bool complete_record)
+{
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_card *card = NULL;
+    holder_error *error = NULL;
+    const int result = holder_move_card(self->context, project_id, card_id,
+                                        move, arena, &card, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+    PyObject *record = complete_record ? full_card_record(card) :
+        card_record(card->card_id, card->project_id, card->title, card->rel_path,
+            card->parent_card_id, card->sort_key, card->created_at, card->updated_at,
+            card->deleted_at, NULL);
+    holder_arena_free(arena);
+    return record;
+}
+
+static PyObject *
 Context_move_card(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
     const char *project_id = NULL;
@@ -795,23 +819,50 @@ Context_move_card(ContextObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
     move.target_card_id = target_card_id;
-    holder_arena *arena = holder_arena_new();
-    if (arena == NULL) return PyErr_NoMemory();
-    const holder_card *card = NULL;
-    holder_error *error = NULL;
-    const int result = holder_move_card(self->context, project_id, card_id,
-                                        &move, arena, &card, &error);
-    if (result != HOLDER_OK) {
-        raise_holder_error(self, result, error);
-        holder_arena_free(arena);
+    return move_card(self, project_id, card_id, &move, false);
+}
+
+static PyObject *
+Context_move_card_record(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id, *card_id, *intent;
+    const char *parent = NULL;
+    holder_card_move move = {0};
+    static char *keywords[] = {
+        "project_id", "card_id", "intent", "target_card_id", "parent_card_id", NULL
+    };
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sss|$sz:move_card", keywords,
+                                    &project_id, &card_id, &intent, &move.target_card_id,
+                                    &parent) || !ensure_context_open(self)) return NULL;
+
+    static const struct {
+        const char *name;
+        holder_card_move_intent intent;
+    } intents[] = {
+        {"into", HOLDER_CARD_MOVE_INTENT_INTO},
+        {"before", HOLDER_CARD_MOVE_INTENT_BEFORE},
+        {"after", HOLDER_CARD_MOVE_INTENT_AFTER},
+        {"left", HOLDER_CARD_MOVE_INTENT_LEFT},
+        {"right", HOLDER_CARD_MOVE_INTENT_RIGHT},
+        {"to_start", HOLDER_CARD_MOVE_INTENT_TO_START},
+        {"to_end", HOLDER_CARD_MOVE_INTENT_TO_END},
+        {"up_level", HOLDER_CARD_MOVE_INTENT_UP_LEVEL},
+    };
+    for (size_t i = 0; i < sizeof intents / sizeof intents[0]; ++i) {
+        if (strcmp(intent, intents[i].name) == 0) {
+            move.intent = intents[i].intent;
+            break;
+        }
+    }
+    if (move.intent == 0) {
+        PyErr_SetString(PyExc_ValueError, "unknown card move intent");
         return NULL;
     }
-    holder_error_destroy(error);
-    PyObject *record = card_record(card->card_id, card->project_id, card->title,
-        card->rel_path, card->parent_card_id, card->sort_key, card->created_at,
-        card->updated_at, card->deleted_at, NULL);
-    holder_arena_free(arena);
-    return record;
+    if (kwargs != NULL && PyDict_GetItemString(kwargs, "parent_card_id") != NULL) {
+        move.parent_card_id.change = parent == NULL ? HOLDER_CLEAR : HOLDER_SET;
+        move.parent_card_id.value = parent;
+    }
+    return move_card(self, project_id, card_id, &move, true);
 }
 
 static PyObject *
@@ -1851,6 +1902,8 @@ static PyMethodDef Context_methods[] = {
      PyDoc_STR("Return one page of a project's live cards, by parent, tag and order.")},
     {"get_live_card", PyCFunction_CAST(Context_get_live_card), METH_VARARGS,
      "Read a live card with content and tags."},
+    {"move_card_record", PyCFunction_CAST(Context_move_card_record), METH_VARARGS | METH_KEYWORDS,
+     "Move a card and return its complete record."},
     {"trash_card_record", PyCFunction_CAST(Context_trash_card_record), METH_VARARGS | METH_KEYWORDS,
      "Trash a card and return its complete record."},
     {"restore_card_record", PyCFunction_CAST(Context_restore_card_record), METH_VARARGS | METH_KEYWORDS,

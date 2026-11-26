@@ -8,7 +8,7 @@ from generators.common import Unsupported
 from generators.core.abi import snake
 
 PATH = "python/holder/src/holder/_workspace_contract.py"
-OPERATIONS = ("list_cards", "get_card", "create_card", "update_card", "trash_card", "restore_card")
+OPERATIONS = ("list_cards", "get_card", "create_card", "update_card", "move_card", "trash_card", "restore_card")
 
 SCALARS = {"string": "str", "int32": "int", "int64": "int", "float64": "float", "bool": "bool"}
 
@@ -58,7 +58,7 @@ def generate_python_workspace(ir: ContractView) -> str:
     for name in ("ProjectId", "ProjectName", "GitRemoteUrl", "PrivacyMode", "CardId", "Tag"):
         lines.append(f"{name} = {annotation(ir.alias(name))}")
     lines.extend(["", 'T = TypeVar("T")'])
-    for name in ("CardMetadata", "TagOccurrence", "CardListItem", "Card", "NewCard", "CardUpdate", "Page", "Project"):
+    for name in ("CardMetadata", "TagOccurrence", "CardListItem", "Card", "NewCard", "CardUpdate", "CardMove", "Page", "Project"):
         record = ir.record(name)
         bases = [record.base or "TypedDict"]
         if record.type_parameters:

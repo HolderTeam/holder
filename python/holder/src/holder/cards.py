@@ -11,6 +11,7 @@ from ._workspace_contract import (
     NATIVE_ERRORS,
     Card,
     CardListItem,
+    CardMove,
     CardOperations,
     CardUpdate,
     NewCard,
@@ -24,13 +25,16 @@ from .generated.api.default import (
     get_projects_project_id_cards_card_id,
     patch_projects_project_id_cards_card_id,
     post_projects_project_id_cards,
+    post_projects_project_id_cards_card_id_move,
     post_projects_project_id_cards_card_id_restore,
 )
-from .generated.models import CardUpdate as HTTPCardUpdate
+from .generated.models import CardMove as HTTPCardMove
 from .generated.models import (
+    CardMoveIntent,
     DeleteProjectsProjectIdCardsCardIdChildren,
     GetProjectsProjectIdCardsOrder,
 )
+from .generated.models import CardUpdate as HTTPCardUpdate
 from .generated.models import NewCard as HTTPNewCard
 
 if TYPE_CHECKING:
@@ -41,6 +45,7 @@ if TYPE_CHECKING:
 __all__ = [
     "Card",
     "CardListItem",
+    "CardMove",
     "CardOperations",
     "CardUpdate",
     "EmbeddedUnavailableError",
@@ -108,6 +113,16 @@ class _DaemonCards:
         )
         return cast("Card", result.to_dict())
 
+    def move_card(self, project_id: str, card_id: str, move: CardMove) -> Card:
+        result = self._holder._call(
+            post_projects_project_id_cards_card_id_move,
+            project_id,
+            card_id,
+            body=HTTPCardMove(**{**move, "intent": CardMoveIntent(move["intent"])}),
+            write=True,
+        )
+        return cast("Card", result.to_dict())
+
     def trash_card(
         self,
         project_id: str,
@@ -168,7 +183,7 @@ class EmbeddedWorkspace:
                 "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(native.Context, "trash_card_record"):
+        if not hasattr(native.Context, "move_card_record"):
             raise EmbeddedUnavailableError(
                 "This Holder Kit build is too old for the shared Card API."
             )
@@ -268,6 +283,12 @@ class _EmbeddedCards:
     def update_card(self, project_id: str, card_id: str, update: CardUpdate) -> Card:
         return cast(
             "Card", self._workspace._call("patch_card", project_id, card_id, **update)
+        )
+
+    def move_card(self, project_id: str, card_id: str, move: CardMove) -> Card:
+        return cast(
+            "Card",
+            self._workspace._call("move_card_record", project_id, card_id, **move),
         )
 
     def trash_card(

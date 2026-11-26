@@ -71,6 +71,14 @@ class CardUpdate(TypedDict):
     updated_at: NotRequired[int]
 
 
+class CardMove(TypedDict):
+    """Where to move a card, relative to another card or among its siblings."""
+
+    intent: Literal["into", "before", "after", "left", "right", "to_start", "to_end", "up_level"]
+    target_card_id: NotRequired[CardId]
+    parent_card_id: NotRequired[CardId | None]
+
+
 class Page(TypedDict, Generic[T]):
     """One page of a listing."""
 
@@ -156,6 +164,23 @@ class CardOperations(Protocol):
         place, each as its own change in the project's history. A card in the trash or
         in another project is not found, and neither is a new parent that does not exist
         or is in the trash; a parent under the card itself is an InvalidMove.
+        """
+        ...
+
+    def move_card(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+        move: CardMove,
+    ) -> Card:
+        """
+        Move a card in its project's hierarchy.
+
+        When the card's new neighbours leave no room between their places, nearby
+        siblings are re-spaced in the same change, keeping their order; other cards'
+        sort_key values a caller holds may then be out of date. A card in the trash or
+        in another project is not found, and neither is a target or parent that does not
+        exist or is in the trash. A move that changes nothing writes nothing.
         """
         ...
 

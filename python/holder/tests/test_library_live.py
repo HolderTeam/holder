@@ -625,6 +625,42 @@ def test_shared_card_operations(backend, request, tmp_path):
             cards.get_card(project_id, child_id)
         assert cards.restore_card(project_id, child_id)["parent_card_id"] == parent_id
 
+        extra_id = cards.create_card(project_id, {"title": "Another root"})["card_id"]
+        # A supplied null parent means the root group. Omitting the parent
+        # on subsequent reorders keeps the card in its current group.
+        moved = cards.move_card(
+            project_id, child_id, {"intent": "to_start", "parent_card_id": None}
+        )
+        assert moved["parent_card_id"] is None
+        assert moved == cards.get_card(project_id, child_id)
+
+        def roots_in_order():
+            return [
+                item["card_id"]
+                for item in cards.list_cards(project_id, parent="roots", order="sort_key_asc")["items"]
+            ]
+
+        assert roots_in_order() == [child_id, parent_id, extra_id]
+        cards.move_card(project_id, child_id, {"intent": "right"})
+        assert roots_in_order() == [parent_id, child_id, extra_id]
+        cards.move_card(project_id, child_id, {"intent": "to_end"})
+        assert roots_in_order() == [parent_id, extra_id, child_id]
+        cards.move_card(project_id, child_id, {"intent": "left"})
+        assert roots_in_order() == [parent_id, child_id, extra_id]
+        cards.move_card(project_id, child_id, {"intent": "before", "target_card_id": parent_id})
+        assert roots_in_order() == [child_id, parent_id, extra_id]
+        cards.move_card(project_id, child_id, {"intent": "after", "target_card_id": extra_id})
+        assert roots_in_order() == [parent_id, extra_id, child_id]
+        cards.move_card(project_id, extra_id, {"intent": "into", "target_card_id": parent_id})
+        moved = cards.move_card(project_id, child_id, {"intent": "into", "target_card_id": extra_id})
+        assert moved["parent_card_id"] == extra_id
+        assert cards.move_card(project_id, child_id, {"intent": "up_level"})["parent_card_id"] == parent_id
+        with pytest.raises(NotFoundError):
+            cards.move_card(project_id, child_id, {"intent": "into", "target_card_id": "missing"})
+        with pytest.raises(APIError) as error:
+            cards.move_card(project_id, child_id, {"intent": "into", "target_card_id": child_id})
+        assert (error.value.status, error.value.code) == (422, "invalid_move")
+
     with pytest.raises(ClosedError):
         cards.get_card(project_id, child_id)
     with pytest.raises(ClosedError):

@@ -128,6 +128,12 @@ code against a live Holder installation, open the session with `Holder()`.
 filters to fetch the next page. For updates, omit fields to keep their values
 and set `parent_card_id` to `None` to move a card to the root.
 
+Use `cards.move_card(project_id, card_id, {"intent": "into",
+"target_card_id": another_card_id})` to move a card into another one.
+For reordering among siblings, use `left`, `right`, `to_start`, or `to_end`.
+Omit `parent_card_id` to reorder within the current parent or pass
+`None` to reorder among root cards.
+
 Use `cards.trash_card(project_id, card_id)` to move a card to Trash and
 promote its children. Pass `children="trash_subtree"` to trash the descendants
 too. `cards.restore_card(project_id, card_id)` restores one card at a time.
