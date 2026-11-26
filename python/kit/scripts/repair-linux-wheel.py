@@ -8,12 +8,17 @@ without depending on a distribution's GLib or C++ runtime installation.
 
 import argparse
 import hashlib
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
+
+NATIVE_PACKAGES = {
+    "holder_kit": Path("holderkit"),
+    "holder_python": Path("holder/_embedded"),
+}
 
 
 # The host's glibc and loader supply these. All other dependencies are bundled.
@@ -31,15 +36,24 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("wheel", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--bundle-only", action="store_true",
+                        help="Bundle for local testing and keep the original Linux tag")
     args = parser.parse_args()
     wheel = args.wheel.resolve()
+    distribution = wheel.name.split("-", 1)[0]
+    if distribution not in NATIVE_PACKAGES:
+        parser.error("Expected a holder-kit or holder-python wheel")
+    if wheel.name.endswith("-none-any.whl"):
+        parser.error("Expected a platform wheel containing the Holder extension")
+
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="kit-wheel-") as directory:
+    with tempfile.TemporaryDirectory(prefix="holder-wheel-") as directory:
         temp = Path(directory)
         run(sys.executable, "-m", "wheel", "unpack", str(wheel), "-d", str(temp))
-        root = next(temp.glob("holder_kit-*"))
-        native = next((root / "holderkit").glob("_native*.so"))
+        root, = temp.glob(f"{distribution}-*")
+        package = root / NATIVE_PACKAGES[distribution]
+        native, = package.glob("_native*.so")
         dependencies: dict[str, Path] = {}
         for line in run("ldd", str(native)).splitlines():
             if "not found" in line:
@@ -49,17 +63,18 @@ def main() -> None:
                 dependencies[match[1]] = Path(match[2]).resolve()
         if not dependencies:
             raise RuntimeError("Expected the core SDK's shared runtime dependencies")
-        libraries = root / "holderkit/.libs"
+        libraries = package / ".libs"
         libraries.mkdir(exist_ok=True)
         metadata = next(root.glob("*.dist-info"))
         notices = metadata / "licenses/third-party"
         notices.mkdir(parents=True)
+        namespace = "kit" if distribution == "holder_kit" else "holder-python"
         names: dict[str, str] = {}
         packages = {"nlohmann-json3-dev"}
         for soname, source in dependencies.items():
             digest = hashlib.sha256(source.read_bytes()).hexdigest()[:12]
             stem, suffix = soname.split(".so", 1)
-            private_name = f"{stem}-kit-{digest}.so{suffix}"
+            private_name = f"{stem}-{namespace}-{digest}.so{suffix}"
             names[soname] = private_name
             destination = libraries / private_name
             shutil.copy2(source, destination)
@@ -87,9 +102,11 @@ def main() -> None:
             if notice.is_file():
                 header += f"\nLicense-File: {notice.relative_to(metadata / 'licenses').as_posix()}"
         meta_file.write_text(header + separator + body)
-        packed = temp / "packed"
-        packed.mkdir()
+        packed = output if args.bundle_only else temp / "packed"
+        packed.mkdir(exist_ok=True)
         run(sys.executable, "-m", "wheel", "pack", str(root), "-d", str(packed))
+        if args.bundle_only:
+            return
         run(sys.executable, "-m", "auditwheel", "repair", "--only-plat",
             "--plat", "manylinux_2_39_x86_64", "--wheel-dir", str(output),
             str(next(packed.glob("*.whl"))))

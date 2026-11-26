@@ -48,9 +48,21 @@ CMake and the wheel build must use the same CPython interpreter. Set
 `-DPython_EXECUTABLE=/path/to/python` on the CMake command if needed. The
 native build packages the staged extension and schema under `holder`.
 A compatible Linux CPython prefers that wheel when both variants are offered
-at the same version. The native wheel from this procedure uses the build
-machine's system libraries. Preparing redistributable wheels and integrating
-them into releases is separate work.
+at the same version. For a redistributable Linux wheel, build on Ubuntu 24.04
+with a matching core SDK and then bundle the runtime dependencies. This uses
+`patchelf`, `wheel` and `auditwheel`:
+
+```sh
+python -m pip install wheel 'auditwheel==6.8.2'
+python python/kit/scripts/repair-linux-wheel.py --output "$work/dist" \
+  "$work/wheels/"*-linux_x86_64.whl
+```
+
+The repair checks the `manylinux_2_39_x86_64` ABI and records supplier
+notices. The Python CI workflow builds and tests this wheel from a fresh
+install. For a local smoke test on a newer Linux distribution, use
+`--bundle-only` to bundle the libraries and keep the original Linux tag.
+Release publishing still uses the existing universal wheel flow.
 
 ## Layout and regeneration
 
