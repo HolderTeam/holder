@@ -1,6 +1,6 @@
 """Holder Python Library - control your knowledge using Python."""
 
-from ._workspace_contract import LinkKindLabels, TagCount
+from ._workspace_contract import Calendar, CalendarMilestone, LinkKindLabels, TagCount
 from ._workspace_contract import Project as ProjectRecord
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .cards import EmbeddedUnavailableError, open_workspace
@@ -64,6 +64,8 @@ __all__ = [
     "AffectedObject",
     "Asset",
     "AssetPlacement",
+    "Calendar",
+    "CalendarMilestone",
     "CapturedExchange",
     "Card",
     "CardBreadcrumb",

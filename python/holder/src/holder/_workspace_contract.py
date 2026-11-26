@@ -254,6 +254,23 @@ class MilestoneUpdate(TypedDict):
     description: NotRequired[MilestoneText | None]
 
 
+class CalendarMilestone(Milestone):
+    """A milestone on a calendar, with the title of its card."""
+
+    card_title: str
+
+
+class Calendar(TypedDict):
+    """
+    What happens in a project over a window of time: its milestones, and the cards made
+    and changed.
+    """
+
+    milestones: list[CalendarMilestone]
+    created_cards: list[CardMetadata]
+    updated_cards: list[CardMetadata]
+
+
 class CardOperations(Protocol):
     """The Card operations shared by daemon and embedded sessions."""
 

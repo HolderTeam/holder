@@ -932,6 +932,58 @@ def test_shared_card_operations(backend, request, tmp_path):
         cards.restore_card(project_id, child_id)
         assert cards.list_card_milestones(project_id, child_id) == [undated]
 
+        day = "2026-03-29"  # The spring clock change makes this a 23-hour day in London.
+        last_second = int(datetime.fromisoformat("2026-03-29T22:59:59+00:00").timestamp())
+        created = cards.create_card(
+            project_id, {"title": "Calendar creation", "created_at": last_second}
+        )
+        updated = cards.create_card(
+            project_id,
+            {
+                "title": "Calendar update",
+                "created_at": last_second - 86400,
+                "updated_at": last_second,
+            },
+        )
+        cards.create_card(
+            project_id, {"title": "Next day in London", "created_at": last_second + 1}
+        )
+        inside = cards.add_card_milestone(
+            project_id, created["card_id"],
+            {"dates": [
+                {"role": "due", "date": day},
+                {"role": "review", "datetime": "2026-03-29T22:59:59Z"},
+            ]},
+        )
+        outside = cards.add_card_milestone(
+            project_id, updated["card_id"],
+            {"dates": [{"role": "due", "datetime": "2026-03-29T23:00:00Z"}]},
+        )
+
+        updated = cards.update_card(
+            project_id, updated["card_id"], {"content": "Revised", "updated_at": last_second}
+        )
+        assert updated["updated_at"] == last_second
+
+        calendar = active.get_calendar(project_id, day, day, time_zone="Europe/London")
+        assert calendar == {
+            "milestones": [{**inside, "card_title": created["title"]}],
+            "created_cards": [cards.get_card_metadata(project_id, created["card_id"])],
+            "updated_cards": [cards.get_card_metadata(project_id, updated["card_id"])],
+        }
+        utc = active.get_calendar(project_id, day, day, time_zone="UTC")
+        assert {row["milestone_id"] for row in utc["milestones"]} == {
+            inside["milestone_id"], outside["milestone_id"]
+        }
+        assert active.get_calendar(project_id, day, "2026-03-28", time_zone="Europe/London") == {
+            "milestones": [], "created_cards": [], "updated_cards": []
+        }
+        with pytest.raises(APIError) as error:
+            active.get_calendar(project_id, day, day, time_zone="Invalid/Zone")
+        assert error.value.status == 400
+        with pytest.raises(NotFoundError):
+            active.get_calendar("missing", day, day, time_zone="Europe/London")
+
     with pytest.raises(ClosedError):
         cards.get_card(project_id, child_id)
     with pytest.raises(ClosedError):

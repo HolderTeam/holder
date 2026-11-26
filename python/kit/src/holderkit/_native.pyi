@@ -68,6 +68,9 @@ class Context:
     def list_milestones_by_instant(
         self, project_id: str, first_instant: int, last_instant: int, *, role: str | None = None,
     ) -> list[dict[str, Any]]: ...
+    def get_calendar(
+        self, project_id: str, first_day: str, last_day: str, time_zone: str | None = None,
+    ) -> dict[str, Any]: ...
     def calendar_milestones(
         self, project_id: str, first_day: str, last_day: str, time_zone: str | None = None,
     ) -> list[dict[str, Any]]: ...

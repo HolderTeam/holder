@@ -11,7 +11,7 @@ from typing import Any, Self, cast
 
 import httpx
 
-from ._workspace_contract import LinkKindLabels, Milestone, TagCount
+from ._workspace_contract import Calendar, LinkKindLabels, Milestone, TagCount
 from ._workspace_contract import Project as ProjectRecord
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .cards import CardOperations, EmbeddedWorkspace, _DaemonCards, open_workspace
@@ -30,6 +30,7 @@ from .generated.api.default import (
     get_link_kinds,
     get_projects,
     get_projects_project_id,
+    get_projects_project_id_calendar,
     get_projects_project_id_milestones_days,
     get_projects_project_id_milestones_instants,
     get_projects_project_id_tags,
@@ -228,6 +229,24 @@ class Holder:
             role=role,
         )
         return [cast("Milestone", row.to_dict()) for row in rows]
+
+    def get_calendar(
+        self,
+        project_id: str,
+        first_day: str,
+        last_day: str,
+        *,
+        time_zone: str | None = None,
+    ) -> Calendar:
+        """Read milestones and card changes over an inclusive window of days."""
+        result = self._call(
+            get_projects_project_id_calendar,
+            project_id,
+            first_day=first_day,
+            last_day=last_day,
+            time_zone=time_zone,
+        )
+        return cast("Calendar", result.to_dict())
 
     def _call(
         self,

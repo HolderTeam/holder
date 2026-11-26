@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Literal, Self, TypedDict, cast
 
 from ._workspace_contract import (
     NATIVE_ERRORS,
+    Calendar,
     Card,
     CardBreadcrumb,
     CardListItem,
@@ -395,7 +396,7 @@ class EmbeddedWorkspace:
                 "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(native.Context, "list_milestones_by_instant"):
+        if not hasattr(native.Context, "get_calendar"):
             raise EmbeddedUnavailableError(
                 "This Holder Kit build is too old for the shared Card API."
             )
@@ -466,6 +467,22 @@ class EmbeddedWorkspace:
                 first_instant,
                 last_instant,
                 role=role,
+            ),
+        )
+
+    def get_calendar(
+        self,
+        project_id: str,
+        first_day: str,
+        last_day: str,
+        *,
+        time_zone: str | None = None,
+    ) -> Calendar:
+        """Read milestones and card changes over an inclusive window of days."""
+        return cast(
+            "Calendar",
+            self._call(
+                "get_calendar", project_id, first_day, last_day, time_zone=time_zone
             ),
         )
 

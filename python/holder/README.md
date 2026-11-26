@@ -193,6 +193,11 @@ dates or `session.list_milestones_by_instant(project_id, first, last)` for Unix
 timestamps in seconds. Both ranges are inclusive. Pass `role="due"` to match
 only dates with that role. Each matching milestone appears once.
 
+Use `session.get_calendar(project_id, first_day, last_day,
+time_zone="Europe/London")` to read milestones, newly created cards, and
+updated cards in a window. Calendar dates stay on their labelled day. Holder
+uses the selected time zone to decide which timestamps fall inside the window.
+
 ## Run with or without a local Holder installation
 
 Use `open_session(fallback_workspace=path)` when a script can work on live

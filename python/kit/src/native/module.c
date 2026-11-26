@@ -1605,7 +1605,43 @@ Context_list_milestones_by_instant(ContextObject *self, PyObject *args, PyObject
 }
 
 static PyObject *
-Context_calendar_milestones(ContextObject *self, PyObject *args, PyObject *kwargs)
+card_metadata_list_record(const holder_card_metadata_list *cards)
+{
+    PyObject *records = PyList_New(0);
+    if (records == NULL) return NULL;
+    for (size_t i = 0; i < cards->count; ++i) {
+        const holder_card_metadata *card = &cards->items[i];
+        PyObject *record = card_record(card->card_id, card->project_id, card->title,
+            card->rel_path, card->parent_card_id, card->sort_key, card->created_at,
+            card->updated_at, card->deleted_at, NULL);
+        if (record == NULL || PyList_Append(records, record) < 0) {
+            Py_XDECREF(record);
+            Py_DECREF(records);
+            return NULL;
+        }
+        Py_DECREF(record);
+    }
+    return records;
+}
+
+static PyObject *
+calendar_record(const holder_calendar *calendar, PyObject *milestones)
+{
+    PyObject *created = card_metadata_list_record(&calendar->created_cards);
+    if (created == NULL) return NULL;
+    PyObject *updated = card_metadata_list_record(&calendar->updated_cards);
+    PyObject *record = NULL;
+    if (updated != NULL) {
+        record = Py_BuildValue("{s:O,s:O,s:O}", "milestones", milestones,
+            "created_cards", created, "updated_cards", updated);
+    }
+    Py_DECREF(created);
+    Py_XDECREF(updated);
+    return record;
+}
+
+static PyObject *
+get_calendar(ContextObject *self, PyObject *args, PyObject *kwargs, bool complete_record)
 {
     const char *project_id = NULL;
     const char *first_day = NULL;
@@ -1641,8 +1677,25 @@ Context_calendar_milestones(ContextObject *self, PyObject *args, PyObject *kwarg
         }
         Py_DECREF(record);
     }
+    if (out != NULL && complete_record) {
+        PyObject *record = calendar_record(calendar, out);
+        Py_DECREF(out);
+        out = record;
+    }
     holder_arena_free(arena);
     return out;
+}
+
+static PyObject *
+Context_calendar_milestones(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return get_calendar(self, args, kwargs, false);
+}
+
+static PyObject *
+Context_get_calendar(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return get_calendar(self, args, kwargs, true);
 }
 
 typedef int (*tag_mutation)(holder_context *, const char *, const char *, const char *,
@@ -2257,6 +2310,8 @@ static PyMethodDef Context_methods[] = {
      "List project milestones by an inclusive range of calendar days."},
     {"list_milestones_by_instant", PyCFunction_CAST(Context_list_milestones_by_instant), METH_VARARGS | METH_KEYWORDS,
      "List project milestones by an inclusive range of Unix timestamps."},
+    {"get_calendar", PyCFunction_CAST(Context_get_calendar), METH_VARARGS | METH_KEYWORDS,
+     "Read project milestones and card changes over a date window."},
     {"calendar_milestones", PyCFunction_CAST(Context_calendar_milestones), METH_VARARGS | METH_KEYWORDS,
      PyDoc_STR("List a project's live milestones with a date in days in a time zone.")},
     {"list_tags", PyCFunction_CAST(Context_list_tags), METH_VARARGS | METH_KEYWORDS,
