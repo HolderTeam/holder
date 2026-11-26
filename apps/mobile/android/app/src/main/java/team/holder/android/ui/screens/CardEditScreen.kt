@@ -66,7 +66,7 @@ import team.holder.android.combineTitleAndBody
 import team.holder.android.resource.AttachFlowConnectDialog
 import team.holder.android.resource.createCameraCaptureUri
 import team.holder.android.resource.rememberAttachFlow
-import team.holder.android.splitLeadingHeading
+import team.holder.android.splitTitleLine
 import team.holder.android.titleFromFirstLine
 import team.holder.android.ui.markdown.HolderMarkdownEditor
 import team.holder.android.ui.markdown.MarkdownFormattingToolbar
@@ -137,11 +137,15 @@ fun CardEditScreen(
     // Two independent field states, one per mode -- only one is ever shown, but both are
     // deterministically derived from initialContent regardless of which value `separateTitle`
     // resolves to (it loads asynchronously from DataStore), so whichever ends up displayed is
-    // already correctly initialized. See splitLeadingHeading/combineTitleAndBody: cards always
-    // store the title as a leading `# Title` heading, so switching modes is non-destructive.
+    // already correctly initialized. See splitTitleLine/combineTitleAndBody: a card's first line
+    // is its title, as a `# Title` heading or as plain text, and saving keeps whichever it was,
+    // so switching modes is non-destructive.
     // All three TextFieldStates survive process death via their own built-in Saver.
     val titleState = rememberTextFieldState(initialTitle)
-    val initialSeparateBody = remember(initialContent) { splitLeadingHeading(initialContent) ?: initialContent }
+    val initialSplit = remember(initialContent, initialTitle) { splitTitleLine(initialContent, initialTitle) }
+    val initialSeparateBody = initialSplit?.body ?: initialContent
+    // Saved back the way it came: a plain first-line title stays plain. New cards get a heading.
+    val titleAsHeading = initialSplit?.asHeading ?: true
     val initialFirstLineBody = remember(initialContent) { initialContent.ifBlank { "# $defaultTitle\n\n" } }
 
     // initialCursorOffset arrives measured against initialContent itself (see
@@ -243,7 +247,7 @@ fun CardEditScreen(
             titleFromFirstLine(firstLineBody).ifBlank { defaultTitle }
         }
         val raw = if (separateTitle) {
-            combineTitleAndBody(derivedTitle, separateBody)
+            combineTitleAndBody(derivedTitle, separateBody, titleAsHeading)
         } else {
             firstLineBody.ifBlank { "# $derivedTitle\n\n" }
         }

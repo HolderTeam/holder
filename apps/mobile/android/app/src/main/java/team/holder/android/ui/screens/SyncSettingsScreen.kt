@@ -70,7 +70,7 @@ private const val SYNC_HELP_URL = "https://www.holder.team/android/sync"
 fun SyncSettingsScreen(onBack: () -> Unit, browserLauncher: GitHubConnectionCoordinator.GitHubBrowserLauncher) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val backgroundSyncEnabled by HolderSettings.gitBackgroundSyncEnabled(context).collectAsState(initial = false)
+    val backgroundSyncEnabled by HolderSettings.gitBackgroundSyncEnabled(context).collectAsState(initial = HolderSettings.GIT_BACKGROUND_SYNC_DEFAULT)
     val backgroundSyncIntervalMinutes by HolderSettings.gitBackgroundSyncIntervalMinutes(context)
         .collectAsState(initial = HolderSettings.DEFAULT_BACKGROUND_SYNC_INTERVAL_MINUTES)
     var intervalMenuExpanded by remember { mutableStateOf(false) }
