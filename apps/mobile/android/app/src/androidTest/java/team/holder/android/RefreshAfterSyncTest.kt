@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -15,6 +16,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import team.holder.android.contract.Projects
 
 /**
  * Screens that stay open follow changes another device makes, once a sync brings them in
@@ -51,7 +53,13 @@ class RefreshAfterSyncTest {
     @After
     fun tearDown() {
         runCatching { setBoardView(false) }
-        runCatching { HolderNative.deleteProject(project.projectId) }
+        // Removing a project keeps its folder (as the app's own Remove does), and this test runs
+        // in the app's real store, so delete the folder too or every run leaves one behind.
+        runCatching {
+            val root = HolderNative.onContract { Projects.getProject(it, project.projectId) }.rootPath
+            HolderNative.deleteProject(project.projectId)
+            File(root).deleteRecursively()
+        }
     }
 
     @Test
