@@ -100,37 +100,33 @@ Trash matches. See [reference lookup](docs/scripting.md#find-a-card-by-name-or-p
 
 ## Shared Card operations
 
-The contract-based Card API provides detached records and the same three
-operations for a running Holder installation or a private embedded workspace.
-Use `session.list_projects()` to find a project and `session.get_project(id)`
-to fetch its record. The same code works with either backend:
+The contract-based Card API provides the same operations for a running Holder
+installation or a private embedded workspace. Both sessions return detached
+records. Use `session.list_projects()` to find a project and
+`session.get_project(id)` to fetch its record.
+
+To start with an empty private workspace:
 
 ```python
-from holder import Holder
-from holder.cards import CardOperations
+from holder import open_workspace
 
-
-def retitle(cards: CardOperations, project_id: str, card_id: str) -> None:
-    cards.update_card(project_id, card_id, {"title": "A better title"})
-    print(cards.get_card(project_id, card_id)["title"])
-
-
-with Holder() as session:
-    for project in session.list_projects():
-        project_id = project["project_id"]
-        page = session.card_operations.list_cards(project_id, limit=1)
-        if page["items"]:
-            retitle(session.card_operations, project_id, page["items"][0]["card_id"])
-            break
+with open_workspace("private-holder-workspace") as session:
+    project = session.create_plain_project(name="Research")
+    project_id = project["project_id"]
+    cards = session.card_operations
+    card = cards.create_card(project_id, {"title": "An idea", "content": "My notes"})
+    cards.update_card(project_id, card["card_id"], {"title": "A better title"})
+    print(cards.list_cards(project_id)["items"])
 ```
 
-With a native Holder wheel or a same-checkout Holder Kit build installed,
-open an existing private workspace using
-`with holder.open_workspace(data_dir) as session:` and pass
-`session.card_operations` to the same function. Use a separate data directory for embedded
-work. `list_cards` returns one page at a time. Pass its `next_cursor` with the
-same filters to fetch the next page. For updates, omit fields to keep their
-values and set `parent_card_id` to `None` to move a card to the root.
+Opening a private workspace requires a native Holder wheel or a same-checkout
+Holder Kit build. Use a separate data directory for embedded work. To run this
+code against a live Holder installation, open the session with `Holder()`.
+`create_plain_project` stores project files without encryption in both modes.
+
+`list_cards` returns one page at a time. Pass its `next_cursor` with the same
+filters to fetch the next page. For updates, omit fields to keep their values
+and set `parent_card_id` to `None` to move a card to the root.
 
 ## Run with or without a local Holder installation
 

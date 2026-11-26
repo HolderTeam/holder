@@ -24,8 +24,8 @@ from .exceptions import (
     ProtocolError,
 )
 from .generated import AuthenticatedClient
-from .generated.api.default import get_projects, get_projects_project_id
-from .generated.models import ErrorResponse
+from .generated.api.default import get_projects, get_projects_project_id, post_projects
+from .generated.models import ErrorResponse, NewProject, PrivacyMode
 from .models.intelligence_device import HolderIntelligence
 from .models.project import Project, ProjectCollection
 
@@ -159,6 +159,15 @@ class Holder:
     def get_project(self, project_id: str) -> ProjectRecord:
         """Fetch a detached project record by its ID."""
         project = self._call(get_projects_project_id, project_id)
+        return cast("ProjectRecord", project.to_dict())
+
+    def create_plain_project(self, *, name: str) -> ProjectRecord:
+        """Create a project whose files are stored without encryption."""
+        project = self._call(
+            post_projects,
+            body=NewProject(name=name, privacy_mode=PrivacyMode.PLAIN),
+            write=True,
+        )
         return cast("ProjectRecord", project.to_dict())
 
     def _call(

@@ -13,6 +13,7 @@ from ._workspace_contract import (
     CardListItem,
     CardOperations,
     CardUpdate,
+    NewCard,
     Page,
 )
 from ._workspace_contract import Project as ProjectRecord
@@ -21,9 +22,11 @@ from .generated.api.default import (
     get_projects_project_id_cards,
     get_projects_project_id_cards_card_id,
     patch_projects_project_id_cards_card_id,
+    post_projects_project_id_cards,
 )
 from .generated.models import CardUpdate as HTTPCardUpdate
 from .generated.models import GetProjectsProjectIdCardsOrder
+from .generated.models import NewCard as HTTPNewCard
 
 if TYPE_CHECKING:
     from holderkit._native import Context
@@ -36,6 +39,7 @@ __all__ = [
     "CardOperations",
     "CardUpdate",
     "EmbeddedUnavailableError",
+    "NewCard",
     "Page",
     "open_workspace",
 ]
@@ -77,6 +81,15 @@ class _DaemonCards:
     def get_card(self, project_id: str, card_id: str) -> Card:
         result = self._holder._call(
             get_projects_project_id_cards_card_id, project_id, card_id
+        )
+        return cast("Card", result.to_dict())
+
+    def create_card(self, project_id: str, card: NewCard) -> Card:
+        result = self._holder._call(
+            post_projects_project_id_cards,
+            project_id,
+            body=HTTPNewCard(**card),
+            write=True,
         )
         return cast("Card", result.to_dict())
 
@@ -125,7 +138,7 @@ class EmbeddedWorkspace:
                 "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(native.Context, "patch_card"):
+        if not hasattr(native.Context, "create_card_record"):
             raise EmbeddedUnavailableError(
                 "This Holder Kit build is too old for the shared Card API."
             )
@@ -147,6 +160,10 @@ class EmbeddedWorkspace:
     def get_project(self, project_id: str) -> ProjectRecord:
         """Fetch a detached project record by its ID."""
         return cast("ProjectRecord", self._call("get_project", project_id))
+
+    def create_plain_project(self, *, name: str) -> ProjectRecord:
+        """Create a project whose files are stored without encryption."""
+        return cast("ProjectRecord", self._call("create_project", name))
 
     def _call(self, method: str, *args: object, **kwargs: object) -> object:
         if self._closed or self._context is None:
@@ -212,6 +229,11 @@ class _EmbeddedCards:
 
     def get_card(self, project_id: str, card_id: str) -> Card:
         return cast("Card", self._workspace._call("get_live_card", project_id, card_id))
+
+    def create_card(self, project_id: str, card: NewCard) -> Card:
+        return cast(
+            "Card", self._workspace._call("create_card_record", project_id, **card)
+        )
 
     def update_card(self, project_id: str, card_id: str, update: CardUpdate) -> Card:
         return cast(

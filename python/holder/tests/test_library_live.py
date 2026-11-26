@@ -15,7 +15,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from holder import Holder, MilestoneDate, ProjectRecord, open_session, open_workspace
+from holder import Holder, MilestoneDate, ProjectRecord, open_session
 from holder.cards import Card, CardListItem
 from holder.exceptions import APIError, ClosedError, NotFoundError
 
@@ -503,10 +503,7 @@ def test_project_scoped_collections_against_daemon(daemon):
 @pytest.mark.parametrize("backend", ["daemon", "embedded"])
 def test_shared_card_operations(backend, request, tmp_path):
     if backend == "daemon":
-        url, token, raw, cli = request.getfixturevalue("daemon")
-        project_id = create_project(raw, "Shared Card API")
-        parent_id = create_card(raw, project_id, 1)
-        child_id = create_card(raw, project_id, 2, parent_id)
+        url, token, _, cli = request.getfixturevalue("daemon")
         session = (
             open_session(holderctl=str(cli), fallback_workspace=tmp_path / "unused")
             if cli.is_file()
@@ -516,30 +513,47 @@ def test_shared_card_operations(backend, request, tmp_path):
         if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
             pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
         data_dir = tmp_path / "workspace"
-        data_dir.mkdir()
-        with open_workspace(data_dir) as setup:
-            native = setup._context
-            assert native is not None
-            project_id = native.create_project("Shared Card API")["project_id"]
-            parent_id = native.create_card(project_id, "Card 1", "body 1\n#research")["card_id"]
-            child_id = native.create_card(
-                project_id, "Card 2", "body 2\n#research", parent_card_id=parent_id
-            )["card_id"]
         session = open_session(
             fallback_workspace=data_dir, holderctl=str(tmp_path / "missing-holderctl")
         )
 
     with session as active:
+        created_project = active.create_plain_project(name="Shared Card API")
+        project_id = created_project["project_id"]
+        assert created_project["privacy_mode"] == "plain"
+
         projects = active.list_projects()
         project = next(row for row in projects if row["name"] == "Shared Card API")
         assert project.keys() == ProjectRecord.__required_keys__
         assert project["project_id"] == project_id
-        assert active.get_project(project_id) == project
+        assert active.get_project(project_id) == project == created_project
         with pytest.raises(NotFoundError):
             active.get_project("missing")
 
         project_id = project["project_id"]
         cards = active.card_operations
+        parent = cards.create_card(project_id, {"title": "Card 1"})
+        parent_id = parent["card_id"]
+        assert parent["content"] == ""
+        assert parent["parent_card_id"] is None
+        new_child = cards.create_card(
+            project_id,
+            {
+                "title": "Card 2",
+                "content": "body 2\n#research",
+                "parent_card_id": parent_id,
+                "sort_key": 12.5,
+                "created_at": 1_700_000_000,
+                "updated_at": 1_700_000_001,
+            },
+        )
+        child_id = new_child["card_id"]
+        assert new_child["sort_key"] == 12.5
+        assert new_child["created_at"] == 1_700_000_000
+        assert new_child["updated_at"] == 1_700_000_001
+        with pytest.raises(NotFoundError):
+            cards.create_card(project_id, {"title": "Orphan", "parent_card_id": "missing"})
+
         roots = cards.list_cards(project_id, parent="roots", include_child_count=True)
         assert roots["next_cursor"] is None
         assert [item["card_id"] for item in roots["items"]] == [parent_id]
@@ -559,6 +573,7 @@ def test_shared_card_operations(backend, request, tmp_path):
         }
 
         child = cards.get_card(project_id, child_id)
+        assert child == new_child
         assert child.keys() == Card.__required_keys__
         assert child["parent_card_id"] == parent_id
         assert child["tags"] == ["research"]

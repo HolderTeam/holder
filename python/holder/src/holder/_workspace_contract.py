@@ -50,6 +50,17 @@ class Card(CardMetadata):
     removable_tags: list[str]
 
 
+class NewCard(TypedDict):
+    """A card to create."""
+
+    title: str
+    content: NotRequired[str]
+    parent_card_id: NotRequired[CardId | None]
+    sort_key: NotRequired[float]
+    created_at: NotRequired[int]
+    updated_at: NotRequired[int]
+
+
 class CardUpdate(TypedDict):
     """Changes to a card. Each field left out keeps its value."""
 
@@ -119,6 +130,18 @@ class CardOperations(Protocol):
         """
         ...
 
+    def create_card(
+        self,
+        project_id: ProjectId,
+        card: NewCard,
+    ) -> Card:
+        """
+        Create a card.
+
+        Fails with NotFound when the project or the parent does not exist.
+        """
+        ...
+
     def update_card(
         self,
         project_id: ProjectId,
@@ -139,6 +162,7 @@ class CardOperations(Protocol):
 
 NATIVE_ERRORS = {
     4040: (404, "not_found"),
+    4090: (409, "conflict"),
     5030: (503, "keyring_unavailable"),
     4091: (409, "key_missing"),
     5002: (500, "data_corrupted"),

@@ -377,25 +377,31 @@ Context_list_projects(ContextObject *self, PyObject *Py_UNUSED(ignored))
 }
 
 static PyObject *
-Context_create_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+create_card(ContextObject *self, PyObject *args, PyObject *kwargs, int complete_record)
 {
     const char *project_id = NULL;
     const char *title = NULL;
     const char *content = NULL;
     const char *parent_card_id = NULL;
+    double sort_key = 0;
+    long long created_timestamp = 0;
+    long long updated_timestamp = 0;
     static char *keywords[] = {
-        "project_id", "title", "content", "parent_card_id", NULL
+        "project_id", "title", "content", "parent_card_id", "sort_key", "created_at", "updated_at", NULL
     };
 
     if (!PyArg_ParseTupleAndKeywords(
             args,
             kwargs,
-            "ss|zz:create_card",
+            "ss|zz$dLL:create_card",
             keywords,
             &project_id,
             &title,
             &content,
-            &parent_card_id)) {
+            &parent_card_id,
+            &sort_key,
+            &created_timestamp,
+            &updated_timestamp)) {
         return NULL;
     }
     if (!ensure_context_open(self)) {
@@ -408,6 +414,13 @@ Context_create_card(ContextObject *self, PyObject *args, PyObject *kwargs)
     request.title = title;
     request.content = content;
     request.parent_card_id = parent_card_id;
+    const int64_t created_at = created_timestamp;
+    const int64_t updated_at = updated_timestamp;
+    if (kwargs != NULL) {
+        if (PyDict_GetItemString(kwargs, "sort_key") != NULL) request.sort_key = &sort_key;
+        if (PyDict_GetItemString(kwargs, "created_at") != NULL) request.created_at = &created_at;
+        if (PyDict_GetItemString(kwargs, "updated_at") != NULL) request.updated_at = &updated_at;
+    }
     const holder_card *card = NULL;
     holder_error *error = NULL;
     const int result = holder_create_card(self->context, project_id, &request,
@@ -418,11 +431,24 @@ Context_create_card(ContextObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
     holder_error_destroy(error);
-    PyObject *record = card_record(card->card_id, card->project_id, card->title,
-        card->rel_path, card->parent_card_id, card->sort_key, card->created_at,
-        card->updated_at, card->deleted_at, NULL);
+    PyObject *record = complete_record ? full_card_record(card) :
+        card_record(card->card_id, card->project_id, card->title, card->rel_path,
+            card->parent_card_id, card->sort_key, card->created_at, card->updated_at,
+            card->deleted_at, NULL);
     holder_arena_free(arena);
     return record;
+}
+
+static PyObject *
+Context_create_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return create_card(self, args, kwargs, 0);
+}
+
+static PyObject *
+Context_create_card_record(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return create_card(self, args, kwargs, 1);
 }
 
 /* Milestone dates and records in the contract's shape: each date has a role and exactly one of a
@@ -1783,6 +1809,8 @@ static PyMethodDef Context_methods[] = {
      PyDoc_STR("Return one page of a project's live cards, by parent, tag and order.")},
     {"get_live_card", PyCFunction_CAST(Context_get_live_card), METH_VARARGS,
      "Read a live card with content and tags."},
+    {"create_card_record", PyCFunction_CAST(Context_create_card_record), METH_VARARGS | METH_KEYWORDS,
+     "Create a card and return its complete record."},
     {"patch_card", PyCFunction_CAST(Context_patch_card), METH_VARARGS | METH_KEYWORDS,
      "Update only the supplied fields of a live card."},
     {"get_card_content", PyCFunction_CAST(Context_get_card_content),
