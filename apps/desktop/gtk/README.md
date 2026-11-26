@@ -257,11 +257,11 @@ native macOS accessibility objects for menu names, mnemonic stripping,
 disabled/check states, focus, bounds, activation, reopening, changed labels and
 submenus, plus normal label roles, markup, and explicit names across text
 updates and reset. It does not use Holder data or require external accessibility
-permissions. The shared recipe patches GTK's internal menu label to use its
-normal `LABEL` role, preserving the existing `labelled-by` relation and matching
-ordinary GTK buttons. This replaces the earlier AccessKit bridge workaround;
-the new patch name and checksum select a fresh runtime cache and are retained
-in source provenance. See `../../../release/staging/scripts/patches/README.md`.
+permissions. GTK's internal menu label uses its normal `LABEL` role from GTK
+4.24.2 on ([GTK MR !10510](https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/10510),
+backported in !10582), so the shared recipe builds Homebrew's GTK source
+unpatched. Holder patched it locally until then; that patch and the comparison
+with the earlier AccessKit bridge workaround are in Git history.
 
 The launcher sets `GTK_A11Y=accesskit` and `DYLD_LIBRARY_PATH` immediately before
 executing the native Holder binary. Do not put `/bin/sh`, `/usr/bin/env`, or
