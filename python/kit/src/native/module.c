@@ -1137,7 +1137,7 @@ Context_list_editable_tags(ContextObject *self, PyObject *args, PyObject *kwargs
 }
 
 static PyObject *
-Context_list_project_tags(ContextObject *self, PyObject *args, PyObject *kwargs)
+list_project_tags(ContextObject *self, PyObject *args, PyObject *kwargs, bool allow_missing)
 {
     const char *project_id = NULL;
     static char *keywords[] = {"project_id", NULL};
@@ -1150,7 +1150,7 @@ Context_list_project_tags(ContextObject *self, PyObject *args, PyObject *kwargs)
     const holder_tag_count_list *tags = NULL;
     holder_error *error = NULL;
     const int result = holder_list_project_tags(self->context, project_id, arena, &tags, &error);
-    if (result == HOLDER_ERROR_NOT_FOUND) {
+    if (allow_missing && result == HOLDER_ERROR_NOT_FOUND) {
         holder_error_destroy(error);
         holder_arena_free(arena);
         return PyList_New(0);
@@ -1179,6 +1179,18 @@ Context_list_project_tags(ContextObject *self, PyObject *args, PyObject *kwargs)
     }
     holder_arena_free(arena);
     return records;
+}
+
+static PyObject *
+Context_list_project_tags(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return list_project_tags(self, args, kwargs, true);
+}
+
+static PyObject *
+Context_list_project_tag_counts(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return list_project_tags(self, args, kwargs, false);
 }
 
 static PyObject *
@@ -1378,7 +1390,7 @@ typedef int (*tag_mutation)(holder_context *, const char *, const char *, const 
                             holder_arena *, const holder_card **, holder_error **);
 
 static PyObject *
-mutate_tag(ContextObject *self, PyObject *args, PyObject *kwargs, tag_mutation operation)
+mutate_tag(ContextObject *self, PyObject *args, PyObject *kwargs, tag_mutation operation, bool complete_record)
 {
     const char *project_id = NULL;
     const char *card_id = NULL;
@@ -1400,20 +1412,33 @@ mutate_tag(ContextObject *self, PyObject *args, PyObject *kwargs, tag_mutation o
         return NULL;
     }
     holder_error_destroy(error);
+    PyObject *record = complete_record ? full_card_record(card) : Py_NewRef(Py_None);
     holder_arena_free(arena);
-    Py_RETURN_NONE;
+    return record;
 }
 
 static PyObject *
 Context_add_tag(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
-    return mutate_tag(self, args, kwargs, holder_add_card_tag);
+    return mutate_tag(self, args, kwargs, holder_add_card_tag, false);
 }
 
 static PyObject *
 Context_remove_tag(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
-    return mutate_tag(self, args, kwargs, holder_remove_card_tag);
+    return mutate_tag(self, args, kwargs, holder_remove_card_tag, false);
+}
+
+static PyObject *
+Context_add_card_tag(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return mutate_tag(self, args, kwargs, holder_add_card_tag, true);
+}
+
+static PyObject *
+Context_remove_card_tag(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return mutate_tag(self, args, kwargs, holder_remove_card_tag, true);
 }
 
 static PyObject *
@@ -1942,6 +1967,12 @@ static PyMethodDef Context_methods[] = {
      PyDoc_STR("Return one page of a project's live cards, by parent, tag and order.")},
     {"get_live_card", PyCFunction_CAST(Context_get_live_card), METH_VARARGS,
      "Read a live card with content and tags."},
+    {"add_card_tag", PyCFunction_CAST(Context_add_card_tag), METH_VARARGS | METH_KEYWORDS,
+     "Add a tag and return the card's complete record."},
+    {"remove_card_tag", PyCFunction_CAST(Context_remove_card_tag), METH_VARARGS | METH_KEYWORDS,
+     "Remove a tag and return the card's complete record."},
+    {"list_project_tag_counts", PyCFunction_CAST(Context_list_project_tag_counts), METH_VARARGS | METH_KEYWORDS,
+     "List project tag counts, raising if the project is missing."},
     {"list_trash", PyCFunction_CAST(Context_list_trash), METH_VARARGS | METH_KEYWORDS,
      "List the detached Trash records for a project."},
     {"move_card_record", PyCFunction_CAST(Context_move_card_record), METH_VARARGS | METH_KEYWORDS,

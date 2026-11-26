@@ -116,6 +116,13 @@ class TrashItem(TypedDict):
     rel_path: str | None
 
 
+class TagCount(TypedDict):
+    """A tag and how many of a project's live cards carry it."""
+
+    tag: Tag
+    card_count: int
+
+
 class CardOperations(Protocol):
     """The Card operations shared by daemon and embedded sessions."""
 
@@ -229,6 +236,38 @@ class CardOperations(Protocol):
         Children promoted when it was trashed stay where they are; descendants trashed
         with it stay in the trash, and come back under it when restored. A card in
         another project is not found, and one that is not in the trash is a Conflict.
+        """
+        ...
+
+    def add_card_tag(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+        tag: Tag,
+    ) -> Card:
+        """
+        Tag a card.
+
+        The tag is added to the card's trailing tag line, which is made when the card
+        has none. A card that already carries the tag, anywhere in its content, is left
+        as it is. A card in the trash or in another project is not found.
+        """
+        ...
+
+    def remove_card_tag(
+        self,
+        project_id: ProjectId,
+        card_id: CardId,
+        tag: Tag,
+    ) -> Card:
+        """
+        Take a tag off a card.
+
+        The tag is removed from the card's trailing tag line, and the line with it when
+        it is left empty, so that the card no longer carries it. A card that does not
+        carry the tag is left as it is. Holder does not rewrite prose, so a card that
+        would still carry the tag in its prose is a Conflict, and is left as it is. A
+        card in the trash or in another project is not found.
         """
         ...
 

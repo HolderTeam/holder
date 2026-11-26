@@ -12,6 +12,7 @@ from typing import Any, Self, cast
 import httpx
 
 from ._workspace_contract import Project as ProjectRecord
+from ._workspace_contract import TagCount
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .cards import CardOperations, EmbeddedWorkspace, _DaemonCards, open_workspace
 from .changes import Changes
@@ -28,6 +29,7 @@ from .generated import AuthenticatedClient
 from .generated.api.default import (
     get_projects,
     get_projects_project_id,
+    get_projects_project_id_tags,
     get_trash,
     post_projects,
 )
@@ -182,6 +184,11 @@ class Holder:
         """List detached Trash records, optionally filtered by item type."""
         items = self._call(get_trash, project_id=project_id, type_=type)
         return [cast("TrashItemRecord", item.to_dict()) for item in items]
+
+    def list_project_tags(self, project_id: str) -> list[TagCount]:
+        """List project tags and their live card counts."""
+        tags = self._call(get_projects_project_id_tags, project_id)
+        return [cast("TagCount", tag.to_dict()) for tag in tags]
 
     def _call(
         self,

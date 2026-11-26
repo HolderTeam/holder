@@ -685,6 +685,32 @@ def test_shared_card_operations(backend, request, tmp_path):
             cards.move_card(project_id, child_id, {"intent": "into", "target_card_id": child_id})
         assert (error.value.status, error.value.code) == (422, "invalid_move")
 
+        tagged = cards.add_card_tag(project_id, parent_id, "Research")
+        assert tagged["tags"] == ["research"]
+        assert tagged == cards.add_card_tag(project_id, parent_id, "research")
+        tagged = cards.add_card_tag(project_id, parent_id, "Draft/Ideas")
+        assert tagged == cards.get_card(project_id, parent_id)
+        assert active.list_project_tags(project_id) == [
+            {"tag": "research", "card_count": 2},
+            {"tag": "draft/ideas", "card_count": 1},
+        ]
+        matching = cards.list_cards(project_id, tag="draft/ideas")["items"]
+        assert [card["card_id"] for card in matching] == [parent_id]
+        untagged = cards.remove_card_tag(project_id, parent_id, "Draft/Ideas")
+        assert untagged == cards.remove_card_tag(project_id, parent_id, "draft/ideas")
+        assert untagged["tags"] == ["research"]
+        assert active.list_project_tags(project_id) == [{"tag": "research", "card_count": 2}]
+        with pytest.raises(NotFoundError):
+            active.list_project_tags("missing")
+        with pytest.raises(NotFoundError):
+            cards.add_card_tag(project_id, "missing", "research")
+
+        prose = cards.update_card(project_id, child_id, {"content": "Keep #research in this sentence."})
+        with pytest.raises(APIError) as error:
+            cards.remove_card_tag(project_id, child_id, "research")
+        assert (error.value.status, error.value.code) == (409, "conflict")
+        assert cards.get_card(project_id, child_id) == prose
+
     with pytest.raises(ClosedError):
         cards.get_card(project_id, child_id)
     with pytest.raises(ClosedError):

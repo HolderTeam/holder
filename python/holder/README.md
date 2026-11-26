@@ -141,6 +141,12 @@ Both calls return the card's record after the change. To find a card to
 restore later, use `session.list_trash(project_id, type="card")`. The listing
 includes titles and IDs. Omit the filter to include trashed AI messages too.
 
+Use `cards.add_card_tag(project_id, card_id, "research")` to add a tag and
+`cards.remove_card_tag(project_id, card_id, "research")` to remove it from
+the trailing tag line. Removing a tag mentioned in prose raises a conflict.
+`session.list_project_tags(project_id)` returns tag names and live card
+counts. Pass `tag="research"` to `list_cards` to find matching cards.
+
 ## Run with or without a local Holder installation
 
 Use `open_session(fallback_workspace=path)` when a script can work on live

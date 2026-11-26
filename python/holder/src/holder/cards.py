@@ -16,18 +16,21 @@ from ._workspace_contract import (
     CardUpdate,
     NewCard,
     Page,
+    TagCount,
 )
 from ._workspace_contract import Project as ProjectRecord
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .exceptions import APIError, ClosedError, HolderError, NotFoundError
 from .generated.api.default import (
     delete_projects_project_id_cards_card_id,
+    delete_projects_project_id_cards_card_id_tags_tag,
     get_projects_project_id_cards,
     get_projects_project_id_cards_card_id,
     patch_projects_project_id_cards_card_id,
     post_projects_project_id_cards,
     post_projects_project_id_cards_card_id_move,
     post_projects_project_id_cards_card_id_restore,
+    put_projects_project_id_cards_card_id_tags_tag,
 )
 from .generated.models import CardMove as HTTPCardMove
 from .generated.models import (
@@ -149,6 +152,26 @@ class _DaemonCards:
         )
         return cast("Card", result.to_dict())
 
+    def add_card_tag(self, project_id: str, card_id: str, tag: str) -> Card:
+        result = self._holder._call(
+            put_projects_project_id_cards_card_id_tags_tag,
+            project_id,
+            card_id,
+            tag,
+            write=True,
+        )
+        return cast("Card", result.to_dict())
+
+    def remove_card_tag(self, project_id: str, card_id: str, tag: str) -> Card:
+        result = self._holder._call(
+            delete_projects_project_id_cards_card_id_tags_tag,
+            project_id,
+            card_id,
+            tag,
+            write=True,
+        )
+        return cast("Card", result.to_dict())
+
 
 class EmbeddedWorkspace:
     """A session in an explicitly selected, private Holder data directory."""
@@ -184,7 +207,7 @@ class EmbeddedWorkspace:
                 "The bundled Holder extension failed to load."
             ) from error
 
-        if not hasattr(native.Context, "list_trash"):
+        if not hasattr(native.Context, "list_project_tag_counts"):
             raise EmbeddedUnavailableError(
                 "This Holder Kit build is too old for the shared Card API."
             )
@@ -218,6 +241,10 @@ class EmbeddedWorkspace:
         return cast(
             "list[TrashItemRecord]", self._call("list_trash", project_id, type=type)
         )
+
+    def list_project_tags(self, project_id: str) -> list[TagCount]:
+        """List project tags and their live card counts."""
+        return cast("list[TagCount]", self._call("list_project_tag_counts", project_id))
 
     def _call(self, method: str, *args: object, **kwargs: object) -> object:
         if self._closed or self._context is None:
@@ -317,6 +344,16 @@ class _EmbeddedCards:
     def restore_card(self, project_id: str, card_id: str) -> Card:
         return cast(
             "Card", self._workspace._call("restore_card_record", project_id, card_id)
+        )
+
+    def add_card_tag(self, project_id: str, card_id: str, tag: str) -> Card:
+        return cast(
+            "Card", self._workspace._call("add_card_tag", project_id, card_id, tag)
+        )
+
+    def remove_card_tag(self, project_id: str, card_id: str, tag: str) -> Card:
+        return cast(
+            "Card", self._workspace._call("remove_card_tag", project_id, card_id, tag)
         )
 
 

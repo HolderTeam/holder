@@ -1,6 +1,7 @@
 """Holder Python Library - control your knowledge using Python."""
 
 from ._workspace_contract import Project as ProjectRecord
+from ._workspace_contract import TagCount
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .cards import EmbeddedUnavailableError, open_workspace
 from .changes import ChangeCheckpoint, ChangeReady, EntityChange, ResyncRequired
@@ -116,6 +117,7 @@ __all__ = [
     "StorageLocation",
     "SyncResult",
     "Tag",
+    "TagCount",
     "Thread",
     "TrashItem",
     "TrashItemRecord",
