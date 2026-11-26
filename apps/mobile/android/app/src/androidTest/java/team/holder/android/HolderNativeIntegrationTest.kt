@@ -3,6 +3,9 @@ package team.holder.android
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 import org.json.JSONArray
 import org.json.JSONObject
@@ -22,6 +25,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import team.holder.android.contract.Cards
 import team.holder.android.contract.NewCard
+import team.holder.android.contract.Milestones
+import team.holder.android.contract.MilestoneDate
+import team.holder.android.contract.NewMilestone
 import team.holder.android.contract.NewProject
 import team.holder.android.contract.NewProjectPrivacyMode
 import team.holder.android.contract.RegisterStorageProviderKind
@@ -1074,6 +1080,60 @@ class HolderNativeIntegrationTest {
 
         HolderNative.deleteCard(project.projectId, card.cardId)
         assertTrue(HolderNative.listMilestonesInRange(project.projectId, start - 3600, end + 3600).isEmpty())
+    }
+
+    @Test
+    fun milestones_withoutASingleStartAreShownByTheirOwnDate() {
+        initialize()
+        val project = HolderNative.createProject("Due milestone test project")
+        val card = HolderNative.createCard(project.projectId, "Tax return", "content")
+        // As the CLI writes `holder milestone add --date due=2026-12-01`: no start at all. And a
+        // hand-edited one with two starts and a single review date.
+        val due = HolderNative.onContract {
+            Milestones.addCardMilestone(it, project.projectId, card.cardId,
+                NewMilestone(dates = listOf(MilestoneDate(role = "due", date = "2026-12-01"))))
+        }
+        val twoStarts = HolderNative.onContract {
+            Milestones.addCardMilestone(it, project.projectId, card.cardId, NewMilestone(dates = listOf(
+                MilestoneDate(role = "start", date = "2026-12-10"),
+                MilestoneDate(role = "start", date = "2026-12-11"),
+                MilestoneDate(role = "review", datetime = "2026-12-12T09:00:00Z"),
+            )))
+        }
+
+        val shown = HolderNative.listCardMilestones(project.projectId, card.cardId).associateBy { it.milestoneId }
+        val dueShown = shown.getValue(due.milestoneId)
+        assertEquals(LocalDate.parse("2026-12-01").atStartOfDay(ZoneOffset.UTC).toEpochSecond(), dueShown.startAt)
+        assertEquals("due", dueShown.role)
+        assertTrue(dueShown.allDay)
+        assertNull(dueShown.endAt)
+        assertFalse(dueShown.hasSpan)
+        assertEquals("Due", dueShown.displayKind)
+        val reviewShown = shown.getValue(twoStarts.milestoneId)
+        assertEquals("review", reviewShown.role)
+        assertEquals(OffsetDateTime.parse("2026-12-12T09:00:00Z").toEpochSecond(), reviewShown.startAt)
+        assertFalse(reviewShown.allDay)
+
+        // The calendar finds it by its due date.
+        val dueDay = dueShown.startAt
+        assertEquals(listOf(due.milestoneId),
+            HolderNative.listMilestonesInRange(project.projectId, dueDay, dueDay + 3600).map { it.milestoneId })
+
+        // Moving it changes the due date in place: it doesn't gain a start.
+        val newDay = LocalDate.parse("2026-12-03").atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+        val moved = HolderNative.updateCardMilestone(project.projectId, card.cardId, due.milestoneId,
+            startAt = newDay, endAt = OptionalLong.Clear, allDay = true, kind = OptionalString.Value("Tax"))
+        assertEquals(newDay, moved.startAt)
+        assertEquals("Tax", moved.displayKind)
+        val stored = HolderNative.onContract { Milestones.listCardMilestones(it, project.projectId, card.cardId) }
+        assertEquals(listOf(MilestoneDate(role = "due", date = "2026-12-03")),
+            stored.single { it.milestoneId == due.milestoneId }.dates)
+        // The others are kept as they were.
+        assertEquals(twoStarts.dates, stored.single { it.milestoneId == twoStarts.milestoneId }.dates)
+        assertThrows(IllegalArgumentException::class.java) {
+            HolderNative.updateCardMilestone(project.projectId, card.cardId, due.milestoneId,
+                endAt = OptionalLong.Value(newDay + 86400))
+        }
     }
 
     @Test

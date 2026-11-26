@@ -577,7 +577,7 @@ private fun MilestoneRow(
  * external-app hand-offs (e.g. [team.holder.android.ui.OpenUrl]). */
 private fun addMilestoneToDeviceCalendar(context: Context, milestone: HolderMilestone) {
     val title = milestone.cardTitle?.takeIf { it.isNotBlank() } ?: "Untitled card"
-    val eventTitle = milestone.kind?.takeIf { it.isNotBlank() }?.let { "$it: $title" } ?: title
+    val eventTitle = milestone.displayKind?.let { "$it: $title" } ?: title
     val endAt = milestone.endAt ?: (milestone.startAt + if (milestone.allDay) 86400 else 3600)
     runCatching {
         context.startActivity(
@@ -598,7 +598,7 @@ private fun addMilestoneToDeviceCalendar(context: Context, milestone: HolderMile
  * milestone), then description, only the parts that are actually set. */
 private fun milestoneSupportingText(milestone: HolderMilestone): String {
     val parts = mutableListOf<String>()
-    milestone.kind?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+    milestone.displayKind?.let { parts.add(it) }
     if (!milestone.allDay) {
         parts.add(MILESTONE_TIME_FORMAT.format(Instant.ofEpochSecond(milestone.startAt)))
     }

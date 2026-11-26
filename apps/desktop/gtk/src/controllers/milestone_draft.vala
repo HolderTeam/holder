@@ -172,6 +172,17 @@ public class MilestoneDraft { // LCOV_EXCL_LINE: declaration-only coverage artif
         );
     }
 
+    // What the editor calls the date it changes: "Start", or the shown role of a milestone
+    // without a single start ("Due").
+    public static string date_label(Milestone? editing) {
+        return editing == null ? "Start" : Milestone.role_words(((!) editing).role);
+    }
+
+    // Whether the editor offers an end: not for a milestone without a span.
+    public static bool can_have_end(Milestone? editing) {
+        return editing == null || ((!) editing).has_span;
+    }
+
     public static DateTime date_with_time(DateTime date, int hour, int minute, TimeZone tz) {
         return new DateTime(
             tz, date.get_year(), date.get_month(), date.get_day_of_month(), hour, minute, 0.0

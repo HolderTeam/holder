@@ -143,6 +143,10 @@ private void test_summary_formats_timed_all_day_and_multi_day_milestones() {
     assert(HolderLinux.MilestonesPresenter.milestone_summary(
         milestone("c", at(z, 2026, 3, 5), null, true, "Deadline"), false, z)
         == "Deadline · All day");
+    // With no kind, a milestone shown by a due date is named by that role.
+    var due = milestone("c", at(z, 2026, 3, 5), null, true);
+    due.role = "due";
+    assert(HolderLinux.MilestonesPresenter.milestone_summary(due, false, z) == "Due · All day");
     // All-day range on one day gets no end suffix, across days it shows the end date.
     assert(HolderLinux.MilestonesPresenter.milestone_summary(
         milestone("c", at(z, 2026, 3, 5), at(z, 2026, 3, 5, 12), true), false, z)

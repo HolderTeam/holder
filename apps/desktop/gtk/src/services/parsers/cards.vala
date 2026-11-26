@@ -192,26 +192,45 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
         return found;
     }
 
-    // A milestone with one start and at most one end, as the calendar shows it; null for any
-    // other, which the calendar does not show.
+    // How often each role appears among a milestone's dates.
+    private static uint role_count(Json.Array dates, string role) {
+        uint count = 0;
+        for (uint i = 0; i < dates.get_length(); i++) {
+            if (dates.get_object_element(i).get_string_member("role") == role) count++;
+        }
+        return count;
+    }
+
+    // A milestone as the calendar shows it: by its one start, with its end when it has at most
+    // one. Otherwise, as with one made elsewhere with only a due date, by its earliest date whose
+    // role it holds once, with no end. Null only when every role repeats.
     public static Milestone? parse_milestone(Json.Object item) throws Error {
         var dates = item.get_array_member("dates");
         var start = only_date(dates, "start");
-        if (start == null) return null;
-        var end = only_date(dates, "end");
-        for (uint i = 0; i < dates.get_length(); i++) {
-            if (end == null && dates.get_object_element(i).get_string_member("role") == "end") {
-                return null;
+        var has_span = start != null && role_count(dates, "end") <= 1;
+        var shown = start;
+        if (shown == null) {
+            int64 earliest = 0;
+            for (uint i = 0; i < dates.get_length(); i++) {
+                var date = dates.get_object_element(i);
+                if (role_count(dates, date.get_string_member("role")) != 1) continue;
+                var at = milestone_date_epoch(date);
+                if (shown == null || at < earliest) {
+                    shown = date;
+                    earliest = at;
+                }
             }
+            if (shown == null) return null;
         }
+        var end = has_span ? only_date(dates, "end") : null;
         int64? end_at = null;
         if (end != null) end_at = milestone_date_epoch((!) end);
         var milestone = new Milestone(
             item.get_string_member("milestone_id"),
             item.get_string_member("card_id"),
-            milestone_date_epoch((!) start),
+            milestone_date_epoch((!) shown),
             end_at,
-            ((!) start).has_member("date"),
+            ((!) shown).has_member("date"),
             ApiParsersCommon.nullable_string_member_or_null(item, "kind"),
             ApiParsersCommon.nullable_string_member_or_null(item, "description"),
             item.get_int_member("created_at"),
@@ -220,6 +239,8 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
         );
         milestone.project_id = item.get_string_member("project_id");
         milestone.dates_json = Json.to_string(item.get_member("dates"), false);
+        milestone.role = ((!) shown).get_string_member("role");
+        milestone.has_span = has_span;
         return milestone;
     }
 
@@ -238,7 +259,7 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
         }
         var milestone = parse_milestone(root.get_object_member("data"));
         if (milestone == null) {
-            throw new ApiError.PROTOCOL("The milestone has no single start");
+            throw new ApiError.PROTOCOL("The milestone has no date to show");
         }
         return (!) milestone;
     }

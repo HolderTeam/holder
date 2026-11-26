@@ -216,20 +216,36 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
     }
 
     // The milestone's dates with its start and end replaced, keeping every other date in place.
+    // Without a span (see Milestone.has_span), only the date with the shown role is replaced, in
+    // place, and end_at is ignored: that milestone has no end to change.
     private static void add_dates(Json.Builder body,
                                   Json.Array? kept,
                                   int64 start_at,
                                   int64? end_at,
-                                  bool all_day) {
+                                  bool all_day,
+                                  string role,
+                                  bool has_span) {
         body.set_member_name("dates");
         body.begin_array();
+        if (!has_span && kept != null) {
+            for (uint i = 0; i < ((!) kept).get_length(); i++) {
+                var date = ((!) kept).get_element(i);
+                if (date.get_object().get_string_member("role") == role) {
+                    add_date(body, role, start_at, all_day);
+                } else {
+                    body.add_value(date.copy());
+                }
+            }
+            body.end_array();
+            return;
+        }
         add_date(body, "start", start_at, all_day);
         if (end_at != null) add_date(body, "end", (!) end_at, all_day);
         if (kept != null) {
             for (uint i = 0; i < ((!) kept).get_length(); i++) {
                 var date = ((!) kept).get_element(i);
-                var role = date.get_object().get_string_member("role");
-                if (role != "start" && role != "end") body.add_value(date.copy());
+                var date_role = date.get_object().get_string_member("role");
+                if (date_role != "start" && date_role != "end") body.add_value(date.copy());
             }
         }
         body.end_array();
@@ -248,10 +264,12 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
                                         int64? end_at,
                                         bool all_day,
                                         string? kind,
-                                        string? description) {
+                                        string? description,
+                                        string role = "start",
+                                        bool has_span = true) {
         var body = new Json.Builder();
         body.begin_object();
-        add_dates(body, kept, start_at, end_at, all_day);
+        add_dates(body, kept, start_at, end_at, all_day, role, has_span);
         add_text(body, "kind", kind);
         add_text(body, "description", description);
         body.end_object();
@@ -313,7 +331,8 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
                 milestones_path(milestone.project_id, milestone.card_id),
                 Uri.escape_string(milestone.milestone_id)
             ),
-            milestone_body(kept_dates(milestone), start_at, end_at, all_day, kind, description),
+            milestone_body(kept_dates(milestone), start_at, end_at, all_day, kind, description,
+                           milestone.role, milestone.has_span),
             null
         );
         return ApiParsersCards.parse_milestone_response(root);
