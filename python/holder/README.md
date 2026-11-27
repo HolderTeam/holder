@@ -349,6 +349,25 @@ Closing the context keeps local edits, and reopening uses the local checkout.
 Clone accepts HTTPS, SSH, and Git remotes and checks the checkout before
 importing it into the private database.
 
+### Publish committed work
+
+Preview the destination and pin the commit you reviewed when you publish.
+
+```python
+with reopen_workspace("research-workspace") as work:
+    preview = work.preview_push(branch="analysis/review")
+    print(preview)
+    published = work.push(branch=preview.branch, expected_revision=preview.revision)
+```
+
+For a cloned workspace the destination defaults to the clone source. Supply
+`remote_url=` to choose another destination, or to publish a workspace you
+created locally. The first push creates a new branch. Subsequent pushes to
+that destination and branch must fast-forward. Holder refuses the advertised
+default branch and publishes only the selected commit. Local files and edits
+stay in the workspace. If the connection drops during a push, retry the same
+destination, branch, and revision to record a push the remote already accepted.
+
 ## More help
 
 - [More scripting tasks](docs/scripting.md): links, milestones, project-wide

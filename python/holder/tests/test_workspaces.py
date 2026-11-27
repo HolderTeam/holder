@@ -8,7 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from holder import clone_workspace, create_managed_workspace, reopen_workspace
+from holder import (
+    _publication,
+    clone_workspace,
+    create_managed_workspace,
+    reopen_workspace,
+)
 from holder.exceptions import APIError, ClosedError
 
 
@@ -48,14 +53,16 @@ def remote(embedded, tmp_path, monkeypatch):
 
     bare = tmp_path / "research.git"
     git(tmp_path, "clone", "--bare", str(root), str(bare))
-    # Exercise Git's SSH transport through a local upload-pack without credentials.
+    # Exercise Git's SSH transport against a disposable local repository.
     ssh = tmp_path / "fixture-ssh.py"
     ssh.write_text(
         "import shlex, subprocess, sys\n"
         "command = shlex.split(sys.argv[-1])\n"
-        "if command != ['git-upload-pack', '/research.git']:\n"
+        "if len(command) != 2 or command[1] != '/research.git':\n"
         "    sys.exit(1)\n"
-        f"sys.exit(subprocess.call(['git', 'upload-pack', {str(bare)!r}]))\n",
+        "if command[0] not in ('git-upload-pack', 'git-receive-pack'):\n"
+        "    sys.exit(1)\n"
+        f"sys.exit(subprocess.call(['git', command[0].removeprefix('git-'), {str(bare)!r}]))\n",
         encoding="utf-8",
     )
     monkeypatch.setenv(
@@ -199,3 +206,108 @@ def test_reopen_refuses_workspace_with_redirected_project(embedded, tmp_path):
     marker.write_text(json.dumps(data), encoding="utf-8")
     with pytest.raises(ValueError, match="project path"), reopen_workspace(path):
         pass
+
+
+def test_publish_new_branch_then_fast_forward_after_reopening(remote, tmp_path):
+    url, project_id, card_id, _, upstream, bare = remote
+    destination = tmp_path / "publish"
+    branch = "analysis/report"
+    with clone_workspace(url, workspace=destination) as work:
+        root = Path(work.project["root_path"])
+        (root / "local-report.txt").write_text(
+            "Leave in the checkout", encoding="utf-8"
+        )
+        preview = work.preview_push(branch=branch)
+        assert preview.remote_url == url
+        assert preview.revision == upstream
+        assert preview.new_branch
+        assert preview.has_uncommitted_changes
+        assert branch not in git(bare, "branch", "--list")
+        # The configured push rewrite applies to a raw URL. Holder uses the
+        # inspected URL as an explicit pushurl, which Git must keep.
+        git(
+            root,
+            "config",
+            "url.ssh://fixture@localhost/unexpected.git.pushInsteadOf",
+            url,
+        )
+        original_remotes = git(root, "remote", "-v")
+        first = work.push(branch=branch, expected_revision=preview.revision)
+        assert git(bare, "rev-parse", branch) == first.revision == preview.revision
+        assert not git(bare, "ls-tree", branch, "local-report.txt")
+        assert git(root, "remote", "-v") == original_remotes
+
+    with reopen_workspace(destination) as work:
+        work.session.card_operations.update_card(
+            project_id, card_id, {"content": "Publish this"}
+        )
+        preview = work.preview_push(branch=branch)
+        assert not preview.new_branch
+        with pytest.raises(ValueError, match="changed since"):
+            work.push(branch=branch, expected_revision=first.revision)
+        assert git(bare, "rev-parse", branch) == first.revision
+        second = work.push(branch=branch, expected_revision=preview.revision)
+        assert git(bare, "rev-parse", branch) == second.revision
+        assert git(bare, "rev-parse", "HEAD") == upstream
+
+
+def test_publish_refuses_default_existing_and_diverged_branches(remote, tmp_path):
+    url, _, _, before, upstream, bare = remote
+    with clone_workspace(url, workspace=tmp_path / "publish", ref="review") as work:
+        default = git(bare, "symbolic-ref", "--short", "HEAD")
+        with pytest.raises(ValueError, match="default branch"):
+            work.push(branch=default)
+        with pytest.raises(ValueError, match="requires a new remote branch"):
+            work.push(branch="review")
+        published = work.push(branch="analysis")
+        assert published.revision == before
+        git(bare, "update-ref", "refs/heads/analysis", upstream)
+        with pytest.raises(ValueError, match="must be fast-forward"):
+            work.push(branch="analysis")
+        assert git(bare, "rev-parse", "analysis") == upstream
+
+
+def test_publish_retries_an_interrupted_remote_success(remote, tmp_path, monkeypatch):
+    url, *_, bare = remote
+    original = _publication._on_remote
+
+    def lose_push_response(*args, **kwargs):
+        result = original(*args, **kwargs)
+        if "push" in args:
+            raise RuntimeError("Connection lost")
+        return result
+
+    destination = tmp_path / "publish"
+    with clone_workspace(url, workspace=destination) as work:
+        revision = work.revision
+        with monkeypatch.context() as patch:
+            patch.setattr(_publication, "_on_remote", lose_push_response)
+            with pytest.raises(RuntimeError, match="outcome is unknown"):
+                work.push(branch="analysis")
+        assert git(bare, "rev-parse", "analysis") == revision
+
+    with reopen_workspace(destination) as work:
+        result = work.push(branch="analysis", expected_revision=revision)
+        assert result.revision == revision
+        assert work.preview_push(branch="analysis").new_branch is False
+
+
+def test_publish_does_not_adopt_branch_created_during_push(
+    remote, tmp_path, monkeypatch
+):
+    url, *_, upstream, bare = remote
+    original = _publication._on_remote
+
+    def concurrent_push(*args, **kwargs):
+        if "push" in args:
+            git(bare, "update-ref", "refs/heads/analysis", upstream)
+        return original(*args, **kwargs)
+
+    with clone_workspace(url, workspace=tmp_path / "publish") as work:
+        with monkeypatch.context() as patch:
+            patch.setattr(_publication, "_on_remote", concurrent_push)
+            with pytest.raises(ValueError, match="created before publication"):
+                work.push(branch="analysis")
+        with pytest.raises(ValueError, match="requires a new remote branch"):
+            work.push(branch="analysis")
+        assert git(bare, "rev-parse", "analysis") == upstream
