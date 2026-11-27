@@ -70,7 +70,7 @@ def test_available_daemon(port, env, card):
         assert {tool["name"] for tool in result(process, 2)["tools"]} == {
             "get_calendar", "get_card", "get_card_breadcrumbs", "get_resource", "list_card_backlinks",
             "list_card_links", "list_card_milestones", "list_card_resources", "list_cards",
-            "list_project_tags", "list_trash", "search_cards",
+            "list_project_tags", "list_resource_backlinks", "list_resources", "list_trash", "search_cards",
         }
         send(process, "tools/call", 3, _meta=metadata, name="get_card",
              arguments={"project_id": PROJECT, "card_id": card["card_id"]})
@@ -92,7 +92,7 @@ def test_available_daemon(port, env, card):
         send(process, "notifications/initialized")
         send(process, "tools/list", 2)
         discovered = result(process, 2)
-        assert len(discovered["tools"]) == 12 and "resultType" not in discovered
+        assert len(discovered["tools"]) == 14 and "resultType" not in discovered
         send(process, "tools/call", 3, name="get_card",
              arguments={"project_id": PROJECT, "card_id": card["card_id"]})
         assert result(process, 3)["structuredContent"]["data"] == card
@@ -218,6 +218,44 @@ def test_write_tools(port, env, rest):
         assert rest(f"/projects/{PROJECT}/cards/{parent['card_id']}") == restored
         assert rest(path)["parent_card_id"] is None
         assert rest(f"/trash?project_id={PROJECT}&type=card") == []
+        resource_schema = tools["create_resource"]["inputSchema"]["properties"]["resource"]
+        assert "resource_id" not in resource_schema["properties"]
+        assert resource_schema["additionalProperties"] is False
+        route = f"/projects/{PROJECT}/resources"
+        send(process, "tools/call", 18, _meta=metadata, name="create_resource",
+             arguments={"resource": {"type": "book", "label": "Reference"}})
+        resource = result(process, 18)["structuredContent"]["data"]
+        resource_path = f"{route}/{resource['resource_id']}"
+
+        send(process, "tools/call", 19, _meta=metadata, name="update_resource",
+             arguments={"resource_id": resource["resource_id"], "update": {"label": "Release reference"}})
+        updated = result(process, 19)["structuredContent"]["data"]
+        assert updated["label"] == "Release reference" and rest(resource_path) == updated
+        send(process, "tools/call", 20, _meta=metadata, name="list_resources", arguments={})
+        assert result(process, 20)["structuredContent"]["data"] == [updated]
+
+        attachment = {"card_id": card["card_id"], "resource_id": resource["resource_id"]}
+        send(process, "tools/call", 21, _meta=metadata, name="attach_card_resource", arguments=attachment)
+        assert result(process, 21)["structuredContent"]["data"] == [updated]
+        send(process, "tools/call", 22, _meta=metadata, name="list_resource_backlinks",
+             arguments={"resource_id": resource["resource_id"]})
+        backlinks = result(process, 22)["structuredContent"]["data"]
+        assert [(item["source_id"], item["kind"]) for item in backlinks] == [(card["card_id"], "attachment")]
+        send(process, "tools/call", 23, _meta=metadata, name="detach_card_resource", arguments=attachment)
+        assert result(process, 23)["structuredContent"]["data"] == []
+        assert rest(f"{path}/resources") == [] and rest(resource_path) == updated
+
+        rest("/projects", {"name": "Another project", "project_id": "other", "privacy_mode": "plain"})
+        foreign_resource = rest("/projects/other/resources", {"type": "book", "label": "Private reference"})
+        send(process, "tools/call", 24, _meta=metadata, name="attach_card_resource",
+             arguments={**attachment, "resource_id": foreign_resource["resource_id"]})
+        assert result(process, 24)["isError"] is True
+        assert rest(f"{path}/resources") == []
+        send(process, "tools/call", 25, _meta=metadata, name="create_resource",
+             arguments={"resource": {"resource_id": foreign_resource["resource_id"], "type": "book", "label": "Denied"}})
+        denied = result(process, 25)
+        assert denied["isError"] is True
+        assert denied["content"][0]["text"] == "Holder assigns the resource ID for this MCP tool"
         shutdown(process)
 
 

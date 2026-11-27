@@ -60,9 +60,11 @@ template <> struct codec<holder::contract::RemoveCardLinkTargetType> {
 namespace holder::api::mcp {
 inline bool is_write_tool(std::string_view name) {
   return name == "add_card_link" || name == "add_card_milestone" || name == "add_card_tag" ||
-         name == "create_card" || name == "move_card" || name == "remove_card_link" ||
+         name == "attach_card_resource" || name == "create_card" || name == "create_resource" ||
+         name == "detach_card_resource" || name == "move_card" || name == "remove_card_link" ||
          name == "remove_card_milestone" || name == "remove_card_tag" || name == "restore_card" ||
-         name == "trash_card" || name == "update_card" || name == "update_card_milestone";
+         name == "trash_card" || name == "update_card" || name == "update_card_milestone" ||
+         name == "update_resource";
 }
 // Authorization must throw on denial. Domain errors propagate to the protocol adapter.
 inline nlohmann::json invoke_tool(
@@ -187,6 +189,46 @@ inline nlohmann::json invoke_tool(
          ))}
     };
   }
+  if (name == "attach_card_resource") {
+    if (!allow_writes) throw std::invalid_argument("MCP write access was not granted");
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id" && it.key() != "card_id" && it.key() != "resource_id")
+        throw std::invalid_argument("unknown tool argument");
+    }
+    auto project_id = check_text(
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("card_id")) throw std::invalid_argument("card_id is required");
+    auto card_id = check_text(
+        decode_field<std::string>(arguments.at("card_id"), "card_id"),
+        "card_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("resource_id")) throw std::invalid_argument("resource_id is required");
+    auto resource_id = check_text(
+        decode_field<std::string>(arguments.at("resource_id"), "resource_id"),
+        "resource_id",
+        4,
+        std::numeric_limits<std::size_t>::max()
+    );
+    authorize_project(project_id);
+    return json{
+        {"data",
+         encode(holder::contract::attach_card_resource(
+             context,
+             std::move(project_id),
+             std::move(card_id),
+             std::move(resource_id)
+         ))}
+    };
+  }
   if (name == "create_card") {
     if (!allow_writes) throw std::invalid_argument("MCP write access was not granted");
     for (auto it = arguments.begin(); it != arguments.end(); ++it) {
@@ -207,6 +249,71 @@ inline nlohmann::json invoke_tool(
     authorize_project(project_id);
     return json{
         {"data", encode(holder::contract::create_card(context, std::move(project_id), card))}
+    };
+  }
+  if (name == "create_resource") {
+    if (!allow_writes) throw std::invalid_argument("MCP write access was not granted");
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id" && it.key() != "resource")
+        throw std::invalid_argument("unknown tool argument");
+    }
+    auto project_id = check_text(
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("resource")) throw std::invalid_argument("resource is required");
+    auto resource = codec<holder::contract::NewResource>::decode(arguments.at("resource"));
+    authorize_project(project_id);
+    if (resource.resource_id)
+      throw std::invalid_argument("Holder assigns the resource ID for this MCP tool");
+    return json{
+        {"data", encode(holder::contract::create_resource(context, std::move(project_id), resource))
+        }
+    };
+  }
+  if (name == "detach_card_resource") {
+    if (!allow_writes) throw std::invalid_argument("MCP write access was not granted");
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id" && it.key() != "card_id" && it.key() != "resource_id")
+        throw std::invalid_argument("unknown tool argument");
+    }
+    auto project_id = check_text(
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("card_id")) throw std::invalid_argument("card_id is required");
+    auto card_id = check_text(
+        decode_field<std::string>(arguments.at("card_id"), "card_id"),
+        "card_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("resource_id")) throw std::invalid_argument("resource_id is required");
+    auto resource_id = check_text(
+        decode_field<std::string>(arguments.at("resource_id"), "resource_id"),
+        "resource_id",
+        4,
+        std::numeric_limits<std::size_t>::max()
+    );
+    authorize_project(project_id);
+    return json{
+        {"data",
+         encode(holder::contract::detach_card_resource(
+             context,
+             std::move(project_id),
+             std::move(card_id),
+             std::move(resource_id)
+         ))}
     };
   }
   if (name == "get_calendar") {
@@ -558,6 +665,55 @@ inline nlohmann::json invoke_tool(
     return json{
         {"data", encode(holder::contract::list_project_tags(context, std::move(project_id)))}
     };
+  }
+  if (name == "list_resource_backlinks") {
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id" && it.key() != "resource_id")
+        throw std::invalid_argument("unknown tool argument");
+    }
+    auto project_id = check_text(
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("resource_id")) throw std::invalid_argument("resource_id is required");
+    auto resource_id = check_text(
+        decode_field<std::string>(arguments.at("resource_id"), "resource_id"),
+        "resource_id",
+        4,
+        std::numeric_limits<std::size_t>::max()
+    );
+    authorize_project(project_id);
+    auto links = holder::contract::list_resource_backlinks(
+        context,
+        project_id,
+        std::move(resource_id),
+        false
+    );
+    std::erase_if(links, [&project_id](const auto& link) {
+      return link.source_project_id != project_id || link.target_project_id != project_id;
+    });
+    return json{{"data", encode(links)}};
+  }
+  if (name == "list_resources") {
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id") throw std::invalid_argument("unknown tool argument");
+    }
+    auto project_id = check_text(
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    authorize_project(project_id);
+    return json{{"data", encode(holder::contract::list_resources(context, std::move(project_id)))}};
   }
   if (name == "list_trash") {
     for (auto it = arguments.begin(); it != arguments.end(); ++it) {
@@ -935,6 +1091,41 @@ inline nlohmann::json invoke_tool(
              std::move(project_id),
              std::move(card_id),
              std::move(milestone_id),
+             update
+         ))}
+    };
+  }
+  if (name == "update_resource") {
+    if (!allow_writes) throw std::invalid_argument("MCP write access was not granted");
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id" && it.key() != "resource_id" && it.key() != "update")
+        throw std::invalid_argument("unknown tool argument");
+    }
+    auto project_id = check_text(
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("resource_id")) throw std::invalid_argument("resource_id is required");
+    auto resource_id = check_text(
+        decode_field<std::string>(arguments.at("resource_id"), "resource_id"),
+        "resource_id",
+        4,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("update")) throw std::invalid_argument("update is required");
+    auto update = codec<holder::contract::ResourceUpdate>::decode(arguments.at("update"));
+    authorize_project(project_id);
+    return json{
+        {"data",
+         encode(holder::contract::update_resource(
+             context,
+             std::move(project_id),
+             std::move(resource_id),
              update
          ))}
     };

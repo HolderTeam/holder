@@ -699,6 +699,276 @@
       }
     },
     {
+      "name": "attach_card_resource",
+      "description": "Attach a resource to a card.\n\nAn attachment is the card's link of kind attachment to the resource. A card that has it already is left as it\nis. Returns the card's attached resources, as list_card_resources lists them. A card in the trash or in another\nproject is not found, and neither is a resource that is not in the card's project.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
+          },
+          "card_id": {
+            "$ref": "#/$defs/CardId"
+          },
+          "resource_id": {
+            "$ref": "#/$defs/ResourceId"
+          }
+        },
+        "required": [
+          "card_id",
+          "resource_id"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceId": {
+            "type": "string",
+            "minLength": 4
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/Resource"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Resource": {
+            "properties": {
+              "resource_id": {
+                "$ref": "#/$defs/ResourceId",
+                "description": "The resource's ID."
+              },
+              "project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project the resource belongs to."
+              },
+              "type": {
+                "$ref": "#/$defs/ResourceType",
+                "description": "What kind of thing the resource is."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Label",
+                "description": "The resource's name."
+              },
+              "metadata": {
+                "$ref": "#/$defs/ResourceMetadata",
+                "description": "What is known about the resource, by name."
+              },
+              "assets": {
+                "items": {
+                  "$ref": "#/$defs/ResourceAsset"
+                },
+                "type": "array",
+                "title": "Assets",
+                "description": "The resource's files."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the resource was made."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the resource was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "resource_id",
+              "project_id",
+              "type",
+              "label",
+              "metadata",
+              "assets",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "Resource",
+            "description": "A resource in a project, with its files."
+          },
+          "ResourceId": {
+            "type": "string",
+            "minLength": 4
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceMetadata": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "ResourceAsset": {
+            "properties": {
+              "asset_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Asset Id",
+                "description": "The asset's ID."
+              },
+              "original_filename": {
+                "type": "string",
+                "title": "Original Filename",
+                "description": "The file's name when it was imported."
+              },
+              "media_type": {
+                "type": "string",
+                "title": "Media Type",
+                "description": "The file's media type, such as application/pdf."
+              },
+              "byte_size": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Byte Size",
+                "description": "The file's size, in bytes."
+              },
+              "plaintext_sha256": {
+                "type": "string",
+                "title": "Plaintext Sha256",
+                "description": "The SHA-256 of the file's content, in lower-case hex."
+              },
+              "placements": {
+                "items": {
+                  "$ref": "#/$defs/AssetPlacement"
+                },
+                "type": "array",
+                "title": "Placements",
+                "description": "The stored copies of the file."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the asset was imported."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the asset was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "asset_id",
+              "original_filename",
+              "media_type",
+              "byte_size",
+              "plaintext_sha256",
+              "placements",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "ResourceAsset",
+            "description": "A file that belongs to a resource."
+          },
+          "AssetPlacement": {
+            "properties": {
+              "placement_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Placement Id",
+                "description": "The copy's ID."
+              },
+              "location_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Location Id",
+                "description": "The storage location that holds the copy."
+              },
+              "encoding": {
+                "type": "string",
+                "enum": [
+                  "plain",
+                  "holder_asset_v1"
+                ],
+                "title": "Encoding",
+                "description": "How the copy is stored: as the file is, or encrypted for the project."
+              },
+              "stored_byte_size": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Stored Byte Size",
+                "description": "The size of the stored copy, in bytes."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the copy was stored."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "placement_id",
+              "location_id",
+              "encoding",
+              "stored_byte_size",
+              "created_at"
+            ],
+            "title": "AssetPlacement",
+            "description": "One stored copy of an asset."
+          }
+        }
+      }
+    },
+    {
       "name": "create_card",
       "description": "Create a card.\n\nFails with NotFound when the project or the parent does not exist.",
       "annotations": {
@@ -960,6 +1230,582 @@
             ],
             "title": "TagOccurrence",
             "description": "A tag written in a card's content."
+          }
+        }
+      }
+    },
+    {
+      "name": "create_resource",
+      "description": "Create a resource in the authorized project. Holder assigns the resource ID.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
+          },
+          "resource": {
+            "properties": {
+              "type": {
+                "$ref": "#/$defs/ResourceType",
+                "description": "What kind of thing the resource is."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Label",
+                "description": "The resource's name."
+              },
+              "metadata": {
+                "$ref": "#/$defs/ResourceMetadata",
+                "description": "What is known about the resource; omit for nothing. A name without values is left out."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the resource was made, for imports; omit for now."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the resource was last changed, for imports; omit for when it was made."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "type",
+              "label"
+            ],
+            "title": "NewResource",
+            "description": "A resource to make."
+          }
+        },
+        "required": [
+          "resource"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceMetadata": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/Resource"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Resource": {
+            "properties": {
+              "resource_id": {
+                "$ref": "#/$defs/ResourceId",
+                "description": "The resource's ID."
+              },
+              "project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project the resource belongs to."
+              },
+              "type": {
+                "$ref": "#/$defs/ResourceType",
+                "description": "What kind of thing the resource is."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Label",
+                "description": "The resource's name."
+              },
+              "metadata": {
+                "$ref": "#/$defs/ResourceMetadata",
+                "description": "What is known about the resource, by name."
+              },
+              "assets": {
+                "items": {
+                  "$ref": "#/$defs/ResourceAsset"
+                },
+                "type": "array",
+                "title": "Assets",
+                "description": "The resource's files."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the resource was made."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the resource was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "resource_id",
+              "project_id",
+              "type",
+              "label",
+              "metadata",
+              "assets",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "Resource",
+            "description": "A resource in a project, with its files."
+          },
+          "ResourceId": {
+            "type": "string",
+            "minLength": 4
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceMetadata": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "ResourceAsset": {
+            "properties": {
+              "asset_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Asset Id",
+                "description": "The asset's ID."
+              },
+              "original_filename": {
+                "type": "string",
+                "title": "Original Filename",
+                "description": "The file's name when it was imported."
+              },
+              "media_type": {
+                "type": "string",
+                "title": "Media Type",
+                "description": "The file's media type, such as application/pdf."
+              },
+              "byte_size": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Byte Size",
+                "description": "The file's size, in bytes."
+              },
+              "plaintext_sha256": {
+                "type": "string",
+                "title": "Plaintext Sha256",
+                "description": "The SHA-256 of the file's content, in lower-case hex."
+              },
+              "placements": {
+                "items": {
+                  "$ref": "#/$defs/AssetPlacement"
+                },
+                "type": "array",
+                "title": "Placements",
+                "description": "The stored copies of the file."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the asset was imported."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the asset was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "asset_id",
+              "original_filename",
+              "media_type",
+              "byte_size",
+              "plaintext_sha256",
+              "placements",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "ResourceAsset",
+            "description": "A file that belongs to a resource."
+          },
+          "AssetPlacement": {
+            "properties": {
+              "placement_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Placement Id",
+                "description": "The copy's ID."
+              },
+              "location_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Location Id",
+                "description": "The storage location that holds the copy."
+              },
+              "encoding": {
+                "type": "string",
+                "enum": [
+                  "plain",
+                  "holder_asset_v1"
+                ],
+                "title": "Encoding",
+                "description": "How the copy is stored: as the file is, or encrypted for the project."
+              },
+              "stored_byte_size": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Stored Byte Size",
+                "description": "The size of the stored copy, in bytes."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the copy was stored."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "placement_id",
+              "location_id",
+              "encoding",
+              "stored_byte_size",
+              "created_at"
+            ],
+            "title": "AssetPlacement",
+            "description": "One stored copy of an asset."
+          }
+        }
+      }
+    },
+    {
+      "name": "detach_card_resource",
+      "description": "Detach a resource from a card.\n\nThe resource itself is kept. A card without the attachment is left as it is, and a resource that no longer\nexists can still be detached. Returns the card's attached resources, as list_card_resources lists them. A card\nin the trash or in another project is not found.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
+          },
+          "card_id": {
+            "$ref": "#/$defs/CardId"
+          },
+          "resource_id": {
+            "$ref": "#/$defs/ResourceId"
+          }
+        },
+        "required": [
+          "card_id",
+          "resource_id"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceId": {
+            "type": "string",
+            "minLength": 4
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/Resource"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Resource": {
+            "properties": {
+              "resource_id": {
+                "$ref": "#/$defs/ResourceId",
+                "description": "The resource's ID."
+              },
+              "project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project the resource belongs to."
+              },
+              "type": {
+                "$ref": "#/$defs/ResourceType",
+                "description": "What kind of thing the resource is."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Label",
+                "description": "The resource's name."
+              },
+              "metadata": {
+                "$ref": "#/$defs/ResourceMetadata",
+                "description": "What is known about the resource, by name."
+              },
+              "assets": {
+                "items": {
+                  "$ref": "#/$defs/ResourceAsset"
+                },
+                "type": "array",
+                "title": "Assets",
+                "description": "The resource's files."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the resource was made."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the resource was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "resource_id",
+              "project_id",
+              "type",
+              "label",
+              "metadata",
+              "assets",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "Resource",
+            "description": "A resource in a project, with its files."
+          },
+          "ResourceId": {
+            "type": "string",
+            "minLength": 4
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceMetadata": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "ResourceAsset": {
+            "properties": {
+              "asset_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Asset Id",
+                "description": "The asset's ID."
+              },
+              "original_filename": {
+                "type": "string",
+                "title": "Original Filename",
+                "description": "The file's name when it was imported."
+              },
+              "media_type": {
+                "type": "string",
+                "title": "Media Type",
+                "description": "The file's media type, such as application/pdf."
+              },
+              "byte_size": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Byte Size",
+                "description": "The file's size, in bytes."
+              },
+              "plaintext_sha256": {
+                "type": "string",
+                "title": "Plaintext Sha256",
+                "description": "The SHA-256 of the file's content, in lower-case hex."
+              },
+              "placements": {
+                "items": {
+                  "$ref": "#/$defs/AssetPlacement"
+                },
+                "type": "array",
+                "title": "Placements",
+                "description": "The stored copies of the file."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the asset was imported."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the asset was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "asset_id",
+              "original_filename",
+              "media_type",
+              "byte_size",
+              "plaintext_sha256",
+              "placements",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "ResourceAsset",
+            "description": "A file that belongs to a resource."
+          },
+          "AssetPlacement": {
+            "properties": {
+              "placement_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Placement Id",
+                "description": "The copy's ID."
+              },
+              "location_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Location Id",
+                "description": "The storage location that holds the copy."
+              },
+              "encoding": {
+                "type": "string",
+                "enum": [
+                  "plain",
+                  "holder_asset_v1"
+                ],
+                "title": "Encoding",
+                "description": "How the copy is stored: as the file is, or encrypted for the project."
+              },
+              "stored_byte_size": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Stored Byte Size",
+                "description": "The size of the stored copy, in bytes."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the copy was stored."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "placement_id",
+              "location_id",
+              "encoding",
+              "stored_byte_size",
+              "created_at"
+            ],
+            "title": "AssetPlacement",
+            "description": "One stored copy of an asset."
           }
         }
       }
@@ -2909,6 +3755,408 @@
           "Tag": {
             "type": "string",
             "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "list_resource_backlinks",
+      "description": "List the links to a resource.\n\nLinks of every kind, attachments among them, from cards and AI messages in the resource's project, newest\nfirst. A resource in another project is not found.\n\nBoth ends must belong to the authorized project. Entries in Trash are excluded.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
+          },
+          "resource_id": {
+            "$ref": "#/$defs/ResourceId"
+          }
+        },
+        "required": [
+          "resource_id"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceId": {
+            "type": "string",
+            "minLength": 4
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/Link"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Link": {
+            "properties": {
+              "source_project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project of the card or AI message the link is from."
+              },
+              "source_type": {
+                "type": "string",
+                "enum": [
+                  "card",
+                  "ai_message"
+                ],
+                "title": "Source Type",
+                "description": "What the link is from."
+              },
+              "source_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Source Id",
+                "description": "The ID of the card or AI message the link is from."
+              },
+              "target_project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project of what the link points at: the source's own project, or, for a card, another project, which\nneed not be on this device. A link grants no access to its target."
+              },
+              "target_type": {
+                "$ref": "#/$defs/LinkTargetType",
+                "description": "What the link points at."
+              },
+              "target_id": {
+                "$ref": "#/$defs/LinkTargetId",
+                "description": "The ID of what the link points at."
+              },
+              "kind": {
+                "$ref": "#/$defs/LinkKind",
+                "description": "What the link means."
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Label",
+                "description": "A note on the link; null when it has none."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the link was made."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "source_project_id",
+              "source_type",
+              "source_id",
+              "target_project_id",
+              "target_type",
+              "target_id",
+              "kind",
+              "label",
+              "created_at"
+            ],
+            "title": "Link",
+            "description": "A link from a card, or from an AI message, to something in a project. A link names both of its ends in full:\neach end's project, type and ID."
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "LinkTargetType": {
+            "type": "string",
+            "enum": [
+              "card",
+              "ai_message",
+              "ai_thread",
+              "resource"
+            ]
+          },
+          "LinkTargetId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "LinkKind": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "list_resources",
+      "description": "List a project's resources.\n\nBy when they last changed, latest first, then by ID.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/Resource"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Resource": {
+            "properties": {
+              "resource_id": {
+                "$ref": "#/$defs/ResourceId",
+                "description": "The resource's ID."
+              },
+              "project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project the resource belongs to."
+              },
+              "type": {
+                "$ref": "#/$defs/ResourceType",
+                "description": "What kind of thing the resource is."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Label",
+                "description": "The resource's name."
+              },
+              "metadata": {
+                "$ref": "#/$defs/ResourceMetadata",
+                "description": "What is known about the resource, by name."
+              },
+              "assets": {
+                "items": {
+                  "$ref": "#/$defs/ResourceAsset"
+                },
+                "type": "array",
+                "title": "Assets",
+                "description": "The resource's files."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the resource was made."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the resource was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "resource_id",
+              "project_id",
+              "type",
+              "label",
+              "metadata",
+              "assets",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "Resource",
+            "description": "A resource in a project, with its files."
+          },
+          "ResourceId": {
+            "type": "string",
+            "minLength": 4
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceMetadata": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "ResourceAsset": {
+            "properties": {
+              "asset_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Asset Id",
+                "description": "The asset's ID."
+              },
+              "original_filename": {
+                "type": "string",
+                "title": "Original Filename",
+                "description": "The file's name when it was imported."
+              },
+              "media_type": {
+                "type": "string",
+                "title": "Media Type",
+                "description": "The file's media type, such as application/pdf."
+              },
+              "byte_size": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Byte Size",
+                "description": "The file's size, in bytes."
+              },
+              "plaintext_sha256": {
+                "type": "string",
+                "title": "Plaintext Sha256",
+                "description": "The SHA-256 of the file's content, in lower-case hex."
+              },
+              "placements": {
+                "items": {
+                  "$ref": "#/$defs/AssetPlacement"
+                },
+                "type": "array",
+                "title": "Placements",
+                "description": "The stored copies of the file."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the asset was imported."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the asset was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "asset_id",
+              "original_filename",
+              "media_type",
+              "byte_size",
+              "plaintext_sha256",
+              "placements",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "ResourceAsset",
+            "description": "A file that belongs to a resource."
+          },
+          "AssetPlacement": {
+            "properties": {
+              "placement_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Placement Id",
+                "description": "The copy's ID."
+              },
+              "location_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Location Id",
+                "description": "The storage location that holds the copy."
+              },
+              "encoding": {
+                "type": "string",
+                "enum": [
+                  "plain",
+                  "holder_asset_v1"
+                ],
+                "title": "Encoding",
+                "description": "How the copy is stored: as the file is, or encrypted for the project."
+              },
+              "stored_byte_size": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Stored Byte Size",
+                "description": "The size of the stored copy, in bytes."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the copy was stored."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "placement_id",
+              "location_id",
+              "encoding",
+              "stored_byte_size",
+              "created_at"
+            ],
+            "title": "AssetPlacement",
+            "description": "One stored copy of an asset."
           }
         }
       }
@@ -5009,6 +6257,311 @@
           "MilestoneText": {
             "type": "string",
             "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "update_resource",
+      "description": "Change a resource.\n\nEach field left out keeps its value. A resource in another project is not found.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
+          },
+          "resource_id": {
+            "$ref": "#/$defs/ResourceId"
+          },
+          "update": {
+            "$ref": "#/$defs/ResourceUpdate"
+          }
+        },
+        "required": [
+          "resource_id",
+          "update"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceId": {
+            "type": "string",
+            "minLength": 4
+          },
+          "ResourceUpdate": {
+            "properties": {
+              "type": {
+                "$ref": "#/$defs/ResourceType",
+                "description": "What kind of thing the resource is."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Label",
+                "description": "The resource's name."
+              },
+              "metadata": {
+                "$ref": "#/$defs/ResourceMetadata",
+                "description": "Names whose values change: each name's values replace its old ones, an empty list removes the name, and\nnames left out are kept."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the resource was changed, for imports; omit for now."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "title": "ResourceUpdate",
+            "description": "A change to a resource. Each field left out keeps its value."
+          },
+          "ResourceType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceMetadata": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/Resource"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Resource": {
+            "properties": {
+              "resource_id": {
+                "$ref": "#/$defs/ResourceId",
+                "description": "The resource's ID."
+              },
+              "project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project the resource belongs to."
+              },
+              "type": {
+                "$ref": "#/$defs/ResourceType",
+                "description": "What kind of thing the resource is."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Label",
+                "description": "The resource's name."
+              },
+              "metadata": {
+                "$ref": "#/$defs/ResourceMetadata",
+                "description": "What is known about the resource, by name."
+              },
+              "assets": {
+                "items": {
+                  "$ref": "#/$defs/ResourceAsset"
+                },
+                "type": "array",
+                "title": "Assets",
+                "description": "The resource's files."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the resource was made."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the resource was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "resource_id",
+              "project_id",
+              "type",
+              "label",
+              "metadata",
+              "assets",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "Resource",
+            "description": "A resource in a project, with its files."
+          },
+          "ResourceId": {
+            "type": "string",
+            "minLength": 4
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceMetadata": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "ResourceAsset": {
+            "properties": {
+              "asset_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Asset Id",
+                "description": "The asset's ID."
+              },
+              "original_filename": {
+                "type": "string",
+                "title": "Original Filename",
+                "description": "The file's name when it was imported."
+              },
+              "media_type": {
+                "type": "string",
+                "title": "Media Type",
+                "description": "The file's media type, such as application/pdf."
+              },
+              "byte_size": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Byte Size",
+                "description": "The file's size, in bytes."
+              },
+              "plaintext_sha256": {
+                "type": "string",
+                "title": "Plaintext Sha256",
+                "description": "The SHA-256 of the file's content, in lower-case hex."
+              },
+              "placements": {
+                "items": {
+                  "$ref": "#/$defs/AssetPlacement"
+                },
+                "type": "array",
+                "title": "Placements",
+                "description": "The stored copies of the file."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the asset was imported."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the asset was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "asset_id",
+              "original_filename",
+              "media_type",
+              "byte_size",
+              "plaintext_sha256",
+              "placements",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "ResourceAsset",
+            "description": "A file that belongs to a resource."
+          },
+          "AssetPlacement": {
+            "properties": {
+              "placement_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Placement Id",
+                "description": "The copy's ID."
+              },
+              "location_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Location Id",
+                "description": "The storage location that holds the copy."
+              },
+              "encoding": {
+                "type": "string",
+                "enum": [
+                  "plain",
+                  "holder_asset_v1"
+                ],
+                "title": "Encoding",
+                "description": "How the copy is stored: as the file is, or encrypted for the project."
+              },
+              "stored_byte_size": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Stored Byte Size",
+                "description": "The size of the stored copy, in bytes."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the copy was stored."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "placement_id",
+              "location_id",
+              "encoding",
+              "stored_byte_size",
+              "created_at"
+            ],
+            "title": "AssetPlacement",
+            "description": "One stored copy of an asset."
           }
         }
       }

@@ -20,13 +20,16 @@ BINDINGS_PATH = "daemon/src/api/generated/McpBindings.h"
 TOOLS = (
     "get_calendar", "get_card", "get_card_breadcrumbs", "get_resource", "list_card_backlinks",
     "list_card_links", "list_card_milestones", "list_card_resources", "list_cards", "list_project_tags",
-    "list_trash", "search_cards",
+    "list_resource_backlinks", "list_resources", "list_trash", "search_cards",
 )
 WRITE_TOOLS = {
     "add_card_link": "POST",
     "add_card_milestone": "POST",
     "add_card_tag": "PUT",
+    "attach_card_resource": "PUT",
     "create_card": "POST",
+    "create_resource": "POST",
+    "detach_card_resource": "DELETE",
     "move_card": "POST",
     "remove_card_link": "DELETE",
     "remove_card_milestone": "DELETE",
@@ -35,13 +38,15 @@ WRITE_TOOLS = {
     "trash_card": "DELETE",
     "update_card": "PATCH",
     "update_card_milestone": "PATCH",
+    "update_resource": "PATCH",
 }
 DESTRUCTIVE_HINT_TOOLS = {
     "add_card_link", "remove_card_link", "remove_card_milestone", "remove_card_tag", "trash_card", "update_card",
-    "update_card_milestone",
+    "update_card_milestone", "update_resource", "detach_card_resource",
 }
 IDEMPOTENT_WRITE_TOOLS = {
-    "add_card_link", "add_card_tag", "remove_card_link", "remove_card_milestone", "remove_card_tag",
+    "add_card_link", "add_card_tag", "attach_card_resource", "detach_card_resource", "remove_card_link",
+    "remove_card_milestone", "remove_card_tag",
 }
 PAGE_LIMITS = {"list_cards": 100, "search_cards": 100}
 PAGE_DEFAULTS = {"list_cards": 50}
@@ -49,10 +54,11 @@ FIXED_ARGUMENTS = {
     "list_cards": {"include_content": False},
     "list_card_links": {"include_deleted": False},
     "list_card_backlinks": {"include_deleted": False, "scope": "local"},
+    "list_resource_backlinks": {"include_deleted": False},
     "list_trash": {"type": "card"},
     "trash_card": {"children": "promote"},
 }
-LOCAL_LINK_LIST_TOOLS = {"list_card_links", "list_card_backlinks", "remove_card_link"}
+LOCAL_LINK_LIST_TOOLS = {"list_card_links", "list_card_backlinks", "list_resource_backlinks", "remove_card_link"}
 COMPONENT_REF = "#/components/schemas/"
 
 
@@ -108,9 +114,13 @@ def generate_mcp_tools(contract: ContractView) -> str:
         route = schemas["paths"][binding.path][expected_method.lower()]
         parameters = {parameter["name"]: parameter for parameter in route.get("parameters", [])}
         if binding.body:
-            body = route["requestBody"]
+            body = route["requestBody"]["content"]["application/json"]["schema"]
+            if name == "create_resource":
+                record = components[body["$ref"].removeprefix(COMPONENT_REF)]
+                body = {**record, "properties": {key: value for key, value in record["properties"].items()
+                                                  if key != "resource_id"}}
             parameters[binding.body] = {
-                "schema": body["content"]["application/json"]["schema"],
+                "schema": body,
                 # Keep the tool's typed record explicit. {} is valid when Core allows an empty update.
                 "required": True,
             }
@@ -137,6 +147,8 @@ def generate_mcp_tools(contract: ContractView) -> str:
             description += "\n\nBoth ends must belong to the authorized project. Entries in Trash are excluded."
         if name == "list_trash":
             description = "List trashed cards in the authorized project."
+        if name == "create_resource":
+            description = "Create a resource in the authorized project. Holder assigns the resource ID."
         if name == "trash_card":
             description += "\n\nLive children are promoted into the card's place."
         if name == "add_card_link":
@@ -293,6 +305,11 @@ def generate_mcp_bindings(contract: ContractView) -> str:
             decode = field_decoder(types, slot, arg, source)
             lines.append(f"    auto {arg} = {decode};")
         lines.append("    authorize_project(project_id);")
+        if operation.name == "create_resource":
+            lines.extend([
+                "    if (resource.resource_id)",
+                '      throw std::invalid_argument("Holder assigns the resource ID for this MCP tool");',
+            ])
         target_project = {"add_card_link": "link.target_project_id", "remove_card_link": "target_project_id"}.get(
             operation.name)
         if target_project:
