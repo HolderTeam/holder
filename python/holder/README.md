@@ -369,9 +369,10 @@ that you want as a Python string.
 To take local copies of the attachments too, use
 `session.download_recovery_bundle(project_id, "project.zip")` and
 `workspace.restore_recovery_bundle("project.zip", name="Research copy")`.
-The ZIP uses the same streamed snapshot. Holder verifies attachments against
-the captured metadata before replacing the ZIP destination, and verifies them
-again when restoring them to new local placements in the private workspace.
+The ZIP uses the same streamed snapshot and stores one plaintext payload per
+distinct asset hash. Holder verifies attachments against the captured metadata
+before replacing the ZIP destination, and verifies them again when restoring
+them to new local placements in the private workspace.
 
 ## Clone and reopen a private Git workspace
 
@@ -402,12 +403,6 @@ Cloning uses a detached checkout and keeps the project's existing IDs.
 Closing the context keeps local edits, and reopening uses the local checkout.
 Clone accepts HTTPS, SSH, and Git remotes and checks the checkout before
 importing it into the private database.
-To save the snapshot and its attachments together, call
-`session.download_recovery_bundle(project_id, "project.zip")`. The ZIP contains
-the same recovery lines and one plaintext payload per distinct asset hash.
-Holder verifies all attachments before replacing the destination. Restore the
-archive with `workspace.restore_recovery_bundle("project.zip", name="Research copy")`.
-The new project uses local asset copies inside the private workspace.
 
 ### Publish committed work
 
@@ -440,6 +435,8 @@ where they are. Publication records describe pushes that succeeded at the time.
 
 ## More help
 
+- [From Holder Kit to `holder`](docs/from-holder-kit.md) maps Kit workflows to
+  the shared Python API.
 - [More scripting tasks](docs/scripting.md): links, milestones, project-wide
   milestone date searches, moves, Trash,
   resources, attachments, file imports, downloads, storage locations, tags,

@@ -26,7 +26,7 @@ Download Holder for Windows, macOS or Linux from [holder.team](https://holder.te
 - [`common/`](common/) - platform code shared by the daemon and `holderctl`.
 - [`apps/desktop/gtk/`](apps/desktop/gtk/) - the Holder desktop app (GTK 4 and libadwaita, built with Meson), a client of the daemon's HTTP API on Linux, macOS and Windows.
 - [`apps/mobile/android/`](apps/mobile/android/) - the Holder Android app (Kotlin and Compose), which embeds core through its C API and works without a daemon.
-- [`python/`](python/) - Python libraries: [`holder/`](python/holder/), Holder for Python scripts that work with a running Holder installation, and [`kit/`](python/kit/), Holder Kit, which embeds core for offline work.
+- [`python/`](python/) - Holder for Python, the public API for a running Holder installation and private embedded workspaces.
 - [`release/`](release/) - candidate assembly and checks in [`release/staging/`](release/staging/), signing, verification and publishing of releases, and the website ([`release/website/`](release/website/), www.holder.team), including its developer guides.
 
 ## Developing Holder

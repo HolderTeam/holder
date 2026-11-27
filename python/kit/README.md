@@ -2,6 +2,10 @@
 
 **Analyse, transform and import Holder data with Python.**
 
+For new scripts, use [`holder-python`](../holder/). The
+[Kit workflow guide](../holder/docs/from-holder-kit.md) shows the equivalent
+workspace, card, and analysis calls in `holder`.
+
 Holder Kit gives Python programs direct access to Holder projects, cards, connections, tags and milestones.
 
 Typical uses include:
