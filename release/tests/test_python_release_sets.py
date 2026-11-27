@@ -32,12 +32,12 @@ def tar_bytes(files):
     return stream.getvalue()
 
 
-def distribution_files(package, selection):
+def distribution_files(package, selection, *, desktop_wheels=False):
     result = {}
     name = 'holder-kit' if package == 'kit' else 'holder-python'
     stem = name.replace('-', '_') + '-0.2.6'
     metadata = f'Name: {name}\nVersion: 0.2.6\nLicense-File: third-party/test.txt\n\nTest package\n'
-    for filename in packages.filenames(package, '0.2.6'):
+    for filename in packages.filenames(package, '0.2.6', desktop_wheels=desktop_wheels):
         if filename.endswith('.whl'):
             output = io.BytesIO()
             with zipfile.ZipFile(output, 'w') as archive:
@@ -47,17 +47,25 @@ def distribution_files(package, selection):
                     core = next(asset for asset in selection['assets'] if asset['platform'] == platform)
                     archive.writestr('holderkit/_core_build.json', json.dumps(core))
                 elif not filename.endswith('-none-any.whl'):
-                    core = packages.python_linux_sdk(selection, '0.2.6')
+                    platform = packages.PLATFORMS[filename.removesuffix('.whl').split('-')[-1]]
+                    core = packages.python_sdk(selection, '0.2.6', platform)
                     archive.writestr('holder/_embedded/_core_build.json', json.dumps(core))
-                    archive.writestr('holder/_embedded/_native.so', 'fixture extension')
+                    suffix = '.pyd' if platform == 'windows' else '.so'
+                    archive.writestr('holder/_embedded/_native' + suffix, 'fixture extension')
                     archive.writestr('holder/_embedded/_schema.sql', 'fixture schema')
+                    if platform == 'windows':
+                        archive.writestr('holder/_embedded/.libs/test.dll', 'fixture library')
+                        archive.writestr('holder/_embedded/_licenses/test.txt', 'fixture licence')
+                    elif platform == 'macos':
+                        archive.writestr('holder/.dylibs/libtest.dylib', 'fixture library')
+                        archive.writestr(stem + '.dist-info/licenses/third-party/test.txt', 'fixture licence')
             result[filename] = output.getvalue()
         else:
             result[filename] = tar_bytes({stem + '/PKG-INFO': metadata, stem + '/README.md': 'Test package\n'})
     return result
 
 
-def release_manifest(package, files, selection):
+def release_manifest(package, files, selection, *, desktop_wheels=False):
     document = {'source': CANDIDATE, 'version': '0.2.6', 'files': [
         {'name': name, 'sha256': hashlib.sha256(data).hexdigest(), 'size': len(data)}
         for name, data in sorted(files.items())]}
@@ -66,18 +74,19 @@ def release_manifest(package, files, selection):
             'sdk_assets': selection['assets'], 'sdk_commits': {
                 asset['platform']: asset.get('commit', CANDIDATE) for asset in selection['assets']}}
     else:
-        document['core'] = packages.python_core_evidence(selection, '0.2.6', CANDIDATE)
+        document['core'] = packages.python_core_evidence(selection, '0.2.6', CANDIDATE,
+                                                         desktop_wheels=desktop_wheels)
     return document
 
 
 class PackageGitHub(FakeGitHub):
-    def __init__(self, directory):
+    def __init__(self, directory, *, desktop_wheels=False):
         super().__init__(directory)
         self.collections = 0
         for package, identifier in (('kit', 60), ('python', 70)):
             self.artifacts[identifier] = []
-            files = distribution_files(package, self.payloads.selection)
-            document = release_manifest(package, files, self.payloads.selection)
+            files = distribution_files(package, self.payloads.selection, desktop_wheels=desktop_wheels)
+            document = release_manifest(package, files, self.payloads.selection, desktop_wheels=desktop_wheels)
             self.payloads.add(identifier, packages.ARTIFACTS[package][0], files)
             self.payloads.add(identifier, packages.ARTIFACTS[package][1], {'release-manifest.json': json.dumps(document)})
 
@@ -133,6 +142,14 @@ class PackageCoordinatorTests(unittest.TestCase):
         self.reach_staging()
         self.coordinator.advance_packages()
         self.assertEqual(len(self.github.dispatches()), 5)
+
+    def test_coordinator_accepts_the_verified_holder_python_desktop_set(self):
+        self.github = PackageGitHub(self.directory.name, desktop_wheels=True)
+        self.coordinator = tool.Coordinator(self.path, self.record, self.github)
+        self.finish_packages()
+        prepared = self.record['python_packages']['python']
+        self.assertEqual(len(prepared['files']), 14)
+        self.assertEqual(set(prepared['manifest']['core']['sdk_assets']), {'linux', 'macos', 'windows'})
 
     def test_failed_package_retry_keeps_successful_sibling_and_sdk_builds(self):
         self.reach_packages()
@@ -230,13 +247,13 @@ class DistributionEvidenceTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.selection = fixtures.Fixture(self.root).selection
 
-    def write(self, package):
+    def write(self, package, *, desktop_wheels=False):
         directory = self.root / package
         directory.mkdir()
-        files = distribution_files(package, self.selection)
+        files = distribution_files(package, self.selection, desktop_wheels=desktop_wheels)
         for name, data in files.items():
             (directory / name).write_bytes(data)
-        return directory, release_manifest(package, files, self.selection)
+        return directory, release_manifest(package, files, self.selection, desktop_wheels=desktop_wheels)
 
     def verify(self, directory, package, document):
         return packages.verify(directory, package, '0.2.6', CANDIDATE, document, self.selection)
@@ -272,6 +289,46 @@ class DistributionEvidenceTests(unittest.TestCase):
         ]):
             packages.main()
         self.assertEqual(json.loads(output.read_text()), document)
+
+    def test_holder_python_desktop_manifest_records_each_sdk_and_requires_all_wheels(self):
+        directory, document = self.write('python', desktop_wheels=True)
+        selection = self.root / 'core-selection.json'
+        selection.write_text(json.dumps(self.selection))
+        output = self.root / 'release-manifest.json'
+        with patch.object(sys, 'argv', [
+            'python-distributions.py', '--directory', str(directory), '--version', '0.2.6',
+            '--candidate', CANDIDATE, '--selection', str(selection), '--output', str(output),
+            '--desktop-wheels',
+        ]):
+            packages.main()
+        actual = json.loads(output.read_text())
+        self.assertEqual(actual, document)
+        self.assertEqual(len(self.verify(directory, 'python', actual)), 14)
+        self.assertEqual(set(actual['core']['sdk_assets']), {'linux', 'macos', 'windows'})
+        next(directory.glob('*win_amd64.whl')).unlink()
+        with self.assertRaisesRegex(ValueError, 'Incomplete'):
+            self.verify(directory, 'python', actual)
+
+    def test_holder_python_desktop_wheels_require_the_platform_sdk_and_bundled_libraries(self):
+        directory, document = self.write('python', desktop_wheels=True)
+        windows = next(directory.glob('*win_amd64.whl'))
+        macos = next(directory.glob('*macosx*.whl'))
+        entry = 'holder/_embedded/_core_build.json'
+        with zipfile.ZipFile(macos) as archive:
+            macos_core = archive.read(entry)
+        with zipfile.ZipFile(windows) as archive:
+            entries = {name: archive.read(name) for name in archive.namelist()}
+        with zipfile.ZipFile(windows, 'w') as archive:
+            for name, data in entries.items():
+                archive.writestr(name, macos_core if name == entry else data)
+        with self.assertRaisesRegex(ValueError, 'wheel differs from the pinned SDK'):
+            self.verify(directory, 'python', document)
+        with zipfile.ZipFile(windows, 'w') as archive:
+            for name, data in entries.items():
+                if not name.endswith('.dll'):
+                    archive.writestr(name, data)
+        with self.assertRaisesRegex(ValueError, 'missing DLLs or dependency licences'):
+            self.verify(directory, 'python', document)
 
     def test_actual_kit_manifest_producer_agrees_with_the_coordinator_verifier(self):
         directory, _ = self.write('kit')

@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class ProjectDataFrames(TypedDict):
-    """One project's records as five pandas tables."""
+    """Project records as five pandas tables."""
 
     projects: pd.DataFrame
     cards: pd.DataFrame
@@ -60,14 +60,17 @@ def _frame(
     return frame
 
 
-def to_dataframes(records: ProjectRecords) -> ProjectDataFrames:
-    """Convert a project export to detached pandas tables with UTC timestamps.
+def to_dataframes(
+    records: ProjectRecords | Iterable[ProjectRecords],
+) -> ProjectDataFrames:
+    """Convert one or more project exports to detached pandas tables with UTC timestamps.
 
     The cards table includes a content column when the records contain bodies.
     Milestone dates keep their role and original day or instant.
     """
     pandas = _require_extra("pandas", "pandas")
-    cards = records["cards"]
+    projects = [records] if isinstance(records, dict) else list(records)
+    cards = [card for project in projects for card in project["cards"]]
     have_content = any("content" in card for card in cards)
     card_columns = [
         field
@@ -75,20 +78,32 @@ def to_dataframes(records: ProjectRecords) -> ProjectDataFrames:
         if field != "content" or have_content
     ]
     milestones = (
-        {**row, "dates": deepcopy(row["dates"])} for row in records["milestones"]
+        {**row, "dates": deepcopy(row["dates"])}
+        for project in projects
+        for row in project["milestones"]
     )
     return {
-        "projects": _frame(pandas, [records["project"]], list(Project.__annotations__)),
+        "projects": _frame(
+            pandas,
+            (project["project"] for project in projects),
+            list(Project.__annotations__),
+        ),
         "cards": _frame(pandas, cards, card_columns),
-        "links": _frame(pandas, records["links"], list(Link.__annotations__)),
+        "links": _frame(
+            pandas,
+            (link for project in projects for link in project["links"]),
+            list(Link.__annotations__),
+        ),
         "tag_memberships": _frame(
-            pandas, records["tag_memberships"], list(TagMembership.__annotations__)
+            pandas,
+            (tag for project in projects for tag in project["tag_memberships"]),
+            list(TagMembership.__annotations__),
         ),
         "milestones": _frame(pandas, milestones, list(Milestone.__annotations__)),
     }
 
 
-def to_networkx(records: ProjectRecords) -> nx.MultiDiGraph:
+def to_networkx(records: ProjectRecords | Iterable[ProjectRecords]) -> nx.MultiDiGraph:
     """Build a directed multigraph of live cards and explicit card-to-card links.
 
     A node is keyed by (project_id, card_id). Targets outside the export get a
@@ -96,17 +111,19 @@ def to_networkx(records: ProjectRecords) -> nx.MultiDiGraph:
     """
     networkx = _require_extra("networkx", "graph")
     graph = networkx.MultiDiGraph()
-    for card in records["cards"]:
-        node = (card["project_id"], card["card_id"])
-        graph.add_node(node, **card, exported=True)
-    for link in records["links"]:
-        if link["source_type"] != "card" or link["target_type"] != "card":
-            continue
-        source = (link["source_project_id"], link["source_id"])
-        target = (link["target_project_id"], link["target_id"])
-        if target not in graph:
-            graph.add_node(
-                target, project_id=target[0], card_id=target[1], exported=False
-            )
-        graph.add_edge(source, target, key=link["kind"], **link)
+    projects = (records,) if isinstance(records, dict) else records
+    for project in projects:
+        for card in project["cards"]:
+            node = (card["project_id"], card["card_id"])
+            graph.add_node(node, **card, exported=True)
+        for link in project["links"]:
+            if link["source_type"] != "card" or link["target_type"] != "card":
+                continue
+            source = (link["source_project_id"], link["source_id"])
+            target = (link["target_project_id"], link["target_id"])
+            if target not in graph:
+                graph.add_node(
+                    target, project_id=target[0], card_id=target[1], exported=False
+                )
+            graph.add_edge(source, target, key=link["kind"], **link)
     return graph

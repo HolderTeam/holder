@@ -8,7 +8,7 @@ installation. Changes you make in a script appear in Holder too.
 
 ## Get started
 
-1. You need the Holder application on your computer.
+1. To work with your running Holder installation, install the Holder application.
 Get it from https://www.holder.team/
 
 2. You need Python 3.11 or newer.
@@ -36,6 +36,8 @@ with Holder() as holder:
 `Holder()` finds or starts your local Holder daemon using `holderctl`. The
 `with` block closes the Python connection when the script ends; it does not
 stop Holder.
+To work without the application, see [Run with or without a local Holder
+installation](#run-with-or-without-a-local-holder-installation).
 
 ## Create and edit cards
 
@@ -119,9 +121,10 @@ with open_workspace("private-holder-workspace") as session:
     print(cards.list_cards(project_id)["items"])
 ```
 
-Opening a private workspace requires a native Holder wheel or a same-checkout
-Holder Kit build. Use a separate data directory for embedded work. To run this
-code against the desktop Holder profile, open the session with `Holder()` or
+Opening a private workspace requires a native Holder wheel. See
+[building native wheels](docs/development.md#build-the-linux-wheel-variants)
+for source development. Use a separate data directory for embedded work. To
+run this code against the desktop Holder profile, open the session with `Holder()` or
 `open_session()`. The desktop profile requires HTTP even when its daemon is stopped.
 Opening a directory already in use by a daemon or another embedded session
 raises a workspace conflict.
@@ -248,6 +251,10 @@ lists that you can serialize or use after closing the session. Each read uses
 current data, so edits during export can affect the results. Use the Card
 iterator below if you only need cards and want to process them a page at a time.
 
+Use `iter_project_records(session)` to export every project visible in a
+session, one project at a time. Pass `project_ids=[first_id, second_id]` to
+select particular projects in that order.
+
 ### Use pandas or NetworkX
 
 Install the extras with `pip install 'holder-python[pandas,graph]'`. This
@@ -272,16 +279,25 @@ The pandas adapter returns tables named `projects`, `cards`, `links`,
 and graph nodes.
 
 The directed multigraph contains live cards and their explicit card links.
-Nodes use `(project_id, card_id)` keys. Links to cards outside the project get
+Nodes use `(project_id, card_id)` keys. Links to cards outside the export get
 placeholder nodes with `exported=False`. Edges retain the link kind and use it
 as their key.
+
+Both adapters also take an iterable of project exports. Run this inside an
+open session to build one graph for all of its projects:
+
+```python
+from holder import iter_project_records, open_session, to_networkx
+
+with open_session() as session:
+    graph = to_networkx(iter_project_records(session))
+```
 
 ## Export Card records for analysis
 
 `iter_card_records()` reads one project's live cards through the active session
 and yields detached dictionaries. Use `session.list_projects()` to find the
-project ID. Card bodies are optional, as in
-[Holder Kit's record exports](../kit/docs/walkthrough.md#export-ordinary-python-records).
+project ID. Pass `include_content=True` to include card bodies.
 
 ```python
 import json
@@ -301,6 +317,25 @@ in a notebook. Each page reads the project's current state, so changes made
 during export can appear in the result. The export contains card listing
 records and optional Markdown bodies. For an encrypted project, including
 bodies writes their decrypted text to the output file.
+
+Both `iter_card_records()` and `iter_card_batches()` accept `tag`, `parent`,
+and `order`. Pass `parent="roots"` for root cards or a card ID for its direct
+children. Order by card ID (`card_id_asc`, the default), most recently updated
+(`updated_desc`), or sibling position (`sort_key_asc`).
+
+```python
+from holder import iter_card_batches, open_workspace
+
+with open_workspace("research-workspace") as session:
+    for batch in iter_card_batches(
+        session.card_operations, project_id, batch_size=256,
+        tag="research", parent="roots", order="updated_desc",
+    ):
+        print([card["title"] for card in batch])
+```
+
+`iter_card_batches()` yields a list at a time, and only the last list may be
+shorter than `batch_size`.
 
 ## Make an editable copy of a project's cards
 
@@ -335,9 +370,10 @@ that you want as a Python string.
 To take local copies of the attachments too, use
 `session.download_recovery_bundle(project_id, "project.zip")` and
 `workspace.restore_recovery_bundle("project.zip", name="Research copy")`.
-The ZIP uses the same streamed snapshot. Holder verifies attachments against
-the captured metadata before replacing the ZIP destination, and verifies them
-again when restoring them to new local placements in the private workspace.
+The ZIP uses the same streamed snapshot and stores one plaintext payload per
+distinct asset hash. Holder verifies attachments against the captured metadata
+before replacing the ZIP destination, and verifies them again when restoring
+them to new local placements in the private workspace.
 
 ## Clone and reopen a private Git workspace
 
@@ -368,12 +404,6 @@ Cloning uses a detached checkout and keeps the project's existing IDs.
 Closing the context keeps local edits, and reopening uses the local checkout.
 Clone accepts HTTPS, SSH, and Git remotes and checks the checkout before
 importing it into the private database.
-To save the snapshot and its attachments together, call
-`session.download_recovery_bundle(project_id, "project.zip")`. The ZIP contains
-the same recovery lines and one plaintext payload per distinct asset hash.
-Holder verifies all attachments before replacing the destination. Restore the
-archive with `workspace.restore_recovery_bundle("project.zip", name="Research copy")`.
-The new project uses local asset copies inside the private workspace.
 
 ### Publish committed work
 
@@ -406,6 +436,8 @@ where they are. Publication records describe pushes that succeeded at the time.
 
 ## More help
 
+- [From Holder Kit to `holder`](docs/from-holder-kit.md) maps Kit workflows to
+  the shared Python API.
 - [More scripting tasks](docs/scripting.md): links, milestones, project-wide
   milestone date searches, moves, Trash,
   resources, attachments, file imports, downloads, storage locations, tags,
@@ -417,6 +449,3 @@ where they are. Publication records describe pushes that succeeded at the time.
 - [Low-level client](docs/low-level-client.md): direct access to HTTP endpoints.
 - [Development](docs/development.md): tests, builds, and generated code.
 - [Publishing](docs/publishing.md): PyPI setup and release steps.
-
-For offline analysis and bulk work without a running Holder installation, see
-[Holder Kit](../kit/).

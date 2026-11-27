@@ -14,8 +14,10 @@ import pytest
 
 from holder import (
     Card,
+    EmbeddedUnavailableError,
     Holder,
     Project,
+    iter_card_batches,
     iter_card_records,
     open_session,
     open_workspace,
@@ -899,6 +901,68 @@ def test_card_record_export_rejects_repeated_cursor():
 
     with holder_for(respond) as session, pytest.raises(ProtocolError, match="did not advance"):
         list(iter_card_records(session.card_operations, "p-0"))
+
+
+def test_card_export_batches_fill_across_pages_and_keep_filters():
+    cursors = []
+
+    def respond(request):
+        query = request.url.params
+        assert query["parent"] == "p-1"
+        assert query["tag"] == "research"
+        assert query["order"] == "sort_key_asc"
+        assert query["limit"] == "2"
+        assert query["include_content"] == "true"
+        cursors.append(query.get("cursor"))
+        index = len(cursors)
+        return ok({
+            "items": [card_payload(index, content=True)],
+            "next_cursor": f"page-{index + 1}" if index < 3 else None,
+        })
+
+    with holder_for(respond) as session:
+        batches = iter_card_batches(
+            session.card_operations, "p-0", batch_size=2, parent="p-1", tag="research",
+            order="sort_key_asc", include_content=True,
+        )
+        assert cursors == []
+        first = next(batches)
+        assert cursors == [None, "page-2"]
+        (last,) = batches
+
+    assert cursors == [None, "page-2", "page-3"]
+    assert [record["card_id"] for record in first + last] == [
+        card_payload(index)["card_id"] for index in range(1, 4)
+    ]
+    assert all(record["content"] == "current body" for record in first + last)
+
+
+@pytest.mark.parametrize(("size", "error"), [(0, ValueError), (-1, ValueError), (True, TypeError)])
+def test_card_export_batches_reject_invalid_size(size, error):
+    with (
+        holder_for(lambda request: pytest.fail("Unexpected request")) as session,
+        pytest.raises(error, match="batch_size must be a positive integer"),
+    ):
+        list(iter_card_batches(session.card_operations, "p-0", batch_size=size))
+
+
+@pytest.mark.parametrize(
+    ("failure", "message"),
+    [
+        (ModuleNotFoundError(name="holder._embedded._native"), "Install a compatible native wheel"),
+        (ImportError("missing shared library"), "bundled Holder extension failed to load"),
+    ],
+)
+def test_open_workspace_requires_the_bundled_extension(monkeypatch, tmp_path, failure, message):
+    load = Mock(side_effect=failure)
+    monkeypatch.setattr("holder.cards.import_module", load)
+    path = tmp_path / "workspace"
+
+    with pytest.raises(EmbeddedUnavailableError, match=message), open_workspace(path):
+        pytest.fail("Workspace opened without a bundled extension")
+
+    load.assert_called_once_with("holder._embedded._native")
+    assert not path.exists()
 
 
 def test_open_session_prefers_local_daemon(monkeypatch, tmp_path):

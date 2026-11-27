@@ -26,6 +26,9 @@ from holder import (
     LinkKindLabels,
     MilestoneDate,
     ProjectRecord,
+    iter_card_batches,
+    iter_card_records,
+    iter_project_records,
     open_session,
     open_workspace,
     to_dataframes,
@@ -516,12 +519,9 @@ def test_project_scoped_collections_against_daemon(daemon):
 
 
 def test_embedded_profile_ownership(daemon, tmp_path):
-    if find_spec("holder._embedded._native"):
-        package = "holder._embedded"
-    elif find_spec("holderkit"):
-        package = "holderkit"
-    else:
-        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+    package = "holder._embedded"
+    if not find_spec(f"{package}._native"):
+        pytest.skip("Requires a native Holder wheel")
 
     profile = tmp_path / "data" / "holder"
     with pytest.raises(ValueError, match="desktop Holder profile"), open_workspace(profile):
@@ -610,8 +610,8 @@ def test_daemon_recovery_snapshot_download(daemon):
 
 
 def test_recovery_snapshot_round_trip(daemon, tmp_path):
-    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
-        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+    if not find_spec("holder._embedded._native"):
+        pytest.skip("Requires a native Holder wheel")
 
     url, token, _, _ = daemon
     with Holder(url=url, token=token) as session:
@@ -632,8 +632,8 @@ def test_recovery_snapshot_round_trip(daemon, tmp_path):
 
 
 def test_copy_large_live_project_uses_captured_snapshot(daemon, tmp_path):
-    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
-        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+    if not find_spec("holder._embedded._native"):
+        pytest.skip("Requires a native Holder wheel")
 
     url, token, raw, _ = daemon
     source_id = create_project(raw, "Large snapshot")
@@ -686,8 +686,8 @@ def test_copy_large_live_project_uses_captured_snapshot(daemon, tmp_path):
 def test_project_copy_cleans_up_failed_transfer_or_restore(
     tmp_path, monkeypatch, interrupted
 ):
-    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
-        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+    if not find_spec("holder._embedded._native"):
+        pytest.skip("Requires a native Holder wheel")
 
     class BadSnapshot(httpx.SyncByteStream):
         def __iter__(self):
@@ -721,8 +721,8 @@ def test_project_copy_cleans_up_failed_transfer_or_restore(
 
 
 def test_large_recovery_bundle_keeps_verified_attachments(daemon, tmp_path):
-    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
-        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+    if not find_spec("holder._embedded._native"):
+        pytest.skip("Requires a native Holder wheel")
 
     url, token, raw, _ = daemon
     project_id = create_project(raw, "Large project with attachments")
@@ -817,8 +817,8 @@ def test_large_recovery_bundle_keeps_verified_attachments(daemon, tmp_path):
 
 @pytest.mark.parametrize("archive", [False, True], ids=["lines", "archive"])
 def test_embedded_recovery_snapshot_restore(tmp_path, archive):
-    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
-        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+    if not find_spec("holder._embedded._native"):
+        pytest.skip("Requires a native Holder wheel")
 
     def line(card_id, title, parent=None):
         return json.dumps(
@@ -892,8 +892,8 @@ def shared_card_session(request, tmp_path):
             else open_session(url=url, token=token)
         )
     else:
-        if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
-            pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+        if not find_spec("holder._embedded._native"):
+            pytest.skip("Requires a native Holder wheel")
         data_dir = tmp_path / "workspace"
         session = open_session(
             fallback_workspace=data_dir, holderctl=str(tmp_path / "missing-holderctl")
@@ -945,6 +945,14 @@ def test_shared_card_operations(shared_card_session):
         assert [item["card_id"] for item in roots["items"]] == [parent_id]
         assert roots["items"][0]["child_count"] == 1
         assert roots["items"][0].keys() == CardListItem.__required_keys__ | {"child_count"}
+        assert [row["card_id"] for row in iter_card_records(cards, project_id, parent="roots")] == [
+            parent_id
+        ]
+        (matched,) = iter_card_batches(
+            cards, project_id, batch_size=1, parent=parent_id, tag="research", order="updated_desc"
+        )
+        assert [row["card_id"] for row in matched] == [child_id]
+        assert "content" not in matched[0]
 
         parent_page = cards.list_cards(project_id, limit=1, include_content=True)
         assert len(parent_page["items"]) == 1
@@ -1510,3 +1518,27 @@ def test_shared_card_operations_analysis_adapters(shared_card_session):
     target = (project_id, second["card_id"])
     assert graph.nodes[source]["title"] == first["title"]
     assert graph[source][target]["tests"] == link
+
+
+def test_shared_card_operations_export_selected_projects(shared_card_session):
+    with shared_card_session as active:
+        first_id = active.create_plain_project(name="First export")["project_id"]
+        second_id = active.create_plain_project(name="Second export")["project_id"]
+        cards = active.card_operations
+        cards.create_card(first_id, {"title": "First card", "content": "First #research"})
+        cards.create_card(second_id, {"title": "Second card", "content": "Second #research"})
+
+        assert list(iter_project_records(active, project_ids=[])) == []
+        assert {
+            export["project"]["project_id"] for export in iter_project_records(active)
+        } == {project["project_id"] for project in active.list_projects()}
+        records = list(iter_project_records(
+            active, project_ids=(second_id, first_id, second_id), include_content=True
+        ))
+
+    assert [record["project"]["project_id"] for record in records] == [second_id, first_id]
+    pytest.importorskip("pandas")
+    tables = to_dataframes(iter(records))
+    assert tables["projects"]["project_id"].tolist() == [second_id, first_id]
+    assert tables["cards"]["content"].tolist() == ["Second #research", "First #research"]
+    assert tables["tag_memberships"]["project_id"].tolist() == [second_id, first_id]

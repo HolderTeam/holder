@@ -20,12 +20,15 @@ ARTIFACTS = {'kit': ('kit-release-distributions', 'kit-release-manifest'),
 WORKFLOWS = {'kit': 'release-kit-pypi.yml', 'python': 'release-holder-python-pypi.yml'}
 PLATFORMS = {'manylinux_2_39_x86_64': 'linux', 'win_amd64': 'windows', 'macosx_15_0_arm64': 'macos'}
 HOLDER_PYTHON_ABIS = ('cp311', 'cp312', 'cp313', 'cp314')
+HOLDER_PYTHON_LINUX_TAG = 'manylinux_2_39_x86_64'
+SDK_ARCHITECTURES = {'linux': 'x86_64', 'windows': 'x86_64', 'macos': 'arm64'}
 
 
-def filenames(package, version):
+def filenames(package, version, *, desktop_wheels=False):
     if package == 'python':
-        return {f'holder_python-{version}-{abi}-{abi}-manylinux_2_39_x86_64.whl'
-                for abi in HOLDER_PYTHON_ABIS} | {
+        tags = PLATFORMS if desktop_wheels else (HOLDER_PYTHON_LINUX_TAG,)
+        return {f'holder_python-{version}-{abi}-{abi}-{tag}.whl'
+                for abi in HOLDER_PYTHON_ABIS for tag in tags} | {
                     f'holder_python-{version}-py3-none-any.whl', f'holder_python-{version}.tar.gz'}
     return {f'holder_kit-{version}-{python}-{python}-{platform}.whl'
             for python in ('cp310', 'cp311', 'cp312', 'cp313', 'cp314', 'cp315')
@@ -38,25 +41,30 @@ def metadata(data, name, version):
             f'Distribution metadata differs from {name} {version}')
 
 
-def python_linux_sdk(selection, version):
+def python_sdk(selection, version, platform):
     require(selection is not None, 'Holder Python verification requires the pinned core selection')
     require(selection['version'] == version.split('.post', 1)[0], 'Holder Python SDK version differs')
     assets = [asset for asset in selection['assets']
-              if asset['platform'] == 'linux' and asset['build_type'] == 'Release']
-    require(len(assets) == 1 and assets[0]['architecture'] == 'x86_64',
-            'Holder Python Linux SDK configuration is missing or ambiguous')
+              if asset['platform'] == platform and asset['build_type'] == 'Release']
+    require(len(assets) == 1 and assets[0]['architecture'] == SDK_ARCHITECTURES[platform],
+            f'Holder Python {platform} SDK configuration is missing or ambiguous')
     return assets[0]
 
 
-def python_core_evidence(selection, version, candidate):
-    asset = python_linux_sdk(selection, version)
+def python_core_evidence(selection, version, candidate, *, desktop_wheels=False):
+    platforms = PLATFORMS.values() if desktop_wheels else ('linux',)
+    assets = {platform: python_sdk(selection, version, platform) for platform in platforms}
     require(selection['commit'] == candidate, 'Pinned Holder Python core identity differs')
-    return {'commit': candidate, 'version': selection['version'],
-            'core_tree': selection['core_tree'], 'sdk_asset': asset}
+    record = {'commit': candidate, 'version': selection['version'], 'core_tree': selection['core_tree']}
+    if desktop_wheels:
+        record['sdk_assets'] = assets
+    else:
+        record['sdk_asset'] = assets['linux']
+    return record
 
 
-def check(directory, package, version, selection=None):
-    expected = filenames(package, version)
+def check(directory, package, version, selection=None, *, desktop_wheels=False):
+    expected = filenames(package, version, desktop_wheels=desktop_wheels)
     require({file.name for file in directory.iterdir()} == expected, 'Incomplete or unexpected Python distribution set')
     name = 'holder-kit' if package == 'kit' else 'holder-python'
     stem = name.replace('-', '_') + '-' + version
@@ -77,14 +85,25 @@ def check(directory, package, version, selection=None):
                         require(not extensions and core_entry not in files and schema_entry not in files,
                                 'Universal Holder Python wheel contains native build files')
                     else:
-                        require(len(extensions) == 1 and extensions[0].endswith('.so') and
+                        platform = PLATFORMS[filename.removesuffix('.whl').split('-')[-1]]
+                        suffix = '.pyd' if platform == 'windows' else '.so'
+                        require(len(extensions) == 1 and extensions[0].endswith(suffix) and
                                 files.count(core_entry) == files.count(schema_entry) == 1,
                                 'Native Holder Python wheel is missing its extension, schema or SDK metadata')
-                        asset = python_linux_sdk(selection, version)
+                        if platform == 'windows':
+                            require(any(path.startswith(prefix + '.libs/') and path.endswith('.dll') for path in files) and
+                                    any(path.startswith(prefix + '_licenses/') and not path.endswith('/') for path in files),
+                                    'Windows Holder Python wheel is missing DLLs or dependency licences')
+                        elif platform == 'macos':
+                            require(any(path.endswith('.dylib') for path in files) and
+                                    any(path.startswith(stem + '.dist-info/licenses/third-party/') and
+                                        not path.endswith('/') for path in files),
+                                    'macOS Holder Python wheel is missing dylibs or dependency licences')
+                        asset = python_sdk(selection, version, platform)
                         core = json.loads(wheel.read(core_entry))
                         require(all(core[key] == value for key, value in {
                             'commit': asset.get('commit', selection['commit']),
-                            'version': selection['version'], 'platform': 'linux',
+                            'version': selection['version'], 'platform': platform,
                             'architecture': asset['architecture'], 'build_type': 'Release'}.items()),
                             'Holder Python wheel differs from the pinned SDK')
                 if package == 'kit':
@@ -112,7 +131,8 @@ def check(directory, package, version, selection=None):
 def verify(directory, package, version, candidate, document, selection=None):
     require(document['source'] == candidate and document['version'] == version,
             'Distribution manifest differs from candidate source/version')
-    files = check(directory, package, version, selection)
+    desktop_wheels = package == 'python' and 'sdk_assets' in document.get('core', {})
+    files = check(directory, package, version, selection, desktop_wheels=desktop_wheels)
     require(document['files'] == files, 'Distribution file hashes differ from the manifest')
     if package == 'kit':
         require(selection['commit'] == candidate and selection['version'] == version, 'Pinned core identity differs')
@@ -123,7 +143,8 @@ def verify(directory, package, version, candidate, document, selection=None):
                     for asset in selection['assets'] if asset['build_type'] == 'Release'},
                 'Kit distribution manifest differs from the pinned SDK selection')
     else:
-        require(document.get('core') == python_core_evidence(selection, version, candidate),
+        require(document.get('core') == python_core_evidence(
+            selection, version, candidate, desktop_wheels=desktop_wheels),
                 'Holder Python distribution manifest differs from the pinned SDK selection')
     return files
 
@@ -149,7 +170,8 @@ def collect(record, github, names=None):
         values, manifest_hash = github.read(record['repository'], manifest_item, ['release-manifest.json'])
         document = json.loads(values['release-manifest.json'])
         item = select(dist_name)
-        expected = filenames(package, record['version'])
+        desktop_wheels = package == 'python' and 'sdk_assets' in document.get('core', {})
+        expected = filenames(package, record['version'], desktop_wheels=desktop_wheels)
         _, archive_hash = github.read(record['repository'], item, [], expected)
         directory = github.directory / package
         directory.mkdir()
@@ -179,13 +201,17 @@ def main():
     parser.add_argument('--candidate', required=True)
     parser.add_argument('--selection', required=True, type=Path)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--desktop-wheels', action='store_true',
+                        help='verify native wheels for Linux, macOS and Windows')
     args = parser.parse_args()
     manifest_tool.provenance.commit(args.candidate)
     require(re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:\.post[0-9]+)?', args.version), 'Invalid package version')
     selection = json.loads(args.selection.read_text())
     document = {'source': args.candidate, 'version': args.version,
-                'files': check(args.directory, 'python', args.version, selection),
-                'core': python_core_evidence(selection, args.version, args.candidate)}
+                'files': check(args.directory, 'python', args.version, selection,
+                               desktop_wheels=args.desktop_wheels),
+                'core': python_core_evidence(selection, args.version, args.candidate,
+                                             desktop_wheels=args.desktop_wheels)}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(document, indent=2) + '\n')
 

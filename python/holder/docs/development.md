@@ -30,15 +30,16 @@ core, not in this library.
 ## Build the Linux wheel variants
 
 The default build produces a universal HTTP wheel. To build a native wheel
-with the same version, stage Kit against a core SDK built from the same
-checkout. Run the following from the repository root with an absolute SDK
-path in `HOLDER_CORE_SDK`:
+with the same version, stage the native component against a core SDK built
+from the same checkout. Run the following from the repository root with an
+absolute SDK path in `HOLDER_CORE_SDK`:
 
 ```sh
 work=$(mktemp -d)
-cmake -S python/kit -B "$work/kit" -DCMAKE_INSTALL_PREFIX="$work/stage"
+cmake -S python/kit -B "$work/kit" -DCMAKE_INSTALL_PREFIX="$work/stage" \
+  -DHOLDER_KIT_INSTALL_DIR=holder/_embedded
 cmake --build "$work/kit"
-cmake --install "$work/kit"
+cmake --install "$work/kit" --component holder_native
 python -m build --wheel --outdir "$work/wheels" python/holder
 HOLDER_PYTHON_EMBEDDED_STAGE="$work/stage" \
   python -m build --wheel --outdir "$work/wheels" python/holder
@@ -46,9 +47,11 @@ HOLDER_PYTHON_EMBEDDED_STAGE="$work/stage" \
 
 CMake and the wheel build must use the same CPython interpreter. Set
 `-DPython_EXECUTABLE=/path/to/python` on the CMake command if needed. The
-native build packages the staged extension and schema under `holder`.
+native build packages the staged extension, schema, and SDK metadata under `holder`.
 A compatible Linux CPython prefers that wheel when both variants are offered
-at the same version. For a redistributable Linux wheel, build on Ubuntu 24.04
+at the same version. Install the native wheel in your test environment to
+exercise `open_workspace()` from a checkout. The editable install shown above
+uses HTTP. For a redistributable Linux wheel, build on Ubuntu 24.04
 with a matching core SDK and then bundle the runtime dependencies. This uses
 `patchelf`, `wheel` and `auditwheel`:
 
@@ -62,7 +65,24 @@ The repair checks the `manylinux_2_39_x86_64` ABI and records supplier
 notices. The Python CI workflow builds and tests this wheel from a fresh
 install. For a local smoke test on a newer Linux distribution, use
 `--bundle-only` to bundle the libraries and keep the original Linux tag.
-Release publishing still uses the existing universal wheel flow.
+The [PyPI release workflow](publishing.md) builds the universal wheel and the
+supported native Linux wheels.
+
+## Build a Windows wheel from source
+
+Use 64-bit CPython and MSVC with a verified Windows core SDK. The
+[Windows CI job](../../../.github/workflows/kit-ci.yml) shows the build commands
+and uses the vcpkg toolchain from the SDK. The `holder_native` CMake component
+stages the extension, schema, SDK metadata, runtime DLLs, and dependency
+licences. Set `HOLDER_PYTHON_EMBEDDED_STAGE` to that stage when building the
+wheel. The installed-wheel check opens and reopens a private workspace.
+
+## Build a macOS wheel from source
+
+The [macOS CI job](../../../.github/workflows/kit-ci.yml) builds an ARM64 wheel
+with the macOS core SDK and Homebrew dependencies. It targets macOS 15, includes
+the suppliers' notices, and uses `delocate` to bundle the runtime dylibs before
+installing the wheel and checking a private workspace.
 
 ## Layout and regeneration
 
