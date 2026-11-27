@@ -76,9 +76,7 @@ class AndroidS3Provider(
         val request = signedRequestBuilder("GET", objectKey, EMPTY_SHA256).get().build()
         execute(request).use { response ->
             checkOk(response, "GET")
-            val body = response.body
-                ?: throw StorageProviderFailure(StorageErrorCode.INTEGRITY, "empty S3 response body")
-            File(destinationFilePath).outputStream().use { out -> body.byteStream().copyTo(out) }
+            File(destinationFilePath).outputStream().use { out -> response.body.byteStream().copyTo(out) }
         }
     }
 

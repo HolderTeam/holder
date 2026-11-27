@@ -145,7 +145,7 @@ fun SearchScreen(
                     LazyColumn {
                         items(current.value, key = { it.projectId + "/" + it.cardId }) { hit ->
                             ListItem(
-                                headlineContent = { Text(hit.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                content = { Text(hit.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 supportingContent = hit.snippet.takeIf { it.isNotBlank() }?.let { snippet ->
                                     { Text(snippet, maxLines = 2, overflow = TextOverflow.Ellipsis) }
                                 },

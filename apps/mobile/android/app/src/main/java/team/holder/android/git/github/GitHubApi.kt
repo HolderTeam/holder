@@ -61,7 +61,7 @@ internal object GitHubApi {
         runCatching {
             val request = authedRequest(accessToken, "$API_BASE/user").build()
             client.newCall(request).execute().use { response ->
-                val body = response.body?.string().orEmpty()
+                val body = response.body.string()
                 if (!response.isSuccessful) {
                     mapGenericError<GitHubAuthenticatedUser>(response.code, body)
                 } else {
@@ -78,7 +78,7 @@ internal object GitHubApi {
         runCatching {
             val request = authedRequest(accessToken, "$API_BASE/user/installations").build()
             client.newCall(request).execute().use { response ->
-                val body = response.body?.string().orEmpty()
+                val body = response.body.string()
                 if (!response.isSuccessful) {
                     mapGenericError<List<GitHubInstallation>>(response.code, body)
                 } else {
@@ -130,7 +130,7 @@ internal object GitHubApi {
             .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
         client.newCall(request).execute().use { response ->
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string()
             when {
                 response.isSuccessful -> {
                     Log.d("GitHubApi", "createRepository: POST /user/repos succeeded for $name")
@@ -176,7 +176,7 @@ internal object GitHubApi {
             .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
         client.newCall(request).execute().use { response ->
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string()
             when {
                 response.isSuccessful -> {
                     Log.d("GitHubApi", "addDeployKey: POST /repos/$owner/$repo/keys succeeded")
@@ -218,7 +218,7 @@ internal object GitHubApi {
         return runCatching {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@runCatching false
-                val keys = JSONArray(response.body?.string().orEmpty())
+                val keys = JSONArray(response.body.string())
                 (0 until keys.length()).any { index ->
                     val theirKeyValue = keys.getJSONObject(index).getString("key").trim().split(Regex("\\s+")).take(2).joinToString(" ")
                     theirKeyValue == ourKeyValue
@@ -234,7 +234,7 @@ internal object GitHubApi {
         runCatching {
             val request = authedRequest(accessToken, "$API_BASE/repos/$owner/$repo").build()
             client.newCall(request).execute().use { response ->
-                val body = response.body?.string().orEmpty()
+                val body = response.body.string()
                 if (!response.isSuccessful) {
                     mapGenericError(response.code, body)
                 } else {

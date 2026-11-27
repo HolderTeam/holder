@@ -7,10 +7,11 @@ import subprocess
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from os import PathLike
-from typing import Any, Self, cast
+from typing import Any, BinaryIO, Self, cast
 
 import httpx
 
+from ._streams import stream_failure
 from ._workspace_contract import (
     Calendar,
     LinkKindLabels,
@@ -44,13 +45,16 @@ from .generated.api.default import (
     get_projects_project_id_milestones_instants,
     get_projects_project_id_recovery_snapshot,
     get_projects_project_id_tags,
+    get_resources_resource_id_assets_asset_id_content,
     get_trash,
     post_projects,
 )
 from .generated.models import ErrorResponse, NewProject, PrivacyMode
 from .generated.models import TrashItemType as HTTPTrashItemType
+from .generated.streams import StreamError
 from .models.intelligence_device import HolderIntelligence
 from .models.project import Project, ProjectCollection
+from .recovery_bundle import _download_recovery_bundle
 
 
 class Holder:
@@ -199,6 +203,48 @@ class Holder:
             return payload.decode("utf-8")
         except UnicodeDecodeError:
             raise ProtocolError("Invalid UTF-8 recovery snapshot from the daemon") from None
+
+    def download_asset(
+        self,
+        resource_id: str,
+        asset_id: str,
+        destination: BinaryIO,
+        *,
+        placement_id: str | None = None,
+    ) -> int:
+        """Write a verified asset's plaintext bytes to an open binary file.
+
+        The daemon selects a stored placement unless one is supplied. Returns
+        the number of bytes written. If the transfer fails, discard any bytes
+        already written to the destination.
+        """
+        client = self._active()
+        try:
+            with get_resources_resource_id_assets_asset_id_content.stream(
+                resource_id, asset_id, client=client, placement_id=placement_id
+            ) as stream:
+                if stream.response.status_code != 200:
+                    raise ProtocolError("Invalid asset download response")
+                written = 0
+                for chunk in stream.iter_bytes():
+                    if destination.write(chunk) != len(chunk):
+                        raise OSError("Incomplete write while downloading asset")
+                    written += len(chunk)
+                return written
+        except StreamError as error:
+            raise stream_failure(error, "Invalid asset download response") from None
+        except httpx.TransportError:
+            raise ConnectionError("Could not download the asset from the Holder daemon") from None
+
+    def download_recovery_bundle(
+        self, project_id: str, destination: str | PathLike[str]
+    ) -> None:
+        """Save a recovery snapshot and its verified plaintext assets as a ZIP.
+
+        The destination is replaced only after every asset has been verified
+        against the snapshot and the archive has been closed successfully.
+        """
+        _download_recovery_bundle(self, project_id, destination)
 
     def create_plain_project(self, *, name: str) -> ProjectRecord:
         """Create a project whose files are stored without encryption."""

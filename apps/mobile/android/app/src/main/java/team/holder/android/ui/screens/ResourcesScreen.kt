@@ -206,7 +206,7 @@ fun ResourcesScreen(
     if (showAttachSheet) {
         ModalBottomSheet(onDismissRequest = { showAttachSheet = false }) {
             ListItem(
-                headlineContent = { Text("Existing resource") },
+                content = { Text("Existing resource") },
                 supportingContent = { Text("Attach a resource already in this project") },
                 modifier = Modifier.clickable {
                     showAttachSheet = false
@@ -223,7 +223,7 @@ fun ResourcesScreen(
                 },
             )
             ListItem(
-                headlineContent = { Text("Photo") },
+                content = { Text("Photo") },
                 supportingContent = { Text("Pick from your photos") },
                 leadingContent = {
                     Icon(painterResource(R.drawable.ic_attach_photo), contentDescription = null)
@@ -234,7 +234,7 @@ fun ResourcesScreen(
                 },
             )
             ListItem(
-                headlineContent = { Text("File") },
+                content = { Text("File") },
                 supportingContent = { Text("Pick any document") },
                 leadingContent = {
                     Icon(painterResource(R.drawable.ic_file), contentDescription = null)
@@ -245,7 +245,7 @@ fun ResourcesScreen(
                 },
             )
             ListItem(
-                headlineContent = { Text("Camera") },
+                content = { Text("Camera") },
                 supportingContent = { Text("Take a photo") },
                 leadingContent = {
                     Icon(painterResource(R.drawable.ic_camera), contentDescription = null)
@@ -272,7 +272,7 @@ fun ResourcesScreen(
                 else -> LazyColumn {
                     items(available, key = { it.resourceId }) { resource ->
                         ListItem(
-                            headlineContent = { Text(resource.label.ifEmpty { "Resource" }) },
+                            content = { Text(resource.label.ifEmpty { "Resource" }) },
                             modifier = Modifier.clickable {
                                 showExistingSheet = false
                                 scope.launch {
@@ -346,7 +346,7 @@ private fun AttachmentRow(projectId: String, link: HolderOutgoingLink, onOpenIma
                     )
                 }
             },
-            headlineContent = { Text(displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            content = { Text(displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             trailingContent = { TextButton(onClick = onDetach) { Text("Detach") } },
             modifier = Modifier.combinedClickable(
                 onClick = {

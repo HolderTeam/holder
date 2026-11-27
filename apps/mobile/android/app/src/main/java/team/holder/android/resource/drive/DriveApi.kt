@@ -44,7 +44,7 @@ internal object DriveApi {
             .build()
         val request = Request.Builder().url(url).header("Authorization", "Bearer $accessToken").build()
         client.newCall(request).execute().use { response ->
-            val responseBody = response.body?.string().orEmpty()
+            val responseBody = response.body.string()
             if (!response.isSuccessful) throw DriveApiException(response.code, responseBody)
             val files = JSONObject(responseBody).optJSONArray("files") ?: JSONArray()
             return if (files.length() > 0) files.getJSONObject(0).getString("id") else null
@@ -63,7 +63,7 @@ internal object DriveApi {
             .header("Authorization", "Bearer $accessToken")
             .build()
         client.newCall(request).execute().use { response ->
-            val responseBody = response.body?.string().orEmpty()
+            val responseBody = response.body.string()
             if (!response.isSuccessful) throw DriveApiException(response.code, responseBody)
             return JSONObject(responseBody).getString("id")
         }

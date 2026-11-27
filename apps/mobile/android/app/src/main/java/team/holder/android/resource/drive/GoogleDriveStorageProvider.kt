@@ -107,8 +107,7 @@ class GoogleDriveStorageProvider(
             .build()
         execute(request).use { response ->
             checkOk(response, "download")
-            val body = response.body ?: throw StorageProviderFailure(StorageErrorCode.INTEGRITY, "empty download body")
-            File(destinationFilePath).outputStream().use { out -> body.byteStream().copyTo(out) }
+            File(destinationFilePath).outputStream().use { out -> response.body.byteStream().copyTo(out) }
         }
     }
 

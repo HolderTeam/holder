@@ -73,7 +73,7 @@ fun TagResultsScreen(
                     LazyColumn(modifier = Modifier.padding(innerPadding)) {
                         items(current.value, key = { it.cardId }) { card ->
                             ListItem(
-                                headlineContent = { Text(card.title) },
+                                content = { Text(card.title) },
                                 modifier = Modifier.clickable { onNavigateToCard(card.cardId, card.title) },
                             )
                         }

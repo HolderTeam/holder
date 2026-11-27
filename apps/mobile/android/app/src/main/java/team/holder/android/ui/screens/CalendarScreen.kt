@@ -553,7 +553,7 @@ private fun CalendarSectionHeader(title: String) {
 @Composable
 private fun CardActivityRow(title: String, onClick: () -> Unit) {
     ListItem(
-        headlineContent = { Text(title) },
+        content = { Text(title) },
         modifier = Modifier.clickable(onClick = onClick),
     )
 }
@@ -583,7 +583,7 @@ private fun MilestoneRow(
 ) {
     Box {
         ListItem(
-            headlineContent = { Text(milestone.cardTitle?.ifEmpty { "Untitled card" } ?: "Untitled card") },
+            content = { Text(milestone.cardTitle?.ifEmpty { "Untitled card" } ?: "Untitled card") },
             supportingContent = { Text(milestoneSupportingText(milestone)) },
             modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick),
         )

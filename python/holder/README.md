@@ -353,6 +353,12 @@ Cloning uses a detached checkout and keeps the project's existing IDs.
 Closing the context keeps local edits, and reopening uses the local checkout.
 Clone accepts HTTPS, SSH, and Git remotes and checks the checkout before
 importing it into the private database.
+To save the snapshot and its attachments together, call
+`session.download_recovery_bundle(project_id, "project.zip")`. The ZIP contains
+the same recovery lines and one plaintext payload per distinct asset hash.
+Holder verifies all attachments before replacing the destination. Restore the
+archive with `workspace.restore_recovery_bundle("project.zip", name="Research copy")`.
+The new project uses local asset copies inside the private workspace.
 
 ### Publish committed work
 

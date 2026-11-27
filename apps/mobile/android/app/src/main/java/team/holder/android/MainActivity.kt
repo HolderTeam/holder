@@ -632,7 +632,7 @@ private fun HolderNavHost(
             return@LaunchedEffect
         }
         selectedCardTitle = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.getCard(session.projectId, cardId!!).title }
+            withContext(Dispatchers.IO) { HolderNative.getCard(session.projectId, cardId).title }
         }.getOrDefault("")
         pendingEditCursorOffset = null
         navController.navigate("projects/${session.projectId}/cards/$cardId")

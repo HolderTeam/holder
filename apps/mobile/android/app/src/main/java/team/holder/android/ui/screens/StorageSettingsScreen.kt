@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -20,6 +21,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -34,7 +36,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
@@ -230,7 +231,8 @@ private fun S3ConnectDialog(
     var region by remember { mutableStateOf("") }
     var bucket by remember { mutableStateOf("") }
     var accessKeyId by remember { mutableStateOf("") }
-    var secretAccessKey by remember { mutableStateOf("") }
+    val secretAccessKeyField = rememberTextFieldState()
+    val secretAccessKey = secretAccessKeyField.text.toString()
     val canConnect = !connecting && endpoint.isNotBlank() && region.isNotBlank() && bucket.isNotBlank() &&
         accessKeyId.isNotBlank() && secretAccessKey.isNotBlank()
 
@@ -274,12 +276,9 @@ private fun S3ConnectDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
-                OutlinedTextField(
-                    value = secretAccessKey,
-                    onValueChange = { secretAccessKey = it },
+                OutlinedSecureTextField(
+                    state = secretAccessKeyField,
                     label = { Text("Secret access key") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
                 if (connecting) {

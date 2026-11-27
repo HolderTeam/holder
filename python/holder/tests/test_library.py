@@ -1,10 +1,13 @@
 """Public synchronous API behaviour with a simulated daemon contract."""
 
+import hashlib
 import json
 import subprocess
 from contextlib import nullcontext
 from dataclasses import FrozenInstanceError
+from io import BytesIO
 from unittest.mock import Mock
+from zipfile import ZipFile
 
 import httpx
 import pytest
@@ -98,6 +101,93 @@ def holder_for(handler):
         token="secret-token",
         transport=httpx.MockTransport(handler),
     )
+
+
+def test_download_asset_streams_bytes_from_selected_placement():
+    payload = b"asset\x00bytes"
+
+    def respond(request):
+        assert request.method == "GET"
+        assert request.url.path == "/resources/resource/assets/asset/content"
+        assert request.url.params["placement_id"] == "placement"
+        return httpx.Response(200, content=payload)
+
+    output = BytesIO()
+    with holder_for(respond) as session:
+        assert session.download_asset(
+            "resource", "asset", output, placement_id="placement"
+        ) == len(payload)
+    assert output.getvalue() == payload
+
+
+def test_download_asset_surfaces_daemon_error_without_writing():
+    output = BytesIO()
+    with holder_for(lambda request: failure(404)) as session, pytest.raises(NotFoundError):
+        session.download_asset("resource", "asset", output)
+    assert output.getvalue() == b""
+
+
+@pytest.mark.parametrize("valid_asset", [True, False])
+def test_download_recovery_bundle_verifies_assets_before_replacing_output(tmp_path, valid_asset):
+    payload = b"asset data"
+    digest = hashlib.sha256(payload).hexdigest()
+    resources = [
+        {
+            "resource_id": "resource",
+            "assets": [
+                {
+                    "asset_id": "asset",
+                    "plaintext_sha256": digest,
+                    "byte_size": len(payload),
+                    "placements": [{"placement_id": "unavailable"}, {"placement_id": "ready"}],
+                }
+            ],
+        }
+    ]
+    snapshot = "".join(
+        json.dumps(
+            {
+                "format": "holder-recovery-snapshot",
+                "version": 1,
+                "card": {"project_id": "project", "card_id": card_id, "resources": resources},
+            }
+        )
+        + "\n"
+        for card_id in ("first", "second")
+    )
+    attempted = []
+
+    def respond(request):
+        if request.url.path == "/projects/project/recovery-snapshot":
+            return httpx.Response(
+                200, content=snapshot, headers={"Content-Type": "application/octet-stream"}
+            )
+        assert request.url.path == "/resources/resource/assets/asset/content"
+        placement = request.url.params["placement_id"]
+        attempted.append(placement)
+        if placement == "unavailable":
+            return failure(404)
+        return httpx.Response(200, content=payload if valid_asset else b"other data")
+
+    output = tmp_path / "snapshot.zip"
+    output.write_bytes(b"existing output")
+    with holder_for(respond) as session:
+        if valid_asset:
+            session.download_recovery_bundle("project", output)
+        else:
+            with pytest.raises(ProtocolError, match="captured bytes"):
+                session.download_recovery_bundle("project", output)
+
+    assert attempted == ["unavailable", "ready"]
+    assert list(tmp_path.iterdir()) == [output]
+    if valid_asset:
+        with ZipFile(output) as bundle:
+            assert bundle.namelist() == ["manifest.json", "snapshot.jsonl", f"assets/{digest}"]
+            assert json.loads(bundle.read("manifest.json"))["version"] == 1
+            assert bundle.read("snapshot.jsonl").decode() == snapshot
+            assert bundle.read(f"assets/{digest}") == payload
+    else:
+        assert output.read_bytes() == b"existing output"
 
 
 def created(data):

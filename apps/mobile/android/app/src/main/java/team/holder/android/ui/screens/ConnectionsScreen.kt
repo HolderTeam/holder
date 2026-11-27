@@ -269,7 +269,7 @@ fun ConnectionsScreen(
                                 items(navigableOutgoing, key = { "out:${it.toCardId}:${it.kind}" }) { link ->
                                     Box {
                                         ListItem(
-                                            headlineContent = {
+                                            content = {
                                                 Text(
                                                     connectionHeadline(
                                                         kindLabel = HolderNative.linkKindLabel(link.kind, forward = true),
@@ -303,7 +303,7 @@ fun ConnectionsScreen(
                                 }
                                 items(links.backlinks, key = { "back:${it.fromCardId}:${it.kind}" }) { link ->
                                     ListItem(
-                                        headlineContent = {
+                                        content = {
                                             Text(
                                                 connectionHeadline(
                                                     kindLabel = HolderNative.linkKindLabel(link.kind, forward = false),
@@ -350,7 +350,7 @@ fun ConnectionsScreen(
 @Composable
 private fun ConnectionRow(label: String, title: String, onClick: () -> Unit) {
     ListItem(
-        headlineContent = {
+        content = {
             Text(
                 connectionHeadline(
                     kindLabel = label,

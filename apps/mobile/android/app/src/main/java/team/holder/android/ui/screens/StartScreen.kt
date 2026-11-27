@@ -571,7 +571,7 @@ private fun RecentCardRow(
         ).toString()
     }
     ListItem(
-        headlineContent = { Text(card.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        content = { Text(card.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = card.snippet.takeIf { it.isNotEmpty() }?.let { snippet ->
             { Text(snippet, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         },
