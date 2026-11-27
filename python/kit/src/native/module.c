@@ -1293,26 +1293,60 @@ Context_trash_card_record(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
+delete_trash_item(ContextObject *self, const char *project_id,
+                  holder_delete_project_trash_item_type type, const char *item_id,
+                  bool return_record)
+{
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_trash_delete_result *deleted = NULL;
+    holder_error *error = NULL;
+    const int result = holder_delete_project_trash_item(self->context, project_id,
+        type, item_id, arena, &deleted, &error);
+    PyObject *record = NULL;
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+    } else {
+        holder_error_destroy(error);
+        record = return_record
+            ? Py_BuildValue("{s:s,s:s}", "card_id", deleted->card_id,
+                                       "message_id", deleted->message_id)
+            : Py_NewRef(Py_None);
+    }
+    holder_arena_free(arena);
+    return record;
+}
+
+static PyObject *
 Context_purge_card(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
     const char *project_id = NULL, *card_id = NULL;
     static char *keywords[] = {"project_id", "card_id", NULL};
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:purge_card", keywords,
                                     &project_id, &card_id) || !ensure_context_open(self)) return NULL;
-    holder_arena *arena = holder_arena_new();
-    if (arena == NULL) return PyErr_NoMemory();
-    const holder_trash_delete_result *deleted = NULL;
-    holder_error *error = NULL;
-    const int result = holder_delete_project_trash_item(self->context, project_id,
-        HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_CARD, card_id, arena, &deleted, &error);
-    if (result != HOLDER_OK) {
-        raise_holder_error(self, result, error);
-        holder_arena_free(arena);
+    return delete_trash_item(self, project_id, HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_CARD,
+                             card_id, false);
+}
+
+static PyObject *
+Context_delete_trash_item(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id = NULL, *item_id = NULL, *type = NULL;
+    static char *keywords[] = {"project_id", "item_id", "type", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sss:delete_trash_item", keywords,
+                                     &project_id, &item_id, &type) || !ensure_context_open(self)) {
         return NULL;
     }
-    holder_error_destroy(error);
-    holder_arena_free(arena);
-    Py_RETURN_NONE;
+    holder_delete_project_trash_item_type item_type;
+    if (strcmp(type, "card") == 0) {
+        item_type = HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_CARD;
+    } else if (strcmp(type, "ai_message") == 0) {
+        item_type = HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_AI_MESSAGE;
+    } else {
+        PyErr_SetString(PyExc_ValueError, "Trash item type must be card or ai_message");
+        return NULL;
+    }
+    return delete_trash_item(self, project_id, item_type, item_id, true);
 }
 
 static PyObject *
@@ -2417,6 +2451,8 @@ static PyMethodDef Context_methods[] = {
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Move a card to Trash and promote its live children.")},
     {"restore_card", PyCFunction_CAST(Context_restore_card),
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Restore one trashed card through Core.")},
+    {"delete_trash_item", PyCFunction_CAST(Context_delete_trash_item),
+     METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Permanently remove a trashed item from its project.")},
     {"purge_card", PyCFunction_CAST(Context_purge_card),
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Permanently remove a card that is already in Trash.")},
     {"list_cards_page", PyCFunction_CAST(Context_list_cards_page), METH_VARARGS | METH_KEYWORDS,

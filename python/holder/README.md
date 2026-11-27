@@ -160,6 +160,11 @@ Both calls return the card's record after the change. To find a card to
 restore later, use `session.list_trash(project_id, type="card")`. The listing
 includes titles and IDs. Omit the filter to include trashed AI messages too.
 
+Use `session.delete_trash_item(project_id, card_id, type="card")` to permanently
+remove an item already in Trash. The same call accepts `type="ai_message"`
+with a message ID. It returns the removed ID. Older card revisions remain
+available in Git history.
+
 Use `cards.add_card_tag(project_id, card_id, "research")` to add a tag and
 `cards.remove_card_tag(project_id, card_id, "research")` to remove it from
 the trailing tag line. Removing a tag mentioned in prose raises a conflict.

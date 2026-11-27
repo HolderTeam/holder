@@ -58,7 +58,7 @@ def generate_python_workspace(ir: ContractView) -> str:
     for name in ("ProjectId", "ProjectName", "GitRemoteUrl", "PrivacyMode", "CardId", "Tag", "TrashItemType", "LinkKind", "LinkTargetType", "LinkTargetId", "MilestoneId", "MilestoneRole", "Day", "DateTime", "MilestoneText"):
         lines.append(f"{name} = {annotation(ir.alias(name))}")
     lines.extend(["", 'T = TypeVar("T")'])
-    for name in ("CardMetadata", "CardBreadcrumb", "TagOccurrence", "CardListItem", "Card", "NewCard", "CardUpdate", "CardMove", "Page", "Project", "TrashItem", "TagCount", "CardReferenceResolveRequest", "CardReferenceCandidate", "CardReferenceResolveData", "SearchCard", "Link", "NewLink", "LinkKindLabels", "MilestoneDate", "Milestone", "NewMilestone", "MilestoneUpdate", "CalendarMilestone", "Calendar"):
+    for name in ("CardMetadata", "CardBreadcrumb", "TagOccurrence", "CardListItem", "Card", "NewCard", "CardUpdate", "CardMove", "Page", "Project", "TrashItem", "TrashDeleteResult", "TagCount", "CardReferenceResolveRequest", "CardReferenceCandidate", "CardReferenceResolveData", "SearchCard", "Link", "NewLink", "LinkKindLabels", "MilestoneDate", "Milestone", "NewMilestone", "MilestoneUpdate", "CalendarMilestone", "Calendar"):
         record = ir.record(name)
         bases = [record.base or "TypedDict"]
         if record.type_parameters:
@@ -99,6 +99,7 @@ def generate_python_workspace(ir: ContractView) -> str:
             ]
         )
     errors = {error for operation in operations for error in operation.errors}
+    errors.update(ir.operation("delete_project_trash_item").errors)
     statuses = {item.error: item.status for item in ir.http_errors}
     lines.extend(["", "", "NATIVE_ERRORS = {"])
     for error in ir.errors:

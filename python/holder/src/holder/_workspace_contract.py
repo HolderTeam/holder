@@ -132,6 +132,13 @@ class TrashItem(TypedDict):
     rel_path: str | None
 
 
+class TrashDeleteResult(TypedDict):
+    """The ID of a permanently removed item."""
+
+    card_id: str | None
+    message_id: str | None
+
+
 class TagCount(TypedDict):
     """A tag and how many of a project's live cards carry it."""
 
@@ -600,4 +607,5 @@ NATIVE_ERRORS = {
     5002: (500, "data_corrupted"),
     4220: (422, "invalid_move"),
     4092: (409, "hierarchy_invalid"),
+    4095: (409, "not_trashed"),
 }
