@@ -755,17 +755,30 @@ std::string capture_recovery_snapshot(
   holder::platform::Tx transaction(context.db, holder::platform::Tx::Mode::Read);
 
   std::string snapshot;
-  std::optional<std::string> cursor;
+  const auto check_budget = [&](std::size_t bytes) {
+    if (bytes >= max_bytes - snapshot.size())
+      throw std::length_error("project recovery snapshot exceeds the export size limit");
+  };
+  auto store = card_store(context);
+  holder::card::CardPageQuery query;
+  query.order = holder::card::CardPageOrder::UpdatedDesc;
   do {
-    auto page = read(context, project_id, cursor, 128);
-    for (const auto& line : page.lines) {
-      if (line.size() >= max_bytes - snapshot.size())
-        throw std::length_error("project recovery snapshot exceeds the export size limit");
-      snapshot.append(line);
-      snapshot.push_back('\n');
-    }
-    cursor = std::move(page.next_cursor);
-  } while (cursor);
+    query.cursor = store.visit_collection_page(
+        project_id,
+        query,
+        128,
+        true,
+        [&](const holder::model::Card& card, std::string&& content) {
+          // JSON escapes can only add bytes to the body; reject an obvious overflow
+          // before gathering related records or encoding the line.
+          check_budget(content.size());
+          auto line = encode_line(to_snapshot(context, *project, card, std::move(content)));
+          check_budget(line.size());
+          snapshot.append(line);
+          snapshot.push_back('\n');
+        }
+    );
+  } while (query.cursor);
   transaction.commit();
   return snapshot;
 }
