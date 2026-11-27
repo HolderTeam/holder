@@ -13,6 +13,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", required=True)
     parser.add_argument("--embedded", action="store_true")
+    parser.add_argument("--core-build-type", default="Release")
     args = parser.parse_args()
 
     from holder import Holder, open_workspace
@@ -36,7 +37,13 @@ def main() -> None:
         manifest = installed.locate_file("holder/_embedded/_core_build.json")
         core = json.loads(manifest.read_text(encoding="utf-8"))
         assert core["version"] == args.version.split(".post", 1)[0], core
-        assert core["platform"] == "linux" and core["build_type"] == "Release", core
+        platform = {"linux": "linux", "win32": "windows"}[sys.platform]
+        assert core["platform"] == platform and core["build_type"] == args.core_build_type, core
+        if platform == "windows":
+            libraries = installed.locate_file("holder/_embedded/.libs")
+            licenses = installed.locate_file("holder/_embedded/_licenses")
+            assert any(libraries.glob("*.dll"))
+            assert any(path.is_file() for path in licenses.rglob("*"))
         with TemporaryDirectory(prefix="holder-installed-wheel-") as temporary:
             private = Path(temporary) / "private"
             with open_workspace(private) as workspace:

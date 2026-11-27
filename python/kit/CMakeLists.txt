@@ -53,8 +53,11 @@ else()
   install(FILES "${HOLDER_CORE_SDK}/libholder-manifest.json"
     DESTINATION "${HOLDER_KIT_INSTALL_DIR}" RENAME _core_build.json COMPONENT holder_native)
   if(WIN32)
-    install(DIRECTORY "${HOLDER_CORE_SDK}/bin/" DESTINATION "${HOLDER_KIT_INSTALL_DIR}/.libs" FILES_MATCHING PATTERN "*.dll")
-    install(DIRECTORY "${HOLDER_CORE_SDK}/share/vcpkg-licenses/" DESTINATION "${HOLDER_KIT_INSTALL_DIR}/_licenses")
+    install(DIRECTORY "${HOLDER_CORE_SDK}/bin/"
+      DESTINATION "${HOLDER_KIT_INSTALL_DIR}/.libs" COMPONENT holder_native
+      FILES_MATCHING PATTERN "*.dll")
+    install(DIRECTORY "${HOLDER_CORE_SDK}/share/vcpkg-licenses/"
+      DESTINATION "${HOLDER_KIT_INSTALL_DIR}/_licenses" COMPONENT holder_native)
   endif()
 endif()
 

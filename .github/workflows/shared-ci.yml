@@ -840,7 +840,7 @@ jobs:
           changed+=$'\nVERSION'
         fi
         printf '%s\n' "$changed"
-        if grep -qE '^(VERSION$|python/_build_support\.py$|python/kit/|core/|\.github/workflows/(kit-ci|core-sdk)\.yml$|\.github/actions/core-ubuntu-packages/|\.github/scripts/fetch-core-debs\.sh$|\.github/actions/core-sdk/|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
+        if grep -qE '^(VERSION$|python/_build_support\.py$|python/kit/|python/holder/(_build_backend/|src/holder/_embedded/|scripts/test-installed-wheel\.py$)|core/|\.github/workflows/(kit-ci|core-sdk)\.yml$|\.github/actions/core-ubuntu-packages/|\.github/scripts/fetch-core-debs\.sh$|\.github/actions/core-sdk/|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
           echo "kit=true" >> "$GITHUB_OUTPUT"
         else
           echo "kit=false" >> "$GITHUB_OUTPUT"
@@ -1109,6 +1109,28 @@ jobs:
       run: |
         echo 'CMAKE_GENERATOR=Ninja' >> "$GITHUB_ENV"
         echo "SKBUILD_CMAKE_BUILD_TYPE=$HOLDER_CORE_BUILD_TYPE" >> "$GITHUB_ENV"
+    - name: Build and check an installed Holder Python wheel
+      shell: bash
+      working-directory: .
+      run: |
+        set -euo pipefail
+        work="$(cygpath -m "$RUNNER_TEMP")/holder-python-windows"
+        sdk="$HOLDER_CORE_SDK"
+        python -m pip install 'build>=1.2,<2'
+        cmake -S python/kit -B "$work/build" -G Ninja \
+          -DCMAKE_BUILD_TYPE="$HOLDER_CORE_BUILD_TYPE" \
+          -DPython_EXECUTABLE="$(python -c 'import pathlib,sys; print(pathlib.Path(sys.executable).as_posix())')" \
+          -DCMAKE_TOOLCHAIN_FILE="$sdk/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+          -DVCPKG_INSTALLED_DIR="$sdk/vcpkg/installed" -DVCPKG_TARGET_TRIPLET=x64-windows \
+          -DVCPKG_MANIFEST_MODE=OFF -DVCPKG_APPLOCAL_DEPS=OFF \
+          -DCMAKE_INSTALL_PREFIX="$work/stage" -DHOLDER_KIT_INSTALL_DIR=holder/_embedded
+        cmake --build "$work/build"
+        cmake --install "$work/build" --component holder_native
+        HOLDER_PYTHON_EMBEDDED_STAGE="$work/stage" \
+          python -m build --wheel --outdir "$work/wheels" python/holder
+        python -m pip install "$work/wheels/"*win_amd64.whl
+        python python/holder/scripts/test-installed-wheel.py --embedded \
+          --version "$(tr -d '\r\n' < VERSION)" --core-build-type "$HOLDER_CORE_BUILD_TYPE"
     - name: Build and install Holder Kit
       run: |
         python -m pip install --upgrade pip

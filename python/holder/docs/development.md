@@ -65,7 +65,17 @@ The repair checks the `manylinux_2_39_x86_64` ABI and records supplier
 notices. The Python CI workflow builds and tests this wheel from a fresh
 install. For a local smoke test on a newer Linux distribution, use
 `--bundle-only` to bundle the libraries and keep the original Linux tag.
-Release publishing still uses the existing universal wheel flow.
+The [PyPI release workflow](publishing.md) builds the universal wheel and the
+supported native Linux wheels.
+
+## Build a Windows wheel from source
+
+Use 64-bit CPython and MSVC with a verified Windows core SDK. The
+[Windows CI job](../../../.github/workflows/kit-ci.yml) shows the build commands
+and uses the vcpkg toolchain from the SDK. The `holder_native` CMake component
+stages the extension, schema, SDK metadata, runtime DLLs, and dependency
+licences. Set `HOLDER_PYTHON_EMBEDDED_STAGE` to that stage when building the
+wheel. The installed-wheel check opens and reopens a private workspace.
 
 ## Layout and regeneration
 
