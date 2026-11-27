@@ -22,6 +22,7 @@
 #include <vector>
 
 #ifndef _WIN32
+#include <fcntl.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
@@ -538,6 +539,83 @@ TEST_CASE(
   REQUIRE(WIFEXITED(status));
   CHECK(WEXITSTATUS(status) == 0);
   holder_context_destroy(mine);
+}
+#endif
+
+#ifndef _WIN32
+// The daemon takes server/holder.lock with Boost.Interprocess's file_lock
+// (daemon/src/platform/LockFile.cpp), which on POSIX is a whole-file fcntl(F_SETLK) record lock.
+// ProfileLock must keep conflicting with that lock, whatever it uses itself, so an embedded
+// context and a running daemon never share a workspace. Changing either side's lock means
+// changing this test too.
+TEST_CASE(
+    "A daemon's record lock and a native context refuse each other",
+    "[capi][runtime][profile]"
+) {
+  const auto data_dir = holder::test::make_temp_dir();
+  const auto lock_path = data_dir / "server" / "holder.lock";
+  std::filesystem::create_directories(lock_path.parent_path());
+  const auto schema = schema_sql();
+  const auto open_here = [&](holder_context** context, holder_error** error) {
+    return holder_context_open(data_dir.string().c_str(), schema.c_str(), context, error);
+  };
+  // What Boost's file_lock::try_lock does on POSIX.
+  const auto daemon_lock = [&] {
+    const int fd = ::open(lock_path.c_str(), O_CREAT | O_RDWR, 0600);
+    if (fd == -1) return -1;
+    struct flock region {};
+    region.l_type = F_WRLCK;
+    region.l_whence = SEEK_SET;
+    return ::fcntl(fd, F_SETLK, &region) == 0 ? fd : -1;
+  };
+
+  // A daemon holds the profile: a native context is refused until it lets go.
+  int up[2];
+  int down[2];
+  REQUIRE(::pipe(up) == 0);
+  REQUIRE(::pipe(down) == 0);
+  const pid_t daemon = ::fork();
+  REQUIRE(daemon >= 0);
+  if (daemon == 0) {
+    ::close(up[0]);
+    ::close(down[1]);
+    const char locked = daemon_lock() != -1 ? 'y' : 'n';
+    (void)::write(up[1], &locked, 1);
+    char release = 0;
+    (void)::read(down[0], &release, 1);
+    ::_exit(locked == 'y' ? 0 : 1);
+  }
+  ::close(up[1]);
+  ::close(down[0]);
+  char locked = 0;
+  REQUIRE(::read(up[0], &locked, 1) == 1);
+  REQUIRE(locked == 'y');
+
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  CHECK(open_here(&context, &error) == HOLDER_ERROR_CONFLICT);
+  CHECK(context == nullptr);
+  holder_error_destroy(error);
+  error = nullptr;
+
+  const char release = 'x';
+  REQUIRE(::write(down[1], &release, 1) == 1);
+  int status = 0;
+  REQUIRE(::waitpid(daemon, &status, 0) == daemon);
+  REQUIRE(WIFEXITED(status));
+  CHECK(WEXITSTATUS(status) == 0);
+  ::close(up[0]);
+  ::close(down[1]);
+
+  // A native context holds the profile: a daemon starting now can't take its lock.
+  REQUIRE(open_here(&context, &error) == HOLDER_OK);
+  const pid_t starting = ::fork();
+  REQUIRE(starting >= 0);
+  if (starting == 0) ::_exit(daemon_lock() == -1 ? 0 : 1);
+  REQUIRE(::waitpid(starting, &status, 0) == starting);
+  REQUIRE(WIFEXITED(status));
+  CHECK(WEXITSTATUS(status) == 0);
+  holder_context_destroy(context);
 }
 #endif
 
