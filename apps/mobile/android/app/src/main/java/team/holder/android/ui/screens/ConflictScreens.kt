@@ -177,10 +177,11 @@ fun ConflictListScreen(
 }
 
 /** What the compare screen is asking the user to confirm. */
-private sealed interface ConflictAction {
+internal sealed interface ConflictAction {
     data class Keep(val side: ConflictSide) : ConflictAction
     data object KeepBoth : ConflictAction
-    data class Edit(val title: String, val content: String) : ConflictAction
+    /** Combine starts here: both versions in one ([combinedEditStart]), and Save keeps it. */
+    data class Edit(val title: String, val content: String, val note: String? = null) : ConflictAction
 }
 
 /**
@@ -204,6 +205,7 @@ fun ConflictCompareScreen(
     var pending by remember { mutableStateOf<ConflictAction?>(null) }
     var working by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val conflictMarkers by HolderSettings.conflictMarkers(context).collectAsState(initial = false)
 
     LaunchedEffect(projectId, copyId, reloadKey) {
         state = runCatching { withContext(Dispatchers.IO) { HolderNative.compareConflictCopy(projectId, copyId) } }
@@ -280,10 +282,10 @@ fun ConflictCompareScreen(
                                 Text("Keep both")
                             }
                             OutlinedButton(
-                                onClick = { pending = ConflictAction.Edit(side.title, side.content) },
+                                onClick = { pending = combinedEditStart(comparison, conflictMarkers) },
                                 enabled = !working,
                                 modifier = Modifier.weight(1f),
-                            ) { Text("Edit…") }
+                            ) { Text("Combine…") }
                         }
                     }
                 }
@@ -385,12 +387,15 @@ fun ConflictCompareScreen(
                 // its text scrolls, so Save is never under the keyboard.
                 properties = DialogProperties(decorFitsSystemWindows = false),
                 modifier = Modifier.imePadding(),
-                title = { Text("Edit the version to keep") },
+                title = { Text("Combine the two versions") },
                 text = {
                     Column(Modifier.verticalScroll(rememberScrollState())) {
                         val context = LocalContext.current
                         val manualCapitals by HolderSettings.manualCapitalization(context).collectAsState(initial = false)
                         val capitals = !manualCapitals
+                        action.note?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
+                        }
                         OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, singleLine = true,
                             keyboardOptions = sentenceCapitals(capitals))
                         OutlinedTextField(
@@ -401,7 +406,7 @@ fun ConflictCompareScreen(
                             modifier = Modifier.padding(top = 8.dp).heightIn(min = 160.dp, max = 360.dp),
                         )
                         Text(
-                            "Saving keeps this as the card; the other version moves to Trash.",
+                            "Saving keeps this as the card; the other version moves to Trash, where you can restore it.",
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(top = 8.dp),
                         )
@@ -417,6 +422,27 @@ fun ConflictCompareScreen(
             )
         }
     }
+}
+
+/**
+ * Where Combine starts: the card's title, and both versions' text in one, the shared lines
+ * once and each clash with the card's lines first, as the Desktop's "Combine changes" does.
+ * With [markers] (Settings > Sync), git's conflict markers wrap each clash. Versions too large
+ * for core to compare line by line start from the card's own text, and say so.
+ */
+internal fun combinedEditStart(comparison: ConflictComparison, markers: Boolean): ConflictAction.Edit {
+    val (card, copy) = conflictSides(comparison)
+    if (comparison.truncated) {
+        return ConflictAction.Edit(
+            card.title,
+            card.content,
+            note = "These versions are too large to combine automatically, so this starts from the card's own version.",
+        )
+    }
+    val content = combineConflictVersions(
+        card.content, card.changedLines, copy.content, copy.changedLines, markers, card.label, copy.label,
+    )
+    return ConflictAction.Edit(card.title, content)
 }
 
 /** "Keep this device's version?", "Keep the other device's version?", or plainly "Keep this version?". */
