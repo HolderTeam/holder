@@ -423,7 +423,7 @@ jobs:
             "${appdir}/usr/share/metainfo/team.holder.Holder.metainfo.xml"
           bash -n "${appdir}/AppRun"
 
-          for executable in holder-desktop holderd holderctl; do
+          for executable in holder-desktop holderd holderctl holder-mcp; do
             runtime_libraries="$(ldd "${appdir}/usr/bin/${executable}")"
             printf '%s\n' "${runtime_libraries}"
             if grep -q 'not found' <<<"${runtime_libraries}"; then

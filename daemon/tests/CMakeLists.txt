@@ -272,7 +272,7 @@ target_compile_definitions(holder_daemon_tests PRIVATE
   HOLDER_BIN_PATH="$<TARGET_FILE:holderd>"
   HOLDER_CTL_PATH="$<TARGET_FILE:holderctl>"
 )
-add_dependencies(holder_daemon_tests holder_generated_dispatch_tests detached_process_helper lock_helper holderd holderctl holder_openapi_documents)
+add_dependencies(holder_daemon_tests holder_generated_dispatch_tests detached_process_helper lock_helper holderd holderctl holder-mcp holder_openapi_documents)
 
 if(HOLDER_ENABLE_ENCRYPTED_GIT)
   target_compile_definitions(holder_daemon_tests PRIVATE
@@ -352,11 +352,16 @@ else()
   add_test(NAME holder_daemon_tests COMMAND holder_daemon_tests)
 endif()
 
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+  add_test(NAME holder_mcp_stdio
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/mcp_bridge_smoke.py"
+      $<TARGET_FILE:holderd> $<TARGET_FILE:holder-mcp>)
+  set_tests_properties(holder_mcp_stdio PROPERTIES TIMEOUT 60)
+endif()
+
 # Wrapper tests use temporary repositories and mocked tools; no network or Home.
-if(UNIX)
-  find_package(Python3 COMPONENTS Interpreter QUIET)
-  if(Python3_Interpreter_FOUND)
-    add_test(NAME make_sh_sdk_selection
-      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/test_make.py")
-  endif()
+if(UNIX AND Python3_Interpreter_FOUND)
+  add_test(NAME make_sh_sdk_selection
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/test_make.py")
 endif()

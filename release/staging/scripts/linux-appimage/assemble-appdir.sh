@@ -27,7 +27,7 @@ require_dir() {
   fi
 }
 
-for executable in holder-desktop holderd holderctl; do
+for executable in holder-desktop holderd holderctl holder-mcp; do
   if [ "${executable}" = "holder-desktop" ]; then
     test -x "${desktop_root}/usr/bin/${executable}"
   else
@@ -167,6 +167,7 @@ bash "${script_dir}/bundle-runtime.sh" \
   "${appdir}/usr/bin/holder-desktop" \
   "${appdir}/usr/bin/holderd" \
   "${appdir}/usr/bin/holderctl" \
+  "${appdir}/usr/bin/holder-mcp" \
   "${plugin_targets[@]}"
 
 (

@@ -663,11 +663,23 @@ if(WIN32)
   target_link_libraries(holderctl PRIVATE Shell32)
 endif()
 
+add_executable(holder-mcp ${HOLDER_CLI_DIR}/src/holder-mcp.cpp)
+target_link_libraries(holder-mcp PRIVATE Boost::headers Threads::Threads nlohmann_json::nlohmann_json)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  target_compile_options(holder-mcp PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion)
+  if(HOLDER_WARNINGS_AS_ERRORS)
+    target_compile_options(holder-mcp PRIVATE -Werror)
+  endif()
+endif()
+if(WIN32)
+  target_link_libraries(holder-mcp PRIVATE ws2_32)
+endif()
+
 # ----------------------------
 # Install
 # ----------------------------
 install(TARGETS holderd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(TARGETS holderctl RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS holderctl holder-mcp RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 holder_stage_windows_runtime(holderd)
 holder_stage_windows_runtime(holderctl)
 

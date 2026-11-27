@@ -84,6 +84,7 @@ jobs:
 
           test -x "${stage_dir}/usr/bin/holderd"
           test -x "${stage_dir}/usr/bin/holderctl"
+          test -x "${stage_dir}/usr/bin/holder-mcp"
           test -e "${stage_dir}/usr/lib/${multiarch}/libcaste.so"
           test -f "${stage_dir}/usr/share/holder-daemon/schema/schema.sql"
           test -f "${stage_dir}/usr/share/holder-daemon/config/ai_catalog.yaml"
@@ -99,6 +100,7 @@ jobs:
           test "$(cat "${stage_dir}/release/holder-daemon-api-version.txt")" = \
             "$(tr -d '[:space:]' < ../api/API_VERSION)"
           "${stage_dir}/usr/bin/holderctl" --help
+          "${stage_dir}/usr/bin/holder-mcp" --help
 
           runtime_dir="$(mktemp -d)"
           export XDG_DATA_HOME="${runtime_dir}/data"

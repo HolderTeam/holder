@@ -250,10 +250,12 @@ jobs:
           cp downloads/desktop/bin/holder-desktop "${contents_dir}/MacOS/Holder"
           cp downloads/backend/bin/holderd "${resources_dir}/bin/holderd"
           cp downloads/backend/bin/holderctl "${resources_dir}/bin/holderctl"
+          cp downloads/backend/bin/holder-mcp "${resources_dir}/bin/holder-mcp"
           chmod +x \
             "${contents_dir}/MacOS/Holder" \
             "${resources_dir}/bin/holderd" \
-            "${resources_dir}/bin/holderctl"
+            "${resources_dir}/bin/holderctl" \
+            "${resources_dir}/bin/holder-mcp"
 
           cp -a downloads/desktop/share/. "${resources_dir}/share/"
           cp -a downloads/backend/schema "${resources_dir}/schema"
@@ -329,6 +331,7 @@ jobs:
           bundle_binary "${contents_dir}/MacOS/Holder" "@executable_path/../Resources/lib" "-od"
           bundle_binary "${resources_dir}/bin/holderd" "@executable_path/../lib" "-of"
           bundle_binary "${resources_dir}/bin/holderctl" "@executable_path/../lib" "-of"
+          bundle_binary "${resources_dir}/bin/holder-mcp" "@executable_path/../lib" "-of"
 
           # Keep the dependency paths chosen by the bundler and replace only
           # the bundle's GTK before its libraries are normalized and signed.
@@ -622,6 +625,7 @@ jobs:
           codesign --force --sign - "${contents_dir}/MacOS/Holder"
           codesign --force --sign - "${resources_dir}/bin/holderd"
           codesign --force --sign - "${resources_dir}/bin/holderctl"
+          codesign --force --sign - "${resources_dir}/bin/holder-mcp"
           codesign --force --sign - "${app_dir}"
 
           find "${app_dir}" -maxdepth 5 -type f | sort
@@ -666,6 +670,7 @@ jobs:
           check_executable "${app_dir}/Contents/MacOS/Holder"
           check_executable "${resources_dir}/bin/holderd"
           check_executable "${resources_dir}/bin/holderctl"
+          check_executable "${resources_dir}/bin/holder-mcp"
           check_file "${resources_dir}/schema/schema.sql"
           check_file "${resources_dir}/openapi.yaml"
           cmp downloads/backend/core-build.json "${resources_dir}/core-build.json"
@@ -725,7 +730,8 @@ jobs:
           for binary in \
             "${app_dir}/Contents/MacOS/Holder" \
             "${resources_dir}/bin/holderd" \
-            "${resources_dir}/bin/holderctl"; do
+            "${resources_dir}/bin/holderctl" \
+            "${resources_dir}/bin/holder-mcp"; do
             if otool -L "${binary}" | grep -F "${homebrew_prefix}/"; then
               echo "${binary} still links to Homebrew paths"
               exit 1
@@ -769,7 +775,8 @@ jobs:
           for binary in \
             "${app_dir}/Contents/MacOS/Holder" \
             "${resources_dir}/bin/holderd" \
-            "${resources_dir}/bin/holderctl"; do
+            "${resources_dir}/bin/holderctl" \
+            "${resources_dir}/bin/holder-mcp"; do
             codesign --verify --strict --verbose=2 "${binary}"
           done
 

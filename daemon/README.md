@@ -79,6 +79,14 @@ for the selected project. The REST API uses a separate credential. Search return
 up to 100 matches per call and each tool call has a 256 KiB structured result
 limit. The endpoint serves finite JSON responses.
 
+For clients configured with a command, launch the installed `holder-mcp`
+executable with arguments `--port 11499` (use the running daemon's actual port)
+and set `HOLDER_MCP_TOKEN` in that command's environment. Supply
+`--bind ::1` if the daemon is listening on IPv6 loopback. The bridge supports
+`2026-07-28` clients and `2025-11-25` clients that use the initialization
+handshake. Start and enable the selected daemon before connecting. The bridge
+reports connection and authentication failures to the client over JSON-RPC.
+
 ## Optional Runtime Dependencies
 
 - Ollama (for local model execution via AI routes)
@@ -257,7 +265,7 @@ Under the configurations drop-down choose `windows-vcpkg-debug`.
 
 Then under the "Build" menu choose "Build All".
 
-This builds the local server `holderd.exe` and the command line interface `holderctl.exe`.
+This builds `holderd.exe`, `holderctl.exe`, and the `holder-mcp.exe` stdio bridge.
 
 Run them by selecting them as debug targets and using the Debug menu (or F5) or just run them in the command line.
 
