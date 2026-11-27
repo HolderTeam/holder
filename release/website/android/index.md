@@ -22,7 +22,7 @@ narrow: true
     </p>
     <p>
       If you'd like to try it before then, or help get it there, the source is open — see
-      <a href="https://github.com/HolderTeam/holder-android">holder-android on GitHub</a>.
+      <a href="https://github.com/HolderTeam/holder/tree/main/apps/mobile/android">the Android app on GitHub</a>.
     </p>
   </div>
 </section>

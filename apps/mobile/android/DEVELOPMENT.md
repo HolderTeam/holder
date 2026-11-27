@@ -40,3 +40,16 @@ not resolve it, investigate the remaining build failure.
 XML comments cannot contain `--`. This includes punctuation used as a dash or
 separator; the manifest merger reports an unhelpful `ManifestMerger2` failure.
 Use a comma or semicolon inside comments instead.
+
+## Release signing
+
+Release bundles for Google Play are signed with the upload key when these settings are given, as Gradle properties, `local.properties` entries or environment variables. Without them, release builds are unsigned.
+
+| Gradle property / `local.properties` | Environment variable |
+| --- | --- |
+| `holder.upload.storeFile` | `HOLDER_UPLOAD_STORE_FILE` |
+| `holder.upload.storePassword` | `HOLDER_UPLOAD_STORE_PASSWORD` |
+| `holder.upload.keyAlias` | `HOLDER_UPLOAD_KEY_ALIAS` |
+| `holder.upload.keyPassword` | `HOLDER_UPLOAD_KEY_PASSWORD` |
+
+`./gradlew :app:bundleRelease` then writes `app/build/outputs/bundle/release/app-release.aab`. A release APK build stops while these are set: published APKs are signed with the app signing key in the signing step, never with the upload key. See [Android signing](../../../release/docs/android-signing.md).
