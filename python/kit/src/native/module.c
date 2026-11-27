@@ -325,25 +325,18 @@ Context_create_project(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
-Context_restore_recovery_snapshot(ContextObject *self, PyObject *args, PyObject *kwargs)
+restore_recovery(ContextObject *self, const holder_recovery_snapshot_restore *request,
+                 const char *asset_directory)
 {
-    holder_recovery_snapshot_restore request = {
-        .privacy_mode = HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_PLAIN,
-        .commit_message = "Restore project recovery snapshot",
-    };
-    static char *keywords[] = {"snapshot", "name", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:restore_recovery_snapshot", keywords,
-                                    &request.snapshot, &request.project_name) ||
-        !ensure_context_open(self)) {
-        return NULL;
-    }
-
+    if (!ensure_context_open(self)) return NULL;
     holder_arena *arena = holder_arena_new();
     if (arena == NULL) return PyErr_NoMemory();
     holder_error *error = NULL;
     const holder_project *project = NULL;
-    const int result = holder_restore_recovery_snapshot(
-        self->context, &request, arena, &project, &error);
+    const int result = asset_directory == NULL
+        ? holder_restore_recovery_snapshot(self->context, request, arena, &project, &error)
+        : holder_restore_recovery_bundle(
+            self->context, request, asset_directory, arena, &project, &error);
     if (result != HOLDER_OK) {
         raise_holder_error(self, result, error);
         holder_arena_free(arena);
@@ -355,6 +348,35 @@ Context_restore_recovery_snapshot(ContextObject *self, PyObject *args, PyObject 
         project->project_key_id, project->created_at, project->updated_at);
     holder_arena_free(arena);
     return record;
+}
+
+static PyObject *
+Context_restore_recovery_snapshot(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    holder_recovery_snapshot_restore request = {
+        .privacy_mode = HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_PLAIN,
+        .commit_message = "Restore project recovery snapshot",
+    };
+    static char *keywords[] = {"snapshot", "name", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:restore_recovery_snapshot", keywords,
+                                    &request.snapshot, &request.project_name)) return NULL;
+    return restore_recovery(self, &request, NULL);
+}
+
+static PyObject *
+Context_restore_recovery_bundle(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    holder_recovery_snapshot_restore request = {
+        .privacy_mode = HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_PLAIN,
+        .commit_message = "Restore project recovery bundle",
+    };
+    const char *asset_directory;
+    static char *keywords[] = {"snapshot", "asset_directory", "name", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sss:restore_recovery_bundle", keywords,
+                                    &request.snapshot, &asset_directory, &request.project_name)) {
+        return NULL;
+    }
+    return restore_recovery(self, &request, asset_directory);
 }
 
 static PyObject *
@@ -2373,6 +2395,8 @@ static PyMethodDef Context_methods[] = {
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Create a plain Holder project.")},
     {"restore_recovery_snapshot", PyCFunction_CAST(Context_restore_recovery_snapshot),
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Restore recovery snapshot lines into a new plain project.")},
+    {"restore_recovery_bundle", PyCFunction_CAST(Context_restore_recovery_bundle),
+     METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Restore recovery lines with local asset files.")},
     {"list_projects", (PyCFunction)Context_list_projects, METH_NOARGS,
      PyDoc_STR("List Holder projects.")},
     {"get_project", PyCFunction_CAST(Context_get_project),

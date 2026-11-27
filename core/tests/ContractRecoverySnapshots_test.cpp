@@ -16,6 +16,7 @@
 #include "card/CardRepo.h"
 #include "core_test_helpers.h"
 #include "git/GitOps.h"
+#include "resource/AssetEnvelope.h"
 #include "resource/LocationStore.h"
 #include "resource/ResourceStore.h"
 
@@ -25,6 +26,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <iterator>
 #include <limits>
 #include <map>
@@ -337,6 +339,85 @@ TEST_CASE("A captured recovery snapshot is bounded and restores independently", 
   CHECK(copied.cards.front().card_id != source);
   CHECK(copied.cards.front().content == "Captured body");
   CHECK(host.read(host.project_id).cards.front().content == "Later edit");
+}
+
+TEST_CASE(
+    "Recovery bundle restore replaces remote placements with verified local assets",
+    "[recovery]"
+) {
+  Host host;
+  host.context.data_dir = host.dir;
+  host.context.registry_path.clear();
+  const auto card = host.card("Card with an attachment");
+  const auto assets = host.dir / "bundle-assets";
+  std::filesystem::create_directories(assets);
+  const auto staged = assets / "payload";
+  std::ofstream(staged, std::ios::binary) << "attachment";
+  const auto digest = holder::resource::digest_file(staged);
+  std::filesystem::rename(staged, assets / digest.sha256);
+
+  holder::model::ResourceBundle source;
+  source.resource = {"resource-original", host.project_id, "document", "Notes.txt", {}, 10, 10};
+  source.assets.push_back(
+      {"asset-original",
+       "resource-original",
+       "Notes.txt",
+       "text/plain",
+       digest.byte_size,
+       digest.sha256,
+       10,
+       10,
+       {}}
+  );
+  holder::resource::ResourceStore(host.db, nullptr, &host.git).put(source);
+  host.link(card, contract::NewLinkTargetType::Resource, "resource-original", "attachment");
+
+  contract::RecoverySnapshotRestore request;
+  request.project_name = "Copy with local files";
+  request.privacy_mode = contract::RecoverySnapshotRestorePrivacyMode::Plain;
+  request.snapshot = contract::capture_recovery_snapshot(host.context, host.project_id, 4096);
+  request.commit_message = "Restore bundled files";
+  const auto copy = contract::restore_recovery_bundle(host.context, request, assets.string());
+  const auto page = host.read(copy.project_id);
+  REQUIRE(page.cards.size() == 1);
+  const auto& resource = page.cards.at(0).resources.at(0);
+  const auto& asset = resource.assets.at(0);
+  const auto& placement = asset.placements.at(0);
+  REQUIRE(resource.resource_id != source.resource.resource_id);
+  REQUIRE(placement.encoding == contract::RecoverySnapshotPlacementEncoding::Plain);
+  REQUIRE(
+      page.cards.at(0).locations.at(0).provider ==
+      contract::RecoverySnapshotLocationProvider::LocalDirectory
+  );
+  const auto downloaded = host.dir / "restored-attachment";
+  contract::retrieve_asset_file(
+      host.context,
+      resource.resource_id,
+      asset.asset_id,
+      placement.placement_id,
+      downloaded.string()
+  );
+  REQUIRE(holder::resource::digest_file(downloaded).sha256 == digest.sha256);
+
+  std::ofstream(assets / digest.sha256, std::ios::binary | std::ios::trunc) << "corrupted!";
+  request.project_name = "Broken copy";
+  REQUIRE_THROWS_AS(
+      contract::restore_recovery_bundle(host.context, request, assets.string()),
+      contract::DataCorrupted
+  );
+  CHECK(
+      std::distance(
+          std::filesystem::directory_iterator(host.dir / "resource-store"),
+          std::filesystem::directory_iterator{}
+      ) == 1
+  );
+  CHECK(
+      std::distance(
+          std::filesystem::directory_iterator(host.dir / "projects"),
+          std::filesystem::directory_iterator{}
+      ) == 2
+  );
+  CHECK(host.by_title(copy.project_id).contains("Card with an attachment"));
 }
 
 TEST_CASE(
