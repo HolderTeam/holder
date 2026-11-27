@@ -272,11 +272,10 @@ class Coordinator:
         if name == 'desktop':
             return self.record['build_ref'], {'build_type': 'release'}
         if name in PACKAGES:
-            inputs = {'destination': 'none'}
-            if name == 'kit':
-                inputs.update(release_manifest=self.record['manifest']['path'],
-                              release_manifest_ref=self.record['manifest']['commit'])
-            else:
+            inputs = {'destination': 'none',
+                      'release_manifest': self.record['manifest']['path'],
+                      'release_manifest_ref': self.record['manifest']['commit']}
+            if name == 'python':
                 inputs['preview_number'] = '0'
             return self.record['build_ref'], inputs
         if name in PUBLICATIONS:

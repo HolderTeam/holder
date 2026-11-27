@@ -1,12 +1,19 @@
 # Publishing Holder for Python
 
-The distribution is `holder-python`; users import `holder`. It is a pure Python
-package, so one `py3-none-any` wheel and one source archive cover all supported
-platforms. The version follows the repository's root `VERSION`.
+The distribution is `holder-python`, and users import `holder`. The release
+includes embedded wheels for CPython 3.11 through 3.14 on x86-64 Linux with
+glibc 2.39 or newer. On other supported platforms pip selects the universal
+HTTP wheel. The source archive also builds the HTTP package by default.
+All files share the repository's root `VERSION`.
 
 [`Release / Holder Python to PyPI`](../../../.github/workflows/release-holder-python-pypi.yml)
-builds both files, checks their metadata, installs each in a fresh virtual
-environment, and saves them as the `holder-python-distributions` artifact. A
+builds the distribution set, checks its metadata, and verifies that pip
+prefers the native wheel on matching runners and selects the universal wheel
+for an unsupported native target. Each native wheel must open and reopen a
+private workspace in a clean Debian runtime. The workflow records the
+verified Release core SDK alongside the hashes of the published files.
+Candidate preparation uses the Linux SDK pinned by the release coordinator.
+The workflow saves the files as the `holder-python-distributions` artifact. A
 pull request or a manual run with `destination=none` only builds. Publishing
 uses Trusted Publishing. PyPI requires a manual run from the
 `holder-v<version>` tag matching root `VERSION`. Package metadata derives its
@@ -48,8 +55,8 @@ and use a new preview number for each revised build:
 1. Merge the changes to `main`. In GitHub Actions, run **Release / Holder
    Python to PyPI** on `main` with `destination=testpypi` and
    `preview_number=1`. The build derives `<root-version>.post1` using
-   `HOLDER_PYTHON_PREVIEW_NUMBER`; root `VERSION` stays unchanged. Both the
-   wheel and source archive retain that preview version.
+   `HOLDER_PYTHON_PREVIEW_NUMBER`; root `VERSION` stays unchanged. All wheels
+   and the source archive retain that preview version.
 2. Wait for the TestPyPI upload and published-wheel install check to pass.
    Review the resulting preview page on TestPyPI.
 3. If the description needs another edit, merge that edit and repeat from

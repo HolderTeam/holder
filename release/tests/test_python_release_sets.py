@@ -46,6 +46,11 @@ def distribution_files(package, selection):
                     platform = packages.PLATFORMS[filename.removesuffix('.whl').split('-')[-1]]
                     core = next(asset for asset in selection['assets'] if asset['platform'] == platform)
                     archive.writestr('holderkit/_core_build.json', json.dumps(core))
+                elif not filename.endswith('-none-any.whl'):
+                    core = packages.python_linux_sdk(selection, '0.2.6')
+                    archive.writestr('holder/_embedded/_core_build.json', json.dumps(core))
+                    archive.writestr('holder/_embedded/_native.so', 'fixture extension')
+                    archive.writestr('holder/_embedded/_schema.sql', 'fixture schema')
             result[filename] = output.getvalue()
         else:
             result[filename] = tar_bytes({stem + '/PKG-INFO': metadata, stem + '/README.md': 'Test package\n'})
@@ -60,6 +65,8 @@ def release_manifest(package, files, selection):
         document['core'] = {'commit': CANDIDATE, 'version': '0.2.6', 'core_tree': selection['core_tree'],
             'sdk_assets': selection['assets'], 'sdk_commits': {
                 asset['platform']: asset.get('commit', CANDIDATE) for asset in selection['assets']}}
+    else:
+        document['core'] = packages.python_core_evidence(selection, '0.2.6', CANDIDATE)
     return document
 
 
@@ -110,11 +117,12 @@ class PackageCoordinatorTests(unittest.TestCase):
         self.assertEqual(self.record['status'], 'packages_prepared')
         self.assertEqual(len(self.github.dispatches()), 7)
         self.assertEqual(self.record['steps']['kit']['inputs']['release_manifest_ref'], MANIFEST)
+        self.assertEqual(self.record['steps']['python']['inputs']['release_manifest_ref'], MANIFEST)
         for name in tool.PACKAGES:
             self.assertEqual(self.record['steps'][name]['inputs']['destination'], 'none')
             self.assertEqual(self.record['steps'][name]['workflow_commit'], CANDIDATE)
         self.assertEqual(len(self.record['python_packages']['kit']['files']), 19)
-        self.assertEqual(len(self.record['python_packages']['python']['files']), 2)
+        self.assertEqual(len(self.record['python_packages']['python']['files']), 6)
         self.reload()
         self.coordinator.advance_packages()
         self.assertEqual(len(self.github.dispatches()), 7)
@@ -234,9 +242,36 @@ class DistributionEvidenceTests(unittest.TestCase):
         return packages.verify(directory, package, '0.2.6', CANDIDATE, document, self.selection)
 
     def test_both_complete_sets_and_metadata_are_verified(self):
-        for package, count in (('kit', 19), ('python', 2)):
+        for package, count in (('kit', 19), ('python', 6)):
             directory, document = self.write(package)
             self.assertEqual(len(self.verify(directory, package, document)), count)
+
+    def test_holder_python_rejects_a_wheel_built_with_another_sdk(self):
+        directory, document = self.write('python')
+        path = next(directory.glob('*manylinux*.whl'))
+        with zipfile.ZipFile(path) as wheel:
+            entries = {name: wheel.read(name) for name in wheel.namelist()}
+        entry = 'holder/_embedded/_core_build.json'
+        core = json.loads(entries[entry])
+        core['commit'] = '0' * 40
+        entries[entry] = json.dumps(core)
+        with zipfile.ZipFile(path, 'w') as wheel:
+            for name, data in entries.items():
+                wheel.writestr(name, data)
+        with self.assertRaisesRegex(ValueError, 'wheel differs from the pinned SDK'):
+            self.verify(directory, 'python', document)
+
+    def test_holder_python_manifest_producer_records_the_complete_set(self):
+        directory, document = self.write('python')
+        selection = self.root / 'core-selection.json'
+        selection.write_text(json.dumps(self.selection))
+        output = self.root / 'release-manifest.json'
+        with patch.object(sys, 'argv', [
+            'python-distributions.py', '--directory', str(directory), '--version', '0.2.6',
+            '--candidate', CANDIDATE, '--selection', str(selection), '--output', str(output),
+        ]):
+            packages.main()
+        self.assertEqual(json.loads(output.read_text()), document)
 
     def test_actual_kit_manifest_producer_agrees_with_the_coordinator_verifier(self):
         directory, _ = self.write('kit')

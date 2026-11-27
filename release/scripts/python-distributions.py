@@ -19,11 +19,14 @@ ARTIFACTS = {'kit': ('kit-release-distributions', 'kit-release-manifest'),
              'python': ('holder-python-distributions', 'holder-python-release-manifest')}
 WORKFLOWS = {'kit': 'release-kit-pypi.yml', 'python': 'release-holder-python-pypi.yml'}
 PLATFORMS = {'manylinux_2_39_x86_64': 'linux', 'win_amd64': 'windows', 'macosx_15_0_arm64': 'macos'}
+HOLDER_PYTHON_ABIS = ('cp311', 'cp312', 'cp313', 'cp314')
 
 
 def filenames(package, version):
     if package == 'python':
-        return {f'holder_python-{version}-py3-none-any.whl', f'holder_python-{version}.tar.gz'}
+        return {f'holder_python-{version}-{abi}-{abi}-manylinux_2_39_x86_64.whl'
+                for abi in HOLDER_PYTHON_ABIS} | {
+                    f'holder_python-{version}-py3-none-any.whl', f'holder_python-{version}.tar.gz'}
     return {f'holder_kit-{version}-{python}-{python}-{platform}.whl'
             for python in ('cp310', 'cp311', 'cp312', 'cp313', 'cp314', 'cp315')
             for platform in PLATFORMS} | {f'holder_kit-{version}.tar.gz'}
@@ -33,6 +36,23 @@ def metadata(data, name, version):
     parsed = Parser().parsestr(data.decode())
     require(parsed['Name'] == name and parsed['Version'] == version,
             f'Distribution metadata differs from {name} {version}')
+
+
+def python_linux_sdk(selection, version):
+    require(selection is not None, 'Holder Python verification requires the pinned core selection')
+    require(selection['version'] == version.split('.post', 1)[0], 'Holder Python SDK version differs')
+    assets = [asset for asset in selection['assets']
+              if asset['platform'] == 'linux' and asset['build_type'] == 'Release']
+    require(len(assets) == 1 and assets[0]['architecture'] == 'x86_64',
+            'Holder Python Linux SDK configuration is missing or ambiguous')
+    return assets[0]
+
+
+def python_core_evidence(selection, version, candidate):
+    asset = python_linux_sdk(selection, version)
+    require(selection['commit'] == candidate, 'Pinned Holder Python core identity differs')
+    return {'commit': candidate, 'version': selection['version'],
+            'core_tree': selection['core_tree'], 'sdk_asset': asset}
 
 
 def check(directory, package, version, selection=None):
@@ -47,6 +67,26 @@ def check(directory, package, version, selection=None):
                 entry = stem + '.dist-info/METADATA'
                 require(wheel.namelist().count(entry) == 1, 'Wheel metadata is missing or ambiguous')
                 metadata(wheel.read(entry), name, version)
+                if package == 'python':
+                    prefix = 'holder/_embedded/'
+                    files = wheel.namelist()
+                    extensions = [path for path in files if path.startswith(prefix + '_native')]
+                    core_entry = prefix + '_core_build.json'
+                    schema_entry = prefix + '_schema.sql'
+                    if filename.endswith('-none-any.whl'):
+                        require(not extensions and core_entry not in files and schema_entry not in files,
+                                'Universal Holder Python wheel contains native build files')
+                    else:
+                        require(len(extensions) == 1 and extensions[0].endswith('.so') and
+                                files.count(core_entry) == files.count(schema_entry) == 1,
+                                'Native Holder Python wheel is missing its extension, schema or SDK metadata')
+                        asset = python_linux_sdk(selection, version)
+                        core = json.loads(wheel.read(core_entry))
+                        require(all(core[key] == value for key, value in {
+                            'commit': asset.get('commit', selection['commit']),
+                            'version': selection['version'], 'platform': 'linux',
+                            'architecture': asset['architecture'], 'build_type': 'Release'}.items()),
+                            'Holder Python wheel differs from the pinned SDK')
                 if package == 'kit':
                     require(selection is not None, 'Kit verification requires the pinned core selection')
                     platform = PLATFORMS[filename.removesuffix('.whl').split('-')[-1]]
@@ -82,6 +122,9 @@ def verify(directory, package, version, candidate, document, selection=None):
                 core['sdk_commits'] == {asset['platform']: asset.get('commit', candidate)
                     for asset in selection['assets'] if asset['build_type'] == 'Release'},
                 'Kit distribution manifest differs from the pinned SDK selection')
+    else:
+        require(document.get('core') == python_core_evidence(selection, version, candidate),
+                'Holder Python distribution manifest differs from the pinned SDK selection')
     return files
 
 
@@ -117,7 +160,7 @@ def collect(record, github, names=None):
                 with archive.open(filename) as source, (directory / filename).open('wb') as output:
                     shutil.copyfileobj(source, output)
         files = verify(directory, package, record['version'], record['candidate'], document,
-                       record['manifest']['evidence']['core_selection'] if package == 'kit' else None)
+                       record['manifest']['evidence']['core_selection'])
         result[package] = {'source': record['candidate'], 'version': record['version'],
                           'run_id': step['run_id'], 'attempt': step['attempt'],
                           'distribution_artifact_id': item['id'], 'distribution_archive_sha256': archive_hash,
@@ -134,12 +177,15 @@ def main():
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--version', required=True)
     parser.add_argument('--candidate', required=True)
+    parser.add_argument('--selection', required=True, type=Path)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     manifest_tool.provenance.commit(args.candidate)
     require(re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:\.post[0-9]+)?', args.version), 'Invalid package version')
+    selection = json.loads(args.selection.read_text())
     document = {'source': args.candidate, 'version': args.version,
-                'files': check(args.directory, 'python', args.version)}
+                'files': check(args.directory, 'python', args.version, selection),
+                'core': python_core_evidence(selection, args.version, args.candidate)}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(document, indent=2) + '\n')
 
