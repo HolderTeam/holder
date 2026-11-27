@@ -90,8 +90,8 @@ to 100 results per call. Each tool call has a 256 KiB structured result limit.
 The endpoint serves finite JSON responses.
 
 Set `HOLDER_MCP_ALLOW_WRITES=1` before starting the daemon to let that
-token also create cards and add milestones in the selected project. These
-operations create new IDs each time. If the connection drops after sending a
+token also create, edit, move and tag cards, and add or edit milestones in the
+selected project. Creating a card or adding a milestone generates a new ID each time. If the connection drops after sending a
 write, check the project before repeating the call.
 
 For clients configured with a command, launch the installed `holder-mcp`

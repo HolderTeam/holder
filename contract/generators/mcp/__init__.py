@@ -22,7 +22,17 @@ TOOLS = (
     "list_card_links", "list_card_milestones", "list_card_resources", "list_cards", "list_project_tags",
     "search_cards",
 )
-WRITE_TOOLS = ("add_card_milestone", "create_card")
+WRITE_TOOLS = {
+    "add_card_milestone": "POST",
+    "add_card_tag": "PUT",
+    "create_card": "POST",
+    "move_card": "POST",
+    "remove_card_tag": "DELETE",
+    "update_card": "PATCH",
+    "update_card_milestone": "PATCH",
+}
+DESTRUCTIVE_HINT_TOOLS = {"remove_card_tag", "update_card", "update_card_milestone"}
+IDEMPOTENT_WRITE_TOOLS = {"add_card_tag", "remove_card_tag"}
 PAGE_LIMITS = {"list_cards": 100, "search_cards": 100}
 PAGE_DEFAULTS = {"list_cards": 50}
 FIXED_ARGUMENTS = {
@@ -71,25 +81,26 @@ def generate_mcp_tools(contract: ContractView) -> str:
     schemas = document(contract)
     components = schemas["components"]["schemas"]
     tools = []
-    for name in sorted(TOOLS + WRITE_TOOLS):
+    for name in sorted((*TOOLS, *WRITE_TOOLS)):
         operation = contract.operation(name)
         bindings = [binding for binding in contract.http if binding.operation == name]
         if len(bindings) != 1:
             raise ValueError(f"MCP tool {name} requires one daemon binding")
         binding = bindings[0]
         write = name in WRITE_TOOLS
-        expected_method = "POST" if write else "GET"
+        expected_method = WRITE_TOOLS.get(name, "GET")
         if (binding.method.upper() != expected_method or binding.response_mode != "envelope"
-                or bool(binding.body) != write or binding.headers):
+                or bool(binding.body) != (expected_method in {"POST", "PATCH"}) or binding.headers):
             raise ValueError(f"MCP tool {name} needs an envelope with the expected method and body")
 
         route = schemas["paths"][binding.path][expected_method.lower()]
         parameters = {parameter["name"]: parameter for parameter in route.get("parameters", [])}
-        if write:
+        if binding.body:
             body = route["requestBody"]
             parameters[binding.body] = {
                 "schema": body["content"]["application/json"]["schema"],
-                "required": body["required"],
+                # Keep the tool's typed record explicit. {} is valid when Core allows an empty update.
+                "required": True,
             }
         if parameters.keys() != {parameter.name for parameter in operation.parameters}:
             raise ValueError(f"MCP tool {name} does not describe every operation argument")
@@ -115,8 +126,8 @@ def generate_mcp_tools(contract: ContractView) -> str:
         tools.append({
             "name": name,
             "description": description,
-            "annotations": {"readOnlyHint": not write, "destructiveHint": False,
-                            "idempotentHint": not write, "openWorldHint": False},
+            "annotations": {"readOnlyHint": not write, "destructiveHint": name in DESTRUCTIVE_HINT_TOOLS,
+                            "idempotentHint": not write or name in IDEMPOTENT_WRITE_TOOLS, "openWorldHint": False},
             "inputSchema": standalone_schema({
                 "type": "object",
                 "properties": properties,
@@ -161,7 +172,7 @@ def optional_string_choice(types: CoreTypes, operation: str, slot: Slot) -> list
 
 def generate_mcp_bindings(contract: ContractView) -> str:
     """Bind each allowed tool to its typed core operation and use the daemon JSON codec."""
-    operations = [contract.operation(name) for name in sorted(TOOLS + WRITE_TOOLS)]
+    operations = [contract.operation(name) for name in sorted((*TOOLS, *WRITE_TOOLS))]
     lines = header_lines((op.source for op in operations if op.source),
                          "Live MCP tool bindings.", "cpp")
     lines += [

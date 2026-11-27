@@ -143,6 +143,33 @@ def test_write_tools(port, env, rest):
         persisted_card = rest(path)
         assert persisted_card["card_id"] == card["card_id"] and persisted_card["title"] == card["title"]
         assert rest(f"{path}/milestones") == [milestone]
+        send(process, "tools/call", 5, _meta=metadata, name="update_card",
+             arguments={"card_id": card["card_id"], "update": {"title": "Renamed", "content": "Release notes"}})
+        updated = result(process, 5)["structuredContent"]["data"]
+        assert updated["title"] == "Renamed" and updated["content"] == "Release notes"
+
+        send(process, "tools/call", 6, _meta=metadata, name="update_card_milestone",
+             arguments={"card_id": card["card_id"], "milestone_id": milestone["milestone_id"],
+                        "update": {"dates": [{"role": "due", "date": "2026-12-11"}]}})
+        changed = result(process, 6)["structuredContent"]["data"]
+        assert changed["milestone_id"] == milestone["milestone_id"]
+        assert changed["dates"] == [{"role": "due", "date": "2026-12-11"}]
+        assert rest(f"{path}/milestones") == [changed]
+
+        send(process, "tools/call", 7, _meta=metadata, name="add_card_tag",
+             arguments={"card_id": card["card_id"], "tag": "release"})
+        assert result(process, 7)["structuredContent"]["data"]["tags"] == ["release"]
+        send(process, "tools/call", 8, _meta=metadata, name="remove_card_tag",
+             arguments={"card_id": card["card_id"], "tag": "release"})
+        assert result(process, 8)["structuredContent"]["data"]["tags"] == []
+
+        parent = rest(f"/projects/{PROJECT}/cards", {"title": "Parent"})
+        send(process, "tools/call", 9, _meta=metadata, name="move_card",
+             arguments={"card_id": card["card_id"],
+                        "move": {"intent": "into", "target_card_id": parent["card_id"]}})
+        moved = result(process, 9)["structuredContent"]["data"]
+        assert moved["parent_card_id"] == parent["card_id"]
+        assert rest(path) == moved
         shutdown(process)
 
 

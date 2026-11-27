@@ -34,7 +34,9 @@ template <> struct codec<holder::contract::ListCardsOrder> {
 } // namespace contract_json
 namespace holder::api::mcp {
 inline bool is_write_tool(std::string_view name) {
-  return name == "add_card_milestone" || name == "create_card";
+  return name == "add_card_milestone" || name == "add_card_tag" || name == "create_card" ||
+         name == "move_card" || name == "remove_card_tag" || name == "update_card" ||
+         name == "update_card_milestone";
 }
 // Authorization must throw on denial. Domain errors propagate to the protocol adapter.
 inline nlohmann::json invoke_tool(
@@ -79,6 +81,46 @@ inline nlohmann::json invoke_tool(
              std::move(project_id),
              std::move(card_id),
              milestone
+         ))}
+    };
+  }
+  if (name == "add_card_tag") {
+    if (!allow_writes) throw std::invalid_argument("MCP write access was not granted");
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id" && it.key() != "card_id" && it.key() != "tag")
+        throw std::invalid_argument("unknown tool argument");
+    }
+    auto project_id = check_text(
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("card_id")) throw std::invalid_argument("card_id is required");
+    auto card_id = check_text(
+        decode_field<std::string>(arguments.at("card_id"), "card_id"),
+        "card_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("tag")) throw std::invalid_argument("tag is required");
+    auto tag = check_text(
+        decode_field<std::string>(arguments.at("tag"), "tag"),
+        "tag",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    authorize_project(project_id);
+    return json{
+        {"data",
+         encode(holder::contract::add_card_tag(
+             context,
+             std::move(project_id),
+             std::move(card_id),
+             std::move(tag)
          ))}
     };
   }
@@ -454,6 +496,78 @@ inline nlohmann::json invoke_tool(
         {"data", encode(holder::contract::list_project_tags(context, std::move(project_id)))}
     };
   }
+  if (name == "move_card") {
+    if (!allow_writes) throw std::invalid_argument("MCP write access was not granted");
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id" && it.key() != "card_id" && it.key() != "move")
+        throw std::invalid_argument("unknown tool argument");
+    }
+    auto project_id = check_text(
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("card_id")) throw std::invalid_argument("card_id is required");
+    auto card_id = check_text(
+        decode_field<std::string>(arguments.at("card_id"), "card_id"),
+        "card_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("move")) throw std::invalid_argument("move is required");
+    auto move = codec<holder::contract::CardMove>::decode(arguments.at("move"));
+    authorize_project(project_id);
+    return json{
+        {"data",
+         encode(
+             holder::contract::move_card(context, std::move(project_id), std::move(card_id), move)
+         )}
+    };
+  }
+  if (name == "remove_card_tag") {
+    if (!allow_writes) throw std::invalid_argument("MCP write access was not granted");
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id" && it.key() != "card_id" && it.key() != "tag")
+        throw std::invalid_argument("unknown tool argument");
+    }
+    auto project_id = check_text(
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("card_id")) throw std::invalid_argument("card_id is required");
+    auto card_id = check_text(
+        decode_field<std::string>(arguments.at("card_id"), "card_id"),
+        "card_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("tag")) throw std::invalid_argument("tag is required");
+    auto tag = check_text(
+        decode_field<std::string>(arguments.at("tag"), "tag"),
+        "tag",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    authorize_project(project_id);
+    return json{
+        {"data",
+         encode(holder::contract::remove_card_tag(
+             context,
+             std::move(project_id),
+             std::move(card_id),
+             std::move(tag)
+         ))}
+    };
+  }
   if (name == "search_cards") {
     for (auto it = arguments.begin(); it != arguments.end(); ++it) {
       if (it.key() != "project_id" && it.key() != "q" && it.key() != "limit" &&
@@ -493,6 +607,86 @@ inline nlohmann::json invoke_tool(
         {"data",
          encode(holder::contract::
                     search_cards(context, std::move(project_id), std::move(q), limit, offset))}
+    };
+  }
+  if (name == "update_card") {
+    if (!allow_writes) throw std::invalid_argument("MCP write access was not granted");
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id" && it.key() != "card_id" && it.key() != "update")
+        throw std::invalid_argument("unknown tool argument");
+    }
+    auto project_id = check_text(
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("card_id")) throw std::invalid_argument("card_id is required");
+    auto card_id = check_text(
+        decode_field<std::string>(arguments.at("card_id"), "card_id"),
+        "card_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("update")) throw std::invalid_argument("update is required");
+    auto update = codec<holder::contract::CardUpdate>::decode(arguments.at("update"));
+    authorize_project(project_id);
+    return json{
+        {"data",
+         encode(holder::contract::update_card(
+             context,
+             std::move(project_id),
+             std::move(card_id),
+             update
+         ))}
+    };
+  }
+  if (name == "update_card_milestone") {
+    if (!allow_writes) throw std::invalid_argument("MCP write access was not granted");
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id" && it.key() != "card_id" && it.key() != "milestone_id" &&
+          it.key() != "update")
+        throw std::invalid_argument("unknown tool argument");
+    }
+    auto project_id = check_text(
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("card_id")) throw std::invalid_argument("card_id is required");
+    auto card_id = check_text(
+        decode_field<std::string>(arguments.at("card_id"), "card_id"),
+        "card_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("milestone_id"))
+      throw std::invalid_argument("milestone_id is required");
+    auto milestone_id = check_text(
+        decode_field<std::string>(arguments.at("milestone_id"), "milestone_id"),
+        "milestone_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("update")) throw std::invalid_argument("update is required");
+    auto update = codec<holder::contract::MilestoneUpdate>::decode(arguments.at("update"));
+    authorize_project(project_id);
+    return json{
+        {"data",
+         encode(holder::contract::update_card_milestone(
+             context,
+             std::move(project_id),
+             std::move(card_id),
+             std::move(milestone_id),
+             update
+         ))}
     };
   }
   throw std::invalid_argument("unknown MCP tool");
