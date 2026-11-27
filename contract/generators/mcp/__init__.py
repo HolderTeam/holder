@@ -18,8 +18,9 @@ PATH = "daemon/src/api/generated/McpTools.json"
 BINDINGS_PATH = "daemon/src/api/generated/McpBindings.h"
 # Select reads whose arguments and results stay inside the authorized project.
 TOOLS = (
-    "get_card", "get_card_breadcrumbs", "get_resource", "list_card_backlinks",
-    "list_card_links", "list_card_milestones", "list_card_resources", "list_cards", "list_project_tags", "search_cards",
+    "get_calendar", "get_card", "get_card_breadcrumbs", "get_resource", "list_card_backlinks",
+    "list_card_links", "list_card_milestones", "list_card_resources", "list_cards", "list_project_tags",
+    "search_cards",
 )
 PAGE_LIMITS = {"list_cards": 100, "search_cards": 100}
 PAGE_DEFAULTS = {"list_cards": 50}

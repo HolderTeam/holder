@@ -1,6 +1,325 @@
 {
   "tools": [
     {
+      "name": "get_calendar",
+      "description": "What happens in a project over a window of days in a time zone.\n\nThe window runs from the start of first_day to the end of last_day in the zone, so it is empty when first_day is\nafter last_day. A milestone is in it when one of its days is in the days, or one of its instants falls in the\nwindow; a day has no time zone, so it is compared with the days, never turned into an instant. Cards are made and\nchanged at instants. Core works out the window's instants from the zone, across daylight-saving changes, so every\nclient gets the same answer. An unknown zone is an invalid argument.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
+          },
+          "first_day": {
+            "$ref": "#/$defs/Day"
+          },
+          "last_day": {
+            "$ref": "#/$defs/Day"
+          },
+          "time_zone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The zone the days are in, such as Europe/London; omit for this device's zone.",
+            "title": "Time Zone"
+          }
+        },
+        "required": [
+          "first_day",
+          "last_day"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "Day": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 10
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/Calendar"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Calendar": {
+            "properties": {
+              "milestones": {
+                "items": {
+                  "$ref": "#/$defs/CalendarMilestone"
+                },
+                "type": "array",
+                "title": "Milestones",
+                "description": "The milestones with a date in the window, as a day in its days or an instant in its instants, each once, by\nwhen they were made and then by ID."
+              },
+              "created_cards": {
+                "items": {
+                  "$ref": "#/$defs/CardMetadata"
+                },
+                "type": "array",
+                "title": "Created Cards",
+                "description": "The live cards made in the window, by when they were made and then by ID."
+              },
+              "updated_cards": {
+                "items": {
+                  "$ref": "#/$defs/CardMetadata"
+                },
+                "type": "array",
+                "title": "Updated Cards",
+                "description": "The live cards last changed in the window, other than by being made, by when and then by ID."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "milestones",
+              "created_cards",
+              "updated_cards"
+            ],
+            "title": "Calendar",
+            "description": "What happens in a project over a window of time: its milestones, and the cards made and changed."
+          },
+          "CalendarMilestone": {
+            "properties": {
+              "milestone_id": {
+                "$ref": "#/$defs/MilestoneId",
+                "description": "The milestone's ID."
+              },
+              "project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project of the card the milestone is on."
+              },
+              "card_id": {
+                "$ref": "#/$defs/CardId",
+                "description": "The card the milestone is on."
+              },
+              "dates": {
+                "items": {
+                  "$ref": "#/$defs/MilestoneDate"
+                },
+                "type": "array",
+                "title": "Dates",
+                "description": "The milestone's dates, in the order they were given."
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/MilestoneText"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "What kind of milestone it is; null when it has none."
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/MilestoneText"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A note on the milestone; null when it has none."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the milestone was made."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the milestone was last changed."
+              },
+              "card_title": {
+                "type": "string",
+                "title": "Card Title",
+                "description": "The title of the card the milestone is on."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "milestone_id",
+              "project_id",
+              "card_id",
+              "dates",
+              "kind",
+              "description",
+              "created_at",
+              "updated_at",
+              "card_title"
+            ],
+            "title": "CalendarMilestone",
+            "description": "A milestone on a calendar, with the title of its card."
+          },
+          "MilestoneId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "MilestoneDate": {
+            "properties": {
+              "role": {
+                "$ref": "#/$defs/MilestoneRole",
+                "description": "What the date is for."
+              },
+              "date": {
+                "$ref": "#/$defs/Day",
+                "description": "The calendar day; present when the date is a day."
+              },
+              "datetime": {
+                "$ref": "#/$defs/DateTime",
+                "description": "The instant; present when the date is an instant."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "title": "MilestoneDate",
+            "description": "One of a milestone's dates: a role and exactly one of a day or an instant."
+          },
+          "MilestoneRole": {
+            "type": "string",
+            "minLength": 1
+          },
+          "Day": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 10
+          },
+          "DateTime": {
+            "type": "string",
+            "maxLength": 25,
+            "minLength": 20
+          },
+          "MilestoneText": {
+            "type": "string",
+            "minLength": 1
+          },
+          "CardMetadata": {
+            "properties": {
+              "card_id": {
+                "$ref": "#/$defs/CardId",
+                "description": "The card's ID."
+              },
+              "project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project the card belongs to."
+              },
+              "title": {
+                "type": "string",
+                "title": "Title",
+                "description": "The card's title."
+              },
+              "rel_path": {
+                "type": "string",
+                "title": "Rel Path",
+                "description": "The card's file, relative to the project's root."
+              },
+              "parent_card_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/CardId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The card's parent; null for a root card."
+              },
+              "sort_key": {
+                "type": "number",
+                "format": "double",
+                "title": "Sort Key",
+                "description": "The card's place among its siblings; lower comes first."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the card was created."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the card was last changed."
+              },
+              "deleted_at": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "maximum": 9223372036854775807,
+                    "minimum": -9223372036854775808,
+                    "format": "int64"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Deleted At",
+                "description": "When the card was moved to the trash; null when it is not in the trash."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "card_id",
+              "project_id",
+              "title",
+              "rel_path",
+              "parent_card_id",
+              "sort_key",
+              "created_at",
+              "updated_at",
+              "deleted_at"
+            ],
+            "title": "CardMetadata",
+            "description": "Everything about a card except its content."
+          }
+        }
+      }
+    },
+    {
       "name": "get_card",
       "description": "Fetch a card.\n\nA card in the trash or in another project is not found.",
       "inputSchema": {

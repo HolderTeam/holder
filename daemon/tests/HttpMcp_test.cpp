@@ -81,7 +81,7 @@ TEST_CASE("Live MCP shares daemon reads and applies its own access policy", "[ht
   auto request = mcp_request("server/discover");
   CHECK(result(exchange(bound.port, request)).at("supportedVersions").at(0) == version);
   const auto listed = result(exchange(bound.port, mcp_request("tools/list")));
-  CHECK(listed.at("tools").size() == 10);
+  CHECK(listed.at("tools").size() == 11);
   CHECK(listed.at("ttlMs") == 0);
   CHECK(listed.at("cacheScope") == "private");
 
@@ -212,6 +212,39 @@ TEST_CASE("Live MCP shares daemon reads and applies its own access policy", "[ht
       query_card("get_card_breadcrumbs", selection).at("structuredContent").at("data");
   CHECK(breadcrumbs.back().at("id") == "card-1");
   CHECK(query_card("list_card_milestones", selection).at("structuredContent").at("data").empty());
+  const json milestone_body{{"dates", json::array({{{"role", "due"}, {"date", "2026-12-01"}}})}};
+  for (const auto* path :
+       {"/projects/allowed/cards/card-1/milestones", "/projects/other/cards/card-2/milestones"}) {
+    holder::test::http_json_request(
+        bound.bind,
+        bound.port,
+        "rest-test-token",
+        http::verb::post,
+        path,
+        milestone_body,
+        http::status::created
+    );
+  }
+  const json window{{"first_day", "2026-12-01"}, {"last_day", "2026-12-02"}, {"time_zone", "UTC"}};
+  const auto calendar = query_card("get_calendar", window).at("structuredContent").at("data");
+  REQUIRE(calendar.at("milestones").size() == 1);
+  CHECK(calendar.at("milestones").at(0).at("card_id") == "card-1");
+  const auto rest_calendar = holder::test::http_json_request(
+      bound.bind,
+      bound.port,
+      "rest-test-token",
+      http::verb::get,
+      "/projects/allowed/calendar?first_day=2026-12-01&last_day=2026-12-02&time_zone=UTC",
+      nullptr,
+      http::status::ok
+  );
+  CHECK(calendar == rest_calendar.at("data"));
+  auto denied_window = window;
+  denied_window["project_id"] = "other";
+  CHECK(query_card("get_calendar", denied_window).at("isError") == true);
+  auto invalid_window = window;
+  invalid_window["first_day"] = "2026-02-30";
+  CHECK(query_card("get_calendar", invalid_window).at("isError") == true);
   CHECK(query_card("list_project_tags", {{"project_id", "allowed"}})
             .at("structuredContent")
             .at("data")

@@ -43,6 +43,56 @@ inline nlohmann::json call_read_tool(
 ) {
   using namespace contract_json;
   if (!arguments.is_object()) throw std::invalid_argument("tool arguments must be an object");
+  if (name == "get_calendar") {
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id" && it.key() != "first_day" && it.key() != "last_day" &&
+          it.key() != "time_zone")
+        throw std::invalid_argument("unknown tool argument");
+    }
+    auto project_id = check_text(
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("first_day")) throw std::invalid_argument("first_day is required");
+    auto first_day = check_text(
+        decode_field<std::string>(arguments.at("first_day"), "first_day"),
+        "first_day",
+        10,
+        10
+    );
+    if (!arguments.contains("last_day")) throw std::invalid_argument("last_day is required");
+    auto last_day = check_text(
+        decode_field<std::string>(arguments.at("last_day"), "last_day"),
+        "last_day",
+        10,
+        10
+    );
+    std::optional<std::string> time_zone;
+    if (const auto value = arguments.find("time_zone");
+        value != arguments.end() && !value->is_null())
+      time_zone = check_text(
+          decode_field<std::string>(*value, "time_zone"),
+          "time_zone",
+          1,
+          std::numeric_limits<std::size_t>::max()
+      );
+    authorize_project(project_id);
+    return json{
+        {"data",
+         encode(holder::contract::get_calendar(
+             context,
+             std::move(project_id),
+             std::move(first_day),
+             std::move(last_day),
+             std::move(time_zone)
+         ))}
+    };
+  }
   if (name == "get_card") {
     for (auto it = arguments.begin(); it != arguments.end(); ++it) {
       if (it.key() != "project_id" && it.key() != "card_id")
