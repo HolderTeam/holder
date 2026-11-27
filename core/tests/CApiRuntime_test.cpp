@@ -21,6 +21,11 @@
 #include <utility>
 #include <vector>
 
+#ifndef _WIN32
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
 namespace {
 
 std::string schema_sql() {
@@ -463,6 +468,78 @@ TEST_CASE("Profile rebuild waits for every native context to close", "[capi][run
   REQUIRE(rebuild() == HOLDER_OK);
   holder_arena_free(arena);
 }
+
+#ifndef _WIN32
+TEST_CASE(
+    "Another process cannot open a workspace this one owns, and the reverse",
+    "[capi][runtime][profile]"
+) {
+  const auto data_dir = holder::test::make_temp_dir().string();
+  const auto schema = schema_sql();
+  const auto open_here = [&](holder_context** context, holder_error** error) {
+    return holder_context_open(data_dir.c_str(), schema.c_str(), context, error);
+  };
+
+  // A child process owns the workspace: this process is refused through the OS file lock, and
+  // gets in once the child has closed it.
+  int up[2];
+  int down[2];
+  REQUIRE(::pipe(up) == 0);
+  REQUIRE(::pipe(down) == 0);
+  const pid_t owner = ::fork();
+  REQUIRE(owner >= 0);
+  if (owner == 0) {
+    ::close(up[0]);
+    ::close(down[1]);
+    holder_context* context = nullptr;
+    holder_error* error = nullptr;
+    const char opened = open_here(&context, &error) == HOLDER_OK ? 'y' : 'n';
+    (void)::write(up[1], &opened, 1);
+    char release = 0;
+    (void)::read(down[0], &release, 1);
+    if (context != nullptr) holder_context_destroy(context);
+    ::_exit(opened == 'y' ? 0 : 1);
+  }
+  ::close(up[1]);
+  ::close(down[0]);
+  char opened = 0;
+  REQUIRE(::read(up[0], &opened, 1) == 1);
+  REQUIRE(opened == 'y');
+
+  holder_context* mine = nullptr;
+  holder_error* error = nullptr;
+  CHECK(open_here(&mine, &error) == HOLDER_ERROR_CONFLICT);
+  CHECK(mine == nullptr);
+  REQUIRE(error != nullptr);
+  CHECK(std::string(holder_error_message(error)) == "Holder workspace is in use");
+  holder_error_destroy(error);
+  error = nullptr;
+
+  const char release = 'x';
+  REQUIRE(::write(down[1], &release, 1) == 1);
+  int status = 0;
+  REQUIRE(::waitpid(owner, &status, 0) == owner);
+  REQUIRE(WIFEXITED(status));
+  CHECK(WEXITSTATUS(status) == 0);
+  ::close(up[0]);
+  ::close(down[1]);
+  REQUIRE(open_here(&mine, &error) == HOLDER_OK);
+
+  // This process owns it: a child is refused, even though it inherited this process's lock
+  // and its record of the open workspace through fork().
+  const pid_t contender = ::fork();
+  REQUIRE(contender >= 0);
+  if (contender == 0) {
+    holder_context* context = nullptr;
+    holder_error* child_error = nullptr;
+    ::_exit(open_here(&context, &child_error) == HOLDER_ERROR_CONFLICT ? 0 : 1);
+  }
+  REQUIRE(::waitpid(contender, &status, 0) == contender);
+  REQUIRE(WIFEXITED(status));
+  CHECK(WEXITSTATUS(status) == 0);
+  holder_context_destroy(mine);
+}
+#endif
 
 TEST_CASE("The generated C API reports database failures as runtime errors", "[capi][runtime]") {
   const auto data_dir = holder::test::make_temp_dir();
