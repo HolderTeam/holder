@@ -3,11 +3,23 @@ package team.holder.android.ui.screens
 import android.content.ClipData
 import android.content.ClipDescription
 import android.os.PersistableBundle
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -31,12 +43,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -49,12 +68,9 @@ import team.holder.android.git.github.GitHubConnection
 import team.holder.android.git.github.GitHubResult
 import team.holder.android.git.github.parseGitHubOwnerRepo
 import team.holder.android.network.LocalNetworkAccess
-import team.holder.android.ui.githubErrorMessage
 import team.holder.android.ui.LocalNetworkPermissionDialog
+import team.holder.android.ui.githubErrorMessage
 import team.holder.android.ui.rememberLocalNetworkPermission
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 private val TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("MMM d, HH:mm").withZone(ZoneId.systemDefault())
 
@@ -86,7 +102,7 @@ private fun defaultShowDeviceKey(remoteUrl: String?, syncStatus: GitSyncStatus?)
     return !everSyncedOk
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
     var remoteUrlInput by remember(project.projectId) { mutableStateOf(project.gitRemoteUrl.orEmpty()) }
@@ -97,6 +113,8 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
     var isBusy by remember { mutableStateOf(false) }
     var pinInput by remember(project.projectId) { mutableStateOf("") }
     var exportedToken by remember(project.projectId) { mutableStateOf<String?>(null) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val exportedTokenView = remember { BringIntoViewRequester() }
     var exportError by remember(project.projectId) { mutableStateOf<String?>(null) }
     var showDeviceKey by remember(project.projectId) { mutableStateOf(false) }
     // Once the user has explicitly toggled it themselves this screen visit, their choice wins
@@ -184,6 +202,8 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
         ) {
@@ -367,45 +387,72 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
                         "cards on another device.",
                     style = MaterialTheme.typography.bodySmall,
                 )
+                fun exportKey() {
+                    if (isBusy || pinInput.isBlank()) return
+                    isBusy = true
+                    exportError = null
+                    exportedToken = null
+                    scope.launch {
+                        runCatching {
+                            withContext(Dispatchers.IO) {
+                                HolderNative.exportRecoveryToken(project.projectId, pinInput)
+                            }
+                        }.fold(
+                            onSuccess = {
+                                exportedToken = it.recoveryToken
+                                // The PIN's keyboard would otherwise cover the key.
+                                keyboard?.hide()
+                            },
+                            onFailure = {
+                                exportError = it.message ?: it::class.java.simpleName
+                            },
+                        )
+                        isBusy = false
+                    }
+                }
+                // Typing the PIN brings up the keyboard: keep Export in view above it.
+                val exportButtonView = remember { BringIntoViewRequester() }
+                var pinFocused by remember { mutableStateOf(false) }
+                val keyboardUp = WindowInsets.isImeVisible
+                LaunchedEffect(keyboardUp, pinFocused) {
+                    if (keyboardUp && pinFocused) exportButtonView.bringIntoView()
+                }
                 OutlinedTextField(
                     value = pinInput,
                     onValueChange = { pinInput = it },
                     label = { Text("PIN") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { exportKey() }),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp).onFocusChanged { pinFocused = it.isFocused },
                 )
                 Button(
                     enabled = !isBusy && pinInput.isNotBlank(),
-                    modifier = Modifier.padding(top = 8.dp),
-                    onClick = {
-                        if (!isBusy) {
-                            isBusy = true
-                            exportError = null
-                            exportedToken = null
-                            scope.launch {
-                                runCatching {
-                                    withContext(Dispatchers.IO) {
-                                        HolderNative.exportRecoveryToken(project.projectId, pinInput)
-                                    }
-                                }.fold(
-                                    onSuccess = { exportedToken = it.recoveryToken },
-                                    onFailure = {
-                                        exportError = it.message ?: it::class.java.simpleName
-                                    },
-                                )
-                                isBusy = false
-                            }
-                        }
-                    },
+                    modifier = Modifier.padding(top = 8.dp).bringIntoViewRequester(exportButtonView),
+                    onClick = { exportKey() },
                 ) { Text("Export recovery key") }
 
                 exportError?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
                 }
                 exportedToken?.let { token ->
-                    Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                        Text(token, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    LaunchedEffect(token) { exportedTokenView.bringIntoView() }
+                    Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp).bringIntoViewRequester(exportedTokenView)) {
+                        // Nobody reads the key: it's for copying. At most eight lines tall, scrolling
+                        // inside for anyone who wants to see the rest.
+                        val keyStyle = MaterialTheme.typography.bodySmall
+                        val eightLines = with(LocalDensity.current) { (keyStyle.lineHeight * 8).toDp() }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.small)
+                                .padding(8.dp)
+                                .heightIn(max = eightLines)
+                                .verticalScroll(rememberScrollState()),
+                        ) {
+                            Text(token, style = keyStyle)
+                        }
                         IconButton(onClick = { copy("Recovery key", token, sensitive = true) }) {
                             Icon(painterResource(R.drawable.ic_copy), contentDescription = "Copy recovery key")
                         }

@@ -1,11 +1,20 @@
 package team.holder.android.ui.screens
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -30,7 +39,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -46,13 +58,13 @@ import team.holder.android.git.github.GitHubError
 import team.holder.android.git.github.GitHubResult
 import team.holder.android.git.github.GitHubStatus
 import team.holder.android.git.github.parseGitHubOwnerRepo
-import team.holder.android.ui.rememberSyncNotificationPermissionRequest
 import team.holder.android.ui.GitHubBackfillDialog
 import team.holder.android.ui.githubCheckFailureReason
 import team.holder.android.ui.githubErrorMessage
 import team.holder.android.ui.openUrlExternally
+import team.holder.android.ui.rememberSyncNotificationPermissionRequest
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun RecoverProjectScreen(
     onBack: () -> Unit,
@@ -61,6 +73,14 @@ fun RecoverProjectScreen(
 ) {
     val context = LocalContext.current
     var pin by remember { mutableStateOf("") }
+    val keyboard = LocalSoftwareKeyboardController.current
+    // Typing the PIN or the key brings up the keyboard: keep Import in view above it.
+    val importButtonView = remember { BringIntoViewRequester() }
+    var typing by remember { mutableStateOf(false) }
+    val keyboardUp = WindowInsets.isImeVisible
+    LaunchedEffect(keyboardUp, typing) {
+        if (keyboardUp && typing) importButtonView.bringIntoView()
+    }
     // initialToken comes from opening a .hrk file directly (see MainActivity's ACTION_VIEW
     // handling) rather than pasting one by hand -- seeded once, same as every other field here;
     // still just an editable starting value, not a locked-in source of truth.
@@ -202,6 +222,8 @@ fun RecoverProjectScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
         ) {
@@ -222,22 +244,27 @@ fun RecoverProjectScreen(
                 label = { Text("PIN") },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp).onFocusChanged { typing = it.isFocused },
             )
             OutlinedTextField(
                 value = token,
                 onValueChange = { token = it },
                 label = { Text("Recovery key") },
                 textStyle = MaterialTheme.typography.bodySmall,
+                // Done closes the keyboard, so Import below the field is in view.
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { keyboard?.hide() }),
                 // A real token is long enough (a few hundred bytes of JSON/base64) that
                 // without a height cap this field grows to fit all of it, pushing Recover
                 // -- and everything below it -- off screen. Capped and internally
                 // scrollable instead; the field's own drag-to-scroll still works normally.
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(max = 160.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(max = 160.dp)
+                    .onFocusChanged { typing = it.isFocused },
             )
             Button(
                 enabled = !isBusy && pin.isNotBlank() && token.isNotBlank(),
-                modifier = Modifier.padding(top = 16.dp),
+                modifier = Modifier.padding(top = 16.dp).bringIntoViewRequester(importButtonView),
                 onClick = {
                     if (!isBusy) {
                         isBusy = true

@@ -9,10 +9,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
@@ -49,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -377,9 +381,13 @@ fun ConflictCompareScreen(
             var content by remember(action) { mutableStateOf(action.content) }
             AlertDialog(
                 onDismissRequest = { pending = null },
+                // The dialog handles the keyboard itself: it shrinks to the space above it, and
+                // its text scrolls, so Save is never under the keyboard.
+                properties = DialogProperties(decorFitsSystemWindows = false),
+                modifier = Modifier.imePadding(),
                 title = { Text("Edit the version to keep") },
                 text = {
-                    Column {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
                         val context = LocalContext.current
                         val manualCapitals by HolderSettings.manualCapitalization(context).collectAsState(initial = false)
                         val capitals = !manualCapitals
