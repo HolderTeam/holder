@@ -53,11 +53,21 @@ class SyncFixture {
     write_info(token);
   }
 
-  void write_info(const std::string& client_token) {
+  void write_info(const std::string& client_token) { write_info(client_token, bound.port); }
+
+  void use_unreachable_endpoint() {
+    // Keep the port bound without listening so another CTest process cannot
+    // acquire it before holderctl attempts to connect.
+    unreachable.open(boost::asio::ip::tcp::v4());
+    unreachable.bind({boost::asio::ip::make_address_v4(bound.bind), 0});
+    write_info(token, unreachable.local_endpoint().port());
+  }
+
+  void write_info(const std::string& client_token, unsigned short port) {
     holder::core::ServerInfo info;
     info.pid = holder::core::current_pid();
     info.bind = bound.bind;
-    info.port = static_cast<int>(bound.port);
+    info.port = static_cast<int>(port);
     info.auth_token = client_token;
     holder::core::write_server_info(paths.info_path(), info);
   }
@@ -97,6 +107,10 @@ class SyncFixture {
   holder::api::HttpServer::BoundInfo bound;
   holder::core::SignalHandler signals;
   std::unique_ptr<holder::test::HttpServerThreadGuard> thread;
+
+ private:
+  boost::asio::io_context unreachable_context;
+  boost::asio::ip::tcp::socket unreachable{unreachable_context};
 };
 
 std::optional<std::string> git_remote_url(const std::filesystem::path& root) {
@@ -333,7 +347,7 @@ TEST_CASE(
   DiagnosticGitOps git;
   std::string operation = "remote https://example.com/new.git";
   std::string expected_code;
-  bool wrong_token = false, stop_server = false;
+  bool wrong_token = false, unreachable = false;
   SECTION("remote authentication failure") {
     wrong_token = true;
     expected_code = "unauthorized";
@@ -353,7 +367,7 @@ TEST_CASE(
     expected_code = "internal_error";
   }
   SECTION("network failure") {
-    stop_server = true;
+    unreachable = true;
     expected_code = "network_error";
   }
   SECTION("missing project") {
@@ -366,7 +380,7 @@ TEST_CASE(
   }
   SECTION("disconnect network failure") {
     operation = "disconnect";
-    stop_server = true;
+    unreachable = true;
     expected_code = "network_error";
   }
   SyncFixture fixture(&git);
@@ -377,8 +391,9 @@ TEST_CASE(
       << R"({"current_project_id":"home-id"})";
   const auto before = fixture.request(http::verb::get, "home-id");
   if (wrong_token) fixture.write_info("wrong-private-token");
-  if (stop_server) fixture.thread->stop();
+  if (unreachable) fixture.use_unreachable_endpoint();
   for (const auto* mode : {"", " --json"}) {
+    CAPTURE(operation, mode, expected_code);
     const auto result = fixture.run(operation + mode);
     REQUIRE(result.code == 1);
     CHECK(result.output.empty());
@@ -389,7 +404,7 @@ TEST_CASE(
     if (std::string(mode) == " --json")
       CHECK(nlohmann::json::parse(result.error)["error"]["code"] == expected_code);
   }
-  if (!stop_server) CHECK(fixture.request(http::verb::get, "home-id") == before);
+  CHECK(fixture.request(http::verb::get, "home-id") == before);
 }
 
 TEST_CASE("project remote update contract rejects malformed input", "[http][sync][remote]") {
@@ -762,7 +777,7 @@ TEST_CASE(
       CHECK(nlohmann::json::parse(result.error)["error"]["code"] == "not_found");
   }
   CHECK_FALSE(std::filesystem::exists(fixture.dir / "home" / ".git"));
-  fixture.thread->stop();
+  fixture.use_unreachable_endpoint();
   for (const auto* mode : {"", " --json"}) {
     const auto result = fixture.run(action + mode);
     REQUIRE(result.code == 1);
