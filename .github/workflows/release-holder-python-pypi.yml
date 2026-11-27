@@ -141,20 +141,8 @@ jobs:
               package="dist/holder_python-${version}.tar.gz"
             fi
             "$test_python" -m pip install "$package"
-            (cd /tmp && HOLDER_PYTHON_VERSION="$version" "$GITHUB_WORKSPACE/python/holder/$test_python" -I - <<'PY'
-          import importlib.metadata as metadata
-          import os
-          from holder import Holder
-          from holder.generated.api.default import get_projects
-
-          distribution = metadata.distribution('holder-python')
-          assert distribution.version == os.environ['HOLDER_PYTHON_VERSION']
-          assert distribution.metadata['Name'] == 'holder-python'
-          assert distribution.metadata['License-Expression'] == 'GPL-3.0-only'
-          assert Holder is not None and get_projects is not None
-          assert distribution.locate_file('holder/py.typed').is_file()
-          PY
-            )
+            (cd /tmp && "$GITHUB_WORKSPACE/python/holder/$test_python" -I \
+              "$GITHUB_WORKSPACE/python/holder/scripts/test-installed-wheel.py" --version "$version")
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -222,32 +210,32 @@ jobs:
         with:
           name: holder-python-portable
           path: out/wheel
-      - name: Verify pip selects and runs the native wheel
+      - name: Verify pip selects the correct wheel for each target
         env:
           PACKAGE_VERSION: ${{ needs.portable.outputs.version }}
+          PYTHON_VERSION: ${{ matrix.python }}
         run: |
           set -euo pipefail
-          python -m venv out/test-venv
-          out/test-venv/bin/python -m pip download --no-index --no-deps --only-binary=:all: \
+          python -m pip download --no-index --no-deps --only-binary=:all: \
             --find-links out/wheel --dest out/selected "holder-python==$PACKAGE_VERSION"
-          out/test-venv/bin/python -m pip install out/selected/*.whl
-          test_python="$PWD/out/test-venv/bin/python"
-          (cd /tmp && "$test_python" -I - <<'PY'
-          from importlib.metadata import version
-          from pathlib import Path
-          from tempfile import TemporaryDirectory
-          import os
-          from holder import open_workspace
-          from holder._embedded import _native
-
-          assert version('holder-python') == os.environ['PACKAGE_VERSION']
-          assert _native.WORKSPACE_BRIDGE_VERSION == 1
-          with TemporaryDirectory() as temporary:
-              with open_workspace(Path(temporary) / 'private') as workspace:
-                  project = workspace.create_plain_project(name='Release check')
-                  assert workspace.get_project(project['project_id']) == project
-          PY
-          )
+          wheels=(out/selected/*manylinux_2_39_x86_64.whl)
+          test "${#wheels[@]}" -eq 1
+          test -f "${wheels[0]}"
+          python -m pip download --no-index --no-deps --only-binary=:all: \
+            --find-links out/wheel --dest out/fallback --implementation cp \
+            --python-version "$PYTHON_VERSION" --platform win_amd64 "holder-python==$PACKAGE_VERSION"
+          test -f "out/fallback/holder_python-$PACKAGE_VERSION-py3-none-any.whl"
+      - name: Install and exercise the native wheel on a clean Debian runtime
+        env:
+          PACKAGE_VERSION: ${{ needs.portable.outputs.version }}
+          PYTHON_VERSION: ${{ matrix.python }}
+        run: |
+          docker run --rm -e PACKAGE_VERSION \
+            -v "$PWD/out/selected:/wheels:ro" \
+            -v "$PWD/python/holder/scripts/test-installed-wheel.py:/test-installed-wheel.py:ro" \
+            "python:${PYTHON_VERSION}-slim-trixie" \
+            sh -ec 'python -m pip install /wheels/*.whl &&
+              python -I /test-installed-wheel.py --version "$PACKAGE_VERSION" --embedded'
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: holder-python-native-${{ matrix.python }}
@@ -354,7 +342,7 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: inputs.prepared_release_ref != ''
+        if: inputs.prepared_release_ref != '' || inputs.destination == 'testpypi'
         with:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -393,8 +381,8 @@ jobs:
             --dest /tmp/holder-python-testpypi "holder-python==$PACKAGE_VERSION"
           python -m venv /tmp/holder-python-testpypi-venv
           /tmp/holder-python-testpypi-venv/bin/python -m pip install /tmp/holder-python-testpypi/*.whl
-          (cd /tmp && /tmp/holder-python-testpypi-venv/bin/python -I -c \
-            'from importlib.metadata import version; from holder._embedded import _native; assert _native.WORKSPACE_BRIDGE_VERSION == 1; assert version("holder-python") == __import__("os").environ["PACKAGE_VERSION"]')
+          (cd /tmp && /tmp/holder-python-testpypi-venv/bin/python -I \
+            "$GITHUB_WORKSPACE/python/holder/scripts/test-installed-wheel.py" --version "$PACKAGE_VERSION" --embedded)
       - name: Publish to PyPI
         if: inputs.destination == 'pypi' && (inputs.prepared_release_ref == '' || steps.plan.outputs.remaining != '0')
         uses: pypa/gh-action-pypi-publish@release/v1

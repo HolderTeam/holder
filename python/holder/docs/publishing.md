@@ -8,7 +8,9 @@ All files share the repository's root `VERSION`.
 
 [`Release / Holder Python to PyPI`](../../../.github/workflows/release-holder-python-pypi.yml)
 builds the distribution set, checks its metadata, and verifies that pip
-prefers the native wheel on matching runners. The workflow records the
+prefers the native wheel on matching runners and selects the universal wheel
+for an unsupported native target. Each native wheel must open and reopen a
+private workspace in a clean Debian runtime. The workflow records the
 verified Release core SDK alongside the hashes of the published files.
 Candidate preparation uses the Linux SDK pinned by the release coordinator.
 The workflow saves the files as the `holder-python-distributions` artifact. A
