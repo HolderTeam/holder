@@ -48,6 +48,9 @@ def test_dataframes_keep_typed_columns_and_detach_dates(records):
     assert empty["projects"].loc[0, "updated_at"] == pandas.Timestamp(
         2, unit="s", tz="UTC"
     )
+    no_projects = to_dataframes(iter(()))
+    assert all(table.empty for table in no_projects.values())
+    assert no_projects["projects"].dtypes.equals(empty["projects"].dtypes)
 
     records["milestones"].append(
         {
@@ -115,3 +118,17 @@ def test_networkx_uses_project_scoped_ids_and_keeps_parallel_links(records):
     assert graph[source][target]["ref"]["label"] == "Evidence"
     graph.nodes[source]["title"] = "Edited"
     assert records["cards"][0]["title"] == "shared"
+
+    other = {
+        **records,
+        "project": {**records["project"], "project_id": "two"},
+        "cards": [
+            {**records["cards"][0], "project_id": "two", "title": "External card"}
+        ],
+        "links": [],
+    }
+    for selection in ((records, other), (other, records)):
+        combined = to_networkx(iter(selection))
+        assert combined.nodes[target]["exported"] is True
+        assert combined.nodes[target]["title"] == "External card"
+        assert set(combined[source][target]) == {"supports", "ref"}

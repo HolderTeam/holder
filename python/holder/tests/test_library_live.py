@@ -28,6 +28,7 @@ from holder import (
     ProjectRecord,
     iter_card_batches,
     iter_card_records,
+    iter_project_records,
     open_session,
     open_workspace,
     to_dataframes,
@@ -1520,3 +1521,27 @@ def test_shared_card_operations_analysis_adapters(shared_card_session):
     target = (project_id, second["card_id"])
     assert graph.nodes[source]["title"] == first["title"]
     assert graph[source][target]["tests"] == link
+
+
+def test_shared_card_operations_export_selected_projects(shared_card_session):
+    with shared_card_session as active:
+        first_id = active.create_plain_project(name="First export")["project_id"]
+        second_id = active.create_plain_project(name="Second export")["project_id"]
+        cards = active.card_operations
+        cards.create_card(first_id, {"title": "First card", "content": "First #research"})
+        cards.create_card(second_id, {"title": "Second card", "content": "Second #research"})
+
+        assert list(iter_project_records(active, project_ids=[])) == []
+        assert {
+            export["project"]["project_id"] for export in iter_project_records(active)
+        } == {project["project_id"] for project in active.list_projects()}
+        records = list(iter_project_records(
+            active, project_ids=(second_id, first_id, second_id), include_content=True
+        ))
+
+    assert [record["project"]["project_id"] for record in records] == [second_id, first_id]
+    pytest.importorskip("pandas")
+    tables = to_dataframes(iter(records))
+    assert tables["projects"]["project_id"].tolist() == [second_id, first_id]
+    assert tables["cards"]["content"].tolist() == ["Second #research", "First #research"]
+    assert tables["tag_memberships"]["project_id"].tolist() == [second_id, first_id]

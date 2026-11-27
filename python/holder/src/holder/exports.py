@@ -1,6 +1,6 @@
 """Detached project records for analysis and export."""
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from typing import Literal, Protocol, TypedDict
 
 from ._workspace_contract import CardListItem, CardOperations, Link, Milestone, TagCount
@@ -33,6 +33,39 @@ class _ExportSession(Protocol):
 
     def get_project(self, project_id: str) -> ProjectRecord: ...
     def list_project_tags(self, project_id: str) -> list[TagCount]: ...
+
+
+class _ProjectExportSession(Protocol):
+    def list_projects(self) -> list[ProjectRecord]: ...
+
+    def export_project_records(
+        self, project_id: str, *, include_content: bool = False
+    ) -> ProjectRecords: ...
+
+
+def iter_project_records(
+    session: _ProjectExportSession,
+    *,
+    project_ids: Iterable[str] | None = None,
+    include_content: bool = False,
+) -> Iterator[ProjectRecords]:
+    """Yield one detached export per selected project from an open session.
+
+    Omit project_ids to export every project in the session. Explicit project
+    IDs are used once, in the order supplied. Each project's records reflect current data.
+    """
+    if isinstance(project_ids, str):
+        raise TypeError("Pass project_ids as a collection of project IDs")
+    if project_ids is None:
+        project_ids = (project["project_id"] for project in session.list_projects())
+    seen: set[str] = set()
+    for project_id in project_ids:
+        if project_id in seen:
+            continue
+        seen.add(project_id)
+        yield session.export_project_records(
+            project_id, include_content=include_content
+        )
 
 
 def iter_card_records(

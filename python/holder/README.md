@@ -250,6 +250,10 @@ lists that you can serialize or use after closing the session. Each read uses
 current data, so edits during export can affect the results. Use the Card
 iterator below if you only need cards and want to process them a page at a time.
 
+Use `iter_project_records(session)` to export every project visible in a
+session, one project at a time. Pass `project_ids=[first_id, second_id]` to
+select particular projects in that order.
+
 ### Use pandas or NetworkX
 
 Install the extras with `pip install 'holder-python[pandas,graph]'`. This
@@ -274,9 +278,19 @@ The pandas adapter returns tables named `projects`, `cards`, `links`,
 and graph nodes.
 
 The directed multigraph contains live cards and their explicit card links.
-Nodes use `(project_id, card_id)` keys. Links to cards outside the project get
+Nodes use `(project_id, card_id)` keys. Links to cards outside the export get
 placeholder nodes with `exported=False`. Edges retain the link kind and use it
 as their key.
+
+Both adapters also take an iterable of project exports. Run this inside an
+open session to build one graph for all of its projects:
+
+```python
+from holder import iter_project_records, open_session, to_networkx
+
+with open_session() as session:
+    graph = to_networkx(iter_project_records(session))
+```
 
 ## Export Card records for analysis
 
