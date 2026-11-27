@@ -9,18 +9,30 @@ import shutil
 import stat
 import subprocess
 import sys
+from _thread import LockType
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, ExitStack, contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
+from tempfile import mkstemp
+from threading import Lock
 from types import TracebackType
-from typing import TypedDict, cast
+from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
 from urllib.parse import urlsplit
 
 from ._workspace_contract import Project as ProjectRecord
 from .cards import EmbeddedWorkspace, open_workspace
 
+if TYPE_CHECKING:
+    from ._publication import PushPreview, PushResult
+
 _MARKER = ".holder-workspace.json"
+
+
+class _Publication(TypedDict):
+    remote_url: str
+    branch: str
+    revision: str
 
 
 class _Marker(TypedDict):
@@ -30,6 +42,8 @@ class _Marker(TypedDict):
     source: str | None
     ref: str | None
     revision: str
+    publications: NotRequired[list[_Publication]]
+    publication_attempt: NotRequired[_Publication]
 
 
 @dataclass(frozen=True)
@@ -41,6 +55,9 @@ class ManagedWorkspace:
     source: str | None
     ref: str | None
     session: EmbeddedWorkspace
+    _publication_lock: LockType = field(
+        default_factory=Lock, init=False, repr=False, compare=False
+    )
 
     @property
     def project(self) -> ProjectRecord:
@@ -51,6 +68,33 @@ class ManagedWorkspace:
     def revision(self) -> str:
         """Read current Git HEAD, including local commits."""
         return _revision(Path(self.project["root_path"]))
+
+    def preview_push(
+        self, *, branch: str, remote_url: str | None = None
+    ) -> PushPreview:
+        """Check the destination and show which commit would be published."""
+        from ._publication import preview_push
+
+        with self._publication_lock:
+            return preview_push(self, branch=branch, remote_url=remote_url)
+
+    def push(
+        self,
+        *,
+        branch: str,
+        remote_url: str | None = None,
+        expected_revision: str | None = None,
+    ) -> PushResult:
+        """Publish committed work to a named branch while retaining the workspace."""
+        from ._publication import push
+
+        with self._publication_lock:
+            return push(
+                self,
+                branch=branch,
+                remote_url=remote_url,
+                expected_revision=expected_revision,
+            )
 
 
 def _destination(workspace: os.PathLike[str] | str) -> Path:
@@ -269,11 +313,7 @@ def _initialize_workspace(
                 "ref": ref,
                 "revision": _revision(root),
             }
-            temporary = path / (_MARKER + ".tmp")
-            with temporary.open("x", encoding="utf-8") as output:
-                json.dump(marker, output, indent=2)
-                output.write("\n")
-            temporary.replace(path / _MARKER)
+            _write_marker(path, marker)
         except BaseException as error:
             try:
                 stack.close()
@@ -428,6 +468,18 @@ def _read_marker(path: Path) -> _Marker:
     ):
         raise ValueError("Invalid managed workspace identity or revision")
     return cast("_Marker", marker)
+
+
+def _write_marker(path: Path, marker: _Marker) -> None:
+    descriptor, filename = mkstemp(dir=path, prefix=_MARKER + "-")
+    temporary = Path(filename)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            json.dump(marker, output, indent=2)
+            output.write("\n")
+        temporary.replace(path / _MARKER)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 @contextmanager
