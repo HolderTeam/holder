@@ -132,7 +132,9 @@ def test_cancellation(env):
                         send(process, "notifications/cancelled", requestId="cancelled")
                     else:
                         process.stdin.close()
-                    assert reader.read(1) == b""
+                    # Closing the cancelled connection can yield EOF or a TCP reset.
+                    with contextlib.suppress(ConnectionResetError):
+                        assert reader.read(1) == b""
                 if cancel_with_notification:
                     send(process, "ping", "after-cancel")
                     assert result(process, "after-cancel") == {}
@@ -143,18 +145,29 @@ with tempfile.TemporaryDirectory(prefix="holder-mcp-test-") as temp:
     root = Path(temp)
     env = dict(os.environ, XDG_DATA_HOME=str(root / "data"), XDG_CONFIG_HOME=str(root / "config"),
                XDG_CACHE_HOME=str(root / "cache"), HOLDER_PROJECTS_ROOT=str(root / "projects"),
+               HOLDER_TEST_KEYSTORE_DIR=str(root / "keystore"),
                HOLDER_MCP_PROJECT=PROJECT, HOLDER_MCP_TOKEN=secrets.token_urlsafe(32))
-    with subprocess.Popen(
+    log_path = root / "daemon.stderr.log"
+    with log_path.open("wb") as log, subprocess.Popen(
         [str(DAEMON), "--port", "0"], cwd=DAEMON.parent, env=env,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL, stderr=log,
     ) as daemon:
         try:
             info_path = root / "data/holder/server/holder.json"
             for _ in range(200):
+                if (exit_code := daemon.poll()) is not None:
+                    raise AssertionError(
+                        f"holderd exited during startup with status {exit_code}:\n"
+                        + log_path.read_text(encoding="utf-8", errors="replace")
+                    )
                 if info_path.is_file():
                     break
-                assert daemon.poll() is None, "holderd exited during startup"
                 time.sleep(0.05)
+            else:
+                raise AssertionError(
+                    "holderd did not publish its server info within 10 seconds:\n"
+                    + log_path.read_text(encoding="utf-8", errors="replace")
+                )
             info = json.loads(info_path.read_text(encoding="utf-8"))
             port = info["port"]
 
@@ -168,7 +181,8 @@ with tempfile.TemporaryDirectory(prefix="holder-mcp-test-") as temp:
             post("/projects", {"name": "MCP test", "project_id": PROJECT, "privacy_mode": "plain"})
             test_available_daemon(port, env, post(f"/projects/{PROJECT}/cards", {"title": "Bridge test"}))
         finally:
-            daemon.terminate()
+            if daemon.poll() is None:
+                daemon.terminate()
             daemon.wait(timeout=10)
     with bridge(port, env) as process:
         send(process, "server/discover", 1, _meta={
