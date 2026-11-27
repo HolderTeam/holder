@@ -38,7 +38,7 @@ if(HOLDER_USE_SYSTEM_CORE)
       --output "${CMAKE_CURRENT_BINARY_DIR}/system-core-build.json"
     COMMAND_ERROR_IS_FATAL ANY)
   install(FILES "${CMAKE_CURRENT_BINARY_DIR}/system-core-build.json"
-    DESTINATION "${HOLDER_KIT_INSTALL_DIR}" RENAME _core_build.json)
+    DESTINATION "${HOLDER_KIT_INSTALL_DIR}" RENAME _core_build.json COMPONENT holder_native)
 elseif(HOLDER_KIT_CORE_SOURCE)
   set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
   add_subdirectory("${HOLDER_KIT_CORE_SOURCE}" holder-core EXCLUDE_FROM_ALL)
@@ -50,7 +50,8 @@ else()
   set(holder_DIR "${HOLDER_CORE_SDK}/lib/cmake/holder" CACHE PATH "Selected core CMake package" FORCE)
   find_package(holder CONFIG REQUIRED PATHS "${holder_DIR}" NO_DEFAULT_PATH)
   set(holder_schema "${HOLDER_CORE_SDK}/share/holder/schema/schema.sql")
-  install(FILES "${HOLDER_CORE_SDK}/libholder-manifest.json" DESTINATION "${HOLDER_KIT_INSTALL_DIR}" RENAME _core_build.json)
+  install(FILES "${HOLDER_CORE_SDK}/libholder-manifest.json"
+    DESTINATION "${HOLDER_KIT_INSTALL_DIR}" RENAME _core_build.json COMPONENT holder_native)
   if(WIN32)
     install(DIRECTORY "${HOLDER_CORE_SDK}/bin/" DESTINATION "${HOLDER_KIT_INSTALL_DIR}/.libs" FILES_MATCHING PATTERN "*.dll")
     install(DIRECTORY "${HOLDER_CORE_SDK}/share/vcpkg-licenses/" DESTINATION "${HOLDER_KIT_INSTALL_DIR}/_licenses")
@@ -77,9 +78,10 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
   target_compile_options(_native PRIVATE -Wall -Wextra -Werror)
 endif()
 
+# The public Holder wheel stages this component without the Kit Python modules.
 install(TARGETS _native
-  LIBRARY DESTINATION "${HOLDER_KIT_INSTALL_DIR}"
-  RUNTIME DESTINATION "${HOLDER_KIT_INSTALL_DIR}"
+  LIBRARY DESTINATION "${HOLDER_KIT_INSTALL_DIR}" COMPONENT holder_native
+  RUNTIME DESTINATION "${HOLDER_KIT_INSTALL_DIR}" COMPONENT holder_native
 )
 install(DIRECTORY src/holderkit/ DESTINATION "${HOLDER_KIT_INSTALL_DIR}"
   FILES_MATCHING PATTERN "*.py" PATTERN "py.typed")
@@ -90,4 +92,5 @@ install(DIRECTORY src/holderkit/ DESTINATION "${HOLDER_KIT_INSTALL_DIR}"
 install(FILES "${holder_schema}"
   DESTINATION "${HOLDER_KIT_INSTALL_DIR}"
   RENAME _schema.sql
+  COMPONENT holder_native
 )

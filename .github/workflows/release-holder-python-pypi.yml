@@ -198,9 +198,10 @@ jobs:
         run: |
           set -euo pipefail
           cmake -S python/kit -B out/kit -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DPython_EXECUTABLE="$(command -v python)" -DCMAKE_INSTALL_PREFIX="$PWD/out/stage"
+            -DPython_EXECUTABLE="$(command -v python)" -DCMAKE_INSTALL_PREFIX="$PWD/out/stage" \
+            -DHOLDER_KIT_INSTALL_DIR=holder/_embedded
           cmake --build out/kit
-          cmake --install out/kit
+          cmake --install out/kit --component holder_native
           python python/holder/scripts/pypi_readme.py --commit "$GITHUB_SHA"
           HOLDER_PYTHON_EMBEDDED_STAGE="$PWD/out/stage" \
             python -m build --wheel --outdir "$PWD/out/raw" python/holder

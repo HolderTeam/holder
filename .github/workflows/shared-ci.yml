@@ -1385,9 +1385,9 @@ jobs:
         python -m pip install 'build>=1.2,<2' wheel 'auditwheel==6.8.2'
         cmake -S python/kit -B "$work/kit" -G Ninja \
           -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DPython_EXECUTABLE="$(command -v python)" \
-          -DCMAKE_INSTALL_PREFIX="$work/stage"
+          -DCMAKE_INSTALL_PREFIX="$work/stage" -DHOLDER_KIT_INSTALL_DIR=holder/_embedded
         cmake --build "$work/kit"
-        cmake --install "$work/kit"
+        cmake --install "$work/kit" --component holder_native
         HOLDER_PYTHON_EMBEDDED_STAGE="$work/stage" \
           python -m build --wheel --outdir "$work/raw" python/holder
         python python/kit/scripts/repair-linux-wheel.py --output "$work/dist" "$work/raw/"*.whl

@@ -30,15 +30,16 @@ core, not in this library.
 ## Build the Linux wheel variants
 
 The default build produces a universal HTTP wheel. To build a native wheel
-with the same version, stage Kit against a core SDK built from the same
-checkout. Run the following from the repository root with an absolute SDK
-path in `HOLDER_CORE_SDK`:
+with the same version, stage the native component against a core SDK built
+from the same checkout. Run the following from the repository root with an
+absolute SDK path in `HOLDER_CORE_SDK`:
 
 ```sh
 work=$(mktemp -d)
-cmake -S python/kit -B "$work/kit" -DCMAKE_INSTALL_PREFIX="$work/stage"
+cmake -S python/kit -B "$work/kit" -DCMAKE_INSTALL_PREFIX="$work/stage" \
+  -DHOLDER_KIT_INSTALL_DIR=holder/_embedded
 cmake --build "$work/kit"
-cmake --install "$work/kit"
+cmake --install "$work/kit" --component holder_native
 python -m build --wheel --outdir "$work/wheels" python/holder
 HOLDER_PYTHON_EMBEDDED_STAGE="$work/stage" \
   python -m build --wheel --outdir "$work/wheels" python/holder
@@ -46,7 +47,7 @@ HOLDER_PYTHON_EMBEDDED_STAGE="$work/stage" \
 
 CMake and the wheel build must use the same CPython interpreter. Set
 `-DPython_EXECUTABLE=/path/to/python` on the CMake command if needed. The
-native build packages the staged extension and schema under `holder`.
+native build packages the staged extension, schema, and SDK metadata under `holder`.
 A compatible Linux CPython prefers that wheel when both variants are offered
 at the same version. For a redistributable Linux wheel, build on Ubuntu 24.04
 with a matching core SDK and then bundle the runtime dependencies. This uses

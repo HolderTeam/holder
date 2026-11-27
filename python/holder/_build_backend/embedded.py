@@ -1,4 +1,4 @@
-"""Optionally package the staged Kit extension as a native Holder wheel."""
+"""Optionally package the staged extension as a native Holder wheel."""
 
 import os
 import sys
@@ -16,7 +16,7 @@ class EmbeddedWheelHook(BuildHookInterface):
         if sys.platform != "linux" or sys.implementation.name != "cpython":
             raise ValueError("The embedded wheel build currently supports Linux CPython")
 
-        package = Path(stage).resolve() / "holderkit"
+        package = Path(stage).resolve() / "holder" / "_embedded"
         extension = "_native" + get_config_var("EXT_SUFFIX")
         for name in (extension, "_schema.sql", "_core_build.json"):
             artifact = package / name
