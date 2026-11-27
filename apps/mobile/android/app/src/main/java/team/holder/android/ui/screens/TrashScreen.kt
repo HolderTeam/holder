@@ -146,7 +146,7 @@ fun TrashScreen(
                             items(state.value, key = { it.cardId }) { card ->
                                 Box {
                                     ListItem(
-                                        headlineContent = { Text(card.title) },
+                                        content = { Text(card.title) },
                                         supportingContent = formatDeletedAt(card.deletedAt)?.let { { Text(it) } },
                                         modifier = Modifier.combinedClickable(
                                             onClick = {},

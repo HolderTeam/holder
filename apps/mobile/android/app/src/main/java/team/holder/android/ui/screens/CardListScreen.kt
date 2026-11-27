@@ -57,6 +57,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -481,6 +482,9 @@ private fun CardListBody(
                                     )
                                 }
 
+                                // The rows keep their content vertically centred, as before Material 3
+                                // 1.5 (whose default tops it on taller rows): DragHandle takes the
+                                // finger to be at the middle of its row when it works out the drop.
                                 val trailing: (@Composable () -> Unit)? = if (boardViewEnabled) {
                                     {
                                         DragHandle(
@@ -498,11 +502,12 @@ private fun CardListBody(
                                 if (childCount > 0) {
                                     ListItem(
                                         leadingContent = { Icon(painterResource(R.drawable.ic_folder), contentDescription = null) },
-                                        headlineContent = { Text(card.title) },
+                                        content = { Text(card.title) },
                                         supportingContent = {
                                             Text("$childCount ${if (childCount == 1) "item" else "items"}")
                                         },
                                         trailingContent = trailing,
+                                        verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier
                                             .combinedClickable(
                                                 onClick = { onDrillIn(card) },
@@ -515,8 +520,9 @@ private fun CardListBody(
                                     )
                                 } else {
                                     ListItem(
-                                        headlineContent = { Text(card.title) },
+                                        content = { Text(card.title) },
                                         trailingContent = trailing,
+                                        verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.combinedClickable(
                                             onClick = { onCardClick(card.cardId, card.title) },
                                             onLongClick = { onLongClick(card.cardId) },
@@ -675,7 +681,7 @@ private fun SearchResultsList(
                 LazyColumn {
                     items(state.value, key = { it.cardId }) { result ->
                         ListItem(
-                            headlineContent = { Text(result.title) },
+                            content = { Text(result.title) },
                             supportingContent = { Text(result.snippet) },
                             modifier = Modifier.combinedClickable(
                                 onClick = { onResultClick(result.cardId, result.title) },
@@ -725,7 +731,7 @@ private fun MoveIntoDialog(
                     LazyColumn(Modifier.heightIn(max = 400.dp)) {
                         items(shown, key = { it.card.cardId }) { target ->
                             ListItem(
-                                headlineContent = { Text(target.card.title) },
+                                content = { Text(target.card.title) },
                                 supportingContent = if (target.path.isEmpty()) null else {
                                     { Text("in ${target.pathLabel}") }
                                 },

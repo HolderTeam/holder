@@ -142,7 +142,7 @@ fun AddConnectionScreen(
                             LazyColumn {
                                 items(state.value, key = { it.cardId }) { result ->
                                     ListItem(
-                                        headlineContent = { Text(result.title) },
+                                        content = { Text(result.title) },
                                         modifier = Modifier.fillMaxWidth().clickable {
                                             target = result
                                             query = ""
@@ -156,7 +156,7 @@ fun AddConnectionScreen(
                 }
             } else {
                 ListItem(
-                    headlineContent = { Text(selected.title) },
+                    content = { Text(selected.title) },
                     supportingContent = { Text("Connecting to this card") },
                     trailingContent = {
                         IconButton(onClick = { target = null }) {
@@ -186,7 +186,7 @@ fun AddConnectionScreen(
                 )
                 kindSuggestions.forEach { suggestion ->
                     ListItem(
-                        headlineContent = { Text(suggestion.forward) },
+                        content = { Text(suggestion.forward) },
                         supportingContent = { Text(suggestion.id) },
                         modifier = Modifier.fillMaxWidth().clickable { customKind = suggestion.id },
                     )

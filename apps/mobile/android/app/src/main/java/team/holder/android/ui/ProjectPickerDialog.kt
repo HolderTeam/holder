@@ -35,7 +35,7 @@ fun ProjectPickerDialog(
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 ordered.forEach { project ->
                     ListItem(
-                        headlineContent = { Text(project.name) },
+                        content = { Text(project.name) },
                         modifier = Modifier.clickable { onSelect(project) },
                     )
                 }

@@ -20,6 +20,7 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -30,6 +31,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -51,7 +53,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import java.time.Instant
 import java.time.ZoneId
@@ -111,7 +113,8 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
     var syncStatus by remember(project.projectId) { mutableStateOf<GitSyncStatus?>(null) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isBusy by remember { mutableStateOf(false) }
-    var pinInput by remember(project.projectId) { mutableStateOf("") }
+    val pinField = remember(project.projectId) { TextFieldState() }
+    val pinInput = pinField.text.toString()
     var exportedToken by remember(project.projectId) { mutableStateOf<String?>(null) }
     val keyboard = LocalSoftwareKeyboardController.current
     val exportedTokenView = remember { BringIntoViewRequester() }
@@ -414,17 +417,16 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
                 val exportButtonView = remember { BringIntoViewRequester() }
                 var pinFocused by remember { mutableStateOf(false) }
                 val keyboardUp = WindowInsets.isImeVisible
-                LaunchedEffect(keyboardUp, pinFocused) {
+                // Again after each keystroke: the secure field brings its own cursor into view
+                // as the text changes, which would otherwise scroll Export back under the keyboard.
+                LaunchedEffect(keyboardUp, pinFocused, pinInput) {
                     if (keyboardUp && pinFocused) exportButtonView.bringIntoView()
                 }
-                OutlinedTextField(
-                    value = pinInput,
-                    onValueChange = { pinInput = it },
+                OutlinedSecureTextField(
+                    state = pinField,
                     label = { Text("PIN") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { exportKey() }),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                    onKeyboardAction = { exportKey() },
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp).onFocusChanged { pinFocused = it.isFocused },
                 )
                 Button(

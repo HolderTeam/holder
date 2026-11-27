@@ -655,7 +655,7 @@ class GitHubConnectionCoordinatorTest {
             }
 
             // Its own job: the simulated process dies without failing this test's scope.
-            val oldProcess = async(kotlinx.coroutines.SupervisorJob()) {
+            val oldProcess = kotlinx.coroutines.CoroutineScope(coroutineContext + kotlinx.coroutines.SupervisorJob()).async {
                 GitHubConnectionCoordinator.withAccessToken<String>(fakeContext) {
                     error("held refresh must not yield a token")
                 }
