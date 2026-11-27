@@ -11,7 +11,14 @@ from typing import Any, Self, cast
 
 import httpx
 
-from ._workspace_contract import Calendar, LinkKindLabels, Milestone, TagCount
+from ._workspace_contract import (
+    Calendar,
+    LinkKindLabels,
+    Milestone,
+    TagCount,
+    TrashDeleteResult,
+    TrashItemType,
+)
 from ._workspace_contract import Project as ProjectRecord
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .cards import CardOperations, EmbeddedWorkspace, _DaemonCards, open_workspace
@@ -28,6 +35,7 @@ from .exceptions import (
 from .exports import ProjectRecords, _export_project_records
 from .generated import AuthenticatedClient
 from .generated.api.default import (
+    delete_projects_project_id_trash_type_id,
     get_link_kinds,
     get_projects,
     get_projects_project_id,
@@ -40,6 +48,7 @@ from .generated.api.default import (
     post_projects,
 )
 from .generated.models import ErrorResponse, NewProject, PrivacyMode
+from .generated.models import TrashItemType as HTTPTrashItemType
 from .models.intelligence_device import HolderIntelligence
 from .models.project import Project, ProjectCollection
 
@@ -206,6 +215,19 @@ class Holder:
         """List detached Trash records, optionally filtered by item type."""
         items = self._call(get_trash, project_id=project_id, type_=type)
         return [cast("TrashItemRecord", item.to_dict()) for item in items]
+
+    def delete_trash_item(
+        self, project_id: str, item_id: str, *, type: TrashItemType
+    ) -> TrashDeleteResult:
+        """Permanently remove a trashed item. Old card revisions remain in Git."""
+        removed = self._call(
+            delete_projects_project_id_trash_type_id,
+            project_id,
+            HTTPTrashItemType(type),
+            item_id,
+            write=True,
+        )
+        return cast("TrashDeleteResult", removed.to_dict())
 
     def list_project_tags(self, project_id: str) -> list[TagCount]:
         """List project tags and their live card counts."""

@@ -1169,6 +1169,35 @@ def test_shared_card_operations(shared_card_session):
 
 
 
+def test_shared_card_operations_delete_trash_item(shared_card_session):
+    with shared_card_session as active:
+        project_id = active.create_plain_project(name="Disposable Trash")["project_id"]
+        other_id = active.create_plain_project(name="Other project")["project_id"]
+        cards = active.card_operations
+        card_id = cards.create_card(project_id, {"title": "Discarded"})["card_id"]
+
+        with pytest.raises(APIError) as live:
+            active.delete_trash_item(project_id, card_id, type="card")
+        assert (live.value.status, live.value.code) == (409, "not_trashed")
+        cards.trash_card(project_id, card_id)
+
+        with pytest.raises(NotFoundError):
+            active.delete_trash_item(other_id, card_id, type="card")
+        with pytest.raises(NotFoundError):
+            active.delete_trash_item(project_id, card_id, type="ai_message")
+        assert [item["card_id"] for item in active.list_trash(project_id)] == [card_id]
+
+        assert active.delete_trash_item(project_id, card_id, type="card") == {
+            "card_id": card_id,
+            "message_id": None,
+        }
+        assert active.list_trash(project_id) == []
+        with pytest.raises(NotFoundError):
+            cards.restore_card(project_id, card_id)
+        with pytest.raises(NotFoundError):
+            active.delete_trash_item(project_id, card_id, type="card")
+
+
 def test_shared_card_operations_project_export(shared_card_session):
     with shared_card_session as active:
         project = active.create_plain_project(name="Export source")

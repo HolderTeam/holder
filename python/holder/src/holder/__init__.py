@@ -1,7 +1,13 @@
 """Holder Python Library - control your knowledge using Python."""
 
 from ._publication import DiscardPreview, PushPreview, PushResult
-from ._workspace_contract import Calendar, CalendarMilestone, LinkKindLabels, TagCount
+from ._workspace_contract import (
+    Calendar,
+    CalendarMilestone,
+    LinkKindLabels,
+    TagCount,
+    TrashDeleteResult,
+)
 from ._workspace_contract import Project as ProjectRecord
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .analysis import ProjectDataFrames, to_dataframes, to_networkx
@@ -138,6 +144,7 @@ __all__ = [
     "TagCount",
     "TagMembership",
     "Thread",
+    "TrashDeleteResult",
     "TrashItem",
     "TrashItemRecord",
     "clone_workspace",

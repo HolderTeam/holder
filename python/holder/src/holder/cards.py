@@ -35,6 +35,8 @@ from ._workspace_contract import (
     Page,
     SearchCard,
     TagCount,
+    TrashDeleteResult,
+    TrashItemType,
 )
 from ._workspace_contract import Project as ProjectRecord
 from ._workspace_contract import TrashItem as TrashItemRecord
@@ -491,6 +493,15 @@ class EmbeddedWorkspace:
         """List detached Trash records, optionally filtered by item type."""
         return cast(
             "list[TrashItemRecord]", self._call("list_trash", project_id, type=type)
+        )
+
+    def delete_trash_item(
+        self, project_id: str, item_id: str, *, type: TrashItemType
+    ) -> TrashDeleteResult:
+        """Permanently remove a trashed item. Old card revisions remain in Git."""
+        return cast(
+            "TrashDeleteResult",
+            self._call("delete_trash_item", project_id, item_id, type=type),
         )
 
     def list_project_tags(self, project_id: str) -> list[TagCount]:

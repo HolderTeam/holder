@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, Literal, Self
 from ..collections import Collection
 from ..exceptions import ProtocolError
 from ..generated.api.default import (
-    delete_projects_project_id_trash_type_id,
     delete_trash,
     get_trash,
     post_ai_messages_message_id_restore,
@@ -96,13 +95,7 @@ class TrashItem:
         Card revisions already saved in Git history remain available. This
         operation cannot be undone through Trash.
         """
-        self._project._holder._call(
-            delete_projects_project_id_trash_type_id,
-            self.project_id,
-            self.type,
-            self.id,
-            write=True,
-        )
+        self._project._holder.delete_trash_item(self.project_id, self.id, type=self.type)
 
 
 class TrashCollection(Collection[TrashItem]):
