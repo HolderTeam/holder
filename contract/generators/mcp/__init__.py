@@ -20,7 +20,7 @@ BINDINGS_PATH = "daemon/src/api/generated/McpBindings.h"
 TOOLS = (
     "get_calendar", "get_card", "get_card_breadcrumbs", "get_resource", "list_card_backlinks",
     "list_card_links", "list_card_milestones", "list_card_resources", "list_cards", "list_project_tags",
-    "search_cards",
+    "list_trash", "search_cards",
 )
 WRITE_TOOLS = {
     "add_card_link": "POST",
@@ -31,11 +31,13 @@ WRITE_TOOLS = {
     "remove_card_link": "DELETE",
     "remove_card_milestone": "DELETE",
     "remove_card_tag": "DELETE",
+    "restore_card": "POST",
+    "trash_card": "DELETE",
     "update_card": "PATCH",
     "update_card_milestone": "PATCH",
 }
 DESTRUCTIVE_HINT_TOOLS = {
-    "add_card_link", "remove_card_link", "remove_card_milestone", "remove_card_tag", "update_card",
+    "add_card_link", "remove_card_link", "remove_card_milestone", "remove_card_tag", "trash_card", "update_card",
     "update_card_milestone",
 }
 IDEMPOTENT_WRITE_TOOLS = {
@@ -47,6 +49,8 @@ FIXED_ARGUMENTS = {
     "list_cards": {"include_content": False},
     "list_card_links": {"include_deleted": False},
     "list_card_backlinks": {"include_deleted": False, "scope": "local"},
+    "list_trash": {"type": "card"},
+    "trash_card": {"children": "promote"},
 }
 LOCAL_LINK_LIST_TOOLS = {"list_card_links", "list_card_backlinks", "remove_card_link"}
 COMPONENT_REF = "#/components/schemas/"
@@ -98,7 +102,7 @@ def generate_mcp_tools(contract: ContractView) -> str:
         write = name in WRITE_TOOLS
         expected_method = WRITE_TOOLS.get(name, "GET")
         if (binding.method.upper() != expected_method or binding.response_mode != "envelope"
-                or bool(binding.body) != (expected_method in {"POST", "PATCH"}) or binding.headers):
+                or (not write and binding.body) or binding.headers):
             raise ValueError(f"MCP tool {name} needs an envelope with the expected method and body")
 
         route = schemas["paths"][binding.path][expected_method.lower()]
@@ -131,6 +135,10 @@ def generate_mcp_tools(contract: ContractView) -> str:
             description += "\n\nThis tool lists metadata. Use get_card to read one card body."
         if name in LOCAL_LINK_LIST_TOOLS:
             description += "\n\nBoth ends must belong to the authorized project. Entries in Trash are excluded."
+        if name == "list_trash":
+            description = "List trashed cards in the authorized project."
+        if name == "trash_card":
+            description += "\n\nLive children are promoted into the card's place."
         if name == "add_card_link":
             description += "\n\nOmit the target project to link within the authorized project."
         tools.append({

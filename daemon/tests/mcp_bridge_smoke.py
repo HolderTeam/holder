@@ -70,7 +70,7 @@ def test_available_daemon(port, env, card):
         assert {tool["name"] for tool in result(process, 2)["tools"]} == {
             "get_calendar", "get_card", "get_card_breadcrumbs", "get_resource", "list_card_backlinks",
             "list_card_links", "list_card_milestones", "list_card_resources", "list_cards",
-            "list_project_tags", "search_cards",
+            "list_project_tags", "list_trash", "search_cards",
         }
         send(process, "tools/call", 3, _meta=metadata, name="get_card",
              arguments={"project_id": PROJECT, "card_id": card["card_id"]})
@@ -92,7 +92,7 @@ def test_available_daemon(port, env, card):
         send(process, "notifications/initialized")
         send(process, "tools/list", 2)
         discovered = result(process, 2)
-        assert len(discovered["tools"]) == 11 and "resultType" not in discovered
+        assert len(discovered["tools"]) == 12 and "resultType" not in discovered
         send(process, "tools/call", 3, name="get_card",
              arguments={"project_id": PROJECT, "card_id": card["card_id"]})
         assert result(process, 3)["structuredContent"]["data"] == card
@@ -196,6 +196,28 @@ def test_write_tools(port, env, rest):
              arguments={"card_id": card["card_id"], "milestone_id": milestone["milestone_id"]})
         assert result(process, 14)["structuredContent"]["data"] == []
         assert rest(f"{path}/milestones") == []
+        send(process, "tools/call", "subtree", _meta=metadata, name="trash_card",
+             arguments={"card_id": parent["card_id"], "children": "trash_subtree"})
+        assert result(process, "subtree")["isError"] is True
+        assert rest(path)["parent_card_id"] == parent["card_id"]
+
+        send(process, "tools/call", 15, _meta=metadata, name="trash_card",
+             arguments={"card_id": parent["card_id"]})
+        trashed = result(process, 15)["structuredContent"]["data"]
+        assert trashed["card_id"] == parent["card_id"] and trashed["deleted_at"] is not None
+        assert rest(path)["parent_card_id"] is None
+
+        send(process, "tools/call", 16, _meta=metadata, name="list_trash", arguments={})
+        items = result(process, 16)["structuredContent"]["data"]
+        assert [(item["type"], item["card_id"]) for item in items] == [("card", parent["card_id"])]
+
+        send(process, "tools/call", 17, _meta=metadata, name="restore_card",
+             arguments={"card_id": parent["card_id"]})
+        restored = result(process, 17)["structuredContent"]["data"]
+        assert restored["deleted_at"] is None
+        assert rest(f"/projects/{PROJECT}/cards/{parent['card_id']}") == restored
+        assert rest(path)["parent_card_id"] is None
+        assert rest(f"/trash?project_id={PROJECT}&type=card") == []
         shutdown(process)
 
 
