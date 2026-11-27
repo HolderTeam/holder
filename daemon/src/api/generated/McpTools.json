@@ -474,7 +474,7 @@
           },
           "limit": {
             "type": "integer",
-            "maximum": 2147483647,
+            "maximum": 100,
             "minimum": 1,
             "format": "int32",
             "default": 20,

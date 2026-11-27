@@ -14,8 +14,9 @@ from generators.android.client import generate_android_client
 from generators.common import Unsupported
 from generators.core import CORE_PATHS, generate_core
 from generators.daemon import DAEMON_PATHS, OPENAPI_PATHS, api_documents, generate_daemon
+from generators.mcp import BINDINGS_PATH as MCP_BINDINGS_PATH
 from generators.mcp import PATH as MCP_TOOLS_PATH
-from generators.mcp import generate_mcp_tools
+from generators.mcp import generate_mcp_bindings, generate_mcp_tools
 from generators.python import PATH as PYTHON_WORKSPACE_PATH
 from generators.python import generate_python_workspace
 
@@ -42,6 +43,7 @@ def repository_files(ir: ContractView, files: dict[str, str]) -> dict[str, str]:
             **generate_android_client(ir),
             PYTHON_WORKSPACE_PATH: generate_python_workspace(ir),
             MCP_TOOLS_PATH: generate_mcp_tools(ir),
+            MCP_BINDINGS_PATH: generate_mcp_bindings(ir),
             **{DAEMON_PATHS[name]: daemon[name] for name in DAEMON_PATHS},
             **{OPENAPI_PATHS[name]: text for name, text in api_documents(ir, REPOSITORY).items()}}
 
@@ -109,6 +111,7 @@ def main(argv: list[str] | None = None) -> int:
             if (args.root.resolve(), args.package) == (CONTRACT, "interface"):
                 files[Path(PYTHON_WORKSPACE_PATH).name] = generate_python_workspace(ir)
                 files[Path(MCP_TOOLS_PATH).name] = generate_mcp_tools(ir)
+                files[Path(MCP_BINDINGS_PATH).name] = generate_mcp_bindings(ir)
         except (Unsupported, ValueError) as error:
             print(f"A generator does not support this yet: {error}", file=sys.stderr)
             return 1

@@ -18,6 +18,7 @@ from generators.daemon.contract_routes import generate_routes
 from generators.daemon.http import plan_http
 from generators.daemon.openapi import ERROR_SCHEMAS, document, dumps, exact_bounds, merge, named_by_title
 from generators.daemon.paths import route_pattern, validate_routes
+from generators.mcp import generate_mcp_bindings
 from test_support.contract import extract, generate, generate_daemon
 
 CONTRACT = Path(__file__).resolve().parents[1]
@@ -256,6 +257,9 @@ def test_generated_routes_compile_and_answer_requests(tmp_path):
     for name, text in generate_daemon(holder_ir()).items():
         (tmp_path / "api" / "generated" / name).write_text(text, encoding="utf-8")
 
+    (tmp_path / "api" / "generated" / "McpBindings.h").write_text(
+        generate_mcp_bindings(loaded_contract()), encoding="utf-8")
+
     def run(*command):
         subprocess.run(command, check=True, cwd=tmp_path, capture_output=True, text=True)
 
@@ -263,7 +267,8 @@ def test_generated_routes_compile_and_answer_requests(tmp_path):
     run("g++", *flags, "-c", str(TESTS / "c" / "stub_core.cpp"), "-o", "stub.o")
     run("g++", *flags, "-c", str(TESTS / "http" / "exercise.cpp"), "-o", "exercise.o")
     run("g++", *SANITIZE, "stub.o", "exercise.o", "-o", "exercise")
-    result = subprocess.run([str(tmp_path / "exercise")], capture_output=True, text=True, check=True)
+    result = subprocess.run([str(tmp_path / "exercise")], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
     assert result.stdout == (TESTS / "http" / "exercise.expected").read_text(encoding="utf-8")
 
 
@@ -276,7 +281,7 @@ def test_generate_command_writes_all_targets(tmp_path):
     assert {"Cards.kt", "Client.kt", "contract_client.cpp"} <= client
     assert sorted(p.name for p in tmp_path.iterdir()) == sorted([
         "AiJson.h", "AiRoutes.h", "DaemonTypes.h", "DaemonJson.h", "DaemonRoutes.h", "DaemonBoundaries.md", "Contract.h", "ContractCApi.cpp", "HostCApi.cpp", "ContractJson.h", "ContractRoutes.h",
-        "holder_api.h", "openapi.json", "_workspace_contract.py", "McpTools.json", *client])
+        "holder_api.h", "openapi.json", "_workspace_contract.py", "McpTools.json", "McpBindings.h", *client])
 
 
 def daemon_document(paths):

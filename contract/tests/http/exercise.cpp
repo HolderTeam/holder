@@ -2,6 +2,7 @@
 // tests/c/stub_core.cpp, and prints each response, for tests/test_http.py to compare with
 // exercise.expected.
 #include "api/generated/ContractRoutes.h"
+#include "api/generated/McpBindings.h"
 
 #include <cassert>
 #include <iostream>
@@ -24,6 +25,79 @@ void send(holder_context& context, const std::string& method, const std::string&
     return;
   }
   std::cout << response->status << ' ' << response->operation << ' ' << response->body.dump() << "\n";
+}
+
+void check_mcp_reads(holder_context& context) {
+  using holder::api::mcp::call_read_tool;
+  const auto project = contract_http::dispatch(
+      "POST",
+      "/projects",
+      R"({"project_id": "p1", "name": "MCP"})",
+      context
+  );
+  assert(project && project->status == 201);
+  const auto created = contract_http::dispatch(
+      "POST",
+      "/projects/p1/cards",
+      R"({"title": "MCP card"})",
+      context
+  );
+  assert(created && created->status == 201);
+  const auto added = contract_http::dispatch(
+      "POST",
+      "/projects/p1/resources",
+      R"({"resource_id": "res-1", "type": "book", "label": "MCP book"})",
+      context
+  );
+  assert(added && added->status == 201);
+  const auto authorize = [](std::string_view project) {
+    assert(project == "p1");
+  };
+  const auto card_id = created->body.at("data").at("card_id").get<std::string>();
+  const auto card =
+      call_read_tool(context, "get_card", {{"project_id", "p1"}, {"card_id", card_id}}, authorize);
+  const auto rest = contract_http::dispatch("GET", "/projects/p1/cards/" + card_id, "", context);
+  assert(rest && rest->status == 200 && card.at("data") == rest->body.at("data"));
+  const auto resource = call_read_tool(
+      context,
+      "get_resource",
+      {{"project_id", "p1"}, {"resource_id", "res-1"}},
+      authorize
+  );
+  assert(resource.at("data") == added->body.at("data"));
+  const auto search =
+      call_read_tool(context, "search_cards", {{"project_id", "p1"}, {"q", "found"}}, authorize);
+  assert(search.at("data").at(0).at("card_id") == "card-one");
+
+  struct Denied {};
+  try {
+    call_read_tool(
+        context,
+        "get_card",
+        {{"project_id", "p2"}, {"card_id", "missing"}},
+        [](std::string_view) {
+          throw Denied{};
+        }
+    );
+    assert(false);
+  } catch (const Denied&) {
+    // A core lookup would have thrown NotFound first.
+  }
+
+  for (const auto& limit : {nlohmann::json(nullptr), nlohmann::json(101), nlohmann::json("1")}) {
+    try {
+      call_read_tool(
+          context,
+          "search_cards",
+          {{"project_id", "p1"}, {"q", "found"}, {"limit", limit}},
+          [](std::string_view) {
+            assert(false);
+          }
+      );
+      assert(false);
+    } catch (const std::invalid_argument&) {
+    }
+  }
 }
 
 } // namespace
@@ -148,5 +222,8 @@ int main() {
   send(*context, "GET", "/cards/c1");
   send(*context, "GET", "/cards");
   send(*context, "GET", "/nowhere");
+  stub_context_free(context);
+  context = stub_context_new();
+  check_mcp_reads(*context);
   stub_context_free(context);
 }
