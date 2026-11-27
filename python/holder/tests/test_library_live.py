@@ -25,6 +25,8 @@ from holder import (
     ProjectRecord,
     open_session,
     open_workspace,
+    to_dataframes,
+    to_networkx,
 )
 from holder.cards import Card, CardListItem, CardMetadata, Link, Milestone, SearchCard
 from holder.exceptions import APIError, ClosedError, NotFoundError
@@ -1241,3 +1243,33 @@ def test_shared_card_operations_project_export(shared_card_session):
         with_content[name] == records[name]
         for name in ("project", "links", "tag_memberships", "milestones")
     )
+
+
+def test_shared_card_operations_analysis_adapters(shared_card_session):
+    pytest.importorskip("pandas")
+    pytest.importorskip("networkx")
+    with shared_card_session as active:
+        project = active.create_plain_project(name="Notebook")
+        project_id = project["project_id"]
+        cards = active.card_operations
+        first = cards.create_card(
+            project_id, {"title": "Observation", "content": "A note\n#research"}
+        )
+        second = cards.create_card(project_id, {"title": "Hypothesis", "content": "A theory"})
+        link = cards.add_card_link(
+            project_id,
+            first["card_id"],
+            {"target_type": "card", "target_id": second["card_id"], "kind": "tests"},
+        )
+        records = active.export_project_records(project_id, include_content=True)
+
+    tables = to_dataframes(records)
+    by_id = tables["cards"].set_index("card_id")
+    assert by_id.loc[first["card_id"], "content"] == first["content"]
+    assert str(by_id["updated_at"].dt.tz) == "UTC"
+    assert tables["tag_memberships"]["tag"].tolist() == ["research"]
+    graph = to_networkx(records)
+    source = (project_id, first["card_id"])
+    target = (project_id, second["card_id"])
+    assert graph.nodes[source]["title"] == first["title"]
+    assert graph[source][target]["tests"] == link

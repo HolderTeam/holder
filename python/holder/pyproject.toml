@@ -17,6 +17,8 @@ Repository = "https://github.com/HolderTeam/holder/tree/main/python/holder"
 Issues = "https://github.com/HolderTeam/holder/issues"
 
 [project.optional-dependencies]
+pandas = ["pandas>=2"]
+graph = ["networkx>=3"]
 dev = [
     "ruff==0.16.10",
     "pytest>=8,<10",
