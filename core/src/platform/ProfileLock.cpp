@@ -23,6 +23,9 @@ struct ProfileLock::State {
 #else
   int fd = -1;
   pid_t owner_pid = ::getpid();
+#ifdef F_OFD_SETLK
+  bool locked = false;
+#endif
 #endif
 
   bool try_lock();
@@ -146,6 +149,9 @@ bool ProfileLock::State::try_lock() {
     if (error == EACCES || error == EAGAIN) return false;
     throw std::system_error(error, std::generic_category(), "acquire Holder profile lock");
   }
+#ifdef F_OFD_SETLK
+  locked = true;
+#endif
 #endif
   return true;
 }
@@ -158,7 +164,21 @@ ProfileLock::State::~State() {
     CloseHandle(handle);
   }
 #else
-  if (fd != -1) ::close(fd);
+  if (fd == -1) return;
+#ifdef F_OFD_SETLK
+  // A forked child can still hold a descriptor for this open file description.
+  // Only the process that owns the lock may release it explicitly.
+  if (locked && owner_pid == ::getpid()) {
+    struct flock region {};
+    region.l_type = F_UNLCK;
+    region.l_whence = SEEK_SET;
+    int result;
+    do {
+      result = ::fcntl(fd, F_OFD_SETLK, &region);
+    } while (result == -1 && errno == EINTR);
+  }
+#endif
+  ::close(fd);
 #endif
 }
 
