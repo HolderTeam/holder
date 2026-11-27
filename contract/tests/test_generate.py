@@ -146,7 +146,7 @@ def test_generated_code_compiles_and_runs(tmp_path):
         source.write_text(f'#include "holder/{header}"\n')
         run("gcc", "-std=c17", *STRICT, "-fsyntax-only", "-I.", "include.c")
         run("g++", "-std=c++20", *STRICT, "-fsyntax-only", "-I.", "-x", "c++", "include.c")
-    run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", "ContractCApi.cpp", "-o", "glue.o")
+    run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-I", str(TESTS / "c"), "-c", "ContractCApi.cpp", "-o", "glue.o")
     run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", str(TESTS / "c" / "stub_core.cpp"), "-o", "stub.o")
     run("gcc", "-std=c17", *STRICT, *SANITIZE, "-I.", "-c", str(TESTS / "c" / "exercise.c"), "-o", "exercise.o")
     run("g++", *SANITIZE, "glue.o", "stub.o", "exercise.o", "-o", "exercise")
@@ -282,7 +282,7 @@ int main(void) {
     def run(*command):
         subprocess.run(command, check=True, cwd=tmp_path, capture_output=True, text=True)
 
-    run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", "ContractCApi.cpp", "-o", "glue.o")
+    run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-I", str(TESTS / "c"), "-c", "ContractCApi.cpp", "-o", "glue.o")
     run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", str(TESTS / "c" / "stub_core.cpp"), "-o", "stub.o")
     run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", "change_card.cpp", "-o", "change_card.o")
     run("gcc", "-std=c17", *STRICT, *SANITIZE, "-I.", "-c", "main.c", "-o", "main.o")

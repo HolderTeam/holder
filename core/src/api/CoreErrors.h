@@ -5,6 +5,7 @@
 #include "api/Contract.h"
 #include "model/ConflictError.h"
 #include "privacy/PrivacyError.h"
+#include "privacy/ProjectKeyScope.h"
 
 #include <utility>
 
@@ -14,6 +15,8 @@ namespace holder::contract {
 // including a privacy failure the contract does not name, is left as an unexpected failure.
 template <class Body> decltype(auto) with_contract_errors(Body&& body) {
   using holder::privacy::PrivacyErrorCode;
+  // One keyring lookup per project key for the whole operation (ProjectKeyScope).
+  const holder::privacy::ProjectKeyScope project_keys;
   try {
     return std::forward<Body>(body)();
   } catch (const holder::model::ConflictError& error) {

@@ -2,6 +2,7 @@
 
 #include "git/GitOps.h"
 #include "privacy/PrivacyError.h"
+#include "privacy/ProjectKeyScope.h"
 #include "project/ProjectRepo.h"
 
 #include <array>
