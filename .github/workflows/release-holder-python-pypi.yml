@@ -1,7 +1,7 @@
 name: Release / Holder Python to PyPI
 run-name: ${{ inputs.release_request || github.event.pull_request.title || github.workflow }}
 
-# Build the pure-Python wheel and source archive on pull requests or manual runs.
+# Build native Linux wheels, the universal wheel and source archive.
 # PyPI publishing requires a matching root VERSION and a release tag. TestPyPI
 # previews use a fresh post-release version from main without changing repository versions.
 on:
@@ -9,6 +9,12 @@ on:
     paths:
       - .github/workflows/release-holder-python-pypi.yml
       - python/holder/**
+      - python/kit/CMakeLists.txt
+      - python/kit/src/**
+      - python/kit/scripts/repair-linux-wheel.py
+      - .github/workflows/core-sdk.yml
+      - .github/actions/core-sdk/**
+      - release/scripts/fetch-candidate-sdk.py
       - VERSION
       - python/_build_support.py
       - release/scripts/python-distributions.py
@@ -26,6 +32,14 @@ on:
         default: ''
       prepared_release_ref:
         description: Immutable commit holding the prepared artifact record; publish without rebuilding
+        type: string
+        default: ''
+      release_manifest:
+        description: Optional generated candidate manifest for pinned SDK reuse (build only)
+        type: string
+        default: ''
+      release_manifest_ref:
+        description: Immutable commit holding the candidate manifest
         type: string
         default: ''
       destination:
@@ -47,7 +61,7 @@ defaults:
     working-directory: python/holder
 
 jobs:
-  distributions:
+  portable:
     if: inputs.prepared_release_ref == ''
     runs-on: ubuntu-24.04
     outputs:
@@ -64,6 +78,8 @@ jobs:
         env:
           DESTINATION: ${{ inputs.destination || 'none' }}
           PREVIEW_NUMBER: ${{ inputs.preview_number || '0' }}
+          RELEASE_MANIFEST: ${{ inputs.release_manifest }}
+          RELEASE_MANIFEST_REF: ${{ inputs.release_manifest_ref }}
           PREPARED_PATH: ${{ inputs.prepared_release_path }}
           PREPARED_REF: ${{ inputs.prepared_release_ref }}
         run: |
@@ -75,6 +91,9 @@ jobs:
           preview = int(os.environ['PREVIEW_NUMBER'])
           assert preview >= 0, 'Preview number must be non-negative'
           destination = os.environ['DESTINATION']
+          pinned = os.environ['RELEASE_MANIFEST']
+          assert bool(pinned) == bool(os.environ['RELEASE_MANIFEST_REF']), 'Provide both candidate manifest inputs'
+          assert not pinned or destination == 'none', 'Candidate SDK reuse is build-only'
           ref = os.environ['GITHUB_REF']
           if preview:
               assert destination == 'testpypi', 'Preview versions may only publish to TestPyPI'
@@ -137,12 +156,142 @@ jobs:
           PY
             )
           done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: holder-python-portable
+          path: python/holder/dist/*
+          if-no-files-found: error
+
+  core-sdk:
+    if: inputs.release_manifest == ''
+    needs: portable
+    permissions:
+      actions: write
+      contents: read
+    uses: ./.github/workflows/core-sdk.yml
+    with:
+      build_type: Release
+      platforms: '["linux"]'
+
+  native:
+    if: ${{ !cancelled() && needs.portable.result == 'success' && (needs.core-sdk.result == 'success' || (needs.core-sdk.result == 'skipped' && inputs.release_manifest != '')) }}
+    needs: [portable, core-sdk]
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.12', '3.13', '3.14']
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: ./.github/actions/core-sdk
+        with:
+          commit: ${{ inputs.release_manifest != '' && github.sha || needs.core-sdk.outputs.commit }}
+          build-type: Release
+          release-manifest: ${{ inputs.release_manifest }}
+          release-manifest-ref: ${{ inputs.release_manifest_ref }}
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build pkg-config \
+            patchelf libssl-dev nlohmann-json3-dev libyaml-cpp-dev libspdlog-dev \
+            libsqlite3-dev libsodium-dev libgit2-dev libmd4c-dev libsecret-1-dev
+          python -m pip install 'build>=1.2,<2' wheel 'auditwheel==6.8.2' twine
+      - name: Stage the extension and build the manylinux wheel
+        env:
+          HOLDER_PYTHON_PREVIEW_NUMBER: ${{ inputs.preview_number || '0' }}
+        run: |
+          set -euo pipefail
+          cmake -S python/kit -B out/kit -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DPython_EXECUTABLE="$(command -v python)" -DCMAKE_INSTALL_PREFIX="$PWD/out/stage"
+          cmake --build out/kit
+          cmake --install out/kit
+          python python/holder/scripts/pypi_readme.py --commit "$GITHUB_SHA"
+          HOLDER_PYTHON_EMBEDDED_STAGE="$PWD/out/stage" \
+            python -m build --wheel --outdir "$PWD/out/raw" python/holder
+          python python/kit/scripts/repair-linux-wheel.py --output out/wheel out/raw/*.whl
+          python -m twine check --strict out/wheel/*.whl
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: holder-python-portable
+          path: out/wheel
+      - name: Verify pip selects and runs the native wheel
+        env:
+          PACKAGE_VERSION: ${{ needs.portable.outputs.version }}
+        run: |
+          set -euo pipefail
+          python -m venv out/test-venv
+          out/test-venv/bin/python -m pip download --no-index --no-deps --only-binary=:all: \
+            --find-links out/wheel --dest out/selected "holder-python==$PACKAGE_VERSION"
+          out/test-venv/bin/python -m pip install out/selected/*.whl
+          test_python="$PWD/out/test-venv/bin/python"
+          (cd /tmp && "$test_python" -I - <<'PY'
+          from importlib.metadata import version
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          import os
+          from holder import open_workspace
+          from holder._embedded import _native
+
+          assert version('holder-python') == os.environ['PACKAGE_VERSION']
+          assert _native.WORKSPACE_BRIDGE_VERSION == 1
+          with TemporaryDirectory() as temporary:
+              with open_workspace(Path(temporary) / 'private') as workspace:
+                  project = workspace.create_plain_project(name='Release check')
+                  assert workspace.get_project(project['project_id']) == project
+          PY
+          )
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: holder-python-native-${{ matrix.python }}
+          path: out/wheel/*manylinux_2_39_x86_64.whl
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.python == '3.12'
+        with:
+          name: holder-python-core-selection
+          path: out/core-selection.json
+          if-no-files-found: error
+
+  distributions:
+    needs: [portable, native]
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ needs.portable.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: holder-python-portable
+          path: python/holder/dist
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: holder-python-native-*
+          path: python/holder/dist
+          merge-multiple: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: holder-python-core-selection
+          path: python/holder/out
       - name: Record the verified distribution set
         env:
-          PACKAGE_VERSION: ${{ steps.config.outputs.version }}
+          PACKAGE_VERSION: ${{ needs.portable.outputs.version }}
         run: |
           python ../../release/scripts/python-distributions.py --directory dist \
-            --version "$PACKAGE_VERSION" --candidate "$GITHUB_SHA" --output out/release-manifest.json
+            --version "$PACKAGE_VERSION" --candidate "$GITHUB_SHA" --selection out/core-selection.json \
+            --output out/release-manifest.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: holder-python-distributions
@@ -245,7 +394,7 @@ jobs:
           python -m venv /tmp/holder-python-testpypi-venv
           /tmp/holder-python-testpypi-venv/bin/python -m pip install /tmp/holder-python-testpypi/*.whl
           (cd /tmp && /tmp/holder-python-testpypi-venv/bin/python -I -c \
-            'from importlib.metadata import version; from holder import Holder; assert Holder is not None; assert version("holder-python") == __import__("os").environ["PACKAGE_VERSION"]')
+            'from importlib.metadata import version; from holder._embedded import _native; assert _native.WORKSPACE_BRIDGE_VERSION == 1; assert version("holder-python") == __import__("os").environ["PACKAGE_VERSION"]')
       - name: Publish to PyPI
         if: inputs.destination == 'pypi' && (inputs.prepared_release_ref == '' || steps.plan.outputs.remaining != '0')
         uses: pypa/gh-action-pypi-publish@release/v1

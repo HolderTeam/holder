@@ -18,7 +18,7 @@ class EmbeddedWheelHook(BuildHookInterface):
 
         package = Path(stage).resolve() / "holderkit"
         extension = "_native" + get_config_var("EXT_SUFFIX")
-        for name in (extension, "_schema.sql"):
+        for name in (extension, "_schema.sql", "_core_build.json"):
             artifact = package / name
             if not artifact.is_file():
                 raise FileNotFoundError(f"Missing staged embedded artifact: {artifact}")
