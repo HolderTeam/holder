@@ -1,4 +1,4 @@
-// Generated from contract/interface (cards, milestones, resources, search) by compiler.
+// Generated from contract/interface (cards, links, milestones, resources, search) by compiler.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // Live MCP read tool bindings.
@@ -7,6 +7,7 @@
 #include <functional>
 #include <string_view>
 #include <utility>
+#include <vector>
 namespace contract_json {
 template <> struct codec<holder::contract::ListCardsOrder> {
   static json encode(holder::contract::ListCardsOrder value) {
@@ -121,6 +122,64 @@ inline nlohmann::json call_read_tool(
              holder::contract::get_resource(context, std::move(project_id), std::move(resource_id))
          )}
     };
+  }
+  if (name == "list_card_backlinks") {
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id" && it.key() != "card_id")
+        throw std::invalid_argument("unknown tool argument");
+    }
+    if (!arguments.contains("project_id")) throw std::invalid_argument("project_id is required");
+    auto project_id = check_text(
+        decode_field<std::string>(arguments.at("project_id"), "project_id"),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("card_id")) throw std::invalid_argument("card_id is required");
+    auto card_id = check_text(
+        decode_field<std::string>(arguments.at("card_id"), "card_id"),
+        "card_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    authorize_project(project_id);
+    auto links = holder::contract::list_card_backlinks(
+        context,
+        project_id,
+        std::move(card_id),
+        holder::contract::ListCardBacklinksScope::Local,
+        false
+    );
+    std::erase_if(links, [&project_id](const auto& link) {
+      return link.source_project_id != project_id || link.target_project_id != project_id;
+    });
+    return json{{"data", encode(links)}};
+  }
+  if (name == "list_card_links") {
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id" && it.key() != "card_id")
+        throw std::invalid_argument("unknown tool argument");
+    }
+    if (!arguments.contains("project_id")) throw std::invalid_argument("project_id is required");
+    auto project_id = check_text(
+        decode_field<std::string>(arguments.at("project_id"), "project_id"),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("card_id")) throw std::invalid_argument("card_id is required");
+    auto card_id = check_text(
+        decode_field<std::string>(arguments.at("card_id"), "card_id"),
+        "card_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    authorize_project(project_id);
+    auto links = holder::contract::list_card_links(context, project_id, std::move(card_id), false);
+    std::erase_if(links, [&project_id](const auto& link) {
+      return link.source_project_id != project_id || link.target_project_id != project_id;
+    });
+    return json{{"data", encode(links)}};
   }
   if (name == "list_card_milestones") {
     for (auto it = arguments.begin(); it != arguments.end(); ++it) {

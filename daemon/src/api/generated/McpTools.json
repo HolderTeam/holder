@@ -537,6 +537,292 @@
       }
     },
     {
+      "name": "list_card_backlinks",
+      "description": "List the links to a card.\n\nLinks from cards and AI messages, newest first. External links come only from projects on this device, so\nthey are never all there may be. A card in the trash or in another project is not found.\n\nBoth ends must belong to the authorized project. Entries in Trash are excluded.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId"
+          },
+          "card_id": {
+            "$ref": "#/$defs/CardId"
+          }
+        },
+        "required": [
+          "project_id",
+          "card_id"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/Link"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Link": {
+            "properties": {
+              "source_project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project of the card or AI message the link is from."
+              },
+              "source_type": {
+                "type": "string",
+                "enum": [
+                  "card",
+                  "ai_message"
+                ],
+                "title": "Source Type",
+                "description": "What the link is from."
+              },
+              "source_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Source Id",
+                "description": "The ID of the card or AI message the link is from."
+              },
+              "target_project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project of what the link points at: the source's own project, or, for a card, another project, which\nneed not be on this device. A link grants no access to its target."
+              },
+              "target_type": {
+                "$ref": "#/$defs/LinkTargetType",
+                "description": "What the link points at."
+              },
+              "target_id": {
+                "$ref": "#/$defs/LinkTargetId",
+                "description": "The ID of what the link points at."
+              },
+              "kind": {
+                "$ref": "#/$defs/LinkKind",
+                "description": "What the link means."
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Label",
+                "description": "A note on the link; null when it has none."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the link was made."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "source_project_id",
+              "source_type",
+              "source_id",
+              "target_project_id",
+              "target_type",
+              "target_id",
+              "kind",
+              "label",
+              "created_at"
+            ],
+            "title": "Link",
+            "description": "A link from a card, or from an AI message, to something in a project. A link names both of its ends in full:\neach end's project, type and ID."
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "LinkTargetType": {
+            "type": "string",
+            "enum": [
+              "card",
+              "ai_message",
+              "ai_thread",
+              "resource"
+            ]
+          },
+          "LinkTargetId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "LinkKind": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "list_card_links",
+      "description": "List a card's links.\n\nThe links the card makes, newest first. A card in the trash or in another project is not found.\n\nBoth ends must belong to the authorized project. Entries in Trash are excluded.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId"
+          },
+          "card_id": {
+            "$ref": "#/$defs/CardId"
+          }
+        },
+        "required": [
+          "project_id",
+          "card_id"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/Link"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Link": {
+            "properties": {
+              "source_project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project of the card or AI message the link is from."
+              },
+              "source_type": {
+                "type": "string",
+                "enum": [
+                  "card",
+                  "ai_message"
+                ],
+                "title": "Source Type",
+                "description": "What the link is from."
+              },
+              "source_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Source Id",
+                "description": "The ID of the card or AI message the link is from."
+              },
+              "target_project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project of what the link points at: the source's own project, or, for a card, another project, which\nneed not be on this device. A link grants no access to its target."
+              },
+              "target_type": {
+                "$ref": "#/$defs/LinkTargetType",
+                "description": "What the link points at."
+              },
+              "target_id": {
+                "$ref": "#/$defs/LinkTargetId",
+                "description": "The ID of what the link points at."
+              },
+              "kind": {
+                "$ref": "#/$defs/LinkKind",
+                "description": "What the link means."
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Label",
+                "description": "A note on the link; null when it has none."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the link was made."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "source_project_id",
+              "source_type",
+              "source_id",
+              "target_project_id",
+              "target_type",
+              "target_id",
+              "kind",
+              "label",
+              "created_at"
+            ],
+            "title": "Link",
+            "description": "A link from a card, or from an AI message, to something in a project. A link names both of its ends in full:\neach end's project, type and ID."
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "LinkTargetType": {
+            "type": "string",
+            "enum": [
+              "card",
+              "ai_message",
+              "ai_thread",
+              "resource"
+            ]
+          },
+          "LinkTargetId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "LinkKind": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
       "name": "list_card_milestones",
       "description": "List a card's milestones.\n\nBy when they were made, then by ID. A card in the trash or in another project is not found.",
       "inputSchema": {

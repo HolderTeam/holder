@@ -81,7 +81,7 @@ TEST_CASE("Live MCP shares daemon reads and applies its own access policy", "[ht
   auto request = mcp_request("server/discover");
   CHECK(result(exchange(bound.port, request)).at("supportedVersions").at(0) == version);
   const auto listed = result(exchange(bound.port, mcp_request("tools/list")));
-  CHECK(listed.at("tools").size() == 7);
+  CHECK(listed.at("tools").size() == 9);
   CHECK(listed.at("ttlMs") == 0);
   CHECK(listed.at("cacheScope") == "private");
 
@@ -135,6 +135,59 @@ TEST_CASE("Live MCP shares daemon reads and applies its own access policy", "[ht
   CHECK(list_cards({{"project_id", "allowed"}, {"include_content", true}}).at("isError") == true);
   CHECK(list_cards({{"project_id", "allowed"}, {"include_child_count", 1}}).at("isError") == true);
   CHECK(list_cards({{"project_id", "allowed"}, {"order", "unknown"}}).at("isError") == true);
+
+  const auto add_link = [&](const std::string& source_project,
+                            const std::string& source_id,
+                            const std::string& target_project,
+                            const std::string& target_id) {
+    holder::test::http_json_request(
+        bound.bind,
+        bound.port,
+        "rest-test-token",
+        http::verb::post,
+        "/projects/" + source_project + "/cards/" + source_id + "/links",
+        {{"target_type", "card"}, {"target_project_id", target_project}, {"target_id", target_id}},
+        http::status::ok
+    );
+  };
+  add_link("allowed", "card-1", "allowed", "card-3");
+  add_link("allowed", "card-1", "other", "card-2");
+  add_link("allowed", "card-3", "allowed", "card-1");
+  add_link("other", "card-2", "allowed", "card-1");
+
+  const auto query_card = [&](const std::string& name, json arguments) {
+    return result(
+        exchange(bound.port, mcp_request("tools/call", {{"name", name}, {"arguments", arguments}}))
+    );
+  };
+  const auto selection = json{{"project_id", "allowed"}, {"card_id", "card-1"}};
+  const auto outgoing = query_card("list_card_links", selection).at("structuredContent").at("data");
+  REQUIRE(outgoing.size() == 1);
+  CHECK(outgoing.at(0).at("target_id") == "card-3");
+  CHECK(outgoing.at(0).at("target_project_id") == "allowed");
+  const auto incoming =
+      query_card("list_card_backlinks", selection).at("structuredContent").at("data");
+  REQUIRE(incoming.size() == 1);
+  CHECK(incoming.at(0).at("source_id") == "card-3");
+  CHECK(incoming.at(0).at("source_project_id") == "allowed");
+  auto external_scope = selection;
+  external_scope["scope"] = "external";
+  CHECK(query_card("list_card_backlinks", external_scope).at("isError") == true);
+  auto deleted_scope = selection;
+  deleted_scope["include_deleted"] = true;
+  CHECK(query_card("list_card_links", deleted_scope).at("isError") == true);
+  CHECK(
+      query_card("list_card_links", {{"project_id", "other"}, {"card_id", "card-2"}})
+          .at("isError") == true
+  );
+  const auto breadcrumbs =
+      query_card("get_card_breadcrumbs", selection).at("structuredContent").at("data");
+  CHECK(breadcrumbs.back().at("id") == "card-1");
+  CHECK(query_card("list_card_milestones", selection).at("structuredContent").at("data").empty());
+  CHECK(query_card("list_project_tags", {{"project_id", "allowed"}})
+            .at("structuredContent")
+            .at("data")
+            .empty());
 
   request.set(http::field::authorization, "Bearer rest-test-token");
   CHECK(exchange(bound.port, request).result() == http::status::unauthorized);

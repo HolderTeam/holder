@@ -18,12 +18,17 @@ PATH = "daemon/src/api/generated/McpTools.json"
 BINDINGS_PATH = "daemon/src/api/generated/McpBindings.h"
 # Select reads whose arguments and results stay inside the authorized project.
 TOOLS = (
-    "get_card", "get_card_breadcrumbs", "get_resource", "list_card_milestones",
-    "list_cards", "list_project_tags", "search_cards",
+    "get_card", "get_card_breadcrumbs", "get_resource", "list_card_backlinks",
+    "list_card_links", "list_card_milestones", "list_cards", "list_project_tags", "search_cards",
 )
 PAGE_LIMITS = {"list_cards": 100, "search_cards": 100}
 PAGE_DEFAULTS = {"list_cards": 50}
-FIXED_ARGUMENTS = {"list_cards": {"include_content": False}}
+FIXED_ARGUMENTS = {
+    "list_cards": {"include_content": False},
+    "list_card_links": {"include_deleted": False},
+    "list_card_backlinks": {"include_deleted": False, "scope": "local"},
+}
+LOCAL_LINK_TOOLS = {"list_card_links", "list_card_backlinks"}
 COMPONENT_REF = "#/components/schemas/"
 
 
@@ -93,6 +98,8 @@ def generate_mcp_tools(contract: ContractView) -> str:
             properties["limit"]["default"] = PAGE_DEFAULTS[name]
         if "include_content" in fixed:
             description += "\n\nThis tool lists metadata. Use get_card to read one card body."
+        if name in LOCAL_LINK_TOOLS:
+            description += "\n\nBoth ends must belong to the authorized project. Entries in Trash are excluded."
         tools.append({
             "name": name,
             "description": description,
@@ -147,6 +154,7 @@ def generate_mcp_bindings(contract: ContractView) -> str:
         "#pragma once",
         '#include "api/generated/ContractJson.h"',
         "#include <functional>",
+        "#include <vector>",
         "#include <string_view>",
         "#include <utility>",
     ]
@@ -158,7 +166,8 @@ def generate_mcp_bindings(contract: ContractView) -> str:
         for slot in slots:
             if slot.type.kind == "literal":
                 slot.enum = camel(operation.name) + camel(slot.name)
-                lines.extend(enum_lines(slot))
+                if slot.name not in FIXED_ARGUMENTS.get(operation.name, {}):
+                    lines.extend(enum_lines(slot))
         slots_by_operation[operation.name] = slots
     lines += [
         "} // namespace contract_json",
@@ -194,10 +203,17 @@ def generate_mcp_bindings(contract: ContractView) -> str:
             ):
                 raise Unsupported(f"{operation.name}.{slot.name}: unsupported MCP argument")
             if slot.name in fixed:
-                args.append(json.dumps(fixed[slot.name]))
+                value = fixed[slot.name]
+                if slot.type.kind == "literal":
+                    if value not in slot.type.values:
+                        raise Unsupported(f"{operation.name}.{slot.name}: unknown fixed MCP value")
+                    args.append(f"holder::contract::{slot.enum}::{camel(value)}")
+                else:
+                    args.append(json.dumps(value))
                 continue
             arg = slot.name
-            args.append(f"std::move({arg})" if slot.type.kind == "string" else arg)
+            keep_project = arg == "project_id" and operation.name in LOCAL_LINK_TOOLS
+            args.append(f"std::move({arg})" if slot.type.kind == "string" and not keep_project else arg)
             if arg == "limit" and operation.name in PAGE_LIMITS:
                 cap = PAGE_LIMITS[operation.name]
                 maximum = cap if slot.type.le is None else min(cap, slot.type.le)
@@ -226,7 +242,16 @@ def generate_mcp_bindings(contract: ContractView) -> str:
             lines.append(f"    auto {arg} = {decode};")
         lines.append("    authorize_project(project_id);")
         args = ", ".join(args)
-        lines.append(f'    return json{{{{"data", encode(holder::contract::{operation.name}(context, {args}))}}}};')
+        call = f"holder::contract::{operation.name}(context, {args})"
+        if operation.name in LOCAL_LINK_TOOLS:
+            lines += [
+                f"    auto links = {call};",
+                "    std::erase_if(links, [&project_id](const auto& link) {",
+                "      return link.source_project_id != project_id || link.target_project_id != project_id;",
+                "    });",
+            ]
+            call = "links"
+        lines.append(f'    return json{{{{"data", encode({call})}}}};')
         lines.append("  }")
     lines += ['  throw std::invalid_argument("unknown MCP tool");', "}", "} // namespace holder::api::mcp", ""]
     return clang_format("\n".join(lines), BINDINGS_PATH)

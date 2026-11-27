@@ -77,8 +77,9 @@ by unsetting both variables and restarting the daemon.
 The selected project can be browsed with `list_cards` and searched with
 `search_cards`. Use `get_card` for a card body, `get_card_breadcrumbs` for
 its position, `list_card_milestones` for its dates, and `list_project_tags`
-for tag counts. `get_resource` reads resource metadata. The REST API uses
-a separate credential.
+for tag counts. `list_card_links` and `list_card_backlinks` return links
+whose endpoints both belong to the selected project. `get_resource` reads
+resource metadata. The REST API uses a separate credential.
 
 `list_cards` returns metadata and defaults to 50 cards. Keep the filters and
 order unchanged when passing the next cursor. Listing and search accept up
