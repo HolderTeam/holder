@@ -765,6 +765,73 @@ TEST_CASE("export_recovery_token can read key material from platform keyring", "
   );
   REQUIRE_FALSE(token.empty());
 }
+
+namespace {
+int counted_lookups = 0;
+bool counted_lookup_fails = false;
+
+holder::privacy::PlatformKeyringLookupResult counted_keyring_lookup(const holder::privacy::
+                                                                        PlatformKeyringSecretRef&) {
+  ++counted_lookups;
+  if (counted_lookup_fails)
+    return {.secret = std::nullopt, .error_message = std::string("keyring locked")};
+  static const auto key = holder::privacy::key_to_base64(holder::privacy::generate_random_key());
+  return {.secret = key, .error_message = std::nullopt};
+}
+} // namespace
+
+TEST_CASE("a ProjectKeyScope asks the keyring once per key until it closes", "[privacy]") {
+  EnvUnsetGuard unset_test_keystore("HOLDER_TEST_KEYSTORE_DIR");
+  PlatformKeyringLookupHookGuard hook_guard(&counted_keyring_lookup);
+  counted_lookups = 0;
+  counted_lookup_fails = false;
+  using holder::privacy::decrypt_project_blob;
+  using holder::privacy::encrypt_project_blob;
+
+  // Without a scope, every encrypt and decrypt asks the keyring.
+  const auto blob = encrypt_project_blob("proj-scope", "key-scope", "card text");
+  CHECK(decrypt_project_blob("proj-scope", "key-scope", blob) == "card text");
+  CHECK(counted_lookups == 2);
+
+  counted_lookups = 0;
+  {
+    const holder::privacy::ProjectKeyScope outer;
+    for (int i = 0; i < 150; ++i) {
+      const auto again = encrypt_project_blob("proj-scope", "key-scope", "card text");
+      CHECK(decrypt_project_blob("proj-scope", "key-scope", again) == "card text");
+    }
+    {
+      const holder::privacy::ProjectKeyScope nested;
+      (void)decrypt_project_blob("proj-scope", "key-scope", blob);
+    }
+    // A nested scope closing keeps the outer one's keys.
+    (void)decrypt_project_blob("proj-scope", "key-scope", blob);
+    CHECK(counted_lookups == 1);
+    // Another key is fetched once too.
+    (void)encrypt_project_blob("proj-scope", "key-other", "x");
+    (void)encrypt_project_blob("proj-scope", "key-other", "x");
+    CHECK(counted_lookups == 2);
+  }
+
+  // Once the scope closes, the keyring is asked again, so a locked keyring is noticed.
+  counted_lookups = 0;
+  counted_lookup_fails = true;
+  REQUIRE_THROWS_AS(
+      decrypt_project_blob("proj-scope", "key-scope", blob),
+      holder::privacy::PrivacyError
+  );
+  // A failed lookup is not kept: inside a scope, each try asks again.
+  {
+    const holder::privacy::ProjectKeyScope scope;
+    REQUIRE_THROWS_AS(
+        decrypt_project_blob("proj-scope", "key-scope", blob),
+        holder::privacy::PrivacyError
+    );
+    counted_lookup_fails = false;
+    CHECK(decrypt_project_blob("proj-scope", "key-scope", blob) == "card text");
+  }
+  CHECK(counted_lookups == 3);
+}
 #endif
 
 TEST_CASE("import_recovery_token rethrows non-token privacy errors", "[privacy]") {

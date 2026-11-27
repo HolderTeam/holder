@@ -5,6 +5,7 @@
 // The C entry points: argument checks, conversions and error codes.
 #include "Contract.h"
 #include "holder/holder_api.h"
+#include "privacy/ProjectKeyScope.h"
 
 #include <cmath>
 #include <cstddef>
@@ -159,6 +160,8 @@ double finite(double value, const char* name) {
 
 template <class Body> int run_guarded(holder_error** out_error, Body&& body) {
   if (out_error != nullptr) *out_error = nullptr;
+  // One keyring lookup per project key for the whole call, however many files it encrypts.
+  const holder::privacy::ProjectKeyScope project_keys;
   try {
     body();
     return HOLDER_OK;
@@ -4191,6 +4194,30 @@ int holder_restore_recovery_snapshot(
     const auto request_value = from_c(*request);
     auto* out = make<holder_project>(arena);
     *out = to_c(arena, contract::restore_recovery_snapshot(*context, request_value));
+    *out_project = out;
+  });
+}
+
+int holder_restore_recovery_bundle(
+    holder_context* context,
+    const holder_recovery_snapshot_restore* request,
+    const char* asset_directory,
+    holder_arena* arena,
+    const holder_project** out_project,
+    holder_error** out_error
+) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project != nullptr, "out_project must not be null");
+    *out_project = nullptr;
+    require(request != nullptr, "request must not be null");
+    const auto request_value = from_c(*request);
+    const auto asset_directory_value = text(asset_directory, "asset_directory", 1, SIZE_MAX);
+    auto* out = make<holder_project>(arena);
+    *out = to_c(
+        arena,
+        contract::restore_recovery_bundle(*context, request_value, asset_directory_value)
+    );
     *out_project = out;
   });
 }

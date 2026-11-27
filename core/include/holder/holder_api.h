@@ -2843,6 +2843,21 @@ int holder_restore_recovery_snapshot(
     holder_error** out_error
 );
 
+/* Restore a plain project with verified local copies of its assets.
+ * The caller extracts each plaintext payload as a file named by its SHA-256 in
+ * asset_directory. Core checks the bytes, copies them into the private workspace,
+ * and replaces source placements with local ones. A failed restore leaves no project.
+ * Errors: HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_restore_recovery_bundle(
+    holder_context* context,
+    const holder_recovery_snapshot_restore* request,
+    const char* asset_directory,
+    holder_arena* arena,
+    const holder_project** out_project,
+    holder_error** out_error
+);
+
 /* Wrap an encrypted project's key in a portable token protected by a PIN.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
  * HOLDER_ERROR_DATA_CORRUPTED.

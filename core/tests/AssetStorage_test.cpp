@@ -709,7 +709,7 @@ TEST_CASE("Asset import stores, links, deduplicates and retrieves", "[asset]") {
       Catch::Matchers::ContainsSubstring("stored asset integrity check failed")
   );
   REQUIRE_FALSE(std::filesystem::exists(failed_destination));
-  REQUIRE_FALSE(std::filesystem::exists(dir / "staging" / (placement.placement_id + ".download")));
+  REQUIRE(std::filesystem::is_empty(dir / "staging"));
 
   db.exec("UPDATE cards SET rel_path = 'cards/wrong.md' WHERE card_id = 'card-1234';");
   REQUIRE_THROWS_WITH(

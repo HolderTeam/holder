@@ -1988,6 +1988,17 @@ RecoverySnapshotPage read_recovery_snapshot(
 /// project behind. The daemon does not serve this.
 Project restore_recovery_snapshot(holder_context& context, const RecoverySnapshotRestore& request);
 
+/// Restore a plain project with verified local copies of its assets.
+/// The caller extracts each plaintext payload as a file named by its SHA-256 in
+/// asset_directory. Core checks the bytes, copies them into the private workspace,
+/// and replaces source placements with local ones. A failed restore leaves no project.
+/// @throws DataCorrupted
+Project restore_recovery_bundle(
+    holder_context& context,
+    const RecoverySnapshotRestore& request,
+    std::string asset_directory
+);
+
 /// Wrap an encrypted project's key in a portable token protected by a PIN.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
 ProjectRecoveryTokenExportResult export_project_recovery_token(
