@@ -111,6 +111,7 @@ json call_tool(
         core,
         params.at("name").get_ref<const std::string&>(),
         params.value("arguments", json::object()),
+        access.project_id,
         [&access](std::string_view project_id) {
           if (project_id != access.project_id) throw ProjectDenied{};
         }

@@ -81,7 +81,7 @@ TEST_CASE("Live MCP shares daemon reads and applies its own access policy", "[ht
   auto request = mcp_request("server/discover");
   CHECK(result(exchange(bound.port, request)).at("supportedVersions").at(0) == version);
   const auto listed = result(exchange(bound.port, mcp_request("tools/list")));
-  CHECK(listed.at("tools").size() == 9);
+  CHECK(listed.at("tools").size() == 10);
   CHECK(listed.at("ttlMs") == 0);
   CHECK(listed.at("cacheScope") == "private");
 
@@ -135,6 +135,28 @@ TEST_CASE("Live MCP shares daemon reads and applies its own access policy", "[ht
   CHECK(list_cards({{"project_id", "allowed"}, {"include_content", true}}).at("isError") == true);
   CHECK(list_cards({{"project_id", "allowed"}, {"include_child_count", 1}}).at("isError") == true);
   CHECK(list_cards({{"project_id", "allowed"}, {"order", "unknown"}}).at("isError") == true);
+  CHECK(list_cards({{"project_id", nullptr}}).at("isError") == true);
+
+  const auto resource =
+      holder::test::http_json_request(
+          bound.bind,
+          bound.port,
+          "rest-test-token",
+          http::verb::post,
+          "/projects/allowed/resources",
+          {{"resource_id", "resource-1"}, {"type", "book"}, {"label", "A reference"}},
+          http::status::created
+      )
+          .at("data");
+  holder::test::http_json_request(
+      bound.bind,
+      bound.port,
+      "rest-test-token",
+      http::verb::put,
+      "/projects/allowed/cards/card-3/resources/resource-1",
+      nullptr,
+      http::status::ok
+  );
 
   const auto add_link = [&](const std::string& source_project,
                             const std::string& source_id,
@@ -161,6 +183,12 @@ TEST_CASE("Live MCP shares daemon reads and applies its own access policy", "[ht
     );
   };
   const auto selection = json{{"project_id", "allowed"}, {"card_id", "card-1"}};
+  CHECK(
+      query_card("list_card_resources", {{"card_id", "card-3"}})
+          .at("structuredContent")
+          .at("data") == json::array({resource})
+  );
+  CHECK(query_card("list_card_resources", {{"card_id", "card-2"}}).at("isError") == true);
   const auto outgoing = query_card("list_card_links", selection).at("structuredContent").at("data");
   REQUIRE(outgoing.size() == 1);
   CHECK(outgoing.at(0).at("target_id") == "card-3");

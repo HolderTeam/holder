@@ -7,14 +7,14 @@
         "type": "object",
         "properties": {
           "project_id": {
-            "$ref": "#/$defs/ProjectId"
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
           },
           "card_id": {
             "$ref": "#/$defs/CardId"
           }
         },
         "required": [
-          "project_id",
           "card_id"
         ],
         "additionalProperties": false,
@@ -211,14 +211,14 @@
         "type": "object",
         "properties": {
           "project_id": {
-            "$ref": "#/$defs/ProjectId"
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
           },
           "card_id": {
             "$ref": "#/$defs/CardId"
           }
         },
         "required": [
-          "project_id",
           "card_id"
         ],
         "additionalProperties": false,
@@ -291,14 +291,14 @@
         "type": "object",
         "properties": {
           "project_id": {
-            "$ref": "#/$defs/ProjectId"
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
           },
           "resource_id": {
             "$ref": "#/$defs/ResourceId"
           }
         },
         "required": [
-          "project_id",
           "resource_id"
         ],
         "additionalProperties": false,
@@ -543,14 +543,14 @@
         "type": "object",
         "properties": {
           "project_id": {
-            "$ref": "#/$defs/ProjectId"
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
           },
           "card_id": {
             "$ref": "#/$defs/CardId"
           }
         },
         "required": [
-          "project_id",
           "card_id"
         ],
         "additionalProperties": false,
@@ -686,14 +686,14 @@
         "type": "object",
         "properties": {
           "project_id": {
-            "$ref": "#/$defs/ProjectId"
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
           },
           "card_id": {
             "$ref": "#/$defs/CardId"
           }
         },
         "required": [
-          "project_id",
           "card_id"
         ],
         "additionalProperties": false,
@@ -829,14 +829,14 @@
         "type": "object",
         "properties": {
           "project_id": {
-            "$ref": "#/$defs/ProjectId"
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
           },
           "card_id": {
             "$ref": "#/$defs/CardId"
           }
         },
         "required": [
-          "project_id",
           "card_id"
         ],
         "additionalProperties": false,
@@ -1000,13 +1000,270 @@
       }
     },
     {
+      "name": "list_card_resources",
+      "description": "List the resources attached to a card.\n\nBy when they last changed, latest first, then by ID. A card in the trash or in another project is not found.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
+          },
+          "card_id": {
+            "$ref": "#/$defs/CardId"
+          }
+        },
+        "required": [
+          "card_id"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/Resource"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Resource": {
+            "properties": {
+              "resource_id": {
+                "$ref": "#/$defs/ResourceId",
+                "description": "The resource's ID."
+              },
+              "project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project the resource belongs to."
+              },
+              "type": {
+                "$ref": "#/$defs/ResourceType",
+                "description": "What kind of thing the resource is."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Label",
+                "description": "The resource's name."
+              },
+              "metadata": {
+                "$ref": "#/$defs/ResourceMetadata",
+                "description": "What is known about the resource, by name."
+              },
+              "assets": {
+                "items": {
+                  "$ref": "#/$defs/ResourceAsset"
+                },
+                "type": "array",
+                "title": "Assets",
+                "description": "The resource's files."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the resource was made."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the resource was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "resource_id",
+              "project_id",
+              "type",
+              "label",
+              "metadata",
+              "assets",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "Resource",
+            "description": "A resource in a project, with its files."
+          },
+          "ResourceId": {
+            "type": "string",
+            "minLength": 4
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceMetadata": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "ResourceAsset": {
+            "properties": {
+              "asset_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Asset Id",
+                "description": "The asset's ID."
+              },
+              "original_filename": {
+                "type": "string",
+                "title": "Original Filename",
+                "description": "The file's name when it was imported."
+              },
+              "media_type": {
+                "type": "string",
+                "title": "Media Type",
+                "description": "The file's media type, such as application/pdf."
+              },
+              "byte_size": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Byte Size",
+                "description": "The file's size, in bytes."
+              },
+              "plaintext_sha256": {
+                "type": "string",
+                "title": "Plaintext Sha256",
+                "description": "The SHA-256 of the file's content, in lower-case hex."
+              },
+              "placements": {
+                "items": {
+                  "$ref": "#/$defs/AssetPlacement"
+                },
+                "type": "array",
+                "title": "Placements",
+                "description": "The stored copies of the file."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the asset was imported."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the asset was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "asset_id",
+              "original_filename",
+              "media_type",
+              "byte_size",
+              "plaintext_sha256",
+              "placements",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "ResourceAsset",
+            "description": "A file that belongs to a resource."
+          },
+          "AssetPlacement": {
+            "properties": {
+              "placement_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Placement Id",
+                "description": "The copy's ID."
+              },
+              "location_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Location Id",
+                "description": "The storage location that holds the copy."
+              },
+              "encoding": {
+                "type": "string",
+                "enum": [
+                  "plain",
+                  "holder_asset_v1"
+                ],
+                "title": "Encoding",
+                "description": "How the copy is stored: as the file is, or encrypted for the project."
+              },
+              "stored_byte_size": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Stored Byte Size",
+                "description": "The size of the stored copy, in bytes."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the copy was stored."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "placement_id",
+              "location_id",
+              "encoding",
+              "stored_byte_size",
+              "created_at"
+            ],
+            "title": "AssetPlacement",
+            "description": "One stored copy of an asset."
+          }
+        }
+      }
+    },
+    {
       "name": "list_cards",
       "description": "Page through a project's live cards.\n\nTag result views use updated_desc, which puts the latest card update first and breaks ties by descending card ID.\nRebuilding the projection from the same card files preserves this order.\n\nFilters combine. Each page reads current data; iterating is not a snapshot.\n\nThis tool lists metadata. Use get_card to read one card body.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "project_id": {
-            "$ref": "#/$defs/ProjectId"
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
           },
           "parent": {
             "anyOf": [
@@ -1077,9 +1334,7 @@
             "title": "Include Child Count"
           }
         },
-        "required": [
-          "project_id"
-        ],
+        "required": [],
         "additionalProperties": false,
         "$defs": {
           "ProjectId": {
@@ -1255,12 +1510,11 @@
         "type": "object",
         "properties": {
           "project_id": {
-            "$ref": "#/$defs/ProjectId"
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
           }
         },
-        "required": [
-          "project_id"
-        ],
+        "required": [],
         "additionalProperties": false,
         "$defs": {
           "ProjectId": {
@@ -1324,7 +1578,7 @@
         "properties": {
           "project_id": {
             "$ref": "#/$defs/ProjectId",
-            "description": "The project to search."
+            "description": "Omit to use the project granted to this MCP token."
           },
           "q": {
             "type": "string",
@@ -1350,7 +1604,6 @@
           }
         },
         "required": [
-          "project_id",
           "q"
         ],
         "additionalProperties": false,

@@ -38,6 +38,7 @@ inline nlohmann::json call_read_tool(
     holder_context& context,
     std::string_view name,
     const nlohmann::json& arguments,
+    std::string_view default_project,
     const std::function<void(std::string_view)>& authorize_project
 ) {
   using namespace contract_json;
@@ -47,9 +48,11 @@ inline nlohmann::json call_read_tool(
       if (it.key() != "project_id" && it.key() != "card_id")
         throw std::invalid_argument("unknown tool argument");
     }
-    if (!arguments.contains("project_id")) throw std::invalid_argument("project_id is required");
     auto project_id = check_text(
-        decode_field<std::string>(arguments.at("project_id"), "project_id"),
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
         "project_id",
         1,
         std::numeric_limits<std::size_t>::max()
@@ -72,9 +75,11 @@ inline nlohmann::json call_read_tool(
       if (it.key() != "project_id" && it.key() != "card_id")
         throw std::invalid_argument("unknown tool argument");
     }
-    if (!arguments.contains("project_id")) throw std::invalid_argument("project_id is required");
     auto project_id = check_text(
-        decode_field<std::string>(arguments.at("project_id"), "project_id"),
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
         "project_id",
         1,
         std::numeric_limits<std::size_t>::max()
@@ -101,9 +106,11 @@ inline nlohmann::json call_read_tool(
       if (it.key() != "project_id" && it.key() != "resource_id")
         throw std::invalid_argument("unknown tool argument");
     }
-    if (!arguments.contains("project_id")) throw std::invalid_argument("project_id is required");
     auto project_id = check_text(
-        decode_field<std::string>(arguments.at("project_id"), "project_id"),
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
         "project_id",
         1,
         std::numeric_limits<std::size_t>::max()
@@ -128,9 +135,11 @@ inline nlohmann::json call_read_tool(
       if (it.key() != "project_id" && it.key() != "card_id")
         throw std::invalid_argument("unknown tool argument");
     }
-    if (!arguments.contains("project_id")) throw std::invalid_argument("project_id is required");
     auto project_id = check_text(
-        decode_field<std::string>(arguments.at("project_id"), "project_id"),
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
         "project_id",
         1,
         std::numeric_limits<std::size_t>::max()
@@ -160,9 +169,11 @@ inline nlohmann::json call_read_tool(
       if (it.key() != "project_id" && it.key() != "card_id")
         throw std::invalid_argument("unknown tool argument");
     }
-    if (!arguments.contains("project_id")) throw std::invalid_argument("project_id is required");
     auto project_id = check_text(
-        decode_field<std::string>(arguments.at("project_id"), "project_id"),
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
         "project_id",
         1,
         std::numeric_limits<std::size_t>::max()
@@ -186,9 +197,11 @@ inline nlohmann::json call_read_tool(
       if (it.key() != "project_id" && it.key() != "card_id")
         throw std::invalid_argument("unknown tool argument");
     }
-    if (!arguments.contains("project_id")) throw std::invalid_argument("project_id is required");
     auto project_id = check_text(
-        decode_field<std::string>(arguments.at("project_id"), "project_id"),
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
         "project_id",
         1,
         std::numeric_limits<std::size_t>::max()
@@ -210,6 +223,37 @@ inline nlohmann::json call_read_tool(
          ))}
     };
   }
+  if (name == "list_card_resources") {
+    for (auto it = arguments.begin(); it != arguments.end(); ++it) {
+      if (it.key() != "project_id" && it.key() != "card_id")
+        throw std::invalid_argument("unknown tool argument");
+    }
+    auto project_id = check_text(
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
+        "project_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    if (!arguments.contains("card_id")) throw std::invalid_argument("card_id is required");
+    auto card_id = check_text(
+        decode_field<std::string>(arguments.at("card_id"), "card_id"),
+        "card_id",
+        1,
+        std::numeric_limits<std::size_t>::max()
+    );
+    authorize_project(project_id);
+    return json{
+        {"data",
+         encode(holder::contract::list_card_resources(
+             context,
+             std::move(project_id),
+             std::move(card_id)
+         ))}
+    };
+  }
   if (name == "list_cards") {
     for (auto it = arguments.begin(); it != arguments.end(); ++it) {
       if (it.key() != "project_id" && it.key() != "parent" && it.key() != "tag" &&
@@ -217,9 +261,11 @@ inline nlohmann::json call_read_tool(
           it.key() != "include_child_count")
         throw std::invalid_argument("unknown tool argument");
     }
-    if (!arguments.contains("project_id")) throw std::invalid_argument("project_id is required");
     auto project_id = check_text(
-        decode_field<std::string>(arguments.at("project_id"), "project_id"),
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
         "project_id",
         1,
         std::numeric_limits<std::size_t>::max()
@@ -283,9 +329,11 @@ inline nlohmann::json call_read_tool(
     for (auto it = arguments.begin(); it != arguments.end(); ++it) {
       if (it.key() != "project_id") throw std::invalid_argument("unknown tool argument");
     }
-    if (!arguments.contains("project_id")) throw std::invalid_argument("project_id is required");
     auto project_id = check_text(
-        decode_field<std::string>(arguments.at("project_id"), "project_id"),
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
         "project_id",
         1,
         std::numeric_limits<std::size_t>::max()
@@ -301,9 +349,11 @@ inline nlohmann::json call_read_tool(
           it.key() != "offset")
         throw std::invalid_argument("unknown tool argument");
     }
-    if (!arguments.contains("project_id")) throw std::invalid_argument("project_id is required");
     auto project_id = check_text(
-        decode_field<std::string>(arguments.at("project_id"), "project_id"),
+        decode_field<std::string>(
+            arguments.value("project_id", json(default_project)),
+            "project_id"
+        ),
         "project_id",
         1,
         std::numeric_limits<std::size_t>::max()

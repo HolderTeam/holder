@@ -79,7 +79,9 @@ The selected project can be browsed with `list_cards` and searched with
 its position, `list_card_milestones` for its dates, and `list_project_tags`
 for tag counts. `list_card_links` and `list_card_backlinks` return links
 whose endpoints both belong to the selected project. `get_resource` reads
-resource metadata. The REST API uses a separate credential.
+resource metadata and `list_card_resources` finds the resources attached to
+a card. Omit `project_id` to use the project granted to the token. The REST
+API uses a separate credential.
 
 `list_cards` returns metadata and defaults to 50 cards. Keep the filters and
 order unchanged when passing the next cursor. Listing and search accept up

@@ -69,7 +69,8 @@ def test_available_daemon(port, env, card):
         send(process, "tools/list", 2, _meta=metadata)
         assert {tool["name"] for tool in result(process, 2)["tools"]} == {
             "get_card", "get_card_breadcrumbs", "get_resource", "list_card_backlinks",
-            "list_card_links", "list_card_milestones", "list_cards", "list_project_tags", "search_cards",
+            "list_card_links", "list_card_milestones", "list_card_resources", "list_cards",
+            "list_project_tags", "search_cards",
         }
         send(process, "tools/call", 3, _meta=metadata, name="get_card",
              arguments={"project_id": PROJECT, "card_id": card["card_id"]})
@@ -87,12 +88,12 @@ def test_available_daemon(port, env, card):
         send(process, "notifications/initialized")
         send(process, "tools/list", 2)
         discovered = result(process, 2)
-        assert len(discovered["tools"]) == 9 and "resultType" not in discovered
+        assert len(discovered["tools"]) == 10 and "resultType" not in discovered
         send(process, "tools/call", 3, name="get_card",
              arguments={"project_id": PROJECT, "card_id": card["card_id"]})
         assert result(process, 3)["structuredContent"]["data"] == card
         send(process, "tools/call", "list", name="list_cards",
-             arguments={"project_id": PROJECT, "parent": "roots"})
+             arguments={"parent": "roots"})
         page = result(process, "list")["structuredContent"]["data"]
         assert [item["card_id"] for item in page["items"]] == [card["card_id"]]
         assert "content" not in page["items"][0]

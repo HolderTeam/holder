@@ -19,7 +19,7 @@ BINDINGS_PATH = "daemon/src/api/generated/McpBindings.h"
 # Select reads whose arguments and results stay inside the authorized project.
 TOOLS = (
     "get_card", "get_card_breadcrumbs", "get_resource", "list_card_backlinks",
-    "list_card_links", "list_card_milestones", "list_cards", "list_project_tags", "search_cards",
+    "list_card_links", "list_card_milestones", "list_card_resources", "list_cards", "list_project_tags", "search_cards",
 )
 PAGE_LIMITS = {"list_cards": 100, "search_cards": 100}
 PAGE_DEFAULTS = {"list_cards": 50}
@@ -90,6 +90,7 @@ def generate_mcp_tools(contract: ContractView) -> str:
             key: dict(parameter["schema"]) for key, parameter in parameters.items()
             if key not in fixed
         }
+        properties["project_id"]["description"] = "Omit to use the project granted to this MCP token."
         if name in PAGE_LIMITS:
             limit = properties["limit"]
             maximum = PAGE_LIMITS[name]
@@ -107,7 +108,7 @@ def generate_mcp_tools(contract: ContractView) -> str:
                 "type": "object",
                 "properties": properties,
                 "required": [key for key, parameter in parameters.items()
-                             if key in properties and parameter["required"]],
+                             if key in properties and key != "project_id" and parameter["required"]],
                 "additionalProperties": False,
             }, components),
             "outputSchema": standalone_schema({
@@ -175,6 +176,7 @@ def generate_mcp_bindings(contract: ContractView) -> str:
         "// Authorization must throw on denial. Domain errors propagate to the protocol adapter.",
         "inline nlohmann::json call_read_tool(holder_context& context, std::string_view name,",
         "    const nlohmann::json& arguments,",
+        "    std::string_view default_project,",
         "    const std::function<void(std::string_view)>& authorize_project) {",
         "  using namespace contract_json;",
         '  if (!arguments.is_object()) throw std::invalid_argument("tool arguments must be an object");',
@@ -229,7 +231,9 @@ def generate_mcp_bindings(contract: ContractView) -> str:
                     f"      {arg} = {decoded};",
                 ]
                 continue
-            if slot.has_default:
+            if arg == "project_id":
+                source = 'arguments.value("project_id", json(default_project))'
+            elif slot.has_default:
                 default = PAGE_DEFAULTS.get(operation.name, slot.default) if arg == "limit" else slot.default
                 if type(default) not in {int, str, bool}:
                     raise Unsupported(f"{operation.name}.{arg}: unsupported MCP default")
