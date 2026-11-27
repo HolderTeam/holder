@@ -380,6 +380,37 @@ Context_restore_recovery_bundle(ContextObject *self, PyObject *args, PyObject *k
 }
 
 static PyObject *
+Context_restore_recovery_snapshot_file(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *path = NULL;
+    const char *name = NULL;
+    const char *asset_directory = NULL;
+    static char *keywords[] = {"path", "name", "asset_directory", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|z:restore_recovery_snapshot_file", keywords,
+                                    &path, &name, &asset_directory) || !ensure_context_open(self)) {
+        return NULL;
+    }
+
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    holder_error *error = NULL;
+    const holder_project *project = NULL;
+    const int result = holder_restore_recovery_snapshot_file(
+        self->context, path, name, asset_directory, arena, &project, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+    PyObject *record = project_record(project->project_id, project->name, project->root_path,
+        project->git_remote_url, project->git_provider, project->privacy_mode,
+        project->project_key_id, project->created_at, project->updated_at);
+    holder_arena_free(arena);
+    return record;
+}
+
+static PyObject *
 Context_list_projects(ContextObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (!ensure_context_open(self)) {
@@ -2397,6 +2428,8 @@ static PyMethodDef Context_methods[] = {
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Restore recovery snapshot lines into a new plain project.")},
     {"restore_recovery_bundle", PyCFunction_CAST(Context_restore_recovery_bundle),
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Restore recovery lines with local asset files.")},
+    {"restore_recovery_snapshot_file", PyCFunction_CAST(Context_restore_recovery_snapshot_file),
+     METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Restore a recovery snapshot file into a new plain project.")},
     {"list_projects", (PyCFunction)Context_list_projects, METH_NOARGS,
      PyDoc_STR("List Holder projects.")},
     {"get_project", PyCFunction_CAST(Context_get_project),

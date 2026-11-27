@@ -7,6 +7,8 @@ import subprocess
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from os import PathLike
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, BinaryIO, Self, cast
 
 import httpx
@@ -43,6 +45,7 @@ from .generated.api.default import (
 )
 from .generated.models import ErrorResponse, NewProject, PrivacyMode
 from .generated.streams import StreamError
+from .generated.types import UNSET
 from .models.intelligence_device import HolderIntelligence
 from .models.project import Project, ProjectCollection
 from .recovery_bundle import _download_recovery_bundle
@@ -183,17 +186,72 @@ class Holder:
         """Download a project's live recovery snapshot as UTF-8 JSON Lines.
 
         Card bodies are plaintext, including for encrypted projects. Asset bytes
-        are not included. A private workspace can restore the returned lines.
+        are not included. The text download is capped at 2 MiB.
         """
         payload = self._call(
             get_projects_project_id_recovery_snapshot,
             project_id,
+            stream=UNSET,
             response_media_type="application/octet-stream",
         )
         try:
             return payload.decode("utf-8")
         except UnicodeDecodeError:
-            raise ProtocolError("Invalid UTF-8 recovery snapshot from the daemon") from None
+            raise ProtocolError(
+                "Invalid UTF-8 recovery snapshot from the daemon"
+            ) from None
+
+    def copy_project_to(
+        self, project_id: str, workspace: EmbeddedWorkspace, *, name: str
+    ) -> ProjectRecord:
+        """Copy the live cards into a new unencrypted project in an open private workspace.
+
+        The daemon captures one consistent snapshot. Transfer and restore use a
+        private temporary file, which is removed when the call ends. The copy includes
+        linked resource declarations. Asset bytes stay in their original locations.
+        """
+        if not isinstance(workspace, EmbeddedWorkspace):
+            raise TypeError("Supply an open private workspace from open_workspace()")
+        workspace._native_operation("restore_recovery_snapshot_file")
+        with TemporaryDirectory(prefix="holder-recovery-") as temporary:
+            path = Path(temporary) / "snapshot.jsonl"
+            with path.open("xb") as output:
+                self._write_recovery_snapshot(project_id, output)
+            return cast(
+                "ProjectRecord",
+                workspace._call("restore_recovery_snapshot_file", str(path), name=name),
+            )
+
+    def _write_recovery_snapshot(self, project_id: str, output: BinaryIO) -> None:
+        client = self._active()
+        for attempt in range(2):
+            try:
+                with get_projects_project_id_recovery_snapshot.stream(
+                    project_id, client=client, stream=True
+                ) as download:
+                    media_type = download.response.headers.get(
+                        "content-type", ""
+                    ).split(";", 1)[0]
+                    if (
+                        download.response.status_code != 200
+                        or media_type.strip().lower() != "application/octet-stream"
+                    ):
+                        raise ProtocolError("Invalid daemon download response")
+                    download.write_to(output, chunk_size=64 * 1024)
+                return
+            except StreamError as error:
+                if error.status_code == 401 and self._local and attempt == 0:
+                    self._refresh_http_client(client)
+                    continue
+                raise stream_failure(
+                    error, "Invalid daemon download response"
+                ) from None
+            except httpx.TransportError:
+                raise ConnectionError(
+                    "Could not download the Holder recovery snapshot"
+                ) from None
+            except (ValueError, KeyError, TypeError):
+                raise ProtocolError("Invalid daemon download response") from None
 
     def download_asset(
         self,
@@ -320,7 +378,16 @@ class Holder:
         Each read uses current data. Edits during export can affect the result.
         Card bodies are optional.
         """
-        return _export_project_records(self, project_id, include_content=include_content)
+        return _export_project_records(
+            self, project_id, include_content=include_content
+        )
+
+    def _refresh_http_client(self, client: AuthenticatedClient) -> None:
+        self._discover()
+        # Keep the connection pool and custom transport when the daemon restarts.
+        http_client = client.get_httpx_client()
+        http_client.base_url = self._url
+        http_client.headers["Authorization"] = f"Bearer {self._token}"
 
     def _call(
         self,
@@ -347,11 +414,7 @@ class Holder:
                 and not write
                 and attempt == 0
             ):
-                self._discover()
-                # Preserve the pool and custom transport while updating a restarted daemon.
-                http_client = client.get_httpx_client()
-                http_client.base_url = self._url
-                http_client.headers["Authorization"] = f"Bearer {self._token}"
+                self._refresh_http_client(client)
                 continue
             if isinstance(response.parsed, ErrorResponse):
                 error = response.parsed.error

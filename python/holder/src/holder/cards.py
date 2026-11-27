@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from importlib import import_module
 from importlib.resources import files
 from os import PathLike, fspath, getenv
@@ -490,12 +491,16 @@ class EmbeddedWorkspace:
         self, source: str | PathLike[str], *, name: str
     ) -> ProjectRecord:
         """Restore a recovery ZIP into a new plain project with local asset placements."""
-        if self._closed or self._context is None:
-            raise ClosedError("Use the workspace inside with open_workspace(...)")
+        self._native_operation("restore_recovery_snapshot_file")
         with _extract_recovery_bundle(source) as (snapshot, directory):
             return cast(
                 "ProjectRecord",
-                self._call("restore_recovery_bundle", snapshot, fspath(directory), name=name),
+                self._call(
+                    "restore_recovery_snapshot_file",
+                    fspath(snapshot),
+                    name=name,
+                    asset_directory=fspath(directory),
+                ),
             )
 
     def list_trash(
@@ -569,9 +574,11 @@ class EmbeddedWorkspace:
         Each read uses current data. Edits during export can affect the result.
         Card bodies are optional.
         """
-        return _export_project_records(self, project_id, include_content=include_content)
+        return _export_project_records(
+            self, project_id, include_content=include_content
+        )
 
-    def _call(self, method: str, *args: object, **kwargs: object) -> object:
+    def _native_operation(self, method: str) -> Callable[..., object]:
         if self._closed or self._context is None:
             raise ClosedError("Use the workspace inside with open_workspace(...)")
         operation = getattr(self._context, method, None)
@@ -579,6 +586,10 @@ class EmbeddedWorkspace:
             raise EmbeddedUnavailableError(
                 f"This native Holder build does not support {method}."
             )
+        return operation
+
+    def _call(self, method: str, *args: object, **kwargs: object) -> object:
+        operation = self._native_operation(method)
         try:
             return operation(*args, **kwargs)
         except (self._native_error, ValueError) as error:

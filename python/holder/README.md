@@ -299,25 +299,40 @@ bodies writes their decrypted text to the output file.
 
 ## Make an editable copy of a project's cards
 
-Download a recovery snapshot through the daemon, then restore it as a new
-project in a separate private workspace:
+Copy a consistent snapshot of the live project into a new project in a separate
+private workspace:
 
 ```python
-from holder import open_session, open_workspace
+from holder import Holder, open_workspace
 
-with open_session() as session:
-    snapshot = session.download_recovery_snapshot("your-project-id")
-
-with open_workspace("private-research-workspace") as workspace:
-    project = workspace.restore_recovery_snapshot(snapshot, name="Research copy")
+with Holder() as session, open_workspace("private-research-workspace") as workspace:
+    project = session.copy_project_to("your-project-id", workspace, name="Research copy")
     print(workspace.card_operations.list_cards(project["project_id"])["items"])
 ```
 
-The download is capped at 2 MiB and includes live card bodies, hierarchy,
-milestones, links, and linked resource declarations. Asset bytes stay in their
-original storage locations. Restored projects have new IDs and are stored
-without encryption. Treat a snapshot containing decrypted card bodies as
-plaintext, including if you save the download to a file.
+The copy includes live card bodies, hierarchy, milestones, links, and linked
+resource declarations. Asset bytes stay in their original storage locations.
+Restored projects have new IDs and are stored without encryption.
+
+`copy_project_to` can copy projects larger than 2 MiB. It needs temporary disk
+space on the daemon and Python machines. Both clean up their temporary files
+when the operation ends or raises an error. If the download is interrupted,
+the workspace has no new project. Once native restore starts, it runs
+synchronously and removes the new project if a restore error occurs.
+The temporary files contain plaintext, including decrypted card bodies.
+Capture and restore process one record at a time. Restore also keeps IDs and
+hierarchy in memory to remap references. For a capture that takes longer than
+the default timeout, set a larger `timeout` on `Holder()`.
+
+`download_recovery_snapshot` is available separately for snapshots up to 2 MiB
+that you want as a Python string.
+
+To take local copies of the attachments too, use
+`session.download_recovery_bundle(project_id, "project.zip")` and
+`workspace.restore_recovery_bundle("project.zip", name="Research copy")`.
+The ZIP uses the same streamed snapshot. Holder verifies attachments against
+the captured metadata before replacing the ZIP destination, and verifies them
+again when restoring them to new local placements in the private workspace.
 
 ## Clone and reopen a private Git workspace
 

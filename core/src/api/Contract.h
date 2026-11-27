@@ -1999,6 +1999,19 @@ Project restore_recovery_bundle(
     std::string asset_directory
 );
 
+/// Restore a local recovery JSON Lines file into a new unencrypted project.
+/// Uses the same ID remapping as restore_recovery_snapshot. The caller keeps the
+/// file unchanged for the duration of the call and owns its cleanup. Supply an
+/// asset directory with SHA-256-named plaintext files to verify and restore
+/// local copies of the assets in a private workspace.
+/// @throws DataCorrupted
+Project restore_recovery_snapshot_file(
+    holder_context& context,
+    std::string snapshot_path,
+    std::string project_name,
+    std::optional<std::string> asset_directory
+);
+
 /// Wrap an encrypted project's key in a portable token protected by a PIN.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
 ProjectRecoveryTokenExportResult export_project_recovery_token(

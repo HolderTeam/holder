@@ -476,6 +476,17 @@ Project restore_recovery_bundle(holder_context& context, const RecoverySnapshotR
   return restore_recovery_snapshot(context, request);
 }
 
+Project restore_recovery_snapshot_file(
+    holder_context& context, std::string snapshot_path, std::string project_name,
+    std::optional<std::string> asset_directory
+) {
+  (void)snapshot_path, (void)asset_directory;
+  NewProject project;
+  project.name = std::move(project_name);
+  project.privacy_mode = NewProjectPrivacyMode::Plain;
+  return create_project(context, project);
+}
+
 Project update_project(holder_context& context, std::string project_id, const ProjectUpdate& update) {
   auto& project = project_named(context, project_id);
   if (update.name) project.name = *update.name;

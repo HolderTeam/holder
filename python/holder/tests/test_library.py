@@ -159,6 +159,7 @@ def test_download_recovery_bundle_verifies_assets_before_replacing_output(tmp_pa
 
     def respond(request):
         if request.url.path == "/projects/project/recovery-snapshot":
+            assert request.url.params["stream"] == "true"
             return httpx.Response(
                 200, content=snapshot, headers={"Content-Type": "application/octet-stream"}
             )

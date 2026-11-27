@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from shutil import copyfileobj
@@ -29,11 +29,11 @@ class _Asset(NamedTuple):
     placements: tuple[str, ...]
 
 
-def _snapshot_assets(snapshot: str, project_id: str) -> dict[str, _Asset]:
+def _snapshot_assets(lines: Iterable[str], project_id: str) -> dict[str, _Asset]:
     assets: dict[str, _Asset] = {}
     try:
-        for line in snapshot.split("\n"):
-            if not line:
+        for line in lines:
+            if not line.rstrip("\r\n"):
                 continue
             row = json.loads(line)
             card = row["card"]
@@ -97,11 +97,14 @@ def _download_verified_asset(session: Holder, asset: _Asset, path: Path) -> None
 def _download_recovery_bundle(
     session: Holder, project_id: str, destination: str | PathLike[str]
 ) -> None:
-    snapshot = session.download_recovery_snapshot(project_id)
-    assets = _snapshot_assets(snapshot, project_id)
     target = Path(destination)
     with TemporaryDirectory(prefix=".holder-recovery-", dir=target.parent) as temporary:
         directory = Path(temporary)
+        snapshot = directory / "snapshot.jsonl"
+        with snapshot.open("xb") as output:
+            session._write_recovery_snapshot(project_id, output)
+        with snapshot.open(encoding="utf-8") as lines:
+            assets = _snapshot_assets(lines, project_id)
         archive_path = directory / "bundle.zip"
         payload = directory / "asset"
         with ZipFile(archive_path, "w") as archive:
@@ -115,7 +118,7 @@ def _download_recovery_bundle(
                     }
                 ),
             )
-            archive.writestr("snapshot.jsonl", snapshot.encode("utf-8"))
+            archive.write(snapshot, "snapshot.jsonl")
             for asset in assets.values():
                 _download_verified_asset(session, asset, payload)
                 archive.write(payload, f"assets/{asset.digest}")
@@ -126,7 +129,7 @@ def _download_recovery_bundle(
 @contextmanager
 def _extract_recovery_bundle(
     source: str | PathLike[str],
-) -> Iterator[tuple[str, Path]]:
+) -> Iterator[tuple[Path, Path]]:
     with TemporaryDirectory(prefix="holder-recovery-") as temporary:
         directory = Path(temporary)
         try:
@@ -134,10 +137,7 @@ def _extract_recovery_bundle(
                 entries = archive.namelist()
                 if len(set(entries)) != len(entries):
                     raise ValueError("Duplicate recovery bundle entries")
-                if (
-                    archive.getinfo("manifest.json").file_size > 4096
-                    or archive.getinfo("snapshot.jsonl").file_size > 2 * 1024 * 1024
-                ):
+                if archive.getinfo("manifest.json").file_size > 4096:
                     raise ValueError("Recovery bundle metadata exceeds its size limit")
                 manifest = json.loads(archive.read("manifest.json"))
                 project_id = manifest["project_id"]
@@ -148,8 +148,14 @@ def _extract_recovery_bundle(
                     or not project_id
                 ):
                     raise ValueError("Unsupported recovery bundle")
-                snapshot = archive.read("snapshot.jsonl").decode("utf-8")
-                assets = _snapshot_assets(snapshot, project_id)
+                snapshot = directory / "snapshot.jsonl"
+                with (
+                    archive.open("snapshot.jsonl") as contents,
+                    snapshot.open("xb") as output,
+                ):
+                    copyfileobj(contents, output)
+                with snapshot.open(encoding="utf-8") as lines:
+                    assets = _snapshot_assets(lines, project_id)
                 expected = {"manifest.json", "snapshot.jsonl"} | {
                     f"assets/{digest}" for digest in assets
                 }

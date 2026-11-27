@@ -1402,7 +1402,7 @@ jobs:
         HOLDER_TEST_DAEMON="${STAGE}/usr/bin/holderd" \
         HOLDER_TEST_DAEMON_CWD="${STAGE}/usr/share/holder-daemon" \
           "$work/test/bin/python" -m pytest -v python/holder/tests/test_library_live.py \
-            -k 'embedded_profile_ownership or recovery_snapshot_round_trip'
+            -k 'embedded_profile_ownership or recovery_snapshot_round_trip or copy_large_live_project or large_recovery_bundle'
   python-result:
     name: Python check result
     if: always()
