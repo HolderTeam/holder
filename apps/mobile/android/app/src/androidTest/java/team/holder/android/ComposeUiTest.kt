@@ -70,6 +70,23 @@ class ComposeUiTest {
     }
 
     @Test
+    fun markdownViewer_showsASingleLineBreakAsTyped() {
+        // As in the sync run's Charlie card (#535): one line break, no blank line between.
+        composeRule.setContent {
+            HolderMarkdownViewer(
+                markdown = "Sheen\nEdited on the Pixel",
+                projectId = "project-1",
+                cardId = null,
+                onNavigateToCard = { _, _ -> },
+                onNavigateToTag = {},
+                onCardCreated = { _, _, _ -> },
+            )
+        }
+
+        composeRule.onNodeWithText("Sheen\nEdited on the Pixel").assertIsDisplayed()
+    }
+
+    @Test
     fun markdownViewer_resourceImageReference_fallsBackToAnErrorRatherThanCrashing() {
         // No HolderNative.initialize() in this isolated test -- HolderNative.getResource
         // throws deterministically, exercising rememberResourceAttachmentKind's failure path

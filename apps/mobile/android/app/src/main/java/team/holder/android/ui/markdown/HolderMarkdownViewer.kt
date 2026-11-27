@@ -821,7 +821,9 @@ private fun appendInline(
                     )
                 }
             }
-            is SoftLineBreak -> builder.append(" ")
+            // Every line break shows as typed, as on the Desktop, which always shows the card's
+            // own text: Markdown's soft break (a space) reads as lost lines in a phone's notes.
+            is SoftLineBreak -> builder.append("\n")
             is HardLineBreak -> builder.append("\n")
             else -> appendInline(child, builder, onWikilinkClick, onUrlClick, cardTags, onTagClick, linkColor, sourceRuns, insideLink)
         }
