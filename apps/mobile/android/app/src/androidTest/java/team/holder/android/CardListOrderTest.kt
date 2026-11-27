@@ -44,9 +44,12 @@ class CardListOrderTest {
             HolderSettings.setCardListOrder(composeRule.activity, CardListOrder.LAST_MODIFIED)
         }
         project = HolderNative.createProject("Order $run", "plain")
-        // Made in this order, so last modified first is Apple, Cherry, Banana, or Banana, Cherry,
-        // Apple if they were all made in the same second (ties fall back to card ID). Neither is A to Z.
-        for (title in listOf("Banana $run", "Cherry $run", "Apple $run")) {
+        // Made in this order. Cards saved in the same second fall back to card ID, which is the
+        // order they were made, so last modified first depends on how the saves fall across
+        // seconds: all apart Cherry, Apple, Banana; all together Banana, Apple, Cherry; the first
+        // two together Cherry, Banana, Apple; the last two together Apple, Cherry, Banana. None
+        // is A to Z, which the test needs before it picks Title.
+        for (title in listOf("Banana $run", "Apple $run", "Cherry $run")) {
             HolderNative.createCard(project.projectId, title, "# $title")
         }
     }
