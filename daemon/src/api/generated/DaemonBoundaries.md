@@ -3,7 +3,7 @@
 
 This inventory covers every declared daemon-only operation. Core-backed HTTP operations use `ContractRoutes.h` and `ContractJson.h`; their implementation remains in core. Runtime authentication and connection ownership remain outside generated dispatch.
 
-Current dispositions: 1 complete, 43 partially generated AI boundaries, 23 remaining handwritten boundaries.
+Current dispositions: 1 complete, 43 partially generated AI boundaries, 24 remaining handwritten boundaries.
 
 ## Next bounded migrations for everyday Desktop use
 
@@ -36,6 +36,7 @@ Routing and the listed checks/serialization are in `daemon/src/api/GeneratedRout
 | `start_asset_import` | `POST /imports` | `AssetImportWrite.cpp:post_imports` | dispatch; request fields; job response serialization |
 | `get_asset_import_job` | `GET /imports/{job_id}` | `AssetImportRead.cpp:get_import_job` | dispatch; job ID validation; job response serialization |
 | `get_resource_asset_content` | `GET /resources/{resource_id}/assets/{asset_id}/content` | `AssetContent.cpp:get_resources_resource_id_assets_asset_id_content` | dispatch; IDs/placement query; download headers/stream |
+| `download_recovery_snapshot` | `GET /projects/{project_id}/recovery-snapshot` | `GeneratedRoutes.cpp:dispatch_misc_contract_route` | project ID validation; bounded binary response |
 | `get_alive` | `GET /alive` | `Alive.h:check_alive` | dispatch; no-query check; response serialization |
 | `get_ping` | `GET /ping` | `Ping.h:get_ping` | dispatch; no-query check; text response |
 | `get_health` | `GET /health` | `Health.cpp:get_health` | dispatch; no-query check; response serialization |

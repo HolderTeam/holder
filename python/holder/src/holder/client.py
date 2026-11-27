@@ -33,6 +33,7 @@ from .generated.api.default import (
     get_projects_project_id_calendar,
     get_projects_project_id_milestones_days,
     get_projects_project_id_milestones_instants,
+    get_projects_project_id_recovery_snapshot,
     get_projects_project_id_tags,
     get_trash,
     post_projects,
@@ -173,6 +174,22 @@ class Holder:
         project = self._call(get_projects_project_id, project_id)
         return cast("ProjectRecord", project.to_dict())
 
+    def download_recovery_snapshot(self, project_id: str) -> str:
+        """Download a project's live recovery snapshot as UTF-8 JSON Lines.
+
+        Card bodies are plaintext, including for encrypted projects. Asset bytes
+        are not included. A private workspace can restore the returned lines.
+        """
+        payload = self._call(
+            get_projects_project_id_recovery_snapshot,
+            project_id,
+            response_media_type="application/octet-stream",
+        )
+        try:
+            return payload.decode("utf-8")
+        except UnicodeDecodeError:
+            raise ProtocolError("Invalid UTF-8 recovery snapshot from the daemon") from None
+
     def create_plain_project(self, *, name: str) -> ProjectRecord:
         """Create a project whose files are stored without encryption."""
         project = self._call(
@@ -254,6 +271,7 @@ class Holder:
         *args: Any,
         write: bool = False,
         return_envelope: bool = False,
+        response_media_type: str | None = None,
         **kwargs: Any,
     ) -> Any:
         client = self._active()
@@ -300,6 +318,11 @@ class Holder:
                 raise error_type(
                     int(response.status_code), "http_error", "Daemon request failed"
                 )
+            if response_media_type is not None:
+                media_type = response.headers.get("content-type", "").split(";", 1)[0]
+                if response.status_code != 200 or media_type.strip().lower() != response_media_type:
+                    raise ProtocolError("Invalid daemon download response")
+                return response.content
             if (
                 response.parsed is None
                 or getattr(response.parsed, "ok", None) is not True

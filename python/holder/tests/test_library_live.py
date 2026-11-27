@@ -572,6 +572,59 @@ except native.HolderError as error:
         assert workspace.get_project(project["project_id"]) == project
 
 
+def test_daemon_recovery_snapshot_download(daemon):
+    url, token, raw, _ = daemon
+    project_id = create_project(raw, "Snapshot download")
+    route = f"/projects/{project_id}/recovery-snapshot"
+    assert raw.get(route, headers={"Authorization": ""}).status_code == 401
+    assert raw.get(route).headers["cache-control"] == "no-store"
+
+    with Holder(url=url, token=token) as session:
+        assert session.download_recovery_snapshot(project_id) == ""
+        with pytest.raises(NotFoundError):
+            session.download_recovery_snapshot("missing")
+        original = session.card_operations.create_card(
+            project_id, {"title": "Original", "content": "Research notes ☃"}
+        )
+        lines = session.download_recovery_snapshot(project_id).splitlines()
+        for index in range(3):
+            session.card_operations.create_card(
+                project_id, {"title": f"Large card {index}", "content": "x" * (720 * 1024)}
+            )
+        with pytest.raises(APIError) as too_large:
+            session.download_recovery_snapshot(project_id)
+
+    assert len(lines) == 1
+    row = json.loads(lines[0])
+    assert row["format"] == "holder-recovery-snapshot"
+    assert row["card"]["card_id"] == original["card_id"]
+    assert row["card"]["content"] == original["content"]
+    assert too_large.value.status == 413
+    assert too_large.value.code == "snapshot_too_large"
+
+
+def test_recovery_snapshot_round_trip(daemon, tmp_path):
+    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
+        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+
+    url, token, _, _ = daemon
+    with Holder(url=url, token=token) as session:
+        source_id = session.create_plain_project(name="Snapshot source")["project_id"]
+        source = session.card_operations.create_card(
+            source_id, {"title": "Original", "content": "Live body"}
+        )
+        snapshot = session.download_recovery_snapshot(source_id)
+        with open_workspace(tmp_path / "private-copy") as workspace:
+            copy_id = workspace.restore_recovery_snapshot(snapshot, name="Offline copy")["project_id"]
+            (copied,) = workspace.card_operations.list_cards(copy_id)["items"]
+            assert copied["card_id"] != source["card_id"]
+            changed = workspace.card_operations.update_card(
+                copy_id, copied["card_id"], {"content": "Edited offline"}
+            )
+            assert changed["content"] == "Edited offline"
+        assert session.card_operations.get_card(source_id, source["card_id"])["content"] == "Live body"
+
+
 def test_embedded_recovery_snapshot_restore(tmp_path):
     if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
         pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")

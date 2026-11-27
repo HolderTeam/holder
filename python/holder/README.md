@@ -249,6 +249,28 @@ during export can appear in the result. The export contains card listing
 records and optional Markdown bodies. For an encrypted project, including
 bodies writes their decrypted text to the output file.
 
+## Make an editable copy of a project's cards
+
+Download a recovery snapshot through the daemon, then restore it as a new
+project in a separate private workspace:
+
+```python
+from holder import open_session, open_workspace
+
+with open_session() as session:
+    snapshot = session.download_recovery_snapshot("your-project-id")
+
+with open_workspace("private-research-workspace") as workspace:
+    project = workspace.restore_recovery_snapshot(snapshot, name="Research copy")
+    print(workspace.card_operations.list_cards(project["project_id"])["items"])
+```
+
+The download is capped at 2 MiB and includes live card bodies, hierarchy,
+milestones, links, and linked resource declarations. Asset bytes stay in their
+original storage locations. Restored projects have new IDs and are stored
+without encryption. Treat a snapshot containing decrypted card bodies as
+plaintext, including if you save the download to a file.
+
 ## More help
 
 - [More scripting tasks](docs/scripting.md): links, milestones, project-wide

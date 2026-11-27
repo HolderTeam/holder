@@ -5,12 +5,14 @@
 #include "api/AssetImportRead.h"
 #include "api/AssetImportWrite.h"
 #include "api/Bye.h"
+#include "api/CoreErrors.h"
 #include "api/EventCursor.h"
 #include "api/GoogleDriveOAuth.h"
 #include "api/Health.h"
 #include "api/LocationRead.h"
 #include "api/LocationWrite.h"
 #include "api/Ping.h"
+#include "api/RecoverySnapshots.h"
 #include "api/StaticFiles.h"
 #include "api/Streams.h"
 
@@ -34,6 +36,7 @@
 #include <optional>
 #include <regex>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -379,6 +382,7 @@ bool dispatch_misc_contract_route(
   static const std::regex google_authorize("^/locations/([^/]+)/oauth/google-drive/authorize$");
   static const std::regex google_callback("^/locations/([^/]+)/oauth/google-drive/callback$");
   static const std::regex docs_file("^/docs/([^/]+)$");
+  static const std::regex recovery_snapshot("^/projects/([^/]+)/recovery-snapshot$");
   std::smatch match;
   bool matched = false;
   bool authorize = false;
@@ -415,6 +419,52 @@ bool dispatch_misc_contract_route(
       matched = true;
       no_query();
       respond(get_health(context.db, context.started_at));
+    } else if (method == "GET" && std::regex_match(route_path, match, recovery_snapshot)) {
+      matched = true;
+      no_query();
+      const auto project_id = contract_json::check_text(
+          path_text(1),
+          "project_id",
+          1,
+          std::numeric_limits<std::size_t>::max()
+      );
+      std::optional<holder::index::FtsIndexer> own_fts;
+      holder_context core(
+          context.db,
+          context.fts != nullptr ? *context.fts : own_fts.emplace(context.db),
+          context.git_ops
+      );
+      core.secret_store = context.secret_store;
+      try {
+        constexpr std::size_t max_snapshot_bytes = 2 * 1024 * 1024;
+        auto snapshot = holder::contract::with_contract_errors([&] {
+          return holder::contract::capture_recovery_snapshot(core, project_id, max_snapshot_bytes);
+        });
+        raw(std::move(snapshot), "application/octet-stream");
+        res.set(http::field::cache_control, "no-store");
+      } catch (const holder::contract::NotFound& error) {
+        res = support::error_response(http::status::not_found, "not_found", error.what());
+      } catch (const holder::contract::KeyMissing& error) {
+        res = support::error_response(http::status::conflict, "key_missing", error.what());
+      } catch (const holder::contract::KeyringUnavailable& error) {
+        res = support::error_response(
+            http::status::service_unavailable,
+            "keyring_unavailable",
+            error.what()
+        );
+      } catch (const holder::contract::DataCorrupted& error) {
+        res = support::error_response(
+            http::status::internal_server_error,
+            "data_corrupted",
+            error.what()
+        );
+      } catch (const std::length_error& error) {
+        res = support::error_response(
+            http::status::payload_too_large,
+            "snapshot_too_large",
+            error.what()
+        );
+      }
     } else if (method == "POST" && route_path == "/bye") {
       matched = true;
       no_query();
