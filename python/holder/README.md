@@ -319,6 +319,35 @@ original storage locations. Restored projects have new IDs and are stored
 without encryption. Treat a snapshot containing decrypted card bodies as
 plaintext, including if you save the download to a file.
 
+## Clone and reopen a private Git workspace
+
+Use `clone_workspace()` to work with the committed data of a plain Holder
+project from a Git remote. Supply a new private directory and optionally
+a branch, tag, or commit. The shared Card API is available on the embedded
+session inside the workspace.
+
+```python
+from holder import clone_workspace, reopen_workspace
+
+with clone_workspace(
+    "ssh://git@example.org/research.git",
+    workspace="research-workspace",
+    ref="main",
+) as work:
+    work.session.card_operations.create_card(
+        work.project_id, {"title": "Local notes", "content": "Review the evidence."}
+    )
+
+with reopen_workspace("research-workspace") as work:
+    records = work.session.export_project_records(work.project_id)
+```
+
+Use `create_managed_workspace(name, workspace=path)` to start with an empty
+plain project. Both operations require Git and an embedded Holder build.
+Cloning uses a detached checkout and keeps the project's existing IDs.
+Closing the context keeps local edits, and reopening uses the local checkout.
+Clone accepts HTTPS, SSH, and Git remotes and checks the checkout before
+importing it into the private database.
 To save the snapshot and its attachments together, call
 `session.download_recovery_bundle(project_id, "project.zip")`. The ZIP contains
 the same recovery lines and one plaintext payload per distinct asset hash.

@@ -60,6 +60,12 @@ from .models import (
     Thread,
     TrashItem,
 )
+from .workspaces import (
+    ManagedWorkspace,
+    clone_workspace,
+    create_managed_workspace,
+    reopen_workspace,
+)
 
 __all__ = [
     "ActivityItem",
@@ -94,6 +100,7 @@ __all__ = [
     "IntelligenceStatus",
     "LinkKindLabels",
     "LocalModel",
+    "ManagedWorkspace",
     "Message",
     "MessageSearchResult",
     "Milestone",
@@ -129,9 +136,12 @@ __all__ = [
     "Thread",
     "TrashItem",
     "TrashItemRecord",
+    "clone_workspace",
+    "create_managed_workspace",
     "iter_card_records",
     "open_session",
     "open_workspace",
+    "reopen_workspace",
     "to_dataframes",
     "to_networkx",
 ]
