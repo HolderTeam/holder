@@ -181,6 +181,30 @@ class CardListBoardMoveTest {
     }
 
     @Test
+    fun moveInto_viaBoardMenu_reparentsCardUnderThePickedCard() {
+        // #535: a card can go into any other, not only one a drag can reach. C is inside B, so
+        // it isn't on the Board's root at all; the picker shows it with its path.
+        val project = HolderNative.createProject("Board move project")
+        val a = HolderNative.createCard(project.projectId, "A ${UUID.randomUUID()}", "")
+        val b = HolderNative.createCard(project.projectId, "B ${UUID.randomUUID()}", "")
+        val c = HolderNative.createCard(project.projectId, "C ${UUID.randomUUID()}", "", b.cardId)
+
+        setContent(project.projectId, project.name)
+        composeRule.waitUntil(timeoutMillis = backgroundWorkTimeoutMs) {
+            composeRule.onAllNodesWithText(a.title).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        openMenuAndSelect(a.title, "Move Into…")
+        composeRule.onNodeWithText("in ${b.title}").assertExists()
+        composeRule.onNodeWithText(c.title).performClick()
+
+        composeRule.waitUntil(timeoutMillis = backgroundWorkTimeoutMs) {
+            HolderNative.listCards(project.projectId).find { it.cardId == a.cardId }?.parentCardId == c.cardId
+        }
+        assertEquals(c.cardId, HolderNative.listCards(project.projectId).find { it.cardId == a.cardId }?.parentCardId)
+    }
+
+    @Test
     fun moveUp_swapsWithPreviousSibling() {
         val project = HolderNative.createProject("Board move project")
         val a = HolderNative.createCard(project.projectId, "A ${UUID.randomUUID()}", "")
