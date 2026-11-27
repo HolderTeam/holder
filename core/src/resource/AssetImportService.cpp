@@ -313,11 +313,13 @@ void AssetImportService::retrieve(
   const auto project = holder::project::ProjectRepo(db_).get(bundle->resource.project_id);
   if (!project.has_value()) throw std::runtime_error("project not found");
   std::filesystem::create_directories(staging_root_);
-  const auto download = staging_root_ / (placement->placement_id + ".download");
+  // Concurrent requests for one placement need independent staging files.
+  const auto retrieval_id = uuid_v4_();
+  const auto download = staging_root_ / (retrieval_id + ".download");
   // Decode and validate beside the destination, so a failed download or integrity
   // check cannot truncate the caller's existing file. A sibling also keeps the
   // final rename on one filesystem.
-  const auto recovered = destination.parent_path() / (".holder-retrieve-" + uuid_v4_());
+  const auto recovered = destination.parent_path() / (".holder-retrieve-" + retrieval_id);
   try {
     provider.get(placement->object_key, download);
     recover_asset_file(

@@ -291,6 +291,13 @@ original storage locations. Restored projects have new IDs and are stored
 without encryption. Treat a snapshot containing decrypted card bodies as
 plaintext, including if you save the download to a file.
 
+To save the snapshot and its attachments together, call
+`session.download_recovery_bundle(project_id, "project.zip")`. The ZIP contains
+the same recovery lines and one plaintext payload per distinct asset hash.
+Holder verifies all attachments before replacing the destination. Restore the
+archive with `workspace.restore_recovery_bundle("project.zip", name="Research copy")`.
+The new project uses local asset copies inside the private workspace.
+
 ## More help
 
 - [More scripting tasks](docs/scripting.md): links, milestones, project-wide

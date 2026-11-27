@@ -18,6 +18,7 @@
 #include "model/MilestoneDate.h"
 #include "platform/Tx.h"
 #include "project/ProjectRepo.h"
+#include "resource/LocalDirectoryProvider.h"
 #include "resource/LocationRepo.h"
 #include "resource/LocationStore.h"
 #include "resource/ResourceRepo.h"
@@ -25,6 +26,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <climits>
 #include <filesystem>
 #include <map>
@@ -666,7 +668,11 @@ RecoverySnapshotPage read(
   return out;
 }
 
-Project restore(holder_context& context, const RecoverySnapshotRestore& request) {
+Project restore(
+    holder_context& context,
+    const RecoverySnapshotRestore& request,
+    const std::optional<std::filesystem::path>& asset_directory = std::nullopt
+) {
   // Everything is read and checked before the project is made.
   const auto cards = decode_snapshot(request.snapshot);
   std::map<std::string, RecoverySnapshotLocation> locations;
@@ -677,14 +683,28 @@ Project restore(holder_context& context, const RecoverySnapshotRestore& request)
     for (const auto& resource : card.resources)
       resources.emplace(resource.resource_id, resource);
   }
-  for (const auto& [id, resource] : resources)
-    for (const auto& asset : resource.assets)
-      for (const auto& placement : asset.placements)
-        if (!locations.contains(placement.location_id))
-          throw InvalidArgument(
-              "a resource's placement names a storage location the snapshot does not hold: " +
-              placement.location_id
-          );
+  std::map<std::string, long long> payloads;
+  for (const auto& [id, resource] : resources) {
+    for (const auto& asset : resource.assets) {
+      if (asset_directory) {
+        const auto& digest = asset.plaintext_sha256;
+        if (asset.byte_size < 0 || digest.size() != 64 || !std::ranges::all_of(digest, [](char c) {
+              return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+            }))
+          throw InvalidArgument("invalid recovery bundle asset metadata");
+        const auto [existing, inserted] = payloads.emplace(digest, asset.byte_size);
+        if (!inserted && existing->second != asset.byte_size)
+          throw InvalidArgument("conflicting recovery bundle asset sizes");
+      } else {
+        for (const auto& placement : asset.placements)
+          if (!locations.contains(placement.location_id))
+            throw InvalidArgument(
+                "a resource's placement names a storage location the snapshot does not hold: " +
+                placement.location_id
+            );
+      }
+    }
+  }
 
   NewProject project;
   project.name = request.project_name;
@@ -692,12 +712,44 @@ Project restore(holder_context& context, const RecoverySnapshotRestore& request)
                              ? NewProjectPrivacyMode::EncryptedGit
                              : NewProjectPrivacyMode::Plain;
   const auto created = create_project(context, project);
+  const auto storage_root = context.data_dir / "resource-store";
   try {
     std::map<std::string, std::string> location_ids;
-    for (const auto& [old_id, location] : locations) {
-      auto model = to_model(location, created.project_id);
-      model.location_id = location_ids[old_id] = holder::identity::uuid_v4();
-      holder::resource::LocationStore(context.db, nullptr, context.git).put(model);
+    std::string local_location_id;
+    if (asset_directory) {
+      if (!payloads.empty()) {
+        holder::resource::LocalDirectoryProvider provider(storage_root);
+        for (const auto& [digest, size] : payloads) {
+          const auto source = *asset_directory / digest;
+          if (!std::filesystem::is_regular_file(std::filesystem::symlink_status(source)))
+            throw DataCorrupted("recovery bundle asset is missing: " + digest);
+          try {
+            provider.put(created.project_id + "/" + digest, source, size, digest);
+          } catch (const holder::resource::StorageError& error) {
+            if (error.code() == holder::resource::StorageErrorCode::Integrity)
+              throw DataCorrupted(error.what());
+            throw;
+          }
+        }
+        local_location_id = holder::identity::uuid_v4();
+        const auto now = now_epoch_seconds();
+        holder::resource::LocationStore(context.db, nullptr, context.git)
+            .put(
+                {local_location_id,
+                 created.project_id,
+                 "Recovery bundle assets",
+                 "local_directory",
+                 {},
+                 now,
+                 now}
+            );
+      }
+    } else {
+      for (const auto& [old_id, location] : locations) {
+        auto model = to_model(location, created.project_id);
+        model.location_id = location_ids[old_id] = holder::identity::uuid_v4();
+        holder::resource::LocationStore(context.db, nullptr, context.git).put(model);
+      }
     }
     std::map<std::string, std::string> resource_ids;
     for (const auto& [old_id, resource] : resources) {
@@ -706,6 +758,19 @@ Project restore(holder_context& context, const RecoverySnapshotRestore& request)
       for (auto& asset : bundle.assets) {
         asset.asset_id = holder::identity::uuid_v4();
         asset.resource_id = bundle.resource.resource_id;
+        if (asset_directory) {
+          asset.placements = {
+              {holder::identity::uuid_v4(),
+               asset.asset_id,
+               local_location_id,
+               created.project_id + "/" + asset.plaintext_sha256,
+               "plain",
+               asset.byte_size,
+               asset.plaintext_sha256,
+               asset.created_at}
+          };
+          continue;
+        }
         for (auto& placement : asset.placements) {
           placement.placement_id = holder::identity::uuid_v4();
           placement.asset_id = asset.asset_id;
@@ -736,6 +801,7 @@ Project restore(holder_context& context, const RecoverySnapshotRestore& request)
     }
     std::error_code ignored;
     std::filesystem::remove_all(created.root_path, ignored);
+    if (asset_directory) std::filesystem::remove_all(storage_root / created.project_id, ignored);
     throw;
   }
   return get_project(context, created.project_id);
@@ -797,6 +863,19 @@ RecoverySnapshotPage read_recovery_snapshot(
 Project restore_recovery_snapshot(holder_context& context, const RecoverySnapshotRestore& request) {
   return with_contract_errors([&] {
     return restore(context, request);
+  });
+}
+
+Project restore_recovery_bundle(
+    holder_context& context,
+    const RecoverySnapshotRestore& request,
+    std::string asset_directory
+) {
+  return with_contract_errors([&] {
+    if (context.data_dir.empty() || !context.registry_path.empty() ||
+        request.privacy_mode != RecoverySnapshotRestorePrivacyMode::Plain)
+      throw InvalidArgument("recovery bundles require a private workspace and a plain project");
+    return restore(context, request, std::filesystem::path(std::move(asset_directory)));
   });
 }
 

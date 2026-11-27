@@ -80,6 +80,7 @@ from .generated.models import MilestoneUpdate as HTTPMilestoneUpdate
 from .generated.models import NewCard as HTTPNewCard
 from .generated.models import NewLink as HTTPNewLink
 from .generated.models import NewMilestone as HTTPNewMilestone
+from .recovery_bundle import _extract_recovery_bundle
 
 if TYPE_CHECKING:
     from holderkit._native import Context
@@ -478,6 +479,18 @@ class EmbeddedWorkspace:
         return cast(
             "ProjectRecord", self._call("restore_recovery_snapshot", snapshot, name=name)
         )
+
+    def restore_recovery_bundle(
+        self, source: str | PathLike[str], *, name: str
+    ) -> ProjectRecord:
+        """Restore a recovery ZIP into a new plain project with local asset placements."""
+        if self._closed or self._context is None:
+            raise ClosedError("Use the workspace inside with open_workspace(...)")
+        with _extract_recovery_bundle(source) as (snapshot, directory):
+            return cast(
+                "ProjectRecord",
+                self._call("restore_recovery_bundle", snapshot, fspath(directory), name=name),
+            )
 
     def list_trash(
         self, project_id: str, *, type: str | None = None

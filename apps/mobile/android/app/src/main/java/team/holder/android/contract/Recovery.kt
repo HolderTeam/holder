@@ -272,6 +272,18 @@ object Recovery {
         request: RecoverySnapshotRestore,
     ): Project
 
+    /**
+     * Restore a plain project with verified local copies of its assets.
+     * The caller extracts each plaintext payload as a file named by its SHA-256 in
+     * asset_directory. Core checks the bytes, copies them into the private workspace,
+     * and replaces source placements with local ones. A failed restore leaves no project.
+     */
+    external fun restoreRecoveryBundle(
+        contextHandle: Long,
+        request: RecoverySnapshotRestore,
+        assetDirectory: String,
+    ): Project
+
     /** Wrap an encrypted project's key in a portable token protected by a PIN. */
     external fun exportProjectRecoveryToken(
         contextHandle: Long,

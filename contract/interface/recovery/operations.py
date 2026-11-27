@@ -41,6 +41,17 @@ def register(contract: Contract) -> None:
         The daemon does not serve this.
         """
 
+    @contract.core_operation(errors=[DataCorrupted])
+    def restore_recovery_bundle(
+        request: RecoverySnapshotRestore, asset_directory: Annotated[str, Field(min_length=1)]
+    ) -> Project:
+        """Restore a plain project with verified local copies of its assets.
+
+        The caller extracts each plaintext payload as a file named by its SHA-256 in
+        asset_directory. Core checks the bytes, copies them into the private workspace,
+        and replaces source placements with local ones. A failed restore leaves no project.
+        """
+
     @contract.route("GET", "/projects/{project_id}/recovery-snapshot", core=False,
                     errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted], responses={
         413: {"model": ErrorResponse, "description": "The recovery snapshot exceeds 2 MiB."},

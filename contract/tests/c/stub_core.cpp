@@ -470,6 +470,12 @@ Project restore_recovery_snapshot(holder_context& context, const RecoverySnapsho
   return create_project(context, project);
 }
 
+Project restore_recovery_bundle(holder_context& context, const RecoverySnapshotRestore& request,
+                                std::string asset_directory) {
+  (void)asset_directory;
+  return restore_recovery_snapshot(context, request);
+}
+
 Project update_project(holder_context& context, std::string project_id, const ProjectUpdate& update) {
   auto& project = project_named(context, project_id);
   if (update.name) project.name = *update.name;

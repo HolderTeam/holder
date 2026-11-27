@@ -116,7 +116,7 @@ context_open context_destroy error_message error_destroy
 database_rebuild repair_project_hierarchy rebuild_project reindex_search
 """,
     "Exercise valid device state, unavailable keys, and retry after interrupted recovery.": """
-check_project_encryption read_recovery_snapshot restore_recovery_snapshot download_recovery_snapshot export_project_recovery_token
+check_project_encryption read_recovery_snapshot restore_recovery_snapshot restore_recovery_bundle download_recovery_snapshot export_project_recovery_token
 import_project_recovery_token import_recovery_token_global
 """,
     "Exercise provider authorization and callback state with a controlled provider fixture.": """

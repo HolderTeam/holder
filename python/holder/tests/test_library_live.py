@@ -14,6 +14,7 @@ from importlib import import_module
 from importlib.resources import files
 from importlib.util import find_spec
 from pathlib import Path
+from zipfile import ZipFile
 
 import httpx
 import pytest
@@ -625,7 +626,8 @@ def test_recovery_snapshot_round_trip(daemon, tmp_path):
         assert session.card_operations.get_card(source_id, source["card_id"])["content"] == "Live body"
 
 
-def test_embedded_recovery_snapshot_restore(tmp_path):
+@pytest.mark.parametrize("archive", [False, True], ids=["lines", "archive"])
+def test_embedded_recovery_snapshot_restore(tmp_path, archive):
     if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
         pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
 
@@ -659,7 +661,26 @@ def test_embedded_recovery_snapshot_restore(tmp_path):
             workspace.restore_recovery_snapshot("invalid snapshot", name="Invalid")
         assert workspace.list_projects() == []
 
-        project = workspace.restore_recovery_snapshot(snapshot, name="Offline copy")
+        if archive:
+            path = tmp_path / "snapshot.zip"
+            with ZipFile(path, "w") as bundle:
+                bundle.writestr(
+                    "manifest.json",
+                    json.dumps({
+                        "format": "holder-recovery-bundle",
+                        "version": 1,
+                        "project_id": "source-project",
+                    }),
+                )
+                bundle.writestr("snapshot.jsonl", snapshot)
+            project = workspace.restore_recovery_bundle(path, name="Offline copy")
+            with ZipFile(path, "a") as bundle:
+                bundle.writestr("../unexpected", "unexpected")
+            with pytest.raises(ValueError, match="asset entries"):
+                workspace.restore_recovery_bundle(path, name="Invalid archive")
+            assert workspace.list_projects() == [project]
+        else:
+            project = workspace.restore_recovery_snapshot(snapshot, name="Offline copy")
         assert project["project_id"] != "source-project"
         assert project["privacy_mode"] == "plain"
         cards = workspace.card_operations.list_cards(
