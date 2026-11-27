@@ -8,7 +8,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.util.UUID
@@ -27,7 +26,7 @@ import team.holder.android.ui.screens.SyncSettingsScreen
 @RunWith(AndroidJUnit4::class)
 class ComposeUiTest {
     @get:Rule
-    val composeRule = createComposeRule()
+    val composeRule = holderComposeRule()
 
     // For the couple of waits here that depend on background work (a file read, a failing
     // resource lookup) landing and recomposing, not just on composition. 5s was enough on

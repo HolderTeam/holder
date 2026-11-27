@@ -3,7 +3,6 @@ package team.holder.android
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.center
 import androidx.compose.ui.test.down
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.moveTo
 import androidx.compose.ui.test.onAllNodesWithText
@@ -40,7 +39,7 @@ import team.holder.android.ui.sortKeyOrderedSiblings
 @RunWith(AndroidJUnit4::class)
 class CardListBoardMoveTest {
     @get:Rule
-    val composeRule = createComposeRule()
+    val composeRule = holderComposeRule()
 
     private val backgroundWorkTimeoutMs = 15_000L
 
