@@ -89,6 +89,11 @@ order unchanged when passing the next cursor. Listing and search accept up
 to 100 results per call. Each tool call has a 256 KiB structured result limit.
 The endpoint serves finite JSON responses.
 
+Set `HOLDER_MCP_ALLOW_WRITES=1` before starting the daemon to let that
+token also create cards and add milestones in the selected project. These
+operations create new IDs each time. If the connection drops after sending a
+write, check the project before repeating the call.
+
 For clients configured with a command, launch the installed `holder-mcp`
 executable with arguments `--port 11499` (use the running daemon's actual port)
 and set `HOLDER_MCP_TOKEN` in that command's environment. Supply

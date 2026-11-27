@@ -10,6 +10,7 @@ struct Access {
   std::string token;
   std::string project_id;
   std::string server_version;
+  bool allow_writes = false;
 };
 
 GeneratedResponse handle(

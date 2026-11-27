@@ -28,7 +28,7 @@ void send(holder_context& context, const std::string& method, const std::string&
 }
 
 void check_mcp_reads(holder_context& context) {
-  using holder::api::mcp::call_read_tool;
+  using holder::api::mcp::invoke_tool;
   const auto project = contract_http::dispatch(
       "POST",
       "/projects",
@@ -55,10 +55,10 @@ void check_mcp_reads(holder_context& context) {
   };
   const auto card_id = created->body.at("data").at("card_id").get<std::string>();
   const auto card =
-      call_read_tool(context, "get_card", {{"card_id", card_id}}, "p1", authorize);
+      invoke_tool(context, "get_card", {{"card_id", card_id}}, "p1", authorize);
   const auto rest = contract_http::dispatch("GET", "/projects/p1/cards/" + card_id, "", context);
   assert(rest && rest->status == 200 && card.at("data") == rest->body.at("data"));
-  const auto resource = call_read_tool(
+  const auto resource = invoke_tool(
       context,
       "get_resource",
       {{"project_id", "p1"}, {"resource_id", "res-1"}},
@@ -67,12 +67,12 @@ void check_mcp_reads(holder_context& context) {
   );
   assert(resource.at("data") == added->body.at("data"));
   const auto search =
-      call_read_tool(context, "search_cards", {{"project_id", "p1"}, {"q", "found"}}, "p1", authorize);
+      invoke_tool(context, "search_cards", {{"project_id", "p1"}, {"q", "found"}}, "p1", authorize);
   assert(search.at("data").at(0).at("card_id") == "card-one");
 
   struct Denied {};
   try {
-    call_read_tool(
+    invoke_tool(
         context,
         "get_card",
         {{"project_id", "p2"}, {"card_id", "missing"}},
@@ -88,7 +88,7 @@ void check_mcp_reads(holder_context& context) {
 
   for (const auto& limit : {nlohmann::json(nullptr), nlohmann::json(101), nlohmann::json("1")}) {
     try {
-      call_read_tool(
+      invoke_tool(
           context,
           "search_cards",
           {{"project_id", "p1"}, {"q", "found"}, {"limit", limit}},

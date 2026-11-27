@@ -79,6 +79,10 @@ def test_available_daemon(port, env, card):
         replies = {reply["id"]: reply["result"] for reply in (receive(process), receive(process))}
         assert replies[3]["structuredContent"]["data"] == card
         assert replies[4]["isError"] is True
+        send(process, "tools/call", "write-disabled", _meta=metadata, name="create_card",
+             arguments={"card": {"title": "Must stay read-only"}})
+        denied = receive(process)
+        assert denied["id"] == "write-disabled" and denied["error"]["code"] == -32602
         shutdown(process)
 
     with bridge(port, env) as process:
@@ -104,6 +108,41 @@ def test_available_daemon(port, env, card):
     with bridge(port, dict(env, HOLDER_MCP_TOKEN=secrets.token_urlsafe(32))) as process:
         send(process, "server/discover", 1, _meta=metadata)
         assert receive(process)["error"]["message"].startswith("Holder MCP access was rejected")
+        shutdown(process)
+
+
+def test_write_tools(port, env, rest):
+    metadata = {
+        "io.modelcontextprotocol/protocolVersion": VERSION,
+        "io.modelcontextprotocol/clientCapabilities": {},
+    }
+    with bridge(port, env) as process:
+        send(process, "tools/list", 1, _meta=metadata)
+        tools = {tool["name"]: tool for tool in result(process, 1)["tools"]}
+        for name in ("create_card", "add_card_milestone"):
+            assert tools[name]["annotations"]["readOnlyHint"] is False
+            assert tools[name]["annotations"]["idempotentHint"] is False
+
+        send(process, "tools/call", 2, _meta=metadata, name="create_card",
+             arguments={"project_id": "other", "card": {"title": "Denied"}})
+        denied = result(process, 2)
+        assert denied["isError"] is True
+        assert denied["content"][0]["text"] == "Access to this project was not granted."
+
+        send(process, "tools/call", 3, _meta=metadata, name="create_card",
+             arguments={"card": {"title": "Write through MCP"}})
+        card = result(process, 3)["structuredContent"]["data"]
+        assert card["project_id"] == PROJECT and card["title"] == "Write through MCP"
+        path = f"/projects/{PROJECT}/cards/{card['card_id']}"
+
+        send(process, "tools/call", 4, _meta=metadata, name="add_card_milestone",
+             arguments={"card_id": card["card_id"], "milestone": {"dates": [{"role": "due", "date": "2026-12-04"}]}})
+        milestone = result(process, 4)["structuredContent"]["data"]
+        assert milestone["card_id"] == card["card_id"]
+        assert milestone["dates"] == [{"role": "due", "date": "2026-12-04"}]
+        persisted_card = rest(path)
+        assert persisted_card["card_id"] == card["card_id"] and persisted_card["title"] == card["title"]
+        assert rest(f"{path}/milestones") == [milestone]
         shutdown(process)
 
 
@@ -141,12 +180,15 @@ def test_cancellation(env):
                 shutdown(process)
 
 
-with tempfile.TemporaryDirectory(prefix="holder-mcp-test-") as temp:
-    root = Path(temp)
+def test_daemon(root, *, allow_writes):
+    root.mkdir()
     env = dict(os.environ, XDG_DATA_HOME=str(root / "data"), XDG_CONFIG_HOME=str(root / "config"),
                XDG_CACHE_HOME=str(root / "cache"), HOLDER_PROJECTS_ROOT=str(root / "projects"),
                HOLDER_TEST_KEYSTORE_DIR=str(root / "keystore"),
                HOLDER_MCP_PROJECT=PROJECT, HOLDER_MCP_TOKEN=secrets.token_urlsafe(32))
+    env.pop("HOLDER_MCP_ALLOW_WRITES", None)
+    if allow_writes:
+        env["HOLDER_MCP_ALLOW_WRITES"] = "1"
     log_path = root / "daemon.stderr.log"
     with log_path.open("wb") as log, subprocess.Popen(
         [str(DAEMON), "--port", "0"], cwd=DAEMON.parent, env=env,
@@ -171,15 +213,19 @@ with tempfile.TemporaryDirectory(prefix="holder-mcp-test-") as temp:
             info = json.loads(info_path.read_text(encoding="utf-8"))
             port = info["port"]
 
-            def post(path, body):
-                request = Request(f"http://127.0.0.1:{port}{path}", json.dumps(body).encode(), headers={
+            def rest(path, body=None):
+                payload = None if body is None else json.dumps(body).encode()
+                request = Request(f"http://127.0.0.1:{port}{path}", payload, headers={
                     "Authorization": f"Bearer {info['auth_token']}", "Content-Type": "application/json",
                 })
                 with urlopen(request, timeout=5) as response:
                     return json.load(response)["data"]
 
-            post("/projects", {"name": "MCP test", "project_id": PROJECT, "privacy_mode": "plain"})
-            test_available_daemon(port, env, post(f"/projects/{PROJECT}/cards", {"title": "Bridge test"}))
+            rest("/projects", {"name": "MCP test", "project_id": PROJECT, "privacy_mode": "plain"})
+            if allow_writes:
+                test_write_tools(port, env, rest)
+            else:
+                test_available_daemon(port, env, rest(f"/projects/{PROJECT}/cards", {"title": "Bridge test"}))
         finally:
             if daemon.poll() is None:
                 daemon.terminate()
@@ -191,4 +237,10 @@ with tempfile.TemporaryDirectory(prefix="holder-mcp-test-") as temp:
         })
         assert receive(process)["error"]["code"] == -32000
         shutdown(process)
-    test_cancellation(env)
+    if not allow_writes:
+        test_cancellation(env)
+
+
+with tempfile.TemporaryDirectory(prefix="holder-mcp-test-") as temp:
+    test_daemon(Path(temp) / "read", allow_writes=False)
+    test_daemon(Path(temp) / "write", allow_writes=True)

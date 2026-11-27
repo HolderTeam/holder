@@ -22,6 +22,7 @@ TOOLS = (
     "list_card_links", "list_card_milestones", "list_card_resources", "list_cards", "list_project_tags",
     "search_cards",
 )
+WRITE_TOOLS = ("add_card_milestone", "create_card")
 PAGE_LIMITS = {"list_cards": 100, "search_cards": 100}
 PAGE_DEFAULTS = {"list_cards": 50}
 FIXED_ARGUMENTS = {
@@ -70,17 +71,26 @@ def generate_mcp_tools(contract: ContractView) -> str:
     schemas = document(contract)
     components = schemas["components"]["schemas"]
     tools = []
-    for name in TOOLS:
+    for name in sorted(TOOLS + WRITE_TOOLS):
         operation = contract.operation(name)
         bindings = [binding for binding in contract.http if binding.operation == name]
         if len(bindings) != 1:
             raise ValueError(f"MCP tool {name} requires one daemon binding")
         binding = bindings[0]
-        if binding.method.upper() != "GET" or binding.response_mode != "envelope" or binding.body or binding.headers:
-            raise ValueError(f"MCP tool {name} requires a JSON read with path or query parameters")
+        write = name in WRITE_TOOLS
+        expected_method = "POST" if write else "GET"
+        if (binding.method.upper() != expected_method or binding.response_mode != "envelope"
+                or bool(binding.body) != write or binding.headers):
+            raise ValueError(f"MCP tool {name} needs an envelope with the expected method and body")
 
-        route = schemas["paths"][binding.path]["get"]
+        route = schemas["paths"][binding.path][expected_method.lower()]
         parameters = {parameter["name"]: parameter for parameter in route.get("parameters", [])}
+        if write:
+            body = route["requestBody"]
+            parameters[binding.body] = {
+                "schema": body["content"]["application/json"]["schema"],
+                "required": body["required"],
+            }
         if parameters.keys() != {parameter.name for parameter in operation.parameters}:
             raise ValueError(f"MCP tool {name} does not describe every operation argument")
         response = route["responses"][str(binding.status)]["content"]["application/json"]["schema"]
@@ -105,6 +115,8 @@ def generate_mcp_tools(contract: ContractView) -> str:
         tools.append({
             "name": name,
             "description": description,
+            "annotations": {"readOnlyHint": not write, "destructiveHint": False,
+                            "idempotentHint": not write, "openWorldHint": False},
             "inputSchema": standalone_schema({
                 "type": "object",
                 "properties": properties,
@@ -149,9 +161,9 @@ def optional_string_choice(types: CoreTypes, operation: str, slot: Slot) -> list
 
 def generate_mcp_bindings(contract: ContractView) -> str:
     """Bind each allowed tool to its typed core operation and use the daemon JSON codec."""
-    operations = [contract.operation(name) for name in TOOLS]
+    operations = [contract.operation(name) for name in sorted(TOOLS + WRITE_TOOLS)]
     lines = header_lines((op.source for op in operations if op.source),
-                         "Live MCP read tool bindings.", "cpp")
+                         "Live MCP tool bindings.", "cpp")
     lines += [
         "#pragma once",
         '#include "api/generated/ContractJson.h"',
@@ -174,11 +186,15 @@ def generate_mcp_bindings(contract: ContractView) -> str:
     lines += [
         "} // namespace contract_json",
         "namespace holder::api::mcp {",
+        "inline bool is_write_tool(std::string_view name) {",
+        "  return " + " || ".join(f'name == "{name}"' for name in WRITE_TOOLS) + ";",
+        "}",
         "// Authorization must throw on denial. Domain errors propagate to the protocol adapter.",
-        "inline nlohmann::json call_read_tool(holder_context& context, std::string_view name,",
+        "inline nlohmann::json invoke_tool(holder_context& context, std::string_view name,",
         "    const nlohmann::json& arguments,",
         "    std::string_view default_project,",
-        "    const std::function<void(std::string_view)>& authorize_project) {",
+        "    const std::function<void(std::string_view)>& authorize_project,",
+        "    bool allow_writes = false) {",
         "  using namespace contract_json;",
         '  if (!arguments.is_object()) throw std::invalid_argument("tool arguments must be an object");',
     ]
@@ -189,6 +205,8 @@ def generate_mcp_bindings(contract: ContractView) -> str:
                 or not any(slot.name == "project_id" and slot.type.kind == "string" for slot in slots)):
             raise Unsupported(f"{operation.name}: MCP requires a project-scoped Core operation")
         lines.append(f'  if (name == "{operation.name}") {{')
+        if operation.name in WRITE_TOOLS:
+            lines.append('    if (!allow_writes) throw std::invalid_argument("MCP write access was not granted");')
         unknown = " && ".join(f'it.key() != "{slot.name}"' for slot in slots if slot.name not in fixed)
         lines.extend([
             "    for (auto it = arguments.begin(); it != arguments.end(); ++it) {",
@@ -201,7 +219,7 @@ def generate_mcp_bindings(contract: ContractView) -> str:
                 lines.extend(optional_string_choice(types, operation.name, slot))
                 args.append(f"std::move({slot.name})")
                 continue
-            if slot.type.kind not in {"string", "int32", "bool", "literal"} or any(
+            if slot.type.kind not in {"string", "int32", "bool", "literal", "named"} or any(
                 getattr(slot.type, key) is not None for key in ("pattern", "gt", "lt")
             ):
                 raise Unsupported(f"{operation.name}.{slot.name}: unsupported MCP argument")

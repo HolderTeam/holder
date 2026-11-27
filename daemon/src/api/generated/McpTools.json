@@ -1,8 +1,545 @@
 {
   "tools": [
     {
+      "name": "add_card_milestone",
+      "description": "Put a milestone on a card.\n\nThe milestone gets a new ID. Each date must be a real day or instant. A card in the trash or in another project\nis not found.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
+          },
+          "card_id": {
+            "$ref": "#/$defs/CardId"
+          },
+          "milestone": {
+            "$ref": "#/$defs/NewMilestone"
+          }
+        },
+        "required": [
+          "card_id",
+          "milestone"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "NewMilestone": {
+            "properties": {
+              "dates": {
+                "items": {
+                  "$ref": "#/$defs/MilestoneDate"
+                },
+                "type": "array",
+                "title": "Dates",
+                "description": "The milestone's dates, in order; empty for a milestone without a date."
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/MilestoneText"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "What kind of milestone it is; null or omitted for none."
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/MilestoneText"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A note on the milestone; null or omitted for none."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "dates"
+            ],
+            "title": "NewMilestone",
+            "description": "A milestone to put on a card."
+          },
+          "MilestoneDate": {
+            "properties": {
+              "role": {
+                "$ref": "#/$defs/MilestoneRole",
+                "description": "What the date is for."
+              },
+              "date": {
+                "$ref": "#/$defs/Day",
+                "description": "The calendar day; present when the date is a day."
+              },
+              "datetime": {
+                "$ref": "#/$defs/DateTime",
+                "description": "The instant; present when the date is an instant."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "title": "MilestoneDate",
+            "description": "One of a milestone's dates: a role and exactly one of a day or an instant."
+          },
+          "MilestoneRole": {
+            "type": "string",
+            "minLength": 1
+          },
+          "Day": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 10
+          },
+          "DateTime": {
+            "type": "string",
+            "maxLength": 25,
+            "minLength": 20
+          },
+          "MilestoneText": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/Milestone"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Milestone": {
+            "properties": {
+              "milestone_id": {
+                "$ref": "#/$defs/MilestoneId",
+                "description": "The milestone's ID."
+              },
+              "project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project of the card the milestone is on."
+              },
+              "card_id": {
+                "$ref": "#/$defs/CardId",
+                "description": "The card the milestone is on."
+              },
+              "dates": {
+                "items": {
+                  "$ref": "#/$defs/MilestoneDate"
+                },
+                "type": "array",
+                "title": "Dates",
+                "description": "The milestone's dates, in the order they were given."
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/MilestoneText"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "What kind of milestone it is; null when it has none."
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/MilestoneText"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A note on the milestone; null when it has none."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the milestone was made."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the milestone was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "milestone_id",
+              "project_id",
+              "card_id",
+              "dates",
+              "kind",
+              "description",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "Milestone",
+            "description": "A milestone on a card: its dates, which may repeat a role or be none, and what it is."
+          },
+          "MilestoneId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "MilestoneDate": {
+            "properties": {
+              "role": {
+                "$ref": "#/$defs/MilestoneRole",
+                "description": "What the date is for."
+              },
+              "date": {
+                "$ref": "#/$defs/Day",
+                "description": "The calendar day; present when the date is a day."
+              },
+              "datetime": {
+                "$ref": "#/$defs/DateTime",
+                "description": "The instant; present when the date is an instant."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "title": "MilestoneDate",
+            "description": "One of a milestone's dates: a role and exactly one of a day or an instant."
+          },
+          "MilestoneRole": {
+            "type": "string",
+            "minLength": 1
+          },
+          "Day": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 10
+          },
+          "DateTime": {
+            "type": "string",
+            "maxLength": 25,
+            "minLength": 20
+          },
+          "MilestoneText": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "create_card",
+      "description": "Create a card.\n\nFails with NotFound when the project or the parent does not exist.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId",
+            "description": "Omit to use the project granted to this MCP token."
+          },
+          "card": {
+            "$ref": "#/$defs/NewCard"
+          }
+        },
+        "required": [
+          "card"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "NewCard": {
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Title",
+                "description": "The card's title."
+              },
+              "content": {
+                "type": "string",
+                "title": "Content",
+                "description": "The card's body.",
+                "default": ""
+              },
+              "parent_card_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/CardId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The card's parent; null or omitted for a root card."
+              },
+              "sort_key": {
+                "type": "number",
+                "format": "double",
+                "title": "Sort Key",
+                "description": "The card's place among its siblings; omit to let Holder choose."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the card was created, for imports; omit for now."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the card was last changed, for imports; omit to use created_at."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "title"
+            ],
+            "title": "NewCard",
+            "description": "A card to create."
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/Card"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Card": {
+            "properties": {
+              "card_id": {
+                "$ref": "#/$defs/CardId",
+                "description": "The card's ID."
+              },
+              "project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project the card belongs to."
+              },
+              "title": {
+                "type": "string",
+                "title": "Title",
+                "description": "The card's title."
+              },
+              "rel_path": {
+                "type": "string",
+                "title": "Rel Path",
+                "description": "The card's file, relative to the project's root."
+              },
+              "parent_card_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/CardId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The card's parent; null for a root card."
+              },
+              "sort_key": {
+                "type": "number",
+                "format": "double",
+                "title": "Sort Key",
+                "description": "The card's place among its siblings; lower comes first."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the card was created."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the card was last changed."
+              },
+              "deleted_at": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "maximum": 9223372036854775807,
+                    "minimum": -9223372036854775808,
+                    "format": "int64"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Deleted At",
+                "description": "When the card was moved to the trash; null when it is not in the trash."
+              },
+              "content": {
+                "type": "string",
+                "title": "Content",
+                "description": "The card's body."
+              },
+              "tags": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "title": "Tags",
+                "description": "The card's normalized tags."
+              },
+              "tag_occurrences": {
+                "items": {
+                  "$ref": "#/$defs/TagOccurrence"
+                },
+                "type": "array",
+                "title": "Tag Occurrences",
+                "description": "Each tag written in the content, in order."
+              },
+              "removable_tags": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "title": "Removable Tags",
+                "description": "The tags remove_card_tag would take off the card: each is on its trailing tag line and nowhere else in its\ncontent. A tag also written in prose stays until the content is edited."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "card_id",
+              "project_id",
+              "title",
+              "rel_path",
+              "parent_card_id",
+              "sort_key",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "content",
+              "tags",
+              "tag_occurrences",
+              "removable_tags"
+            ],
+            "title": "Card",
+            "description": "A card, with its content and tags."
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "TagOccurrence": {
+            "properties": {
+              "tag": {
+                "type": "string",
+                "title": "Tag",
+                "description": "The normalized tag."
+              },
+              "byte_start": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Byte Start",
+                "description": "Inclusive byte offset of the leading # in the content."
+              },
+              "byte_end": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Byte End",
+                "description": "Exclusive byte offset after the tag's name."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "tag",
+              "byte_start",
+              "byte_end"
+            ],
+            "title": "TagOccurrence",
+            "description": "A tag written in a card's content."
+          }
+        }
+      }
+    },
+    {
       "name": "get_calendar",
       "description": "What happens in a project over a window of days in a time zone.\n\nThe window runs from the start of first_day to the end of last_day in the zone, so it is empty when first_day is\nafter last_day. A milestone is in it when one of its days is in the days, or one of its instants falls in the\nwindow; a day has no time zone, so it is compared with the days, never turned into an instant. Cards are made and\nchanged at instants. Core works out the window's instants from the zone, across daylight-saving changes, so every\nclient gets the same answer. An unknown zone is an invalid argument.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -322,6 +859,12 @@
     {
       "name": "get_card",
       "description": "Fetch a card.\n\nA card in the trash or in another project is not found.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -526,6 +1069,12 @@
     {
       "name": "get_card_breadcrumbs",
       "description": "Read a live card's path from its project root.\n\nThe project comes first, then live ancestor cards and the requested card. A missing or trashed\ncard is not found; a broken or cyclic ancestor chain is invalid.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -606,6 +1155,12 @@
     {
       "name": "get_resource",
       "description": "Fetch a resource.\n\nA resource in another project is not found.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -858,6 +1413,12 @@
     {
       "name": "list_card_backlinks",
       "description": "List the links to a card.\n\nLinks from cards and AI messages, newest first. External links come only from projects on this device, so\nthey are never all there may be. A card in the trash or in another project is not found.\n\nBoth ends must belong to the authorized project. Entries in Trash are excluded.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1001,6 +1562,12 @@
     {
       "name": "list_card_links",
       "description": "List a card's links.\n\nThe links the card makes, newest first. A card in the trash or in another project is not found.\n\nBoth ends must belong to the authorized project. Entries in Trash are excluded.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1144,6 +1711,12 @@
     {
       "name": "list_card_milestones",
       "description": "List a card's milestones.\n\nBy when they were made, then by ID. A card in the trash or in another project is not found.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1321,6 +1894,12 @@
     {
       "name": "list_card_resources",
       "description": "List the resources attached to a card.\n\nBy when they last changed, latest first, then by ID. A card in the trash or in another project is not found.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1577,6 +2156,12 @@
     {
       "name": "list_cards",
       "description": "Page through a project's live cards.\n\nTag result views use updated_desc, which puts the latest card update first and breaks ties by descending card ID.\nRebuilding the projection from the same card files preserves this order.\n\nFilters combine. Each page reads current data; iterating is not a snapshot.\n\nThis tool lists metadata. Use get_card to read one card body.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1825,6 +2410,12 @@
     {
       "name": "list_project_tags",
       "description": "List a project's tags.\n\nEach tag carried by a live card in the project, with how many carry it, by descending count and then by tag.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1892,6 +2483,12 @@
     {
       "name": "search_cards",
       "description": "Search a project's cards, ordered by relevance, best first.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
       "inputSchema": {
         "type": "object",
         "properties": {

@@ -100,6 +100,7 @@ json call_tool(
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops
 ) {
+  const auto& name = params.at("name").get_ref<const std::string&>();
   try {
     std::optional<holder::index::FtsIndexer> own_fts;
     holder_context core(db, fts != nullptr ? *fts : own_fts.emplace(db), git_ops);
@@ -107,18 +108,22 @@ json call_tool(
     const auto paths = holder::core::Paths::resolve("holder");
     core.projects_root = holder::core::default_projects_root();
     core.registry_path = paths.project_registry_path();
-    auto data = call_read_tool(
+    auto data = invoke_tool(
         core,
-        params.at("name").get_ref<const std::string&>(),
+        name,
         params.value("arguments", json::object()),
         access.project_id,
         [&access](std::string_view project_id) {
           if (project_id != access.project_id) throw ProjectDenied{};
-        }
+        },
+        access.allow_writes
     );
     const auto text = data.dump();
     if (text.size() > max_result_bytes)
-      return tool_error("Tool result exceeds the response size limit.");
+      return tool_error(
+          is_write_tool(name) ? "Write succeeded, but the result exceeds the response size limit."
+                              : "Tool result exceeds the response size limit."
+      );
     return {
         {"structuredContent", std::move(data)},
         {"content", text_content(text)},
@@ -133,7 +138,7 @@ json call_tool(
   } catch (const holder::contract::NotFound&) {
     return tool_error("The requested Holder item was not found.");
   } catch (const std::exception&) {
-    return tool_error("Holder could not complete the read.");
+    return tool_error("Holder could not return a tool result.");
   }
 }
 
@@ -247,7 +252,13 @@ GeneratedResponse handle(
         {"capabilities", {{"tools", json::object()}}}
     };
   } else if (method == "tools/list") {
-    result = {{"tools", tools()}};
+    auto visible = json::array();
+    for (const auto& tool : tools()) {
+      if (access.allow_writes || !is_write_tool(tool.at("name").get_ref<const std::string&>())) {
+        visible.push_back(tool);
+      }
+    }
+    result = {{"tools", std::move(visible)}};
   } else if (method == "tools/call") {
     const auto name = params.value("name", json());
     if (!name.is_string() ||
@@ -260,6 +271,9 @@ GeneratedResponse handle(
     });
     if (found == catalog.end())
       return error(http::status::bad_request, id, -32602, "Unknown MCP tool.");
+    if (!access.allow_writes && is_write_tool(name.get_ref<const std::string&>())) {
+      return error(http::status::bad_request, id, -32602, "Unknown MCP tool.");
+    }
     result = call_tool(params, access, db, fts, secret_store, git_ops);
   } else {
     return error(http::status::not_found, id, -32601, "Method not found.");
