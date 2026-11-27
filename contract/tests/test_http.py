@@ -267,7 +267,7 @@ def test_generated_routes_compile_and_answer_requests(tmp_path):
     run("g++", *flags, "-c", str(TESTS / "c" / "stub_core.cpp"), "-o", "stub.o")
     run("g++", *flags, "-c", str(TESTS / "http" / "exercise.cpp"), "-o", "exercise.o")
     run("g++", *SANITIZE, "stub.o", "exercise.o", "-o", "exercise")
-    result = subprocess.run([str(tmp_path / "exercise")], capture_output=True, text=True)
+    result = subprocess.run([str(tmp_path / "exercise")], capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr
     assert result.stdout == (TESTS / "http" / "exercise.expected").read_text(encoding="utf-8")
 
