@@ -1432,16 +1432,36 @@ CollectionCardPage CardStore::list_collection_page(
     int limit,
     bool include_content
 ) {
+  CollectionCardPage page;
+  page.next_cursor = visit_collection_page(
+      project_id,
+      query,
+      limit,
+      include_content,
+      [&](holder::model::Card&& card, std::string&& content) {
+        page.cards.push_back({std::move(card), std::move(content)});
+      }
+  );
+  return page;
+}
+
+std::optional<CardPageCursor> CardStore::visit_collection_page(
+    const std::string& project_id,
+    const CardPageQuery& query,
+    int limit,
+    bool include_content,
+    const std::function<void(holder::model::Card&&, std::string&&)>& visit
+) {
   if (limit <= 0 || limit > 1000) throw std::invalid_argument("limit must be between 1 and 1000");
   std::optional<holder::model::Project> project;
   // Metadata selection needs neither repository access nor card bodies.
   auto read = [&]() {
     auto metadata = card_repo_.list_collection_page(project_id, query, limit + 1);
-    CollectionCardPage page;
+    std::optional<CardPageCursor> next_cursor;
     if (metadata.size() > static_cast<std::size_t>(limit)) {
       metadata.resize(static_cast<std::size_t>(limit));
       const auto& last = metadata.back();
-      page.next_cursor = CardPageCursor{last.card_id, last.updated_at, last.sort_key};
+      next_cursor = CardPageCursor{last.card_id, last.updated_at, last.sort_key};
     }
     for (auto& card : metadata) {
       std::string content;
@@ -1450,9 +1470,9 @@ CollectionCardPage CardStore::list_collection_page(
         if (!body) throw std::runtime_error("card content missing: " + card.card_id);
         content = std::move(*body);
       }
-      page.cards.push_back({std::move(card), std::move(content)});
+      visit(std::move(card), std::move(content));
     }
-    return page;
+    return next_cursor;
   };
   if (!include_content) return read();
   project = require_project(project_id);

@@ -526,19 +526,40 @@ TEST_CASE(
   ::close(down[1]);
   REQUIRE(open_here(&mine, &error) == HOLDER_OK);
 
-  // This process owns it: a child is refused, even though it inherited this process's lock
-  // and its record of the open workspace through fork().
+  // The child inherits the descriptor. It cannot open the workspace, and
+  // keeping it alive must not prevent the parent's final close from releasing it.
+  REQUIRE(::pipe(up) == 0);
+  REQUIRE(::pipe(down) == 0);
   const pid_t contender = ::fork();
   REQUIRE(contender >= 0);
   if (contender == 0) {
+    ::close(up[0]);
+    ::close(down[1]);
     holder_context* context = nullptr;
     holder_error* child_error = nullptr;
-    ::_exit(open_here(&context, &child_error) == HOLDER_ERROR_CONFLICT ? 0 : 1);
+    const char refused = open_here(&context, &child_error) == HOLDER_ERROR_CONFLICT ? 'y' : 'n';
+    if (::write(up[1], &refused, 1) != 1) ::_exit(1);
+    char go = 0;
+    ::_exit(::read(down[0], &go, 1) == 1 ? 0 : 1);
   }
+  ::close(up[1]);
+  ::close(down[0]);
+  char refused = 0;
+  CHECK(::read(up[0], &refused, 1) == 1);
+  CHECK(refused == 'y');
+  holder_context_destroy(mine);
+  mine = nullptr;
+  const int reopened = open_here(&mine, &error);
+  CHECK(reopened == HOLDER_OK);
+  holder_context_destroy(mine);
+  holder_error_destroy(error);
+
+  REQUIRE(::write(down[1], &release, 1) == 1);
   REQUIRE(::waitpid(contender, &status, 0) == contender);
   REQUIRE(WIFEXITED(status));
   CHECK(WEXITSTATUS(status) == 0);
-  holder_context_destroy(mine);
+  ::close(up[0]);
+  ::close(down[1]);
 }
 #endif
 

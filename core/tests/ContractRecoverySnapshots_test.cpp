@@ -289,6 +289,26 @@ TEST_CASE(
   );
 }
 
+TEST_CASE("Recovery capture stops before reading cards beyond its budget", "[recovery]") {
+  Host host;
+  const auto later = host.card("Later in the export");
+  contract::CardUpdate backdate;
+  backdate.title = "Older card";
+  backdate.updated_at = 1000;
+  contract::update_card(host.context, host.project_id, later, backdate);
+  host.card("Oversized card", std::nullopt, std::nullopt, std::string(2048, 'x'));
+
+  // Both cards are in the first page. Reading the older card would fail,
+  // but the bounded capture must reject the newer card before reaching it.
+  const auto root = contract::get_project(host.context, host.project_id).root_path;
+  REQUIRE(std::filesystem::remove(std::filesystem::path(root) / holder::core::card_rel_path(later))
+  );
+  REQUIRE_THROWS_AS(
+      contract::capture_recovery_snapshot(host.context, host.project_id, 1024),
+      std::length_error
+  );
+}
+
 TEST_CASE("A captured recovery snapshot is bounded and restores independently", "[recovery]") {
   Host host;
   const auto source = host.card("Source card", std::nullopt, std::nullopt, "Captured body");

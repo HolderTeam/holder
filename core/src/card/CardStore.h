@@ -244,6 +244,15 @@ class CardStore {
       bool include_content
   );
 
+  // Visit each row as soon as it is read. If the visitor throws, no later card files are read.
+  std::optional<CardPageCursor> visit_collection_page(
+      const std::string& project_id,
+      const CardPageQuery& query,
+      int limit,
+      bool include_content,
+      const std::function<void(holder::model::Card&&, std::string&&)>& visit
+  );
+
   // add_tag/remove_tag are Holder's semantic tag operations -- the ones a client (Android's
   // Tools UI, GTK, holderctl) should call, rather than editing #tag text into a card's body
   // itself. Underneath, both work by editing a card's *trailing tag line* (see
