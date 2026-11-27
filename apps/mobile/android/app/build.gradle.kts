@@ -29,6 +29,13 @@ val holderAndroidAbis = (findProperty("holder.android.abis") as String?
     ?: listOf("arm64-v8a", "x86_64")
 val vcpkgRoot = System.getenv("VCPKG_ROOT")
     ?: localProperties.getProperty("vcpkg.dir")
+
+// Play upload key for release bundles; see DEVELOPMENT.md's "Release signing".
+fun holderUploadSetting(name: String, env: String): String? =
+    (findProperty("holder.upload.$name") as String?
+        ?: localProperties.getProperty("holder.upload.$name")
+        ?: System.getenv(env))?.takeIf { it.isNotBlank() }
+val holderUploadStoreFile = holderUploadSetting("storeFile", "HOLDER_UPLOAD_STORE_FILE")
 val vcpkgInstalledDir = rootProject.layout.buildDirectory.dir("vcpkg_installed").get().asFile
 val vcpkgAndroidWrapper = project.layout.projectDirectory.file("src/main/cpp/vcpkg-android-wrapper.cmake").asFile
 // Debug builds only: the base URL of the local mock GitHub (mock-github/mock_github.py), e.g.
@@ -103,9 +110,21 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        if (holderUploadStoreFile != null) {
+            create("upload") {
+                storeFile = file(holderUploadStoreFile)
+                storePassword = holderUploadSetting("storePassword", "HOLDER_UPLOAD_STORE_PASSWORD")
+                    ?: error("holder.upload.storeFile is set, but holder.upload.storePassword is not")
+                keyAlias = holderUploadSetting("keyAlias", "HOLDER_UPLOAD_KEY_ALIAS")
+                    ?: error("holder.upload.storeFile is set, but holder.upload.keyAlias is not")
+                keyPassword = holderUploadSetting("keyPassword", "HOLDER_UPLOAD_KEY_PASSWORD")
+                    ?: error("holder.upload.storeFile is set, but holder.upload.keyPassword is not")
+            }
+        }
     }
     buildTypes {
         release {
+            if (holderUploadStoreFile != null) signingConfig = signingConfigs.getByName("upload")
             optimization {
                 enable = false
             }
@@ -249,6 +268,19 @@ android {
                 targetDevices.add(pixel6Api34)
                 targetDevices.add(pixel6Api36)
             }
+        }
+    }
+}
+
+// Release APKs are never signed with the upload key.
+val holderUploadKeyConfigured = holderUploadStoreFile != null
+tasks.matching { it.name == "packageRelease" }.configureEach {
+    if (holderUploadKeyConfigured) {
+        doFirst {
+            throw GradleException(
+                "Release APKs must not be signed with the upload key. Remove the holder.upload.* " +
+                    "settings to build an unsigned release APK, or run bundleRelease for Google Play."
+            )
         }
     }
 }

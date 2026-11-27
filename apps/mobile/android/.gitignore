@@ -18,3 +18,8 @@ local.properties
 /test_build
 .idea/deploymentTargetSelector.xml
 
+
+# Release signing keys never go in the repository (see DEVELOPMENT.md, "Release signing").
+*.jks
+*.p12
+upload*.keystore
