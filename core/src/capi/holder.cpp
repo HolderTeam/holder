@@ -32,10 +32,13 @@ namespace {
 
 using holder::capi::rebuild_readiness_path;
 
-std::unique_ptr<holder::platform::ProfileLock> lock_profile(const std::filesystem::path& data_dir) {
+std::unique_ptr<holder::platform::ProfileLock> lock_profile(
+    const std::filesystem::path& data_dir,
+    holder::platform::ProfileLock::Mode mode
+) {
   const auto server_dir = data_dir / "server";
   std::filesystem::create_directories(server_dir);
-  auto lock = holder::platform::ProfileLock::try_acquire(server_dir / "holder.lock");
+  auto lock = holder::platform::ProfileLock::try_acquire(server_dir / "holder.lock", mode);
   if (!lock) throw holder::contract::Conflict("Holder workspace is in use");
   return lock;
 }
@@ -108,11 +111,18 @@ holder_context* holder::contract::context_open(
     std::string data_dir,
     std::optional<std::string> schema_sql
 ) {
+  const std::filesystem::path profile(data_dir);
+  auto profile_lock = lock_profile(profile, holder::platform::ProfileLock::Mode::SharedInProcess);
+  const std::lock_guard initialization(profile_lock->initialization_mutex());
   auto context = std::make_unique<holder_context>();
-  context->data_dir = std::filesystem::path(data_dir);
+  context->data_dir = profile;
   context->db_path = context->data_dir / "server" / "holder.db";
   context->projects_root = context->data_dir / "projects";
-  context->profile_lock = lock_profile(context->data_dir);
+  if (profile_lock->initialized()) {
+    context->db.open(context->db_path, holder::platform::DbOpen::ExistingOnly);
+    context->profile_lock = std::move(profile_lock);
+    return context.release();
+  }
 
   const auto health = holder::platform::inspect_database_health(context->db_path);
   const auto roots = discover_managed_project_roots(context->data_dir);
@@ -167,6 +177,8 @@ holder_context* holder::contract::context_open(
     if (health.health != holder::platform::DatabaseHealth::Healthy) throw;
   }
 
+  profile_lock->mark_initialized();
+  context->profile_lock = std::move(profile_lock);
   return context.release();
 }
 
@@ -177,7 +189,7 @@ holder::contract::DatabaseRebuildReport holder::contract::database_rebuild(
     std::string schema_sql,
     bool dry_run
 ) {
-  const auto profile_lock = lock_profile(data_dir);
+  const auto profile_lock = lock_profile(data_dir, holder::platform::ProfileLock::Mode::Exclusive);
   const auto report =
       rebuild_managed_database(std::filesystem::path(data_dir), schema_sql, dry_run);
   const auto count = [](std::size_t value) {

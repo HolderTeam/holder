@@ -37,8 +37,7 @@ jobs:
     outputs:
       # The build, boundary check and unit tests: for Android and for core changes.
       android: ${{ steps.select.outputs.android }}
-      # The emulator tests: only when Android itself changes, or when run by hand (for example
-      # before an Android release). A core-only change never starts an emulator.
+      # Exercise native store startup on emulators when its profile ownership changes.
       emulators: ${{ steps.select.outputs.emulators }}
     steps:
       - if: github.event_name != 'workflow_dispatch'
@@ -68,7 +67,7 @@ jobs:
             if grep -qE "$2" <<< "$changed"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"
           }
           choose android '^(VERSION$|apps/mobile/android/|core/|\.github/workflows/android-ci\.yml$|\.github/scripts/check-core-boundary\.py$|release/scripts/check-android-apk\.py$)'
-          choose emulators '^(apps/mobile/android/|\.github/workflows/android-ci\.yml$)'
+          choose emulators '^(apps/mobile/android/|core/src/(capi/(holder\.cpp|Context\.h)|platform/ProfileLock\.(cpp|h))$|\.github/workflows/android-ci\.yml$)'
 
   checks:
     # Fast checks that need no build: no paths or core headers across the core boundary.

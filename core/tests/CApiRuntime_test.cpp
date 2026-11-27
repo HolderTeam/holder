@@ -4,7 +4,6 @@
 #include <catch2/catch.hpp>
 #endif
 
-#include "capi/Context.h"
 #include "core_test_helpers.h"
 #include "platform/Db.h"
 #include "platform/Migrations.h"
@@ -312,12 +311,13 @@ TEST_CASE("The generated C API rebuilds an older database schema", "[capi][rebui
 }
 
 TEST_CASE(
-    "Generated C API operations work on separate connections under one profile owner",
+    "Generated C API contexts on one data directory work on separate threads",
     "[capi][runtime]"
 ) {
   const auto data_dir = holder::test::make_temp_dir();
   const auto schema = schema_sql();
   holder_context* writer = nullptr;
+  holder_context* reader = nullptr;
   holder_error* error = nullptr;
   holder_arena* setup_arena = holder_arena_new();
   REQUIRE(
@@ -343,11 +343,9 @@ TEST_CASE(
     );
     moved_id = card->card_id;
   }
-  // The host can lend a worker its own database connection under the profile owner's lock.
-  holder::platform::Db reader_db;
-  reader_db.open(data_dir / "server" / "holder.db", holder::platform::DbOpen::ExistingOnly);
-  holder::index::FtsIndexer reader_fts(reader_db);
-  holder_context reader(reader_db, reader_fts);
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &reader, &error) == HOLDER_OK
+  );
 
   std::atomic<bool> moving{true};
   std::atomic<int> failures{0};
@@ -381,7 +379,7 @@ TEST_CASE(
       const holder_card_list_item_page* page = nullptr;
       holder_error* list_error = nullptr;
       if (holder_list_cards(
-              &reader,
+              reader,
               project_id.c_str(),
               {},
               nullptr,
@@ -409,7 +407,7 @@ TEST_CASE(
   const holder_card_list_item_page* page = nullptr;
   REQUIRE(
       holder_list_cards(
-          &reader,
+          reader,
           project_id.c_str(),
           {},
           nullptr,
@@ -434,32 +432,36 @@ TEST_CASE(
   }
   REQUIRE(moved_key < lowest_other_key);
   holder_arena_free(setup_arena);
-  reader_db.close();
+  holder_context_destroy(reader);
   holder_context_destroy(writer);
 }
 
-TEST_CASE("Generated C API contexts require exclusive profile ownership", "[capi][runtime]") {
+TEST_CASE("Profile rebuild waits for every native context to close", "[capi][runtime]") {
   const auto data_dir = holder::test::make_temp_dir().string();
   const auto schema = schema_sql();
-  holder_context* owner = nullptr;
-  holder_context* contender = nullptr;
+  holder_context* first = nullptr;
+  holder_context* second = nullptr;
   holder_error* error = nullptr;
-  REQUIRE(holder_context_open(data_dir.c_str(), schema.c_str(), &owner, &error) == HOLDER_OK);
-  int status = HOLDER_OK;
-  std::thread attempt([&] {
-    status = holder_context_open(data_dir.c_str(), schema.c_str(), &contender, &error);
-  });
-  attempt.join();
-  REQUIRE(status == HOLDER_ERROR_CONFLICT);
-  CHECK(contender == nullptr);
-  REQUIRE(error != nullptr);
-  CHECK(std::string(holder_error_message(error)) == "Holder workspace is in use");
+  REQUIRE(holder_context_open(data_dir.c_str(), schema.c_str(), &first, &error) == HOLDER_OK);
+  REQUIRE(holder_context_open(data_dir.c_str(), schema.c_str(), &second, &error) == HOLDER_OK);
+
+  auto* arena = holder_arena_new();
+  const holder_database_rebuild_report* report = nullptr;
+  auto rebuild = [&] {
+    return holder_database_rebuild(data_dir.c_str(), schema.c_str(), true, arena, &report, &error);
+  };
+  REQUIRE(rebuild() == HOLDER_ERROR_CONFLICT);
   holder_error_destroy(error);
   error = nullptr;
 
-  holder_context_destroy(owner);
-  REQUIRE(holder_context_open(data_dir.c_str(), schema.c_str(), &contender, &error) == HOLDER_OK);
-  holder_context_destroy(contender);
+  holder_context_destroy(first);
+  REQUIRE(rebuild() == HOLDER_ERROR_CONFLICT);
+  holder_error_destroy(error);
+  error = nullptr;
+
+  holder_context_destroy(second);
+  REQUIRE(rebuild() == HOLDER_OK);
+  holder_arena_free(arena);
 }
 
 TEST_CASE("The generated C API reports database failures as runtime errors", "[capi][runtime]") {

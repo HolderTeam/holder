@@ -1,5 +1,6 @@
 #include "platform/ProfileLock.h"
 
+#include <map>
 #include <system_error>
 
 #ifdef _WIN32
@@ -7,28 +8,83 @@
 #else
 #include <cerrno>
 #include <fcntl.h>
-#include <mutex>
-#include <set>
 #include <unistd.h>
 #endif
 
 namespace holder::platform {
 
-#if !defined(_WIN32) && !defined(F_OFD_SETLK)
-namespace {
-
-// POSIX record locks are per process. Reserve the canonical path before opening
-// it because closing even an extra descriptor for that file releases the lock.
-std::mutex profiles_mutex;
-std::set<std::filesystem::path> open_profiles;
-
-} // namespace
+struct ProfileLock::State {
+  std::filesystem::path path;
+  Mode mode;
+  std::mutex initialization_mutex;
+  bool initialized = false;
+#ifdef _WIN32
+  HANDLE handle = nullptr;
+#else
+  int fd = -1;
+  pid_t owner_pid = ::getpid();
 #endif
 
-std::unique_ptr<ProfileLock> ProfileLock::try_acquire(const std::filesystem::path& path) {
+  bool try_lock();
+  ~State();
+};
+
+struct ProfileLock::Registry {
+  std::mutex mutex;
+  std::map<std::filesystem::path, std::weak_ptr<State>> profiles;
+};
+
+ProfileLock::Registry& ProfileLock::registry() {
+  static Registry value;
+  return value;
+}
+
+std::unique_ptr<ProfileLock> ProfileLock::try_acquire(
+    const std::filesystem::path& path,
+    Mode mode
+) {
+  auto canonical_path = std::filesystem::weakly_canonical(path);
   auto lock = std::unique_ptr<ProfileLock>(new ProfileLock);
+  auto& entries = registry();
+  const std::lock_guard guard(entries.mutex);
+  if (const auto found = entries.profiles.find(canonical_path); found != entries.profiles.end()) {
+    auto state = found->second.lock();
+#ifndef _WIN32
+    if (state->owner_pid != ::getpid()) return nullptr;
+#endif
+    if (mode == Mode::Exclusive || state->mode == Mode::Exclusive) return nullptr;
+    lock->state_ = std::move(state);
+    return lock;
+  }
+
+  auto state = std::make_shared<State>();
+  state->path = std::move(canonical_path);
+  state->mode = mode;
+  if (!state->try_lock()) return nullptr;
+  entries.profiles.emplace(state->path, state);
+  lock->state_ = std::move(state);
+  return lock;
+}
+
+ProfileLock::~ProfileLock() {
+  if (!state_) return;
+  auto& entries = registry();
+  const std::lock_guard guard(entries.mutex);
+  if (state_.use_count() == 1) entries.profiles.erase(state_->path);
+  // On POSIX, closing a descriptor can release a process record lock. Keep
+  // teardown serialized with opening a new descriptor for this path.
+  state_.reset();
+}
+
+std::mutex& ProfileLock::initialization_mutex() { return state_->initialization_mutex; }
+
+bool ProfileLock::initialized() const { return state_->initialized; }
+
+void ProfileLock::mark_initialized() { state_->initialized = true; }
+
+bool ProfileLock::State::try_lock() {
 #ifdef _WIN32
-  const auto handle = CreateFileW(
+  const auto file = CreateFileW(
       path.c_str(),
       GENERIC_READ | GENERIC_WRITE,
       FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -37,14 +93,14 @@ std::unique_ptr<ProfileLock> ProfileLock::try_acquire(const std::filesystem::pat
       FILE_ATTRIBUTE_NORMAL,
       nullptr
   );
-  if (handle == INVALID_HANDLE_VALUE) {
+  if (file == INVALID_HANDLE_VALUE) {
     throw std::system_error(
         static_cast<int>(GetLastError()),
         std::system_category(),
         "open Holder profile lock"
     );
   }
-  lock->handle_ = handle;
+  handle = file;
   OVERLAPPED offset{};
   // Match Boost.Interprocess file_lock, which the daemon uses for holder.lock.
   if (!LockFileEx(
@@ -56,7 +112,7 @@ std::unique_ptr<ProfileLock> ProfileLock::try_acquire(const std::filesystem::pat
           &offset
       )) {
     const auto error = GetLastError();
-    if (error == ERROR_LOCK_VIOLATION) return nullptr;
+    if (error == ERROR_LOCK_VIOLATION) return false;
     throw std::system_error(
         static_cast<int>(error),
         std::system_category(),
@@ -64,22 +120,13 @@ std::unique_ptr<ProfileLock> ProfileLock::try_acquire(const std::filesystem::pat
     );
   }
 #else
-#ifndef F_OFD_SETLK
-  auto canonical_path = std::filesystem::weakly_canonical(path);
-  {
-    const std::lock_guard guard(profiles_mutex);
-    if (!open_profiles.insert(canonical_path).second) return nullptr;
-    lock->path_.swap(canonical_path);
-  }
-#endif
   do {
-    lock->fd_ = ::open(path.c_str(), O_CREAT | O_RDWR | O_CLOEXEC, 0600);
-  } while (lock->fd_ == -1 && errno == EINTR);
-  if (lock->fd_ == -1) {
+    fd = ::open(path.c_str(), O_CREAT | O_RDWR | O_CLOEXEC, 0600);
+  } while (fd == -1 && errno == EINTR);
+  if (fd == -1) {
     throw std::system_error(errno, std::generic_category(), "open Holder profile lock");
   }
-  // Open-file-description locks conflict with the daemon's POSIX record locks
-  // and also detect another context in this process.
+  // Open-file-description locks conflict with the daemon's POSIX record locks.
 #ifdef F_OFD_SETLK
   constexpr int command = F_OFD_SETLK;
 #else
@@ -90,31 +137,26 @@ std::unique_ptr<ProfileLock> ProfileLock::try_acquire(const std::filesystem::pat
   region.l_whence = SEEK_SET;
   int result;
   do {
-    result = ::fcntl(lock->fd_, command, &region);
+    result = ::fcntl(fd, command, &region);
   } while (result == -1 && errno == EINTR);
   if (result == -1) {
     const int error = errno;
-    if (error == EACCES || error == EAGAIN) return nullptr;
+    if (error == EACCES || error == EAGAIN) return false;
     throw std::system_error(error, std::generic_category(), "acquire Holder profile lock");
   }
 #endif
-  return lock;
+  return true;
 }
 
-ProfileLock::~ProfileLock() {
+ProfileLock::State::~State() {
 #ifdef _WIN32
-  if (handle_) {
+  if (handle) {
     OVERLAPPED offset{};
-    UnlockFileEx(handle_, 0, MAXDWORD, MAXDWORD, &offset);
-    CloseHandle(handle_);
+    UnlockFileEx(handle, 0, MAXDWORD, MAXDWORD, &offset);
+    CloseHandle(handle);
   }
-#elif defined(F_OFD_SETLK)
-  if (fd_ != -1) ::close(fd_);
 #else
-  if (path_.empty()) return;
-  const std::lock_guard guard(profiles_mutex);
-  if (fd_ != -1) ::close(fd_);
-  open_profiles.erase(path_);
+  if (fd != -1) ::close(fd);
 #endif
 }
 

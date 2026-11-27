@@ -6,7 +6,9 @@ from importlib import import_module
 from importlib.resources import files
 from os import PathLike, fspath, getenv
 from pathlib import Path
+from threading import Lock
 from typing import TYPE_CHECKING, Literal, Self, TypedDict, cast
+from weakref import WeakValueDictionary
 
 from ._workspace_contract import (
     NATIVE_ERRORS,
@@ -111,6 +113,10 @@ __all__ = [
 
 class EmbeddedUnavailableError(HolderError):
     """This installation cannot open an embedded Holder workspace."""
+
+
+_workspace_registry_lock = Lock()
+_open_workspaces: WeakValueDictionary[Path, EmbeddedWorkspace] = WeakValueDictionary()
 
 
 class _DaemonCards:
@@ -368,6 +374,7 @@ class EmbeddedWorkspace:
 
     def __init__(self, data_dir: str | PathLike[str]) -> None:
         self._data_dir = data_dir
+        self._workspace_key: Path | None = None
         self._context: Context | None = None
         self._closed = False
         self._native_error: type[RuntimeError] = RuntimeError
@@ -420,12 +427,22 @@ class EmbeddedWorkspace:
             )
 
         schema = files(package).joinpath("_schema.sql").read_text(encoding="utf-8")
+        workspace_key = (server_dir / "holder.lock").resolve()
+        with _workspace_registry_lock:
+            if workspace_key in _open_workspaces:
+                raise APIError(409, "conflict", "Holder workspace is in use")
+            _open_workspaces[workspace_key] = self
         try:
             self._context = native.Context(fspath(workspace), schema)
         except native.HolderError as error:
             if getattr(error, "native_status", None) == 4090:
                 raise APIError(409, "conflict", str(error)) from error
             raise
+        finally:
+            if self._context is None:
+                with _workspace_registry_lock:
+                    del _open_workspaces[workspace_key]
+        self._workspace_key = workspace_key
         self._native_error = native.HolderError
         return self
 
@@ -433,6 +450,10 @@ class EmbeddedWorkspace:
         self._closed = True
         if self._context is not None:
             self._context.close()
+        if self._workspace_key is not None:
+            with _workspace_registry_lock:
+                del _open_workspaces[self._workspace_key]
+            self._workspace_key = None
 
     def list_projects(self) -> list[ProjectRecord]:
         """List the projects visible in this session as detached records."""
