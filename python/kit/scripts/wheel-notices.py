@@ -25,7 +25,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="kit-notices-") as directory:
         temp = Path(directory)
         run(sys.executable, "-m", "wheel", "unpack", str(wheel), "-d", str(temp))
-        root = next(temp.glob("holder_kit-*"))
+        (root,) = temp.iterdir()
         metadata = next(root.glob("*.dist-info"))
         notices = metadata / "licenses/third-party"
         notices.mkdir(parents=True)

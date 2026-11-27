@@ -77,6 +77,13 @@ stages the extension, schema, SDK metadata, runtime DLLs, and dependency
 licences. Set `HOLDER_PYTHON_EMBEDDED_STAGE` to that stage when building the
 wheel. The installed-wheel check opens and reopens a private workspace.
 
+## Build a macOS wheel from source
+
+The [macOS CI job](../../../.github/workflows/kit-ci.yml) builds an ARM64 wheel
+with the macOS core SDK and Homebrew dependencies. It targets macOS 15, includes
+the suppliers' notices, and uses `delocate` to bundle the runtime dylibs before
+installing the wheel and checking a private workspace.
+
 ## Layout and regeneration
 
 ```text

@@ -13,8 +13,8 @@ class EmbeddedWheelHook(BuildHookInterface):
         stage = os.environ.get("HOLDER_PYTHON_EMBEDDED_STAGE")
         if not stage or version != "standard":
             return
-        if sys.platform not in ("linux", "win32") or sys.implementation.name != "cpython":
-            raise ValueError("The embedded wheel build supports CPython on Linux and Windows")
+        if sys.platform not in ("linux", "darwin", "win32") or sys.implementation.name != "cpython":
+            raise ValueError("The embedded wheel build supports CPython on Linux, macOS, and Windows")
 
         package = Path(stage).resolve() / "holder" / "_embedded"
         extension = "_native" + get_config_var("EXT_SUFFIX")
