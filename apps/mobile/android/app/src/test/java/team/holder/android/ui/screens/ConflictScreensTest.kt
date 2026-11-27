@@ -31,6 +31,44 @@ class ConflictScreensTest {
     )
 
     @Test
+    fun combine_startsFromBothVersions_withTheCardsTitle() {
+        val start = combinedEditStart(
+            comparison(ConflictComparisonOriginalEditedOn.THIS_DEVICE, ConflictComparisonCopyEditedOn.ANOTHER_DEVICE),
+            markers = false,
+        )
+        assertEquals("Hamlet", start.title)
+        assertEquals(
+            "Enter Hamlet.\nTo be, or not to be, that is the question:\nTo be, or not to be, ay, there's the point,",
+            start.content,
+        )
+        assertEquals(null, start.note)
+    }
+
+    @Test
+    fun combine_withMarkers_labelsEachSideByItsDevice() {
+        val start = combinedEditStart(
+            comparison(ConflictComparisonOriginalEditedOn.THIS_DEVICE, ConflictComparisonCopyEditedOn.ANOTHER_DEVICE),
+            markers = true,
+        )
+        assertEquals(
+            "Enter Hamlet.\n<<<<<<< This device\nTo be, or not to be, that is the question:\n=======\n" +
+                "To be, or not to be, ay, there's the point,\n>>>>>>> Other device",
+            start.content,
+        )
+    }
+
+    @Test
+    fun combine_ofVersionsTooLargeToCompare_startsFromTheCardAndSaysSo() {
+        val start = combinedEditStart(
+            comparison(ConflictComparisonOriginalEditedOn.THIS_DEVICE, ConflictComparisonCopyEditedOn.ANOTHER_DEVICE)
+                .copy(truncated = true),
+            markers = false,
+        )
+        assertEquals("Enter Hamlet.\nTo be, or not to be, that is the question:", start.content)
+        assertEquals(true, start.note?.contains("too large"))
+    }
+
+    @Test
     fun sides_areLabelledByTheDeviceThatMadeThem_cardFirst() {
         val (card, copy) = conflictSides(
             comparison(ConflictComparisonOriginalEditedOn.ANOTHER_DEVICE, ConflictComparisonCopyEditedOn.THIS_DEVICE),

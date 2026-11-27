@@ -66,6 +66,7 @@ fun SyncSettingsScreen(onBack: () -> Unit, browserLauncher: GitHubConnectionCoor
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val backgroundSyncEnabled by HolderSettings.gitBackgroundSyncEnabled(context).collectAsState(initial = HolderSettings.GIT_BACKGROUND_SYNC_DEFAULT)
+    val conflictMarkers by HolderSettings.conflictMarkers(context).collectAsState(initial = false)
     val backgroundSyncIntervalMinutes by HolderSettings.gitBackgroundSyncIntervalMinutes(context)
         .collectAsState(initial = HolderSettings.DEFAULT_BACKGROUND_SYNC_INTERVAL_MINUTES)
     var intervalMenuExpanded by remember { mutableStateOf(false) }
@@ -185,6 +186,22 @@ fun SyncSettingsScreen(onBack: () -> Unit, browserLauncher: GitHubConnectionCoor
                         }
                     }
                 }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Git conflict markers")
+                    Text("When combining two versions of a card, mark each clash with <<<<<<< and >>>>>>> lines.")
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Switch(
+                    checked = conflictMarkers,
+                    onCheckedChange = { enabled ->
+                        scope.launch { HolderSettings.setConflictMarkers(context, enabled) }
+                    },
+                )
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))

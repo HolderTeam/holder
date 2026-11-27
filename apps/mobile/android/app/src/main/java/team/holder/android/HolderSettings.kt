@@ -34,6 +34,7 @@ object HolderSettings {
     private val TRIM_TWO_SPACE_LINE_ENDINGS = booleanPreferencesKey("trim_two_space_line_endings")
     private val MANUAL_CAPITALIZATION = booleanPreferencesKey("manual_capitalization")
     private val TRIM_WHITESPACE_IN_CODE_BLOCKS = booleanPreferencesKey("trim_whitespace_in_code_blocks")
+    private val CONFLICT_MARKERS = booleanPreferencesKey("conflict_markers")
     private val CARD_LIST_BOARD_VIEW_ENABLED = booleanPreferencesKey("card_list_board_view_enabled")
     private val CARD_LIST_ORDER = stringPreferencesKey("card_list_order")
     private val GIT_SYNC_CONSECUTIVE_FAILURES = intPreferencesKey("git_sync_consecutive_failures")
@@ -167,6 +168,16 @@ object HolderSettings {
 
     suspend fun setManualCapitalization(context: Context, enabled: Boolean) {
         context.settingsDataStore.edit { it[MANUAL_CAPITALIZATION] = enabled }
+    }
+
+    /** Off by default: Combine, on a card that changed on two devices, puts one version's
+     * lines after the other's at each clash. On wraps each clash in git's conflict markers
+     * (<<<<<<<, =======, >>>>>>>), as the Desktop's "Git conflict markers" preference does. */
+    fun conflictMarkers(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[CONFLICT_MARKERS] ?: false }
+
+    suspend fun setConflictMarkers(context: Context, enabled: Boolean) {
+        context.settingsDataStore.edit { it[CONFLICT_MARKERS] = enabled }
     }
 
     /** Off by default: lines inside a fenced code block are exempt from all trailing-whitespace
