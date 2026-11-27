@@ -17,6 +17,7 @@ from generators.core import render_core
 from generators.daemon import render_daemon
 from generators.daemon.ai_json import generate_ai_codec
 from generators.daemon.openapi import document
+from generators.mcp import generate_mcp_tools
 
 CONTRACT = Path(__file__).resolve().parents[1]
 
@@ -48,7 +49,7 @@ def test_every_target_generates_in_a_fresh_process_without_authoring_imports(tmp
     serialized = tmp_path / "result.json"
     serialized.write_text(result.model_dump_json(exclude_unset=True))
     expected = {"core": render_core(result), "daemon": render_daemon(result),
-                "android": generate_android_client(result)}
+                "android": generate_android_client(result), "mcp": generate_mcp_tools(result)}
     script = '''
 import importlib.abc
 import json
@@ -66,11 +67,12 @@ from compiler.ir import ContractView
 from generators.android.client import generate_android_client
 from generators.core import render_core
 from generators.daemon import render_daemon
+from generators.mcp import generate_mcp_tools
 
 with open(sys.argv[1]) as stream:
     result = ContractView.model_validate_json(stream.read())
 print(json.dumps({"core": render_core(result), "daemon": render_daemon(result),
-                  "android": generate_android_client(result)}))
+                  "android": generate_android_client(result), "mcp": generate_mcp_tools(result)}))
 '''
     generated = subprocess.run([sys.executable, "-c", script, str(serialized)], cwd=CONTRACT,
                                capture_output=True, text=True, check=True)

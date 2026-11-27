@@ -1,0 +1,577 @@
+{
+  "tools": [
+    {
+      "name": "get_card",
+      "description": "Fetch a card.\n\nA card in the trash or in another project is not found.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId"
+          },
+          "card_id": {
+            "$ref": "#/$defs/CardId"
+          }
+        },
+        "required": [
+          "project_id",
+          "card_id"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/Card"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Card": {
+            "properties": {
+              "card_id": {
+                "$ref": "#/$defs/CardId",
+                "description": "The card's ID."
+              },
+              "project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project the card belongs to."
+              },
+              "title": {
+                "type": "string",
+                "title": "Title",
+                "description": "The card's title."
+              },
+              "rel_path": {
+                "type": "string",
+                "title": "Rel Path",
+                "description": "The card's file, relative to the project's root."
+              },
+              "parent_card_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/CardId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The card's parent; null for a root card."
+              },
+              "sort_key": {
+                "type": "number",
+                "format": "double",
+                "title": "Sort Key",
+                "description": "The card's place among its siblings; lower comes first."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the card was created."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the card was last changed."
+              },
+              "deleted_at": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "maximum": 9223372036854775807,
+                    "minimum": -9223372036854775808,
+                    "format": "int64"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Deleted At",
+                "description": "When the card was moved to the trash; null when it is not in the trash."
+              },
+              "content": {
+                "type": "string",
+                "title": "Content",
+                "description": "The card's body."
+              },
+              "tags": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "title": "Tags",
+                "description": "The card's normalized tags."
+              },
+              "tag_occurrences": {
+                "items": {
+                  "$ref": "#/$defs/TagOccurrence"
+                },
+                "type": "array",
+                "title": "Tag Occurrences",
+                "description": "Each tag written in the content, in order."
+              },
+              "removable_tags": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "title": "Removable Tags",
+                "description": "The tags remove_card_tag would take off the card: each is on its trailing tag line and nowhere else in its\ncontent. A tag also written in prose stays until the content is edited."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "card_id",
+              "project_id",
+              "title",
+              "rel_path",
+              "parent_card_id",
+              "sort_key",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "content",
+              "tags",
+              "tag_occurrences",
+              "removable_tags"
+            ],
+            "title": "Card",
+            "description": "A card, with its content and tags."
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "TagOccurrence": {
+            "properties": {
+              "tag": {
+                "type": "string",
+                "title": "Tag",
+                "description": "The normalized tag."
+              },
+              "byte_start": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Byte Start",
+                "description": "Inclusive byte offset of the leading # in the content."
+              },
+              "byte_end": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Byte End",
+                "description": "Exclusive byte offset after the tag's name."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "tag",
+              "byte_start",
+              "byte_end"
+            ],
+            "title": "TagOccurrence",
+            "description": "A tag written in a card's content."
+          }
+        }
+      }
+    },
+    {
+      "name": "get_resource",
+      "description": "Fetch a resource.\n\nA resource in another project is not found.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId"
+          },
+          "resource_id": {
+            "$ref": "#/$defs/ResourceId"
+          }
+        },
+        "required": [
+          "project_id",
+          "resource_id"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceId": {
+            "type": "string",
+            "minLength": 4
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/Resource"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Resource": {
+            "properties": {
+              "resource_id": {
+                "$ref": "#/$defs/ResourceId",
+                "description": "The resource's ID."
+              },
+              "project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project the resource belongs to."
+              },
+              "type": {
+                "$ref": "#/$defs/ResourceType",
+                "description": "What kind of thing the resource is."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Label",
+                "description": "The resource's name."
+              },
+              "metadata": {
+                "$ref": "#/$defs/ResourceMetadata",
+                "description": "What is known about the resource, by name."
+              },
+              "assets": {
+                "items": {
+                  "$ref": "#/$defs/ResourceAsset"
+                },
+                "type": "array",
+                "title": "Assets",
+                "description": "The resource's files."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the resource was made."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the resource was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "resource_id",
+              "project_id",
+              "type",
+              "label",
+              "metadata",
+              "assets",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "Resource",
+            "description": "A resource in a project, with its files."
+          },
+          "ResourceId": {
+            "type": "string",
+            "minLength": 4
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ResourceMetadata": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "ResourceAsset": {
+            "properties": {
+              "asset_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Asset Id",
+                "description": "The asset's ID."
+              },
+              "original_filename": {
+                "type": "string",
+                "title": "Original Filename",
+                "description": "The file's name when it was imported."
+              },
+              "media_type": {
+                "type": "string",
+                "title": "Media Type",
+                "description": "The file's media type, such as application/pdf."
+              },
+              "byte_size": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Byte Size",
+                "description": "The file's size, in bytes."
+              },
+              "plaintext_sha256": {
+                "type": "string",
+                "title": "Plaintext Sha256",
+                "description": "The SHA-256 of the file's content, in lower-case hex."
+              },
+              "placements": {
+                "items": {
+                  "$ref": "#/$defs/AssetPlacement"
+                },
+                "type": "array",
+                "title": "Placements",
+                "description": "The stored copies of the file."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the asset was imported."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the asset was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "asset_id",
+              "original_filename",
+              "media_type",
+              "byte_size",
+              "plaintext_sha256",
+              "placements",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "ResourceAsset",
+            "description": "A file that belongs to a resource."
+          },
+          "AssetPlacement": {
+            "properties": {
+              "placement_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Placement Id",
+                "description": "The copy's ID."
+              },
+              "location_id": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Location Id",
+                "description": "The storage location that holds the copy."
+              },
+              "encoding": {
+                "type": "string",
+                "enum": [
+                  "plain",
+                  "holder_asset_v1"
+                ],
+                "title": "Encoding",
+                "description": "How the copy is stored: as the file is, or encrypted for the project."
+              },
+              "stored_byte_size": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Stored Byte Size",
+                "description": "The size of the stored copy, in bytes."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the copy was stored."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "placement_id",
+              "location_id",
+              "encoding",
+              "stored_byte_size",
+              "created_at"
+            ],
+            "title": "AssetPlacement",
+            "description": "One stored copy of an asset."
+          }
+        }
+      }
+    },
+    {
+      "name": "search_cards",
+      "description": "Search a project's cards, ordered by relevance, best first.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId",
+            "description": "The project to search."
+          },
+          "q": {
+            "type": "string",
+            "minLength": 1,
+            "description": "An SQLite FTS5 query for card titles and bodies.",
+            "title": "Q"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 2147483647,
+            "minimum": 1,
+            "format": "int32",
+            "default": 20,
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "maximum": 2147483647,
+            "minimum": 0,
+            "format": "int32",
+            "default": 0,
+            "title": "Offset"
+          }
+        },
+        "required": [
+          "project_id",
+          "q"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/SearchCard"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "SearchCard": {
+            "properties": {
+              "card_id": {
+                "type": "string",
+                "title": "Card Id",
+                "description": "The matching card's ID."
+              },
+              "title": {
+                "type": "string",
+                "title": "Title",
+                "description": "The card's current title."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the card was last updated."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the card was created."
+              },
+              "snippet": {
+                "type": "string",
+                "title": "Snippet",
+                "description": "A highlighted excerpt from the match."
+              },
+              "rank": {
+                "type": "number",
+                "format": "double",
+                "title": "Rank",
+                "description": "The FTS relevance score; lower scores rank first."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "card_id",
+              "title",
+              "updated_at",
+              "created_at",
+              "snippet",
+              "rank"
+            ],
+            "title": "SearchCard",
+            "description": "A card matching a full-text query."
+          }
+        }
+      }
+    }
+  ]
+}
