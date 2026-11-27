@@ -30,7 +30,7 @@ SetupLogging=yes
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
-Name: "addtopath"; Description: "Add the Holder command-line tools (holderctl, holderd) to PATH"; GroupDescription: "Command-line integration:"
+Name: "addtopath"; Description: "Add the Holder command-line tools (holderctl, holderd, holder-mcp) to PATH"; GroupDescription: "Command-line integration:"
 
 [Files]
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -165,6 +165,7 @@ begin
   begin
     ForceDirectories(HolderCliDir());
     WriteLauncher('holderctl');
+    WriteLauncher('holder-mcp');
     WriteLauncher('holderd');
 
     // An older installer put bin on PATH. Take that out whether or not the tools are added now.

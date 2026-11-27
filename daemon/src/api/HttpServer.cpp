@@ -34,7 +34,8 @@ HttpServer::HttpServer(
     holder::index::FtsIndexer* fts,
     holder::git::GitOps* git_ops,
     holder::llm::RunnerRegistry* runner_registry,
-    holder::api::ConcurrencyProfile concurrency
+    holder::api::ConcurrencyProfile concurrency,
+    std::optional<mcp::Access> mcp_access
 )
     : bind_(std::move(bind)),
       port_(port),
@@ -47,7 +48,8 @@ HttpServer::HttpServer(
       card_store_(card_store),
       fts_(fts),
       git_ops_(git_ops),
-      concurrency_(concurrency) {}
+      concurrency_(concurrency),
+      mcp_access_(std::move(mcp_access)) {}
 
 HttpServer::~HttpServer() = default;
 
@@ -64,7 +66,8 @@ HttpServer::BoundInfo HttpServer::start() {
       secret_store_.get(),
       git_ops_,
       runner_registry_,
-      concurrency_
+      concurrency_,
+      mcp_access_ ? &*mcp_access_ : nullptr
   );
   const auto bound = listener_->start();
   return BoundInfo{bound.bind, bound.port};

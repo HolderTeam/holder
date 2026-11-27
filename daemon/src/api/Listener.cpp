@@ -190,7 +190,8 @@ Listener::Listener(
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,
     holder::llm::RunnerRegistry* runner_registry,
-    holder::api::ConcurrencyProfile concurrency
+    holder::api::ConcurrencyProfile concurrency,
+    const mcp::Access* mcp_access
 )
     : acceptor_(ioc_),
       bind_(std::move(bind)),
@@ -203,13 +204,18 @@ Listener::Listener(
       secret_store_(secret_store),
       git_ops_(git_ops),
       runner_registry_(runner_registry),
-      concurrency_(concurrency) {}
+      concurrency_(concurrency),
+      mcp_access_(mcp_access) {}
 
 Listener::BoundInfo Listener::start() {
   boost::system::error_code ec;
   const auto address = boost::asio::ip::make_address(bind_, ec);
   if (ec) {
     throw std::runtime_error("Invalid bind address: " + bind_ + " (" + ec.message() + ")");
+  }
+
+  if (mcp_access_ && !address.is_loopback()) {
+    throw std::invalid_argument("MCP requires a loopback bind address.");
   }
 
   tcp::endpoint endpoint(address, port_);
@@ -619,7 +625,8 @@ void Listener::run_save_worker() {
         secret_store_,
         request_git_ops_,
         context.runner_registry.get(),
-        events_.get()
+        events_.get(),
+        mcp_access_
     );
     auto response = session.execute();
     if (response.has_value()) {
@@ -697,7 +704,8 @@ void Listener::run_general_worker() {
         secret_store_,
         request_git_ops_,
         context.runner_registry.get(),
-        events_.get()
+        events_.get(),
+        mcp_access_
     );
     auto response = session.execute();
     if (response.has_value()) {

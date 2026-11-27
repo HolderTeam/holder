@@ -179,9 +179,9 @@ def generate(repository, candidate, version, desktop_run, backend_run, github, n
         core_path = 'usr/share/holder-daemon/core-build.json' if platform == 'linux' else 'core-build.json'
         commit_path = 'release/holder-daemon-commit.txt'
         version_path = 'release/holder-daemon-version.txt'
-        binaries = {'linux': ['usr/bin/holderd', 'usr/bin/holderctl'],
-                    'windows': ['holderd.exe', 'holderctl.exe'],
-                    'macos': ['bin/holderd', 'bin/holderctl']}[platform]
+        binaries = {'linux': ['usr/bin/holderd', 'usr/bin/holderctl', 'usr/bin/holder-mcp'],
+                    'windows': ['holderd.exe', 'holderctl.exe', 'holder-mcp.exe'],
+                    'macos': ['bin/holderd', 'bin/holderctl', 'bin/holder-mcp']}[platform]
         backend_item = backend_artifact(backend_name + '-release')
         metadata = read(backend_item, backend,
                         [core_path, commit_path, version_path], binaries)

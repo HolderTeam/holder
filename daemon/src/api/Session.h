@@ -20,6 +20,10 @@
 
 namespace holder::api {
 
+namespace mcp {
+struct Access;
+}
+
 class Session {
  public:
   using tcp = boost::asio::ip::tcp;
@@ -65,7 +69,8 @@ class Session {
       holder::privacy::SecretStore* secret_store = nullptr,
       holder::git::GitOps* git_ops = nullptr,
       holder::llm::RunnerRegistry* runner_registry = nullptr,
-      holder::api::support::EventService* events = nullptr
+      holder::api::support::EventService* events = nullptr,
+      const mcp::Access* mcp_access = nullptr
   );
   Session(
       PreparedRequest prepared,
@@ -77,7 +82,8 @@ class Session {
       holder::privacy::SecretStore* secret_store = nullptr,
       holder::git::GitOps* git_ops = nullptr,
       holder::llm::RunnerRegistry* runner_registry = nullptr,
-      holder::api::support::EventService* events = nullptr
+      holder::api::support::EventService* events = nullptr,
+      const mcp::Access* mcp_access = nullptr
   );
 
   void run();
@@ -109,6 +115,7 @@ class Session {
   holder::git::GitOps* git_ops_ = nullptr;
   holder::llm::RunnerRegistry* runner_registry_ = nullptr;
   holder::api::support::EventService* events_ = nullptr;
+  const mcp::Access* mcp_access_;
   Request req_;
   std::chrono::steady_clock::time_point request_started_;
   std::string path_;

@@ -43,13 +43,13 @@ def cpp_base(types: CoreTypes, ref: TypeRef, enum: str | None = None) -> str:
     raise Unsupported(f"{ref.kind} in JSON")
 
 
-def field_decoder(types: CoreTypes, slot: Slot, label: str) -> str:
-    """An expression decoding the present, non-null JSON value `item` into the slot's C++ type."""
+def field_decoder(types: CoreTypes, slot: Slot, label: str, expression: str = "item") -> str:
+    """An expression decoding the present, non-null JSON value into the slot's C++ type."""
     t = slot.type
     kind = t.kind
     base = cpp_base(types, t, slot.enum)
     # A record's own complaints name its fields.
-    value = f"codec<{base}>::decode(item)" if kind == "named" else f'decode_field<{base}>(item, "{label}")'
+    value = f"codec<{base}>::decode({expression})" if kind == "named" else f'decode_field<{base}>({expression}, "{label}")'
     if kind == "string":
         maximum = constraint(t, "max_length")
         maximum = "std::numeric_limits<std::size_t>::max()" if maximum is None else maximum

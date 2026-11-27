@@ -83,7 +83,7 @@ if [ ! -x "${appdir}/AppRun" ]; then
   echo "The verified AppDir has no executable AppRun." >&2
   exit 1
 fi
-for executable in holder-desktop holderd holderctl; do
+for executable in holder-desktop holderd holderctl holder-mcp; do
   if [ ! -x "${appdir}/usr/bin/${executable}" ]; then
     echo "The verified AppDir is missing usr/bin/${executable}." >&2
     exit 1

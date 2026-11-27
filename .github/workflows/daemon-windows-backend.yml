@@ -152,7 +152,7 @@ jobs:
           $stageDir = "out\artifacts\windows-backend"
 
           New-Item -ItemType Directory -Force $stageDir | Out-Null
-          Copy-Item "$buildDir\holderd.exe", "$buildDir\holderctl.exe" -Destination $stageDir
+          Copy-Item "$buildDir\holderd.exe", "$buildDir\holderctl.exe", "$buildDir\holder-mcp.exe" -Destination $stageDir
           Copy-Item "$buildDir\schema", "$buildDir\config", "$buildDir\assets" -Destination $stageDir -Recurse
           Copy-Item "$buildDir\openapi.yaml", "$buildDir\core-build.json" -Destination $stageDir
           New-Item -ItemType Directory -Force "$stageDir/release" | Out-Null
@@ -185,6 +185,7 @@ jobs:
           & ".\holderd.exe" --help
           & ".\holderd.exe" --version
           & ".\holderctl.exe" --help
+          & ".\holder-mcp.exe" --help
           Pop-Location
 
       - name: Upload backend artifact

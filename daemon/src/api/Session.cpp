@@ -1,5 +1,6 @@
 #include "api/Session.h"
 #include "api/GeneratedRoutes.h"
+#include "api/McpEndpoint.h"
 #include "api/support/HttpAuth.h"
 #include "api/support/HttpResponses.h"
 
@@ -302,7 +303,8 @@ Session::Session(
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,
     holder::llm::RunnerRegistry* runner_registry,
-    holder::api::support::EventService* events
+    holder::api::support::EventService* events,
+    const mcp::Access* mcp_access
 )
     : socket_(std::move(socket)),
       db_(db),
@@ -313,7 +315,8 @@ Session::Session(
       secret_store_(secret_store),
       git_ops_(git_ops),
       runner_registry_(runner_registry),
-      events_(events) {}
+      events_(events),
+      mcp_access_(mcp_access) {}
 
 Session::Session(
     PreparedRequest prepared,
@@ -325,7 +328,8 @@ Session::Session(
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,
     holder::llm::RunnerRegistry* runner_registry,
-    holder::api::support::EventService* events
+    holder::api::support::EventService* events,
+    const mcp::Access* mcp_access
 )
     : socket_(std::move(prepared.socket)),
       db_(db),
@@ -337,6 +341,7 @@ Session::Session(
       git_ops_(git_ops),
       runner_registry_(runner_registry),
       events_(events),
+      mcp_access_(mcp_access),
       req_(std::move(prepared.req)),
       request_started_(prepared.request_started),
       path_(std::move(prepared.path)),
@@ -436,7 +441,10 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
   Response res;
   std::optional<GeneratedFileResponse> file;
   support::StreamServer stream;
-  if (!is_public_generated_route(req_) && !support::is_authorized_bearer(req_, auth_token_)) {
+  if (mcp_access_ && req_.target() == "/mcp") {
+    res = mcp::handle(req_, socket_, *mcp_access_, db_, fts_, secret_store_, git_ops_);
+  } else if (!is_public_generated_route(req_) &&
+             !support::is_authorized_bearer(req_, auth_token_)) {
     res = support::error_response(
         http::status::unauthorized,
         "unauthorized",

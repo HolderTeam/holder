@@ -19,11 +19,11 @@ Usage:
 Commands:
   help, -h, --help              Show this help
   default                       Configure, build, run tests, then run holderd
-  build [BuildType]             Configure and build holderd and holderctl
+  build [BuildType]             Configure and build holderd, holderctl and holder-mcp
   test [BuildType]              Configure, build, and run the automated tests
   [BuildType]                   Run the default flow with this CMAKE_BUILD_TYPE
   coverage                      Build, run tests, and generate coverage reports
-  warnings [BuildType]          Build holderd and holderctl with warnings as errors
+  warnings [BuildType]          Build holderd, holderctl and holder-mcp with warnings as errors
   memcheck [test-regex]         Run Valgrind memcheck tests
   san [sanitizers] [BuildType]  Run sanitizer build and tests
   tidy                          Run clang-tidy through run-clang-tidy
@@ -366,7 +366,7 @@ warnings_all() {
     -DHOLDER_WARNINGS_AS_ERRORS=ON
 
   JOBS="$(jobs)"
-  cmake_build "${build_dir}" --target holderd holderctl -- -j "${JOBS}"
+  cmake_build "${build_dir}" --target holderd holderctl holder-mcp -- -j "${JOBS}"
 }
 
 memcheck_all() {

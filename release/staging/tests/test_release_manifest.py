@@ -53,9 +53,9 @@ class Fixture(tool.GitHub):
             core_path = 'usr/share/holder-daemon/core-build.json' if platform == 'linux' else 'core-build.json'
             files = {core_path: json.dumps(core), 'release/holder-daemon-commit.txt': CANDIDATE,
                      'release/holder-daemon-version.txt': '0.2.6'}
-            binaries = {'linux': ['usr/bin/holderd', 'usr/bin/holderctl'],
-                        'windows': ['holderd.exe', 'holderctl.exe'],
-                        'macos': ['bin/holderd', 'bin/holderctl']}[platform]
+            binaries = {'linux': ['usr/bin/holderd', 'usr/bin/holderctl', 'usr/bin/holder-mcp'],
+                        'windows': ['holderd.exe', 'holderctl.exe', 'holder-mcp.exe'],
+                        'macos': ['bin/holderd', 'bin/holderctl', 'bin/holder-mcp']}[platform]
             files.update({name: 'binary fixture' for name in binaries})
             self.add(20, backend + '-release', files)
         self.add(20, 'core-selection', {'core-selection.json': json.dumps(self.selection)})

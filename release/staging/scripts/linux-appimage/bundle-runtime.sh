@@ -82,7 +82,8 @@ done
 for executable in \
   "${appdir}/usr/bin/holder-desktop" \
   "${appdir}/usr/bin/holderd" \
-  "${appdir}/usr/bin/holderctl"; do
+  "${appdir}/usr/bin/holderctl" \
+  "${appdir}/usr/bin/holder-mcp"; do
   patchelf \
     --set-rpath "\$ORIGIN/../lib:\$ORIGIN/../lib/${multiarch}" \
     "${executable}"

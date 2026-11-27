@@ -136,7 +136,7 @@ jobs:
           mkdir -p "${stage_dir}/bin"
 
           cp "${build_dir}/holderd" "${stage_dir}/bin/"
-          cp "${build_dir}/holderctl" "${stage_dir}/bin/"
+          cp "${build_dir}/holderctl" "${build_dir}/holder-mcp" "${stage_dir}/bin/"
           cp -a "${build_dir}/schema" "${stage_dir}/"
           cp -a config "${stage_dir}/"
           cp -a assets "${stage_dir}/"
@@ -166,6 +166,7 @@ jobs:
           ./bin/holderd --help
           ./bin/holderd --version
           ./bin/holderctl --help
+          ./bin/holder-mcp --help
 
       - name: Upload backend artifact
         uses: actions/upload-artifact@v7

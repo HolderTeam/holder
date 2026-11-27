@@ -65,6 +65,28 @@ If the request exceeds these limits, the daemon sends a JSON error and closes
 that connection. An oversized target or request line returns `414 uri_too_long`.
 Oversized headers return `431 request_header_fields_too_large`.
 
+## Local MCP
+
+Set `HOLDER_MCP_PROJECT` to the ID of the project you want to share and
+`HOLDER_MCP_TOKEN` to a dedicated random bearer token (32 to 128 base64url
+characters) before starting `holderd`. The daemon serves `/mcp` on its normal
+loopback listener. Configure a native Streamable HTTP client that speaks
+protocol revision `2026-07-28` with that URL and token. Disable the endpoint
+by unsetting both variables and restarting the daemon.
+
+The token grants discovery, card search, card reads and resource metadata reads
+for the selected project. The REST API uses a separate credential. Search returns
+up to 100 matches per call and each tool call has a 256 KiB structured result
+limit. The endpoint serves finite JSON responses.
+
+For clients configured with a command, launch the installed `holder-mcp`
+executable with arguments `--port 11499` (use the running daemon's actual port)
+and set `HOLDER_MCP_TOKEN` in that command's environment. Supply
+`--bind ::1` if the daemon is listening on IPv6 loopback. The bridge supports
+`2026-07-28` clients and `2025-11-25` clients that use the initialization
+handshake. Start and enable the selected daemon before connecting. The bridge
+reports connection and authentication failures to the client over JSON-RPC.
+
 ## Optional Runtime Dependencies
 
 - Ollama (for local model execution via AI routes)
@@ -243,7 +265,7 @@ Under the configurations drop-down choose `windows-vcpkg-debug`.
 
 Then under the "Build" menu choose "Build All".
 
-This builds the local server `holderd.exe` and the command line interface `holderctl.exe`.
+This builds `holderd.exe`, `holderctl.exe`, and the `holder-mcp.exe` stdio bridge.
 
 Run them by selecting them as debug targets and using the Debug menu (or F5) or just run them in the command line.
 

@@ -42,12 +42,15 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -66,7 +69,8 @@ void print_usage(std::ostream& out) {
          "[--idle-exit <seconds>] [--reindex] [--rebuild-database [--dry-run]]\n"
          "\n"
          "  --idle-exit <seconds>  Exit after this many seconds with no requests, open event\n"
-         "                         streams or background work. Off by default.\n";
+         "                         streams or background work. Off by default.\n"
+         "  Set HOLDER_MCP_PROJECT and HOLDER_MCP_TOKEN to enable local read-only MCP.\n";
 } // LCOV_EXCL_LINE: function cleanup after the covered startup validation throw.
 
 std::filesystem::path find_schema_sql() {
@@ -231,6 +235,23 @@ int run_daemon(int argc, char* argv[]) {
     }
   }
 
+  std::optional<holder::api::mcp::Access> mcp_access;
+  const auto* mcp_project = std::getenv("HOLDER_MCP_PROJECT");
+  const auto* mcp_token = std::getenv("HOLDER_MCP_TOKEN");
+  if (mcp_project || mcp_token) {
+    constexpr std::string_view token_chars =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
+    const std::string_view token = mcp_token ? mcp_token : "";
+    if (!mcp_project || !*mcp_project || token.size() < 32 || token.size() > 128 ||
+        token.find_first_not_of(token_chars) != std::string_view::npos) {
+      spdlog::error(
+          "MCP requires HOLDER_MCP_PROJECT and a 32 to 128 character base64url HOLDER_MCP_TOKEN."
+      );
+      return 2;
+    }
+    mcp_access = holder::api::mcp::Access{std::string(token), mcp_project, CARD_SERVER_VERSION};
+  }
+
   holder::core::SignalHandler signals;
 
   holder::core::LockFile lock(paths.lock_path());
@@ -369,7 +390,8 @@ int run_daemon(int argc, char* argv[]) {
       &fts,
       nullptr,
       &runner_registry,
-      concurrency
+      concurrency,
+      std::move(mcp_access)
   );
   const auto bound = server.start();
 

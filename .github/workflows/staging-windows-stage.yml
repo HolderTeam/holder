@@ -195,7 +195,7 @@ jobs:
           $binDir = Join-Path $stageDir "bin"
           New-Item -ItemType Directory -Force $binDir | Out-Null
 
-          Copy-Item "$backendDir\holderd.exe", "$backendDir\holderctl.exe" -Destination $binDir -Force
+          Copy-Item "$backendDir\holderd.exe", "$backendDir\holderctl.exe", "$backendDir\holder-mcp.exe" -Destination $binDir -Force
           Get-ChildItem $backendDir -Filter "*.dll" | Copy-Item -Destination $binDir -Force
 
           foreach ($runtimeDir in @("schema", "config", "assets")) {
@@ -291,6 +291,7 @@ jobs:
             "bin\holder-desktop.exe",
             "bin\holderd.exe",
             "bin\holderctl.exe",
+            "bin\holder-mcp.exe",
             "share\glib-2.0\schemas\gschemas.compiled",
             "share\glib-2.0\schemas\team.holder.Holder.gschema.xml",
             "share\gtksourceview-5\language-specs\language2.rng",
@@ -427,7 +428,7 @@ jobs:
             throw "Unsigned installer exited with code $($process.ExitCode)"
           }
 
-          foreach ($file in @("bin\holder-desktop.exe", "bin\holderd.exe", "bin\holderctl.exe", "schema\schema.sql", "openapi.yaml", "core-build.json", "release\holder-core-provenance.json")) {
+          foreach ($file in @("bin\holder-desktop.exe", "bin\holderd.exe", "bin\holderctl.exe", "bin\holder-mcp.exe", "schema\schema.sql", "openapi.yaml", "core-build.json", "release\holder-core-provenance.json")) {
             $path = Join-Path $installDir $file
             if (!(Test-Path $path)) {
               throw "Unsigned installer missing installed file: $file"
@@ -446,7 +447,7 @@ jobs:
           & (Join-Path $installDir "bin\holderctl.exe") --help
 
           # The command-line tools: launchers that work, and the only thing the installer puts on PATH.
-          foreach ($launcher in @("holderctl", "holderd")) {
+          foreach ($launcher in @("holderctl", "holderd", "holder-mcp")) {
             if (!(Test-Path (Join-Path $installDir "cli\$launcher.cmd"))) {
               throw "Missing command-line launcher: cli\$launcher.cmd"
             }
@@ -560,7 +561,8 @@ jobs:
             $files = @(
               (Join-Path $testStage "bin\holder-desktop.exe"),
               (Join-Path $testStage "bin\holderd.exe"),
-              (Join-Path $testStage "bin\holderctl.exe")
+              (Join-Path $testStage "bin\holderctl.exe"),
+              (Join-Path $testStage "bin\holder-mcp.exe")
             )
 
             foreach ($file in $files) {
@@ -589,7 +591,8 @@ jobs:
               signed_files = @(
                 "bin/holder-desktop.exe",
                 "bin/holderd.exe",
-                "bin/holderctl.exe"
+                "bin/holderctl.exe",
+                "bin/holder-mcp.exe"
               )
             }
             $testSigningMetadata |
@@ -684,7 +687,7 @@ jobs:
             throw "Self-signed test installer exited with code $($process.ExitCode)"
           }
 
-          foreach ($file in @("bin\holder-desktop.exe", "bin\holderd.exe", "bin\holderctl.exe", "schema\schema.sql", "openapi.yaml", "core-build.json", "release\holder-core-provenance.json")) {
+          foreach ($file in @("bin\holder-desktop.exe", "bin\holderd.exe", "bin\holderctl.exe", "bin\holder-mcp.exe", "schema\schema.sql", "openapi.yaml", "core-build.json", "release\holder-core-provenance.json")) {
             $path = Join-Path $installDir $file
             if (!(Test-Path $path)) {
               throw "Self-signed installer missing installed file: $file"
