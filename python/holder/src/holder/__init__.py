@@ -14,7 +14,7 @@ from .analysis import ProjectDataFrames, to_dataframes, to_networkx
 from .cards import EmbeddedUnavailableError, open_workspace
 from .changes import ChangeCheckpoint, ChangeReady, EntityChange, ResyncRequired
 from .client import Holder, open_session
-from .exports import ProjectRecords, TagMembership, iter_card_records
+from .exports import ProjectRecords, TagMembership, iter_card_batches, iter_card_records
 from .intelligence_events import IntelligenceEvent, PullEventStream, RunStream
 from .models import (
     ActivityItem,
@@ -149,6 +149,7 @@ __all__ = [
     "TrashItemRecord",
     "clone_workspace",
     "create_managed_workspace",
+    "iter_card_batches",
     "iter_card_records",
     "open_session",
     "open_workspace",

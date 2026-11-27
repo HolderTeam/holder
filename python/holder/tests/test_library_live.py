@@ -26,6 +26,8 @@ from holder import (
     LinkKindLabels,
     MilestoneDate,
     ProjectRecord,
+    iter_card_batches,
+    iter_card_records,
     open_session,
     open_workspace,
     to_dataframes,
@@ -945,6 +947,14 @@ def test_shared_card_operations(shared_card_session):
         assert [item["card_id"] for item in roots["items"]] == [parent_id]
         assert roots["items"][0]["child_count"] == 1
         assert roots["items"][0].keys() == CardListItem.__required_keys__ | {"child_count"}
+        assert [row["card_id"] for row in iter_card_records(cards, project_id, parent="roots")] == [
+            parent_id
+        ]
+        (matched,) = iter_card_batches(
+            cards, project_id, batch_size=1, parent=parent_id, tag="research", order="updated_desc"
+        )
+        assert [row["card_id"] for row in matched] == [child_id]
+        assert "content" not in matched[0]
 
         parent_page = cards.list_cards(project_id, limit=1, include_content=True)
         assert len(parent_page["items"]) == 1

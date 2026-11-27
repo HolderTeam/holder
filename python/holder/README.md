@@ -8,7 +8,7 @@ installation. Changes you make in a script appear in Holder too.
 
 ## Get started
 
-1. You need the Holder application on your computer.
+1. To work with your running Holder installation, install the Holder application.
 Get it from https://www.holder.team/
 
 2. You need Python 3.11 or newer.
@@ -36,6 +36,8 @@ with Holder() as holder:
 `Holder()` finds or starts your local Holder daemon using `holderctl`. The
 `with` block closes the Python connection when the script ends; it does not
 stop Holder.
+To work without the application, see [Run with or without a local Holder
+installation](#run-with-or-without-a-local-holder-installation).
 
 ## Create and edit cards
 
@@ -280,8 +282,7 @@ as their key.
 
 `iter_card_records()` reads one project's live cards through the active session
 and yields detached dictionaries. Use `session.list_projects()` to find the
-project ID. Card bodies are optional, as in
-[Holder Kit's record exports](../kit/docs/walkthrough.md#export-ordinary-python-records).
+project ID. Pass `include_content=True` to include card bodies.
 
 ```python
 import json
@@ -301,6 +302,25 @@ in a notebook. Each page reads the project's current state, so changes made
 during export can appear in the result. The export contains card listing
 records and optional Markdown bodies. For an encrypted project, including
 bodies writes their decrypted text to the output file.
+
+Both `iter_card_records()` and `iter_card_batches()` accept `tag`, `parent`,
+and `order`. Pass `parent="roots"` for root cards or a card ID for its direct
+children. Order by card ID (`card_id_asc`, the default), most recently updated
+(`updated_desc`), or sibling position (`sort_key_asc`).
+
+```python
+from holder import iter_card_batches, open_workspace
+
+with open_workspace("research-workspace") as session:
+    for batch in iter_card_batches(
+        session.card_operations, project_id, batch_size=256,
+        tag="research", parent="roots", order="updated_desc",
+    ):
+        print([card["title"] for card in batch])
+```
+
+`iter_card_batches()` yields a list at a time, and only the last list may be
+shorter than `batch_size`.
 
 ## Make an editable copy of a project's cards
 
@@ -417,6 +437,3 @@ where they are. Publication records describe pushes that succeeded at the time.
 - [Low-level client](docs/low-level-client.md): direct access to HTTP endpoints.
 - [Development](docs/development.md): tests, builds, and generated code.
 - [Publishing](docs/publishing.md): PyPI setup and release steps.
-
-For offline analysis and bulk work without a running Holder installation, see
-[Holder Kit](../kit/).

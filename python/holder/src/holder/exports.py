@@ -1,11 +1,13 @@
 """Detached project records for analysis and export."""
 
 from collections.abc import Iterator
-from typing import Protocol, TypedDict
+from typing import Literal, Protocol, TypedDict
 
 from ._workspace_contract import CardListItem, CardOperations, Link, Milestone, TagCount
 from ._workspace_contract import Project as ProjectRecord
 from .exceptions import ProtocolError
+
+_CardOrder = Literal["card_id_asc", "updated_desc", "sort_key_asc"]
 
 
 class TagMembership(TypedDict):
@@ -34,28 +36,91 @@ class _ExportSession(Protocol):
 
 
 def iter_card_records(
-    cards: CardOperations, project_id: str, *, include_content: bool = False
+    cards: CardOperations,
+    project_id: str,
+    *,
+    include_content: bool = False,
+    parent: str | None = None,
+    tag: str | None = None,
+    order: _CardOrder = "card_id_asc",
 ) -> Iterator[CardListItem]:
-    """Yield detached live Card records from a project in card ID order.
+    """Yield detached live card records from a project, in card ID order by default.
 
-    Card bodies are optional. Keep the session open while iterating. Each page
-    reads current data, so edits during iteration can appear in the export.
+    Pass ``parent="roots"`` for root cards or a parent card ID for its children.
+    Parent and tag filters combine. Keep the session open while iterating.
+    Each page reads current data, so edits can appear in the export.
     """
-    return _iter_card_records(cards, project_id, include_content=include_content)
+    return _iter_card_records(
+        cards,
+        project_id,
+        include_content=include_content,
+        parent=parent,
+        tag=tag,
+        order=order,
+    )
+
+
+def iter_card_batches(
+    cards: CardOperations,
+    project_id: str,
+    *,
+    batch_size: int = 256,
+    include_content: bool = False,
+    parent: str | None = None,
+    tag: str | None = None,
+    order: _CardOrder = "card_id_asc",
+) -> Iterator[list[CardListItem]]:
+    """Yield detached batches of live cards with the same filters as iter_card_records.
+
+    Only the last batch may contain fewer than ``batch_size`` records. The
+    underlying backend may serve several pages per batch.
+    """
+    if isinstance(batch_size, bool) or not isinstance(batch_size, int):
+        raise TypeError("batch_size must be a positive integer")
+    if batch_size < 1:
+        raise ValueError("batch_size must be a positive integer")
+
+    records = _iter_card_records(
+        cards,
+        project_id,
+        include_content=include_content,
+        parent=parent,
+        tag=tag,
+        order=order,
+        # This is the shared card listing limit when bodies are requested.
+        limit=min(batch_size, 1000),
+    )
+    batch: list[CardListItem] = []
+    for record in records:
+        batch.append(record)
+        if len(batch) == batch_size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
 
 
 def _iter_card_records(
     cards: CardOperations,
     project_id: str,
     *,
-    include_content: bool = False,
-    tag: str | None = None,
+    include_content: bool,
+    parent: str | None,
+    tag: str | None,
+    order: _CardOrder,
+    limit: int = 200,
 ) -> Iterator[CardListItem]:
     cursor = None
     seen_cursors: set[str] = set()
     while True:
         page = cards.list_cards(
-            project_id, cursor=cursor, include_content=include_content, tag=tag
+            project_id,
+            cursor=cursor,
+            include_content=include_content,
+            parent=parent,
+            tag=tag,
+            order=order,
+            limit=limit,
         )
         items, cursor = page["items"], page["next_cursor"]
         if cursor is not None:
@@ -89,7 +154,7 @@ def _export_project_records(
             tag = count["tag"]
             memberships.extend(
                 {"project_id": project_id, "card_id": card["card_id"], "tag": tag}
-                for card in _iter_card_records(cards, project_id, tag=tag)
+                for card in iter_card_records(cards, project_id, tag=tag)
                 if card["card_id"] in card_ids
             )
 
