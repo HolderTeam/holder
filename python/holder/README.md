@@ -374,6 +374,16 @@ default branch and publishes only the selected commit. Local files and edits
 stay in the workspace. If the connection drops during a push, retry the same
 destination, branch, and revision to record a push the remote already accepted.
 
+### Discard a managed workspace
+
+Use `work.preview_discard()` to see the exact directory, whether any commits
+lack a recorded publication, and whether the checkout has uncommitted or
+untracked changes. To permanently remove that directory, call
+`work.discard(confirm=True)`. Both work with an active or closed handle.
+Discard closes the private session and deletes its local project, database,
+and artifacts. Remote branches and assets stored outside the workspace stay
+where they are. Publication records describe pushes that succeeded at the time.
+
 ## More help
 
 - [More scripting tasks](docs/scripting.md): links, milestones, project-wide

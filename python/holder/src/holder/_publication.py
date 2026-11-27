@@ -1,9 +1,12 @@
-"""Publish committed work from an active managed workspace."""
+"""Publish or discard a managed workspace."""
 
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
+from os.path import samestat
 from pathlib import Path
 from uuid import uuid4
 
@@ -16,8 +19,10 @@ from .workspaces import (
     _Publication,
     _read_marker,
     _remote,
+    _remove_tree,
     _revision,
     _write_marker,
+    reopen_workspace,
 )
 
 
@@ -39,6 +44,17 @@ class PushResult:
     remote_url: str
     branch: str
     revision: str
+
+
+@dataclass(frozen=True)
+class DiscardPreview:
+    """The exact local directory and potential losses from permanent disposal."""
+
+    path: Path
+    revision: str
+    has_unpublished_commits: bool
+    has_uncommitted_changes: bool
+    warnings: tuple[str, ...]
 
 
 def _branch_ref(branch: str) -> str:
@@ -64,15 +80,18 @@ def _validate_publication(record: object) -> None:
         raise ValueError("Invalid managed workspace publication revision")
 
 
-def _current_workspace(workspace: ManagedWorkspace) -> tuple[Path, _Marker]:
+def _current_workspace(
+    workspace: ManagedWorkspace, *, device: int | None = None
+) -> tuple[Path, _Marker]:
     root = Path(workspace.project["root_path"])
     path = workspace.path
     if path.resolve(strict=True) != path:
         raise ValueError("Managed workspace path was redirected")
-    _private_tree(path)
+    _private_tree(path, device=device)
     marker = _read_marker(path)
     if (
-        marker["project_id"] != workspace.project_id
+        marker.get("workspace_id") != workspace._workspace_id
+        or marker["project_id"] != workspace.project_id
         or path / marker["project_path"] != root
     ):
         raise ValueError("Managed workspace does not match the active project")
@@ -244,3 +263,86 @@ def push(
             "Push succeeded, but its local record could not be saved. Retry this revision."
         ) from None
     return PushResult(preview.remote_url, branch, preview.revision)
+
+
+@contextmanager
+def _for_discard(workspace: ManagedWorkspace) -> Iterator[ManagedWorkspace]:
+    if not workspace.session._closed:
+        yield workspace
+        return
+    # A fresh checkout of the same project can have the same project and card IDs.
+    if workspace.path.resolve(strict=True) != workspace.path:
+        raise ValueError("Managed workspace path was redirected")
+    if _read_marker(workspace.path).get("workspace_id") != workspace._workspace_id:
+        raise ValueError("Managed workspace was replaced")
+    with reopen_workspace(workspace.path) as active:
+        if active._workspace_id != workspace._workspace_id:
+            raise ValueError("Managed workspace was replaced")
+        yield active
+
+
+def preview_discard(workspace: ManagedWorkspace) -> DiscardPreview:
+    with _for_discard(workspace) as active:
+        root, marker = _current_workspace(active)
+        revision = _revision(root)
+        published = set()
+        for record in marker.get("publications", []):
+            commit = record["revision"]
+            try:
+                _git("-C", str(root), "cat-file", "-e", commit + "^{commit}")
+            except RuntimeError:
+                continue
+            published.add(commit)
+        unpublished = bool(
+            _git(
+                "-C", str(root), "rev-list", "-1", revision, "--not", *sorted(published)
+            )
+        )
+        dirty = bool(
+            _git("--no-optional-locks", "-C", str(root), "status", "--porcelain", "-z")
+        )
+        warnings = ["Discard permanently removes local project data and artifacts."]
+        if unpublished:
+            warnings.append("Some commits have no recorded successful publication.")
+        if dirty:
+            warnings.append("Uncommitted or untracked project files will be lost.")
+        return DiscardPreview(
+            workspace.path, revision, unpublished, dirty, tuple(warnings)
+        )
+
+
+def discard(workspace: ManagedWorkspace, *, confirm: bool) -> None:
+    if confirm is not True:
+        raise ValueError("Permanent disposal requires confirm=True")
+    with _for_discard(workspace) as active:
+        path = active.path
+        identity = path.stat(follow_symlinks=False)
+        _, marker = _current_workspace(active, device=identity.st_dev)
+        removed = path.with_name(".holder-discard-" + uuid4().hex)
+        marker["discarding"] = True
+        _write_marker(path, marker)
+        try:
+            # Windows requires closed database and lock handles before a rename.
+            # The marker stops managed reopens once the profile lock is released.
+            active.session.close()
+            if not samestat(identity, path.stat(follow_symlinks=False)):
+                raise ValueError("Managed workspace was replaced")
+            path.rename(removed)
+        except BaseException as error:
+            marker.pop("discarding")
+            try:
+                if samestat(identity, path.stat(follow_symlinks=False)):
+                    _write_marker(path, marker)
+            except OSError:
+                error.add_note(f"Could not restore the workspace marker at {path}")
+            raise
+        if not samestat(identity, removed.stat(follow_symlinks=False)):
+            raise RuntimeError(
+                f"Workspace was replaced during discard. Moved directory remains at {removed}"
+            )
+        try:
+            _remove_tree(removed)
+        except OSError as error:
+            raise RuntimeError(
+                f"Incomplete workspace cleanup remains at {removed}"
+            ) from error
