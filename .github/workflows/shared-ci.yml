@@ -1396,6 +1396,7 @@ jobs:
         "$work/test/bin/python" -m pip install pytest "${wheels[0]}[pandas,graph]"
         "$work/test/bin/python" -m pytest -v python/holder/tests/test_library_live.py \
           -k '(shared_card_operations and embedded) or embedded_recovery_snapshot_restore'
+        "$work/test/bin/python" -m pytest -v python/holder/tests/test_workspaces.py
         multiarch="$(gcc -print-multiarch)"
         LD_LIBRARY_PATH="${STAGE}/usr/lib/${multiarch}:${STAGE}/usr/lib" \
         HOLDER_TEST_DAEMON="${STAGE}/usr/bin/holderd" \
