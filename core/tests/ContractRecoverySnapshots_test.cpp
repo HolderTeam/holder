@@ -301,7 +301,8 @@ TEST_CASE("Recovery capture stops before reading cards beyond its budget", "[rec
   // Both cards are in the first page. Reading the older card would fail,
   // but the bounded capture must reject the newer card before reaching it.
   const auto root = contract::get_project(host.context, host.project_id).root_path;
-  REQUIRE(std::filesystem::remove(std::filesystem::path(root) / holder::core::card_rel_path(later)));
+  REQUIRE(std::filesystem::remove(std::filesystem::path(root) / holder::core::card_rel_path(later))
+  );
   REQUIRE_THROWS_AS(
       contract::capture_recovery_snapshot(host.context, host.project_id, 1024),
       std::length_error
