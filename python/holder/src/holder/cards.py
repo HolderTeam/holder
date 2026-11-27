@@ -8,7 +8,7 @@ from importlib.resources import files
 from os import PathLike, fspath, getenv
 from pathlib import Path
 from threading import Lock
-from typing import TYPE_CHECKING, Literal, Self, TypedDict, cast
+from typing import TYPE_CHECKING, Literal, Protocol, Self, TypedDict, cast
 from weakref import WeakValueDictionary
 
 from ._workspace_contract import (
@@ -86,8 +86,6 @@ from .generated.models import NewMilestone as HTTPNewMilestone
 from .recovery_bundle import _extract_recovery_bundle
 
 if TYPE_CHECKING:
-    from holderkit._native import Context
-
     from .client import Holder
 
 __all__ = [
@@ -374,13 +372,17 @@ class _DaemonCards:
         return [cast("Milestone", result.to_dict()) for result in results]
 
 
+class _NativeContext(Protocol):
+    def close(self) -> None: ...
+
+
 class EmbeddedWorkspace:
     """A session in an explicitly selected, private Holder data directory."""
 
     def __init__(self, data_dir: str | PathLike[str]) -> None:
         self._data_dir = data_dir
         self._workspace_key: Path | None = None
-        self._context: Context | None = None
+        self._context: _NativeContext | None = None
         self._closed = False
         self._native_error: type[RuntimeError] = RuntimeError
         self.card_operations: CardOperations = _EmbeddedCards(self)
@@ -407,21 +409,15 @@ class EmbeddedWorkspace:
             )
 
         package = f"{__package__}._embedded"
+        native_module = f"{package}._native"
         try:
-            native = import_module(f"{package}._native")
-        except ModuleNotFoundError as error:
-            if error.name != f"{package}._native":
-                raise
-            # A same-checkout Kit install also supports source development.
-            package = "holderkit"
-            try:
-                native = import_module("holderkit._native")
-            except ImportError as kit_error:
+            native = import_module(native_module)
+        except ImportError as error:
+            if isinstance(error, ModuleNotFoundError) and error.name == native_module:
                 raise EmbeddedUnavailableError(
                     "Embedded Holder support is unavailable. Install a compatible "
                     "native wheel or connect to a Holder daemon."
-                ) from kit_error
-        except ImportError as error:
+                ) from error
             raise EmbeddedUnavailableError(
                 "The bundled Holder extension failed to load."
             ) from error

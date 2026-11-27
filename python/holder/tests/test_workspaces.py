@@ -19,7 +19,7 @@ from holder.exceptions import APIError, ClosedError
 
 @pytest.fixture
 def embedded():
-    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
+    if not find_spec("holder._embedded._native"):
         pytest.skip("Requires an embedded Holder build")
     if shutil.which("git") is None:
         pytest.skip("Requires Git")

@@ -14,6 +14,7 @@ import pytest
 
 from holder import (
     Card,
+    EmbeddedUnavailableError,
     Holder,
     Project,
     iter_card_batches,
@@ -943,6 +944,25 @@ def test_card_export_batches_reject_invalid_size(size, error):
         pytest.raises(error, match="batch_size must be a positive integer"),
     ):
         list(iter_card_batches(session.card_operations, "p-0", batch_size=size))
+
+
+@pytest.mark.parametrize(
+    ("failure", "message"),
+    [
+        (ModuleNotFoundError(name="holder._embedded._native"), "Install a compatible native wheel"),
+        (ImportError("missing shared library"), "bundled Holder extension failed to load"),
+    ],
+)
+def test_open_workspace_requires_the_bundled_extension(monkeypatch, tmp_path, failure, message):
+    load = Mock(side_effect=failure)
+    monkeypatch.setattr("holder.cards.import_module", load)
+    path = tmp_path / "workspace"
+
+    with pytest.raises(EmbeddedUnavailableError, match=message), open_workspace(path):
+        pytest.fail("Workspace opened without a bundled extension")
+
+    load.assert_called_once_with("holder._embedded._native")
+    assert not path.exists()
 
 
 def test_open_session_prefers_local_daemon(monkeypatch, tmp_path):

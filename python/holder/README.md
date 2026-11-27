@@ -121,9 +121,10 @@ with open_workspace("private-holder-workspace") as session:
     print(cards.list_cards(project_id)["items"])
 ```
 
-Opening a private workspace requires a native Holder wheel or a same-checkout
-Holder Kit build. Use a separate data directory for embedded work. To run this
-code against the desktop Holder profile, open the session with `Holder()` or
+Opening a private workspace requires a native Holder wheel. See
+[building native wheels](docs/development.md#build-the-linux-wheel-variants)
+for source development. Use a separate data directory for embedded work. To
+run this code against the desktop Holder profile, open the session with `Holder()` or
 `open_session()`. The desktop profile requires HTTP even when its daemon is stopped.
 Opening a directory already in use by a daemon or another embedded session
 raises a workspace conflict.

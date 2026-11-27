@@ -49,7 +49,9 @@ CMake and the wheel build must use the same CPython interpreter. Set
 `-DPython_EXECUTABLE=/path/to/python` on the CMake command if needed. The
 native build packages the staged extension, schema, and SDK metadata under `holder`.
 A compatible Linux CPython prefers that wheel when both variants are offered
-at the same version. For a redistributable Linux wheel, build on Ubuntu 24.04
+at the same version. Install the native wheel in your test environment to
+exercise `open_workspace()` from a checkout. The editable install shown above
+uses HTTP. For a redistributable Linux wheel, build on Ubuntu 24.04
 with a matching core SDK and then bundle the runtime dependencies. This uses
 `patchelf`, `wheel` and `auditwheel`:
 

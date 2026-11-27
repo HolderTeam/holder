@@ -519,12 +519,9 @@ def test_project_scoped_collections_against_daemon(daemon):
 
 
 def test_embedded_profile_ownership(daemon, tmp_path):
-    if find_spec("holder._embedded._native"):
-        package = "holder._embedded"
-    elif find_spec("holderkit"):
-        package = "holderkit"
-    else:
-        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+    package = "holder._embedded"
+    if not find_spec(f"{package}._native"):
+        pytest.skip("Requires a native Holder wheel")
 
     profile = tmp_path / "data" / "holder"
     with pytest.raises(ValueError, match="desktop Holder profile"), open_workspace(profile):
@@ -613,8 +610,8 @@ def test_daemon_recovery_snapshot_download(daemon):
 
 
 def test_recovery_snapshot_round_trip(daemon, tmp_path):
-    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
-        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+    if not find_spec("holder._embedded._native"):
+        pytest.skip("Requires a native Holder wheel")
 
     url, token, _, _ = daemon
     with Holder(url=url, token=token) as session:
@@ -635,8 +632,8 @@ def test_recovery_snapshot_round_trip(daemon, tmp_path):
 
 
 def test_copy_large_live_project_uses_captured_snapshot(daemon, tmp_path):
-    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
-        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+    if not find_spec("holder._embedded._native"):
+        pytest.skip("Requires a native Holder wheel")
 
     url, token, raw, _ = daemon
     source_id = create_project(raw, "Large snapshot")
@@ -689,8 +686,8 @@ def test_copy_large_live_project_uses_captured_snapshot(daemon, tmp_path):
 def test_project_copy_cleans_up_failed_transfer_or_restore(
     tmp_path, monkeypatch, interrupted
 ):
-    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
-        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+    if not find_spec("holder._embedded._native"):
+        pytest.skip("Requires a native Holder wheel")
 
     class BadSnapshot(httpx.SyncByteStream):
         def __iter__(self):
@@ -724,8 +721,8 @@ def test_project_copy_cleans_up_failed_transfer_or_restore(
 
 
 def test_large_recovery_bundle_keeps_verified_attachments(daemon, tmp_path):
-    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
-        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+    if not find_spec("holder._embedded._native"):
+        pytest.skip("Requires a native Holder wheel")
 
     url, token, raw, _ = daemon
     project_id = create_project(raw, "Large project with attachments")
@@ -820,8 +817,8 @@ def test_large_recovery_bundle_keeps_verified_attachments(daemon, tmp_path):
 
 @pytest.mark.parametrize("archive", [False, True], ids=["lines", "archive"])
 def test_embedded_recovery_snapshot_restore(tmp_path, archive):
-    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
-        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+    if not find_spec("holder._embedded._native"):
+        pytest.skip("Requires a native Holder wheel")
 
     def line(card_id, title, parent=None):
         return json.dumps(
@@ -895,8 +892,8 @@ def shared_card_session(request, tmp_path):
             else open_session(url=url, token=token)
         )
     else:
-        if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
-            pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+        if not find_spec("holder._embedded._native"):
+            pytest.skip("Requires a native Holder wheel")
         data_dir = tmp_path / "workspace"
         session = open_session(
             fallback_workspace=data_dir, holderctl=str(tmp_path / "missing-holderctl")
