@@ -448,6 +448,12 @@ class EmbeddedWorkspace:
         return self
 
     def __exit__(self, *args: object) -> None:
+        self.close()
+
+    def close(self) -> None:
+        """Release the private session and keep its data."""
+        if self._closed:
+            return
         self._closed = True
         if self._context is not None:
             self._context.close()

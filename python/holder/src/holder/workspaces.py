@@ -19,12 +19,13 @@ from threading import Lock
 from types import TracebackType
 from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 from ._workspace_contract import Project as ProjectRecord
 from .cards import EmbeddedWorkspace, open_workspace
 
 if TYPE_CHECKING:
-    from ._publication import PushPreview, PushResult
+    from ._publication import DiscardPreview, PushPreview, PushResult
 
 _MARKER = ".holder-workspace.json"
 
@@ -44,6 +45,8 @@ class _Marker(TypedDict):
     revision: str
     publications: NotRequired[list[_Publication]]
     publication_attempt: NotRequired[_Publication]
+    workspace_id: NotRequired[str]
+    discarding: NotRequired[bool]
 
 
 @dataclass(frozen=True)
@@ -55,7 +58,8 @@ class ManagedWorkspace:
     source: str | None
     ref: str | None
     session: EmbeddedWorkspace
-    _publication_lock: LockType = field(
+    _workspace_id: str = field(repr=False)
+    _lifecycle_lock: LockType = field(
         default_factory=Lock, init=False, repr=False, compare=False
     )
 
@@ -75,7 +79,7 @@ class ManagedWorkspace:
         """Check the destination and show which commit would be published."""
         from ._publication import preview_push
 
-        with self._publication_lock:
+        with self._lifecycle_lock:
             return preview_push(self, branch=branch, remote_url=remote_url)
 
     def push(
@@ -88,13 +92,27 @@ class ManagedWorkspace:
         """Publish committed work to a named branch while retaining the workspace."""
         from ._publication import push
 
-        with self._publication_lock:
+        with self._lifecycle_lock:
             return push(
                 self,
                 branch=branch,
                 remote_url=remote_url,
                 expected_revision=expected_revision,
             )
+
+    def preview_discard(self) -> DiscardPreview:
+        """Show the local path and work that permanent disposal could remove."""
+        from ._publication import preview_discard
+
+        with self._lifecycle_lock:
+            return preview_discard(self)
+
+    def discard(self, *, confirm: bool = False) -> None:
+        """Permanently remove this managed workspace with explicit confirmation."""
+        from ._publication import discard
+
+        with self._lifecycle_lock:
+            discard(self, confirm=confirm)
 
 
 def _destination(workspace: os.PathLike[str] | str) -> Path:
@@ -235,7 +253,7 @@ def _git(*args: str, network: bool = False) -> bytes:
     return result.stdout
 
 
-def _private_tree(path: Path) -> None:
+def _private_tree(path: Path, *, device: int | None = None) -> None:
     def fail(error: OSError) -> None:
         raise error
 
@@ -248,6 +266,10 @@ def _private_tree(path: Path) -> None:
                 & stat.FILE_ATTRIBUTE_REPARSE_POINT
             ):
                 raise ValueError("Managed workspaces do not support symlinks")
+            if device is not None and (mode.st_dev != device or os.path.ismount(item)):
+                raise ValueError(
+                    "Discard cannot remove mounted storage inside a workspace"
+                )
             if not (stat.S_ISDIR(mode.st_mode) or stat.S_ISREG(mode.st_mode)):
                 raise ValueError(
                     "Managed workspaces require ordinary files and directories"
@@ -305,6 +327,7 @@ def _initialize_workspace(
                 )
             _private_tree(path)
             _checkout_safe(root)
+            workspace_id = uuid4().hex
             marker: _Marker = {
                 "version": 1,
                 "project_path": root.relative_to(path).as_posix(),
@@ -312,6 +335,7 @@ def _initialize_workspace(
                 "source": source,
                 "ref": ref,
                 "revision": _revision(root),
+                "workspace_id": workspace_id,
             }
             _write_marker(path, marker)
         except BaseException as error:
@@ -324,7 +348,9 @@ def _initialize_workspace(
                 )
             raise
         # Closing the returned session preserves a completed workspace, even on exceptions.
-        yield ManagedWorkspace(path, project["project_id"], source, ref, session)
+        yield ManagedWorkspace(
+            path, project["project_id"], source, ref, session, workspace_id
+        )
 
 
 def create_managed_workspace(
@@ -435,11 +461,18 @@ def clone_workspace(
 
 def _read_marker(path: Path) -> _Marker:
     marker_path = path / _MARKER
-    if not marker_path.is_file():
+    if marker_path.is_symlink() or not marker_path.is_file():
         raise ValueError("Not a completed managed Holder workspace")
     marker = json.loads(marker_path.read_text(encoding="utf-8"))
     if not isinstance(marker, dict) or marker.get("version") != 1:
         raise ValueError("Unsupported or incomplete managed Holder workspace")
+    if marker.get("discarding"):
+        raise ValueError("Managed workspace is being discarded")
+    if "workspace_id" in marker and (
+        not isinstance(marker["workspace_id"], str)
+        or not re.fullmatch(r"[0-9a-f]{32}", marker["workspace_id"])
+    ):
+        raise ValueError("Invalid managed workspace identity")
     relative = marker.get("project_path")
     parts = PurePosixPath(relative).parts if isinstance(relative, str) else ()
     if (
@@ -500,6 +533,14 @@ def reopen_workspace(workspace: os.PathLike[str] | str) -> Iterator[ManagedWorks
         raise ValueError("Workspace must contain exactly its recorded project")
     _checkout_safe(root)
     with open_workspace(path / "data") as session:
+        current = _read_marker(path)
+        if any(
+            current[key] != marker[key] for key in ("project_id", "project_path")
+        ) or (
+            "workspace_id" in marker
+            and current.get("workspace_id") != marker["workspace_id"]
+        ):
+            raise ValueError("Managed workspace changed while opening")
         projects = session.list_projects()
         if (
             len(projects) != 1
@@ -507,6 +548,15 @@ def reopen_workspace(workspace: os.PathLike[str] | str) -> Iterator[ManagedWorks
             or Path(projects[0]["root_path"]) != root
         ):
             raise ValueError("Workspace database does not match its private project")
+        workspace_id = current.get("workspace_id")
+        if workspace_id is None:
+            workspace_id = current["workspace_id"] = uuid4().hex
+            _write_marker(path, current)
         yield ManagedWorkspace(
-            path, marker["project_id"], marker["source"], marker["ref"], session
+            path,
+            current["project_id"],
+            current["source"],
+            current["ref"],
+            session,
+            workspace_id,
         )

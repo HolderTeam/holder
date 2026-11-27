@@ -311,3 +311,80 @@ def test_publish_does_not_adopt_branch_created_during_push(
         with pytest.raises(ValueError, match="requires a new remote branch"):
             work.push(branch="analysis")
         assert git(bare, "rev-parse", "analysis") == upstream
+
+
+def test_discard_keeps_remote_and_reports_work_lost(remote, tmp_path):
+    url, project_id, card_id, _, upstream, bare = remote
+    path = tmp_path / "discard"
+    sentinel = tmp_path / "outside"
+    sentinel.write_text("retain", encoding="utf-8")
+    with clone_workspace(url, workspace=path) as work:
+        assert work.preview_discard().has_unpublished_commits
+        published = work.push(branch="analysis")
+        assert not work.preview_discard().has_unpublished_commits
+        work.session.card_operations.update_card(
+            project_id, card_id, {"content": "Local only"}
+        )
+        (Path(work.project["root_path"]) / "draft.txt").touch()
+        with pytest.raises(ValueError, match="confirm=True"):
+            work.discard()
+        assert path.is_dir()
+
+    preview = work.preview_discard()
+    assert preview.path == path
+    assert preview.has_unpublished_commits
+    assert preview.has_uncommitted_changes
+    work.discard(confirm=True)
+    assert not path.exists()
+    assert sentinel.read_text(encoding="utf-8") == "retain"
+    assert git(bare, "rev-parse", "analysis") == published.revision
+    assert git(bare, "rev-parse", "HEAD") == upstream
+
+
+def test_discard_refuses_stale_handle_and_workspace_in_use(remote, tmp_path):
+    url, project_id, *_ = remote
+    path = tmp_path / "reused"
+    with clone_workspace(url, workspace=path) as first:
+        assert first.project_id == project_id
+    with reopen_workspace(path), pytest.raises(APIError, match="workspace is in use"):
+        first.discard(confirm=True)
+    first.discard(confirm=True)
+    with clone_workspace(url, workspace=path) as second:
+        assert second.project_id == project_id
+        with pytest.raises(ValueError, match="was replaced"):
+            first.discard(confirm=True)
+        assert second.project["project_id"] == project_id
+
+
+def test_discard_reports_partial_cleanup_and_closes_session(
+    embedded, tmp_path, monkeypatch
+):
+    path = tmp_path / "discard"
+
+    def fail(_path):
+        raise PermissionError("simulated cleanup failure")
+
+    with create_managed_workspace("Notebook", workspace=path) as work:
+        monkeypatch.setattr(_publication, "_remove_tree", fail)
+        with pytest.raises(RuntimeError, match="Incomplete workspace cleanup remains"):
+            work.discard(confirm=True)
+        with pytest.raises(ClosedError):
+            work.session.get_project(work.project_id)
+    (remaining,) = tmp_path.glob(".holder-discard-*")
+    assert not path.exists()
+    assert (remaining / "data").is_dir()
+
+
+def test_reopen_adds_identity_to_an_earlier_managed_workspace(embedded, tmp_path):
+    path = tmp_path / "legacy"
+    with create_managed_workspace("Notebook", workspace=path):
+        pass
+    marker = path / ".holder-workspace.json"
+    data = json.loads(marker.read_text(encoding="utf-8"))
+    del data["workspace_id"]
+    marker.write_text(json.dumps(data), encoding="utf-8")
+
+    with reopen_workspace(path) as work:
+        assert work.project["name"] == "Notebook"
+        assert work.preview_discard().path == path
+    assert json.loads(marker.read_text(encoding="utf-8"))["workspace_id"]

@@ -1,6 +1,6 @@
 """Holder Python Library - control your knowledge using Python."""
 
-from ._publication import PushPreview, PushResult
+from ._publication import DiscardPreview, PushPreview, PushResult
 from ._workspace_contract import Calendar, CalendarMilestone, LinkKindLabels, TagCount
 from ._workspace_contract import Project as ProjectRecord
 from ._workspace_contract import TrashItem as TrashItemRecord
@@ -90,6 +90,7 @@ __all__ = [
     "ChangeCheckpoint",
     "ChangeReady",
     "DiffLine",
+    "DiscardPreview",
     "EmbeddedUnavailableError",
     "EncryptionCheck",
     "EntityChange",
