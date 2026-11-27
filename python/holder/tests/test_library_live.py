@@ -671,8 +671,9 @@ def test_embedded_recovery_snapshot_restore(tmp_path):
         assert by_title["Child"]["content"] == "Snapshot text"
 
 
-@pytest.mark.parametrize("backend", ["daemon", "embedded"])
-def test_shared_card_operations(backend, request, tmp_path):
+@pytest.fixture(params=["daemon", "embedded"])
+def shared_card_session(request, tmp_path):
+    backend = request.param
     if backend == "daemon":
         url, token, _, cli = request.getfixturevalue("daemon")
         session = (
@@ -688,7 +689,11 @@ def test_shared_card_operations(backend, request, tmp_path):
             fallback_workspace=data_dir, holderctl=str(tmp_path / "missing-holderctl")
         )
 
-    with session as active:
+    return session
+
+
+def test_shared_card_operations(shared_card_session):
+    with shared_card_session as active:
         created_project = active.create_plain_project(name="Shared Card API")
         project_id = created_project["project_id"]
         assert created_project["privacy_mode"] == "plain"
@@ -1159,3 +1164,80 @@ def test_shared_card_operations(backend, request, tmp_path):
         cards.get_card(project_id, child_id)
     with pytest.raises(ClosedError):
         active.list_projects()
+
+
+
+def test_shared_card_operations_project_export(shared_card_session):
+    with shared_card_session as active:
+        project = active.create_plain_project(name="Export source")
+        project_id = project["project_id"]
+        assert active.export_project_records(project_id) == {
+            "project": project,
+            "cards": [],
+            "links": [],
+            "tag_memberships": [],
+            "milestones": [],
+        }
+        with pytest.raises(NotFoundError):
+            active.export_project_records("missing")
+
+        cards = active.card_operations
+        source = cards.create_card(
+            project_id, {"title": "Source", "content": "Notes about #observations"}
+        )
+        target = cards.create_card(project_id, {"title": "Target", "content": "#observations"})
+        removed = cards.create_card(project_id, {"title": "Removed", "content": "#discarded"})
+        external_project = active.create_plain_project(name="Other export project")
+        external = cards.create_card(
+            external_project["project_id"], {"title": "External", "content": "#observations"}
+        )
+        source_id = source["card_id"]
+        target_id = target["card_id"]
+        removed_id = removed["card_id"]
+        local_link = cards.add_card_link(
+            project_id, source_id, {"target_type": "card", "target_id": target_id}
+        )
+        external_link = cards.add_card_link(
+            project_id,
+            source_id,
+            {
+                "target_type": "card",
+                "target_id": external["card_id"],
+                "target_project_id": external_project["project_id"],
+            },
+        )
+        cards.add_card_link(
+            project_id, source_id, {"target_type": "card", "target_id": removed_id}
+        )
+        milestone = cards.add_card_milestone(
+            project_id, target_id, {"dates": [{"role": "due", "date": "2026-11-30"}]}
+        )
+        cards.add_card_milestone(project_id, removed_id, {"dates": []})
+        cards.trash_card(project_id, removed_id)
+
+        records = active.export_project_records(project_id)
+        with_content = active.export_project_records(project_id, include_content=True)
+
+    assert json.loads(json.dumps(records)) == records
+    assert records["project"]["project_id"] == project_id
+    assert {card["card_id"] for card in records["cards"]} == {source_id, target_id}
+    assert all("content" not in card for card in records["cards"])
+    assert {card["card_id"]: card["content"] for card in with_content["cards"]} == {
+        source_id: source["content"],
+        target_id: target["content"],
+    }
+    assert {link["target_id"] for link in records["links"]} == {
+        target_id,
+        external["card_id"],
+    }
+    assert local_link in records["links"]
+    assert external_link in records["links"]
+    assert records["milestones"] == [milestone]
+    assert records["tag_memberships"] == [
+        {"project_id": project_id, "card_id": card_id, "tag": "observations"}
+        for card_id in sorted((source_id, target_id))
+    ]
+    assert all(
+        with_content[name] == records[name]
+        for name in ("project", "links", "tag_memberships", "milestones")
+    )

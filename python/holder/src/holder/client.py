@@ -25,6 +25,7 @@ from .exceptions import (
     NotFoundError,
     ProtocolError,
 )
+from .exports import ProjectRecords, _export_project_records
 from .generated import AuthenticatedClient
 from .generated.api.default import (
     get_link_kinds,
@@ -264,6 +265,16 @@ class Holder:
             time_zone=time_zone,
         )
         return cast("Calendar", result.to_dict())
+
+    def export_project_records(
+        self, project_id: str, *, include_content: bool = False
+    ) -> ProjectRecords:
+        """Collect detached records for a project's live cards.
+
+        Each read uses current data. Edits during export can affect the result.
+        Card bodies are optional.
+        """
+        return _export_project_records(self, project_id, include_content=include_content)
 
     def _call(
         self,

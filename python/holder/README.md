@@ -223,6 +223,26 @@ or request error is reported to the caller. Supply a URL and token to connect
 to a specific daemon, or use `open_workspace(path)` to select private data
 regardless of daemon availability.
 
+## Export project records for analysis
+
+Use the same call in a live session or a private workspace:
+
+```python
+from holder import open_session
+
+with open_session() as session:
+    records = session.export_project_records("your-project-id", include_content=True)
+
+print(records["tag_memberships"])
+```
+
+The result includes the project record, live cards, outgoing links, tag
+memberships, and card milestones. Links can point to other projects. Card
+bodies are omitted by default. Records are ordinary Python dictionaries and
+lists that you can serialize or use after closing the session. Each read uses
+current data, so edits during export can affect the results. Use the Card
+iterator below if you only need cards and want to process them a page at a time.
+
 ## Export Card records for analysis
 
 `iter_card_records()` reads one project's live cards through the active session

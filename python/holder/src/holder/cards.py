@@ -39,6 +39,7 @@ from ._workspace_contract import (
 from ._workspace_contract import Project as ProjectRecord
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .exceptions import APIError, ClosedError, HolderError, NotFoundError
+from .exports import ProjectRecords, _export_project_records
 from .generated.api.default import (
     delete_projects_project_id_cards_card_id,
     delete_projects_project_id_cards_card_id_links,
@@ -540,6 +541,16 @@ class EmbeddedWorkspace:
                 "get_calendar", project_id, first_day, last_day, time_zone=time_zone
             ),
         )
+
+    def export_project_records(
+        self, project_id: str, *, include_content: bool = False
+    ) -> ProjectRecords:
+        """Collect detached records for a project's live cards.
+
+        Each read uses current data. Edits during export can affect the result.
+        Card bodies are optional.
+        """
+        return _export_project_records(self, project_id, include_content=include_content)
 
     def _call(self, method: str, *args: object, **kwargs: object) -> object:
         if self._closed or self._context is None:
