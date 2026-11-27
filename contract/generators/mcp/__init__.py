@@ -23,16 +23,24 @@ TOOLS = (
     "search_cards",
 )
 WRITE_TOOLS = {
+    "add_card_link": "POST",
     "add_card_milestone": "POST",
     "add_card_tag": "PUT",
     "create_card": "POST",
     "move_card": "POST",
+    "remove_card_link": "DELETE",
+    "remove_card_milestone": "DELETE",
     "remove_card_tag": "DELETE",
     "update_card": "PATCH",
     "update_card_milestone": "PATCH",
 }
-DESTRUCTIVE_HINT_TOOLS = {"remove_card_tag", "update_card", "update_card_milestone"}
-IDEMPOTENT_WRITE_TOOLS = {"add_card_tag", "remove_card_tag"}
+DESTRUCTIVE_HINT_TOOLS = {
+    "add_card_link", "remove_card_link", "remove_card_milestone", "remove_card_tag", "update_card",
+    "update_card_milestone",
+}
+IDEMPOTENT_WRITE_TOOLS = {
+    "add_card_link", "add_card_tag", "remove_card_link", "remove_card_milestone", "remove_card_tag",
+}
 PAGE_LIMITS = {"list_cards": 100, "search_cards": 100}
 PAGE_DEFAULTS = {"list_cards": 50}
 FIXED_ARGUMENTS = {
@@ -40,7 +48,7 @@ FIXED_ARGUMENTS = {
     "list_card_links": {"include_deleted": False},
     "list_card_backlinks": {"include_deleted": False, "scope": "local"},
 }
-LOCAL_LINK_TOOLS = {"list_card_links", "list_card_backlinks"}
+LOCAL_LINK_LIST_TOOLS = {"list_card_links", "list_card_backlinks", "remove_card_link"}
 COMPONENT_REF = "#/components/schemas/"
 
 
@@ -121,8 +129,10 @@ def generate_mcp_tools(contract: ContractView) -> str:
             properties["limit"]["default"] = PAGE_DEFAULTS[name]
         if "include_content" in fixed:
             description += "\n\nThis tool lists metadata. Use get_card to read one card body."
-        if name in LOCAL_LINK_TOOLS:
+        if name in LOCAL_LINK_LIST_TOOLS:
             description += "\n\nBoth ends must belong to the authorized project. Entries in Trash are excluded."
+        if name == "add_card_link":
+            description += "\n\nOmit the target project to link within the authorized project."
         tools.append({
             "name": name,
             "description": description,
@@ -244,7 +254,7 @@ def generate_mcp_bindings(contract: ContractView) -> str:
                     args.append(json.dumps(value))
                 continue
             arg = slot.name
-            keep_project = arg == "project_id" and operation.name in LOCAL_LINK_TOOLS
+            keep_project = arg == "project_id" and operation.name in LOCAL_LINK_LIST_TOOLS
             args.append(f"std::move({arg})" if slot.type.kind == "string" and not keep_project else arg)
             if arg == "limit" and operation.name in PAGE_LIMITS:
                 cap = PAGE_LIMITS[operation.name]
@@ -275,9 +285,16 @@ def generate_mcp_bindings(contract: ContractView) -> str:
             decode = field_decoder(types, slot, arg, source)
             lines.append(f"    auto {arg} = {decode};")
         lines.append("    authorize_project(project_id);")
+        target_project = {"add_card_link": "link.target_project_id", "remove_card_link": "target_project_id"}.get(
+            operation.name)
+        if target_project:
+            lines.extend([
+                f"    if ({target_project} && *{target_project} != project_id)",
+                '      throw std::invalid_argument("MCP links must stay inside the authorized project");',
+            ])
         args = ", ".join(args)
         call = f"holder::contract::{operation.name}(context, {args})"
-        if operation.name in LOCAL_LINK_TOOLS:
+        if operation.name in LOCAL_LINK_LIST_TOOLS:
             lines += [
                 f"    auto links = {call};",
                 "    std::erase_if(links, [&project_id](const auto& link) {",

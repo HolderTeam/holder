@@ -170,6 +170,32 @@ def test_write_tools(port, env, rest):
         moved = result(process, 9)["structuredContent"]["data"]
         assert moved["parent_card_id"] == parent["card_id"]
         assert rest(path) == moved
+        link = {"target_type": "card", "target_id": parent["card_id"]}
+        foreign = {**link, "target_project_id": "other"}
+        rest(f"{path}/links", foreign)
+        for request_id, name, arguments in (
+            (10, "add_card_link", {"link": foreign}),
+            (11, "remove_card_link", foreign),
+        ):
+            send(process, "tools/call", request_id, _meta=metadata, name=name,
+                 arguments={"card_id": card["card_id"], **arguments})
+            denied = result(process, request_id)
+            assert denied["isError"] is True
+            assert denied["content"][0]["text"] == "MCP links must stay inside the authorized project"
+
+        send(process, "tools/call", 12, _meta=metadata, name="add_card_link",
+             arguments={"card_id": card["card_id"], "link": link})
+        added = result(process, 12)["structuredContent"]["data"]
+        assert added["target_project_id"] == PROJECT and added["target_id"] == parent["card_id"]
+        send(process, "tools/call", 13, _meta=metadata, name="remove_card_link",
+             arguments={"card_id": card["card_id"], **link})
+        assert result(process, 13)["structuredContent"]["data"] == []
+        assert [item["target_project_id"] for item in rest(f"{path}/links")] == ["other"]
+
+        send(process, "tools/call", 14, _meta=metadata, name="remove_card_milestone",
+             arguments={"card_id": card["card_id"], "milestone_id": milestone["milestone_id"]})
+        assert result(process, 14)["structuredContent"]["data"] == []
+        assert rest(f"{path}/milestones") == []
         shutdown(process)
 
 
