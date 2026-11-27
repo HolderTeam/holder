@@ -48,13 +48,15 @@ std::unique_ptr<ProfileLock> ProfileLock::try_acquire(
   auto& entries = registry();
   const std::lock_guard guard(entries.mutex);
   if (const auto found = entries.profiles.find(canonical_path); found != entries.profiles.end()) {
-    auto state = found->second.lock();
+    if (auto state = found->second.lock()) {
 #ifndef _WIN32
-    if (state->owner_pid != ::getpid()) return nullptr;
+      if (state->owner_pid != ::getpid()) return nullptr;
 #endif
-    if (mode == Mode::Exclusive || state->mode == Mode::Exclusive) return nullptr;
-    lock->state_ = std::move(state);
-    return lock;
+      if (mode == Mode::Exclusive || state->mode == Mode::Exclusive) return nullptr;
+      lock->state_ = std::move(state);
+      return lock;
+    }
+    entries.profiles.erase(found);
   }
 
   auto state = std::make_shared<State>();

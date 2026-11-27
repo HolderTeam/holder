@@ -7,6 +7,7 @@ normal daemon, database, or projects.
 import json
 import os
 import subprocess
+import sys
 import time
 from datetime import UTC, date, datetime, timedelta, timezone
 from importlib import import_module
@@ -529,12 +530,44 @@ def test_embedded_profile_ownership(daemon, tmp_path):
     assert busy.value.native_status == 4090
 
     private = tmp_path / "private"
-    with open_workspace(private) as workspace:
-        project = workspace.create_plain_project(name="Private project")
-        with pytest.raises(APIError, match="workspace is in use"), open_workspace(private):
-            pass
-        assert workspace.get_project(project["project_id"]) == project
+    probe = """
+from importlib import import_module
+from importlib.resources import files
+import sys
 
+package, workspace = sys.argv[1:]
+native = import_module(f"{package}._native")
+schema = files(package).joinpath("_schema.sql").read_text(encoding="utf-8")
+try:
+    with native.Context(workspace, schema):
+        pass
+except native.HolderError as error:
+    if error.native_status != 4090:
+        raise
+    sys.exit(42)
+"""
+
+    def other_process_status():
+        result = subprocess.run(
+            [sys.executable, "-c", probe, package, str(private)],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        assert result.returncode in (0, 42), result.stderr
+        return result.returncode
+
+    with native.Context(str(private), schema):
+        with open_workspace(private) as workspace:
+            project = workspace.create_plain_project(name="Private project")
+            with pytest.raises(APIError, match="workspace is in use"), open_workspace(private):
+                pass
+            assert workspace.get_project(project["project_id"]) == project
+            assert other_process_status() == 42
+        assert other_process_status() == 42
+
+    assert other_process_status() == 0
     with open_workspace(private) as workspace:
         assert workspace.get_project(project["project_id"]) == project
 
