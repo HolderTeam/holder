@@ -164,7 +164,7 @@ fun ConflictListScreen(
                     }
                     itemsIndexed(s.value, key = { _, (_, c) -> c.projectId + "/" + c.copyCardId }) { _, (project, copy) ->
                         ListItem(
-                            headlineContent = { Text(copy.originalTitle) },
+                            content = { Text(copy.originalTitle) },
                             supportingContent = { Text(project.name) },
                             modifier = Modifier.clickable { onOpen(copy.projectId, copy.copyCardId) },
                         )

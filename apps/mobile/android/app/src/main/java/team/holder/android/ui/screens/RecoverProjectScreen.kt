@@ -15,6 +15,7 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -25,6 +26,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -43,7 +45,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -72,13 +74,16 @@ fun RecoverProjectScreen(
     initialToken: String? = null,
 ) {
     val context = LocalContext.current
-    var pin by remember { mutableStateOf("") }
+    val pinField = rememberTextFieldState()
+    val pin = pinField.text.toString()
     val keyboard = LocalSoftwareKeyboardController.current
     // Typing the PIN or the key brings up the keyboard: keep Import in view above it.
     val importButtonView = remember { BringIntoViewRequester() }
     var typing by remember { mutableStateOf(false) }
     val keyboardUp = WindowInsets.isImeVisible
-    LaunchedEffect(keyboardUp, typing) {
+    // Again after each PIN keystroke: the secure field brings its own cursor into view as the
+    // text changes, which would otherwise scroll Import back under the keyboard.
+    LaunchedEffect(keyboardUp, typing, pin) {
         if (keyboardUp && typing) importButtonView.bringIntoView()
     }
     // initialToken comes from opening a .hrk file directly (see MainActivity's ACTION_VIEW
@@ -238,13 +243,10 @@ fun RecoverProjectScreen(
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 8.dp),
             )
-            OutlinedTextField(
-                value = pin,
-                onValueChange = { pin = it },
+            OutlinedSecureTextField(
+                state = pinField,
                 label = { Text("PIN") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp).onFocusChanged { typing = it.isFocused },
             )
             OutlinedTextField(

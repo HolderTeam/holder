@@ -92,7 +92,7 @@ fun DiagnosticsSettingsScreen(
 @Composable
 private fun DiagnosticsEntryRow(entry: DiagnosticsEntry) {
     ListItem(
-        headlineContent = { Text(entry.message) },
+        content = { Text(entry.message) },
         supportingContent = {
             Text(DIAGNOSTICS_TIME_FORMAT.format(Instant.ofEpochSecond(entry.timestampSeconds)))
         },

@@ -67,7 +67,7 @@ fun SettingsScreen(
 @Composable
 private fun SettingsIndexRow(title: String, subtitle: String, onClick: () -> Unit) {
     ListItem(
-        headlineContent = { Text(title) },
+        content = { Text(title) },
         supportingContent = { Text(subtitle) },
         trailingContent = {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)

@@ -178,7 +178,7 @@ fun ProjectListScreen(
                             LazyColumn {
                                 items(current.value, key = { it.projectId }) { project ->
                                     ListItem(
-                                        headlineContent = { Text(project.name) },
+                                        content = { Text(project.name) },
                                         modifier = Modifier.clickable { onProjectClick(project) },
                                         trailingContent = {
                                             // The Box, not just the IconButton, is what DropdownMenu
