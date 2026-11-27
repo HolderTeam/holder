@@ -195,7 +195,20 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
                 Text("Last push: ${formatEpochSeconds(status.lastPushAt)} (${status.lastPushStatus ?: "none"})")
                 Text("Last pull: ${formatEpochSeconds(status.lastPullAt)} (${status.lastPullStatus ?: "none"})")
                 Text("Uncommitted changes: ${status.uncommittedChangesCount}, unpushed commits: ${status.unpushedCommitsCount}")
-                status.lastSyncError?.let { Text("Last error: $it", color = MaterialTheme.colorScheme.error) }
+                val lastErrorKind = status.lastSyncError?.let(::syncErrorKind)
+                status.lastSyncError?.let { raw ->
+                    Text(
+                        syncErrorSummary(syncErrorKind(raw)),
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    // The exact text, for diagnosing anything the summary doesn't explain.
+                    Text(
+                        raw,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
 
                 // A GitHub remote's deploy key is something Holder registers automatically
                 // (ensureProjectRepo/RecoverProjectScreen), never something a regular user is
@@ -204,7 +217,7 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
                 // key section above (which stays collapsed for a GitHub remote regardless, see
                 // defaultShowDeviceKey). Covers exactly the case a pre-per-project-key-fix
                 // project actually hits: a genuinely new key that was simply never registered.
-                if (githubOwnerRepo != null && status.lastSyncError != null) {
+                if (githubOwnerRepo != null && lastErrorKind?.offersRegisterDevice == true) {
                     val (owner, repo) = githubOwnerRepo
                     Button(
                         enabled = !isBusy,
@@ -255,18 +268,13 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
                             // calls -- a failed pull always skips the push phase, so this can
                             // never push on top of a pull that didn't actually succeed.
                             val result = HolderNative.gitSyncNow(project.projectId)
-                            val pullPart = if (result.pullAttempted) {
-                                "pull: ${result.pullStatus}" + conflictsSuffix(result.pullConflictsResolved) +
-                                    (result.pullError?.let { " -- $it" } ?: "")
-                            } else {
-                                "pull: skipped"
-                            }
-                            val pushPart = if (result.pushAttempted) {
-                                "push: ${result.pushStatus}" + (result.pushError?.let { " -- $it" } ?: "")
-                            } else {
-                                "push: skipped"
-                            }
-                            "Sync -- $pullPart, $pushPart"
+                            syncNowOutcome(
+                                pullAttempted = result.pullAttempted,
+                                pullError = result.pullError,
+                                pushAttempted = result.pushAttempted,
+                                pushError = result.pushError,
+                                conflictsSuffix = conflictsSuffix(result.pullConflictsResolved),
+                            )
                         }
                     },
                     modifier = Modifier.padding(start = 8.dp),
