@@ -7,24 +7,35 @@ normal daemon, database, or projects.
 import json
 import os
 import subprocess
+import sys
 import time
 from datetime import UTC, date, datetime, timedelta, timezone
+from importlib import import_module
+from importlib.resources import files
+from importlib.util import find_spec
 from pathlib import Path
 
 import httpx
 import pytest
 
-from holder import Holder, MilestoneDate
-from holder.exceptions import APIError, NotFoundError
+from holder import (
+    Holder,
+    LinkKindLabels,
+    MilestoneDate,
+    ProjectRecord,
+    open_session,
+    open_workspace,
+)
+from holder.cards import Card, CardListItem, CardMetadata, Link, Milestone, SearchCard
+from holder.exceptions import APIError, ClosedError, NotFoundError
 
 DAEMON = os.environ.get("HOLDER_TEST_DAEMON")
-pytestmark = pytest.mark.skipif(
-    not DAEMON, reason="Set HOLDER_TEST_DAEMON for live integration"
-)
 
 
 @pytest.fixture
 def daemon(tmp_path, monkeypatch):
+    if not DAEMON:
+        pytest.skip("Set HOLDER_TEST_DAEMON for live integration")
     binary = Path(DAEMON).resolve()
     for variable, directory in (
         ("XDG_DATA_HOME", "data"),
@@ -497,3 +508,736 @@ def test_project_scoped_collections_against_daemon(daemon):
     # Exercise the zero-argument discovery path against the same isolated env.
     with Holder(holderctl=str(cli)) as h:
         assert h.projects.get(project_id).name == "Collection integration"
+
+
+def test_embedded_profile_ownership(daemon, tmp_path):
+    if find_spec("holder._embedded._native"):
+        package = "holder._embedded"
+    elif find_spec("holderkit"):
+        package = "holderkit"
+    else:
+        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+
+    profile = tmp_path / "data" / "holder"
+    with pytest.raises(ValueError, match="desktop Holder profile"), open_workspace(profile):
+        pass
+
+    # Bypass the Python policy so this also verifies daemon/native lock compatibility.
+    native = import_module(f"{package}._native")
+    schema = files(package).joinpath("_schema.sql").read_text(encoding="utf-8")
+    with pytest.raises(native.HolderError, match="workspace is in use") as busy:
+        native.Context(str(profile), schema)
+    assert busy.value.native_status == 4090
+
+    private = tmp_path / "private"
+    probe = """
+from importlib import import_module
+from importlib.resources import files
+import sys
+
+package, workspace = sys.argv[1:]
+native = import_module(f"{package}._native")
+schema = files(package).joinpath("_schema.sql").read_text(encoding="utf-8")
+try:
+    with native.Context(workspace, schema):
+        pass
+except native.HolderError as error:
+    if error.native_status != 4090:
+        raise
+    sys.exit(42)
+"""
+
+    def other_process_status():
+        result = subprocess.run(
+            [sys.executable, "-c", probe, package, str(private)],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        assert result.returncode in (0, 42), result.stderr
+        return result.returncode
+
+    with native.Context(str(private), schema):
+        with open_workspace(private) as workspace:
+            project = workspace.create_plain_project(name="Private project")
+            with pytest.raises(APIError, match="workspace is in use"), open_workspace(private):
+                pass
+            assert workspace.get_project(project["project_id"]) == project
+            assert other_process_status() == 42
+        assert other_process_status() == 42
+
+    assert other_process_status() == 0
+    with open_workspace(private) as workspace:
+        assert workspace.get_project(project["project_id"]) == project
+
+
+def test_daemon_recovery_snapshot_download(daemon):
+    url, token, raw, _ = daemon
+    project_id = create_project(raw, "Snapshot download")
+    route = f"/projects/{project_id}/recovery-snapshot"
+    assert raw.get(route, headers={"Authorization": ""}).status_code == 401
+    assert raw.get(route).headers["cache-control"] == "no-store"
+
+    with Holder(url=url, token=token) as session:
+        assert session.download_recovery_snapshot(project_id) == ""
+        with pytest.raises(NotFoundError):
+            session.download_recovery_snapshot("missing")
+        original = session.card_operations.create_card(
+            project_id, {"title": "Original", "content": "Research notes ☃"}
+        )
+        lines = session.download_recovery_snapshot(project_id).splitlines()
+        for index in range(3):
+            session.card_operations.create_card(
+                project_id, {"title": f"Large card {index}", "content": "x" * (720 * 1024)}
+            )
+        with pytest.raises(APIError) as too_large:
+            session.download_recovery_snapshot(project_id)
+
+    assert len(lines) == 1
+    row = json.loads(lines[0])
+    assert row["format"] == "holder-recovery-snapshot"
+    assert row["card"]["card_id"] == original["card_id"]
+    assert row["card"]["content"] == original["content"]
+    assert too_large.value.status == 413
+    assert too_large.value.code == "snapshot_too_large"
+
+
+def test_recovery_snapshot_round_trip(daemon, tmp_path):
+    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
+        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+
+    url, token, _, _ = daemon
+    with Holder(url=url, token=token) as session:
+        source_id = session.create_plain_project(name="Snapshot source")["project_id"]
+        source = session.card_operations.create_card(
+            source_id, {"title": "Original", "content": "Live body"}
+        )
+        snapshot = session.download_recovery_snapshot(source_id)
+        with open_workspace(tmp_path / "private-copy") as workspace:
+            copy_id = workspace.restore_recovery_snapshot(snapshot, name="Offline copy")["project_id"]
+            (copied,) = workspace.card_operations.list_cards(copy_id)["items"]
+            assert copied["card_id"] != source["card_id"]
+            changed = workspace.card_operations.update_card(
+                copy_id, copied["card_id"], {"content": "Edited offline"}
+            )
+            assert changed["content"] == "Edited offline"
+        assert session.card_operations.get_card(source_id, source["card_id"])["content"] == "Live body"
+
+
+def test_embedded_recovery_snapshot_restore(tmp_path):
+    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
+        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+
+    def line(card_id, title, parent=None):
+        return json.dumps(
+            {
+                "format": "holder-recovery-snapshot",
+                "version": 1,
+                "card": {
+                    "card_id": card_id,
+                    "project_id": "source-project",
+                    "project_name": "Source project",
+                    "privacy_mode": "plain",
+                    "title": title,
+                    "content": "Snapshot text",
+                    "parent_card_id": parent,
+                    "sort_key": 1,
+                    "created_at": 1700000000,
+                    "updated_at": 1700000001,
+                    "links": [],
+                    "milestones": [],
+                    "resources": [],
+                    "locations": [],
+                },
+            }
+        )
+
+    snapshot = "\n".join((line("child", "Child", "parent"), line("parent", "Parent")))
+    with open_workspace(tmp_path / "private") as workspace:
+        with pytest.raises(APIError):
+            workspace.restore_recovery_snapshot("invalid snapshot", name="Invalid")
+        assert workspace.list_projects() == []
+
+        project = workspace.restore_recovery_snapshot(snapshot, name="Offline copy")
+        assert project["project_id"] != "source-project"
+        assert project["privacy_mode"] == "plain"
+        cards = workspace.card_operations.list_cards(
+            project["project_id"], include_content=True
+        )["items"]
+        by_title = {card["title"]: card for card in cards}
+        assert by_title["Parent"]["card_id"] != "parent"
+        assert by_title["Child"]["parent_card_id"] == by_title["Parent"]["card_id"]
+        assert by_title["Child"]["content"] == "Snapshot text"
+
+
+@pytest.fixture(params=["daemon", "embedded"])
+def shared_card_session(request, tmp_path):
+    backend = request.param
+    if backend == "daemon":
+        url, token, _, cli = request.getfixturevalue("daemon")
+        session = (
+            open_session(holderctl=str(cli), fallback_workspace=tmp_path / "unused")
+            if cli.is_file()
+            else open_session(url=url, token=token)
+        )
+    else:
+        if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
+            pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+        data_dir = tmp_path / "workspace"
+        session = open_session(
+            fallback_workspace=data_dir, holderctl=str(tmp_path / "missing-holderctl")
+        )
+
+    return session
+
+
+def test_shared_card_operations(shared_card_session):
+    with shared_card_session as active:
+        created_project = active.create_plain_project(name="Shared Card API")
+        project_id = created_project["project_id"]
+        assert created_project["privacy_mode"] == "plain"
+
+        projects = active.list_projects()
+        project = next(row for row in projects if row["name"] == "Shared Card API")
+        assert project.keys() == ProjectRecord.__required_keys__
+        assert project["project_id"] == project_id
+        assert active.get_project(project_id) == project == created_project
+        with pytest.raises(NotFoundError):
+            active.get_project("missing")
+
+        project_id = project["project_id"]
+        cards = active.card_operations
+        parent = cards.create_card(project_id, {"title": "Card 1"})
+        parent_id = parent["card_id"]
+        assert parent["content"] == ""
+        assert parent["parent_card_id"] is None
+        new_child = cards.create_card(
+            project_id,
+            {
+                "title": "Card 2",
+                "content": "body 2\n#research",
+                "parent_card_id": parent_id,
+                "sort_key": 12.5,
+                "created_at": 1_700_000_000,
+                "updated_at": 1_700_000_001,
+            },
+        )
+        child_id = new_child["card_id"]
+        assert new_child["sort_key"] == 12.5
+        assert new_child["created_at"] == 1_700_000_000
+        assert new_child["updated_at"] == 1_700_000_001
+        with pytest.raises(NotFoundError):
+            cards.create_card(project_id, {"title": "Orphan", "parent_card_id": "missing"})
+
+        roots = cards.list_cards(project_id, parent="roots", include_child_count=True)
+        assert roots["next_cursor"] is None
+        assert [item["card_id"] for item in roots["items"]] == [parent_id]
+        assert roots["items"][0]["child_count"] == 1
+        assert roots["items"][0].keys() == CardListItem.__required_keys__ | {"child_count"}
+
+        parent_page = cards.list_cards(project_id, limit=1, include_content=True)
+        assert len(parent_page["items"]) == 1
+        assert "content" in parent_page["items"][0]
+        cursor = parent_page["next_cursor"]
+        assert cursor is not None
+        next_page = cards.list_cards(project_id, limit=1, include_content=True, cursor=cursor)
+        assert next_page["next_cursor"] is None
+        assert {item["card_id"] for item in parent_page["items"] + next_page["items"]} == {
+            parent_id,
+            child_id,
+        }
+
+        child = cards.get_card(project_id, child_id)
+        assert child == new_child
+        assert child.keys() == Card.__required_keys__
+        metadata = cards.get_card_metadata(project_id, child_id)
+        assert metadata == {key: child[key] for key in CardMetadata.__required_keys__}
+        assert cards.get_card_breadcrumbs(project_id, child_id) == [
+            {"kind": "project", "id": project_id, "title": "Shared Card API"},
+            {"kind": "card", "id": parent_id, "title": "Card 1"},
+            {"kind": "card", "id": child_id, "title": "Card 2"},
+        ]
+        with pytest.raises(NotFoundError):
+            cards.get_card_metadata("missing", child_id)
+        with pytest.raises(NotFoundError):
+            cards.get_card_breadcrumbs("missing", child_id)
+        assert child["parent_card_id"] == parent_id
+        assert child["tags"] == ["research"]
+        assert child["tag_occurrences"][0]["tag"] == "research"
+        assert child["removable_tags"] == ["research"]
+        assert cards.update_card(project_id, child_id, {}) == child
+        edited = cards.update_card(project_id, child_id, {"title": "Edited"})
+        assert edited["parent_card_id"] == parent_id
+        assert edited["content"] == child["content"]
+        detached = cards.update_card(project_id, child_id, {"parent_card_id": None})
+        assert detached["parent_card_id"] is None
+        assert detached["title"] == "Edited"
+        assert cards.get_card_breadcrumbs(project_id, child_id) == [
+            {"kind": "project", "id": project_id, "title": "Shared Card API"},
+            {"kind": "card", "id": child_id, "title": "Edited"},
+        ]
+        assert cards.get_card(project_id, child_id) == detached
+
+        with pytest.raises(NotFoundError) as error:
+            cards.get_card(project_id, "missing")
+        assert (error.value.status, error.value.code) == (404, "not_found")
+
+        with pytest.raises(APIError) as error:
+            cards.update_card(project_id, child_id, {"parent_card_id": child_id})
+        assert (error.value.status, error.value.code) == (422, "invalid_move")
+
+        assert active.list_trash(project_id) == []
+        trashed = cards.trash_card(project_id, child_id)
+        assert trashed.keys() == Card.__required_keys__
+        assert trashed["deleted_at"] is not None
+        assert trashed["content"] == detached["content"]
+        assert trashed["tags"] == detached["tags"]
+        with pytest.raises(NotFoundError):
+            cards.get_card_metadata(project_id, child_id)
+        with pytest.raises(NotFoundError):
+            cards.get_card_breadcrumbs(project_id, child_id)
+        with pytest.raises(NotFoundError):
+            cards.get_card(project_id, child_id)
+        with pytest.raises(NotFoundError):
+            cards.trash_card(project_id, child_id)
+        expected_trash = {
+            "type": "card",
+            "project_id": project_id,
+            "card_id": child_id,
+            "message_id": None,
+            "thread_id": None,
+            "title": trashed["title"],
+            "role": None,
+            "deleted_at": trashed["deleted_at"],
+            "created_at": None,
+            "rel_path": trashed["rel_path"],
+        }
+        assert active.list_trash(project_id) == [expected_trash]
+        assert active.list_trash(project_id, type="all") == [expected_trash]
+        assert active.list_trash(project_id, type="ai_message") == []
+        assert active.list_trash(project_id, type="unknown") == []
+        assert active.list_trash("missing") == []
+
+        [entry] = active.list_trash(project_id, type="card")
+        assert entry == expected_trash
+        restore_id = entry["card_id"]
+        assert restore_id is not None
+        restored = cards.restore_card(project_id, restore_id)
+        assert restored["deleted_at"] is None
+        assert active.list_trash(project_id) == []
+        assert cards.get_card(project_id, child_id) == restored
+        with pytest.raises(APIError) as error:
+            cards.restore_card(project_id, child_id)
+        assert (error.value.status, error.value.code) == (409, "conflict")
+
+        cards.update_card(project_id, child_id, {"parent_card_id": parent_id})
+        cards.trash_card(project_id, parent_id)
+        assert cards.get_card(project_id, child_id)["parent_card_id"] is None
+        cards.restore_card(project_id, parent_id)
+        assert cards.get_card(project_id, child_id)["parent_card_id"] is None
+
+        cards.update_card(project_id, child_id, {"parent_card_id": parent_id})
+        cards.trash_card(project_id, parent_id, children="trash_subtree")
+        cards.restore_card(project_id, parent_id)
+        with pytest.raises(NotFoundError):
+            cards.get_card(project_id, child_id)
+        assert cards.restore_card(project_id, child_id)["parent_card_id"] == parent_id
+
+        extra_id = cards.create_card(project_id, {"title": "Another root"})["card_id"]
+        # A supplied null parent means the root group. Omitting the parent
+        # on subsequent reorders keeps the card in its current group.
+        moved = cards.move_card(
+            project_id, child_id, {"intent": "to_start", "parent_card_id": None}
+        )
+        assert moved["parent_card_id"] is None
+        assert moved == cards.get_card(project_id, child_id)
+
+        def roots_in_order():
+            return [
+                item["card_id"]
+                for item in cards.list_cards(project_id, parent="roots", order="sort_key_asc")["items"]
+            ]
+
+        assert roots_in_order() == [child_id, parent_id, extra_id]
+        cards.move_card(project_id, child_id, {"intent": "right"})
+        assert roots_in_order() == [parent_id, child_id, extra_id]
+        cards.move_card(project_id, child_id, {"intent": "to_end"})
+        assert roots_in_order() == [parent_id, extra_id, child_id]
+        cards.move_card(project_id, child_id, {"intent": "left"})
+        assert roots_in_order() == [parent_id, child_id, extra_id]
+        cards.move_card(project_id, child_id, {"intent": "before", "target_card_id": parent_id})
+        assert roots_in_order() == [child_id, parent_id, extra_id]
+        cards.move_card(project_id, child_id, {"intent": "after", "target_card_id": extra_id})
+        assert roots_in_order() == [parent_id, extra_id, child_id]
+        cards.move_card(project_id, extra_id, {"intent": "into", "target_card_id": parent_id})
+        moved = cards.move_card(project_id, child_id, {"intent": "into", "target_card_id": extra_id})
+        assert moved["parent_card_id"] == extra_id
+        assert cards.move_card(project_id, child_id, {"intent": "up_level"})["parent_card_id"] == parent_id
+        with pytest.raises(NotFoundError):
+            cards.move_card(project_id, child_id, {"intent": "into", "target_card_id": "missing"})
+        with pytest.raises(APIError) as error:
+            cards.move_card(project_id, child_id, {"intent": "into", "target_card_id": child_id})
+        assert (error.value.status, error.value.code) == (422, "invalid_move")
+
+        tagged = cards.add_card_tag(project_id, parent_id, "Research")
+        assert tagged["tags"] == ["research"]
+        assert tagged == cards.add_card_tag(project_id, parent_id, "research")
+        tagged = cards.add_card_tag(project_id, parent_id, "Draft/Ideas")
+        assert tagged == cards.get_card(project_id, parent_id)
+        assert active.list_project_tags(project_id) == [
+            {"tag": "research", "card_count": 2},
+            {"tag": "draft/ideas", "card_count": 1},
+        ]
+        matching = cards.list_cards(project_id, tag="draft/ideas")["items"]
+        assert [card["card_id"] for card in matching] == [parent_id]
+        untagged = cards.remove_card_tag(project_id, parent_id, "Draft/Ideas")
+        assert untagged == cards.remove_card_tag(project_id, parent_id, "draft/ideas")
+        assert untagged["tags"] == ["research"]
+        assert active.list_project_tags(project_id) == [{"tag": "research", "card_count": 2}]
+        with pytest.raises(NotFoundError):
+            active.list_project_tags("missing")
+        with pytest.raises(NotFoundError):
+            cards.add_card_tag(project_id, "missing", "research")
+
+        prose = cards.update_card(project_id, child_id, {"content": "Keep #research in this sentence."})
+        with pytest.raises(APIError) as error:
+            cards.remove_card_tag(project_id, child_id, "research")
+        assert (error.value.status, error.value.code) == (409, "conflict")
+        assert cards.get_card(project_id, child_id) == prose
+
+        def lookup(reference, scope="live"):
+            return cards.resolve_card_reference(
+                {"project_id": project_id, "reference": reference, "scope": scope}
+            )
+
+        expected = {"card_id": child_id, "title": prose["title"], "deleted_at": None}
+        assert lookup(child_id) == {"status": "resolved", "match_kind": "full_id", "card": expected}
+        assert lookup(child_id[:-4].upper()) == {
+            "status": "resolved", "match_kind": "id_prefix", "card": expected
+        }
+        assert lookup(prose["title"]) == {
+            "status": "resolved", "match_kind": "exact_title", "card": expected
+        }
+        assert lookup(child_id, "trashed") == {"status": "not_found"}
+        assert lookup("no such title") == {"status": "not_found"}
+
+        cards.update_card(project_id, extra_id, {"title": prose["title"]})
+        ambiguous = lookup(prose["title"])
+        assert set(ambiguous) == {"status", "match_kind", "candidates"}
+        assert ambiguous["status"] == "ambiguous"
+        assert ambiguous["match_kind"] == "exact_title"
+        assert {item["card_id"] for item in ambiguous["candidates"]} == {child_id, extra_id}
+        trashed = cards.trash_card(project_id, child_id)
+        assert lookup(child_id) == {"status": "not_found"}
+        trashed_match = lookup(child_id, "trashed")
+        assert trashed_match["card"] == {**expected, "deleted_at": trashed["deleted_at"]}
+        assert lookup(child_id, "either") == trashed_match
+        assert lookup(prose["title"])["card"]["card_id"] == extra_id
+        cards.restore_card(project_id, child_id)
+
+        query = '"café notes"'
+        first_id = cards.create_card(project_id, {"title": "First café notes"})["card_id"]
+        second_id = cards.create_card(
+            project_id, {"title": "Second result", "content": "More café notes"}
+        )["card_id"]
+        other_project = active.create_plain_project(name="Other search project")
+        other_id = cards.create_card(
+            other_project["project_id"], {"title": "Other café notes"}
+        )["card_id"]
+
+        results = cards.search_cards(project_id, query)
+        assert {row["card_id"] for row in results} == {first_id, second_id}
+        assert [row["rank"] for row in results] == sorted(row["rank"] for row in results)
+        assert all(row.keys() == SearchCard.__required_keys__ for row in results)
+        assert "café" in next(row["snippet"] for row in results if row["card_id"] == second_id)
+        assert cards.search_cards(project_id, query, limit=1) == results[:1]
+        assert cards.search_cards(project_id, query, limit=1, offset=1) == results[1:]
+        assert [row["card_id"] for row in cards.search_cards(other_project["project_id"], query)] == [other_id]
+        assert cards.search_cards(project_id, "quartzunfindable") == []
+        with pytest.raises(APIError) as error:
+            cards.search_cards(project_id, '"')
+        assert (error.value.status, error.value.code) == (400, "invalid_argument")
+        cards.trash_card(project_id, first_id)
+        assert [row["card_id"] for row in cards.search_cards(project_id, query)] == [second_id]
+
+        other_project_id = other_project["project_id"]
+        kinds = active.list_link_kinds()
+        assert all(row.keys() == LinkKindLabels.__required_keys__ for row in kinds)
+        kinds_by_name = {row["kind"]: row for row in kinds}
+        assert len(kinds_by_name) == len(kinds)
+        assert kinds_by_name["depends_on"] == {
+            "kind": "depends_on",
+            "forward_label": "Depends on",
+            "reverse_label": "Required by",
+        }
+
+        original = cards.add_card_link(
+            project_id,
+            second_id,
+            {"target_type": "card", "target_id": child_id, "created_at": 1_700_000_000},
+        )
+        assert original["kind"] == "ref"
+        assert original["label"] is None
+        assert original["created_at"] == 1_700_000_000
+        updated = cards.add_card_link(
+            project_id,
+            second_id,
+            {"target_type": "card", "target_id": child_id, "label": "Local", "created_at": 1_700_000_001},
+        )
+        assert updated == {**original, "label": "Local"}
+        foreign = cards.add_card_link(
+            other_project_id,
+            other_id,
+            {"target_type": "card", "target_id": child_id, "target_project_id": project_id},
+        )
+
+        [local] = cards.list_card_links(project_id, second_id)
+        [external] = cards.list_card_links(other_project_id, other_id)
+        assert local == updated
+        assert external == foreign
+        assert local.keys() == external.keys() == Link.__required_keys__
+        assert (local["source_project_id"], local["source_id"], local["label"]) == (
+            project_id, second_id, "Local"
+        )
+        assert (external["source_project_id"], external["source_id"], external["label"]) == (
+            other_project_id, other_id, None
+        )
+        assert all(
+            (link["target_project_id"], link["target_id"], link["target_type"])
+            == (project_id, child_id, "card")
+            for link in (local, external)
+        )
+        assert cards.list_card_backlinks(project_id, child_id) == [local]
+        assert cards.list_card_backlinks(project_id, child_id, scope="external") == [external]
+        all_links = cards.list_card_backlinks(project_id, child_id, scope="all_available")
+        assert {link["source_id"] for link in all_links} == {second_id, other_id}
+
+        cards.trash_card(project_id, second_id)
+        assert cards.list_card_backlinks(project_id, child_id) == []
+        assert cards.list_card_backlinks(project_id, child_id, include_deleted=True) == [local]
+        with pytest.raises(NotFoundError):
+            cards.list_card_links(project_id, second_id)
+        cards.restore_card(project_id, second_id)
+
+        cards.trash_card(project_id, child_id)
+        assert cards.list_card_links(project_id, second_id) == []
+        assert cards.list_card_links(project_id, second_id, include_deleted=True) == [local]
+        assert cards.list_card_links(other_project_id, other_id) == [external]
+        with pytest.raises(NotFoundError):
+            cards.list_card_backlinks(project_id, child_id, include_deleted=True)
+
+        cards.restore_card(project_id, child_id)
+        sibling_link = cards.add_card_link(
+            project_id, second_id, {"target_type": "card", "target_id": child_id, "kind": "related"}
+        )
+        assert sibling_link["kind"] == "related"
+        assert sibling_link["kind"] not in kinds_by_name
+        assert cards.remove_card_link(project_id, second_id, "card", child_id) == [sibling_link]
+        assert cards.remove_card_link(project_id, second_id, "card", child_id) == [sibling_link]
+        assert cards.remove_card_link(
+            other_project_id, other_id, "card", child_id, target_project_id=project_id
+        ) == []
+        assert cards.list_card_backlinks(project_id, child_id, scope="all_available") == [sibling_link]
+        with pytest.raises(NotFoundError):
+            cards.add_card_link(project_id, second_id, {"target_type": "resource", "target_id": "missing"})
+
+        assert cards.list_card_milestones(project_id, child_id) == []
+        dated = cards.add_card_milestone(
+            project_id,
+            child_id,
+            {
+                "dates": [
+                    {"role": "review", "date": "2026-11-30"},
+                    {"role": "review", "date": "2026-12-01"},
+                    {"role": "review", "datetime": "2026-11-30T09:30:00+01:00"},
+                ],
+                "kind": "plan",
+                "description": "Check the draft",
+            },
+        )
+        assert dated.keys() == Milestone.__required_keys__
+        assert dated["dates"] == [
+            {"role": "review", "date": "2026-11-30"},
+            {"role": "review", "date": "2026-12-01"},
+            {"role": "review", "datetime": "2026-11-30T09:30:00+01:00"},
+        ]
+        first_day, last_day = "2026-11-30", "2026-12-01"
+        instant = int(datetime.fromisoformat("2026-11-30T09:30:00+01:00").timestamp())
+        assert active.list_milestones_by_day(project_id, first_day, last_day) == [dated]
+        assert active.list_milestones_by_day(project_id, first_day, first_day, role="review") == [dated]
+        assert active.list_milestones_by_day(project_id, first_day, last_day, role="due") == []
+        assert active.list_milestones_by_day(project_id, last_day, first_day) == []
+        assert active.list_milestones_by_instant(project_id, instant, instant, role="review") == [dated]
+        assert active.list_milestones_by_instant(project_id, instant + 1, instant + 1) == []
+        assert active.list_milestones_by_instant(project_id, instant, instant, role="due") == []
+        assert active.list_milestones_by_instant(project_id, instant + 1, instant) == []
+        with pytest.raises(NotFoundError):
+            active.list_milestones_by_day("missing", first_day, last_day)
+        with pytest.raises(NotFoundError):
+            active.list_milestones_by_instant("missing", instant, instant)
+        cards.trash_card(project_id, child_id)
+        assert active.list_milestones_by_day(project_id, first_day, last_day) == []
+        assert active.list_milestones_by_instant(project_id, instant, instant) == []
+        cards.restore_card(project_id, child_id)
+        undated = cards.add_card_milestone(project_id, child_id, {"dates": []})
+        assert (undated["dates"], undated["kind"], undated["description"]) == ([], None, None)
+        milestone_id = dated["milestone_id"]
+        assert cards.update_card_milestone(project_id, child_id, milestone_id, {}) == dated
+        revised = cards.update_card_milestone(
+            project_id, child_id, milestone_id, {"kind": None, "dates": []}
+        )
+        assert (revised["kind"], revised["dates"], revised["description"]) == (
+            None, [], "Check the draft"
+        )
+        assert {row["milestone_id"] for row in cards.list_card_milestones(project_id, child_id)} == {
+            milestone_id, undated["milestone_id"]
+        }
+        with pytest.raises(APIError) as error:
+            cards.add_card_milestone(
+                project_id, child_id, {"dates": [{"role": "due", "date": "2026-02-30"}]}
+            )
+        assert error.value.status == 400
+        with pytest.raises(NotFoundError):
+            cards.update_card_milestone(project_id, parent_id, milestone_id, {"description": None})
+        assert cards.remove_card_milestone(project_id, child_id, milestone_id) == [undated]
+        assert cards.remove_card_milestone(project_id, child_id, milestone_id) == [undated]
+        cards.trash_card(project_id, child_id)
+        with pytest.raises(NotFoundError):
+            cards.list_card_milestones(project_id, child_id)
+        cards.restore_card(project_id, child_id)
+        assert cards.list_card_milestones(project_id, child_id) == [undated]
+
+        day = "2026-03-29"  # The spring clock change makes this a 23-hour day in London.
+        last_second = int(datetime.fromisoformat("2026-03-29T22:59:59+00:00").timestamp())
+        created = cards.create_card(
+            project_id, {"title": "Calendar creation", "created_at": last_second}
+        )
+        updated = cards.create_card(
+            project_id,
+            {
+                "title": "Calendar update",
+                "created_at": last_second - 86400,
+                "updated_at": last_second,
+            },
+        )
+        cards.create_card(
+            project_id, {"title": "Next day in London", "created_at": last_second + 1}
+        )
+        inside = cards.add_card_milestone(
+            project_id, created["card_id"],
+            {"dates": [
+                {"role": "due", "date": day},
+                {"role": "review", "datetime": "2026-03-29T22:59:59Z"},
+            ]},
+        )
+        outside = cards.add_card_milestone(
+            project_id, updated["card_id"],
+            {"dates": [{"role": "due", "datetime": "2026-03-29T23:00:00Z"}]},
+        )
+
+        updated = cards.update_card(
+            project_id, updated["card_id"], {"content": "Revised", "updated_at": last_second}
+        )
+        assert updated["updated_at"] == last_second
+
+        calendar = active.get_calendar(project_id, day, day, time_zone="Europe/London")
+        assert calendar == {
+            "milestones": [{**inside, "card_title": created["title"]}],
+            "created_cards": [cards.get_card_metadata(project_id, created["card_id"])],
+            "updated_cards": [cards.get_card_metadata(project_id, updated["card_id"])],
+        }
+        utc = active.get_calendar(project_id, day, day, time_zone="UTC")
+        assert {row["milestone_id"] for row in utc["milestones"]} == {
+            inside["milestone_id"], outside["milestone_id"]
+        }
+        assert active.get_calendar(project_id, day, "2026-03-28", time_zone="Europe/London") == {
+            "milestones": [], "created_cards": [], "updated_cards": []
+        }
+        with pytest.raises(APIError) as error:
+            active.get_calendar(project_id, day, day, time_zone="Invalid/Zone")
+        assert error.value.status == 400
+        with pytest.raises(NotFoundError):
+            active.get_calendar("missing", day, day, time_zone="Europe/London")
+
+    with pytest.raises(ClosedError):
+        cards.get_card(project_id, child_id)
+    with pytest.raises(ClosedError):
+        active.list_projects()
+
+
+
+def test_shared_card_operations_project_export(shared_card_session):
+    with shared_card_session as active:
+        project = active.create_plain_project(name="Export source")
+        project_id = project["project_id"]
+        assert active.export_project_records(project_id) == {
+            "project": project,
+            "cards": [],
+            "links": [],
+            "tag_memberships": [],
+            "milestones": [],
+        }
+        with pytest.raises(NotFoundError):
+            active.export_project_records("missing")
+
+        cards = active.card_operations
+        source = cards.create_card(
+            project_id, {"title": "Source", "content": "Notes about #observations"}
+        )
+        target = cards.create_card(project_id, {"title": "Target", "content": "#observations"})
+        removed = cards.create_card(project_id, {"title": "Removed", "content": "#discarded"})
+        external_project = active.create_plain_project(name="Other export project")
+        external = cards.create_card(
+            external_project["project_id"], {"title": "External", "content": "#observations"}
+        )
+        source_id = source["card_id"]
+        target_id = target["card_id"]
+        removed_id = removed["card_id"]
+        local_link = cards.add_card_link(
+            project_id, source_id, {"target_type": "card", "target_id": target_id}
+        )
+        external_link = cards.add_card_link(
+            project_id,
+            source_id,
+            {
+                "target_type": "card",
+                "target_id": external["card_id"],
+                "target_project_id": external_project["project_id"],
+            },
+        )
+        cards.add_card_link(
+            project_id, source_id, {"target_type": "card", "target_id": removed_id}
+        )
+        milestone = cards.add_card_milestone(
+            project_id, target_id, {"dates": [{"role": "due", "date": "2026-11-30"}]}
+        )
+        cards.add_card_milestone(project_id, removed_id, {"dates": []})
+        cards.trash_card(project_id, removed_id)
+
+        records = active.export_project_records(project_id)
+        with_content = active.export_project_records(project_id, include_content=True)
+
+    assert json.loads(json.dumps(records)) == records
+    assert records["project"]["project_id"] == project_id
+    assert {card["card_id"] for card in records["cards"]} == {source_id, target_id}
+    assert all("content" not in card for card in records["cards"])
+    assert {card["card_id"]: card["content"] for card in with_content["cards"]} == {
+        source_id: source["content"],
+        target_id: target["content"],
+    }
+    assert {link["target_id"] for link in records["links"]} == {
+        target_id,
+        external["card_id"],
+    }
+    assert local_link in records["links"]
+    assert external_link in records["links"]
+    assert records["milestones"] == [milestone]
+    assert records["tag_memberships"] == [
+        {"project_id": project_id, "card_id": card_id, "tag": "observations"}
+        for card_id in sorted((source_id, target_id))
+    ]
+    assert all(
+        with_content[name] == records[name]
+        for name in ("project", "links", "tag_memberships", "milestones")
+    )

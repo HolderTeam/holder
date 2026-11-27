@@ -17,8 +17,7 @@ python scripts/generate.py --check
 python -m build
 ```
 
-The current implementation uses the daemon's HTTP API. The generated client
-comes from a fork of
+The HTTP backend uses the daemon's API. Its generated client comes from a fork of
 [openapi-python-client](https://github.com/openapi-generators/openapi-python-client)
 that reads OpenAPI 3.2 and generates streaming responses
 ([zeth/openapi-python-client](https://github.com/zeth/openapi-python-client),
@@ -27,6 +26,43 @@ the fork is pinned to a commit in `requirements-generator.txt` rather than in
 the `dev` extra. Installed clients need only HTTPX, attrs, and
 typing-extensions. Entity and recovery policy belongs in the daemon or
 core, not in this library.
+
+## Build the Linux wheel variants
+
+The default build produces a universal HTTP wheel. To build a native wheel
+with the same version, stage Kit against a core SDK built from the same
+checkout. Run the following from the repository root with an absolute SDK
+path in `HOLDER_CORE_SDK`:
+
+```sh
+work=$(mktemp -d)
+cmake -S python/kit -B "$work/kit" -DCMAKE_INSTALL_PREFIX="$work/stage"
+cmake --build "$work/kit"
+cmake --install "$work/kit"
+python -m build --wheel --outdir "$work/wheels" python/holder
+HOLDER_PYTHON_EMBEDDED_STAGE="$work/stage" \
+  python -m build --wheel --outdir "$work/wheels" python/holder
+```
+
+CMake and the wheel build must use the same CPython interpreter. Set
+`-DPython_EXECUTABLE=/path/to/python` on the CMake command if needed. The
+native build packages the staged extension and schema under `holder`.
+A compatible Linux CPython prefers that wheel when both variants are offered
+at the same version. For a redistributable Linux wheel, build on Ubuntu 24.04
+with a matching core SDK and then bundle the runtime dependencies. This uses
+`patchelf`, `wheel` and `auditwheel`:
+
+```sh
+python -m pip install wheel 'auditwheel==6.8.2'
+python python/kit/scripts/repair-linux-wheel.py --output "$work/dist" \
+  "$work/wheels/"*-linux_x86_64.whl
+```
+
+The repair checks the `manylinux_2_39_x86_64` ABI and records supplier
+notices. The Python CI workflow builds and tests this wheel from a fresh
+install. For a local smoke test on a newer Linux distribution, use
+`--bundle-only` to bundle the libraries and keep the original Linux tag.
+Release publishing still uses the existing universal wheel flow.
 
 ## Layout and regeneration
 

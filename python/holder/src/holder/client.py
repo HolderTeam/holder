@@ -5,21 +5,41 @@ from __future__ import annotations
 import json
 import subprocess
 from collections.abc import Iterator
-from typing import Any, Self
+from contextlib import ExitStack, contextmanager
+from os import PathLike
+from typing import Any, Self, cast
 
 import httpx
 
+from ._workspace_contract import Calendar, LinkKindLabels, Milestone, TagCount
+from ._workspace_contract import Project as ProjectRecord
+from ._workspace_contract import TrashItem as TrashItemRecord
+from .cards import CardOperations, EmbeddedWorkspace, _DaemonCards, open_workspace
 from .changes import Changes
 from .exceptions import (
     APIError,
     AuthenticationError,
     ClosedError,
     ConnectionError,
+    DaemonUnavailableError,
     NotFoundError,
     ProtocolError,
 )
+from .exports import ProjectRecords, _export_project_records
 from .generated import AuthenticatedClient
-from .generated.models import ErrorResponse
+from .generated.api.default import (
+    get_link_kinds,
+    get_projects,
+    get_projects_project_id,
+    get_projects_project_id_calendar,
+    get_projects_project_id_milestones_days,
+    get_projects_project_id_milestones_instants,
+    get_projects_project_id_recovery_snapshot,
+    get_projects_project_id_tags,
+    get_trash,
+    post_projects,
+)
+from .generated.models import ErrorResponse, NewProject, PrivacyMode
 from .models.intelligence_device import HolderIntelligence
 from .models.project import Project, ProjectCollection
 
@@ -50,6 +70,7 @@ class Holder:
         self._transport = transport
         self._client: AuthenticatedClient | None = None
         self._closed = False
+        self.card_operations: CardOperations = _DaemonCards(self)
         self.projects = ProjectCollection(self)
         self.changes = Changes(self)
         self.intelligence = HolderIntelligence(self)
@@ -63,10 +84,20 @@ class Holder:
                 timeout=65,
                 check=False,
             )
+        except FileNotFoundError:
+            error = DaemonUnavailableError if args[0] == "ensure" else ConnectionError
+            raise error(
+                "Could not find holderctl; install Holder or supply url and token"
+            ) from None
         except (OSError, subprocess.TimeoutExpired):
             raise ConnectionError(
                 "Could not run holderctl; install Holder or supply url and token"
             ) from None
+        # holderctl ensure documents exit 14 as daemon_not_found.
+        if args[0] == "ensure" and result.returncode == 14:
+            raise DaemonUnavailableError(
+                "holderctl could not find a local Holder daemon"
+            )
         if result.returncode:
             # CLI output and stderr may contain local credentials; never echo them.
             raise ConnectionError(
@@ -128,12 +159,130 @@ class Holder:
     def __iter__(self) -> Iterator[Project]:
         return iter(self.projects)
 
+    def list_projects(self) -> list[ProjectRecord]:
+        """List the projects visible in this session as detached records."""
+        projects: list[ProjectRecord] = []
+        page_size = 100
+        for offset in range(0, 2**31, page_size):
+            page = self._call(get_projects, limit=page_size, offset=offset)
+            projects.extend(cast("ProjectRecord", item.to_dict()) for item in page)
+            if len(page) < page_size:
+                return projects
+        raise OverflowError("too many projects to list")
+
+    def get_project(self, project_id: str) -> ProjectRecord:
+        """Fetch a detached project record by its ID."""
+        project = self._call(get_projects_project_id, project_id)
+        return cast("ProjectRecord", project.to_dict())
+
+    def download_recovery_snapshot(self, project_id: str) -> str:
+        """Download a project's live recovery snapshot as UTF-8 JSON Lines.
+
+        Card bodies are plaintext, including for encrypted projects. Asset bytes
+        are not included. A private workspace can restore the returned lines.
+        """
+        payload = self._call(
+            get_projects_project_id_recovery_snapshot,
+            project_id,
+            response_media_type="application/octet-stream",
+        )
+        try:
+            return payload.decode("utf-8")
+        except UnicodeDecodeError:
+            raise ProtocolError("Invalid UTF-8 recovery snapshot from the daemon") from None
+
+    def create_plain_project(self, *, name: str) -> ProjectRecord:
+        """Create a project whose files are stored without encryption."""
+        project = self._call(
+            post_projects,
+            body=NewProject(name=name, privacy_mode=PrivacyMode.PLAIN),
+            write=True,
+        )
+        return cast("ProjectRecord", project.to_dict())
+
+    def list_trash(
+        self, project_id: str, *, type: str | None = None
+    ) -> list[TrashItemRecord]:
+        """List detached Trash records, optionally filtered by item type."""
+        items = self._call(get_trash, project_id=project_id, type_=type)
+        return [cast("TrashItemRecord", item.to_dict()) for item in items]
+
+    def list_project_tags(self, project_id: str) -> list[TagCount]:
+        """List project tags and their live card counts."""
+        tags = self._call(get_projects_project_id_tags, project_id)
+        return [cast("TagCount", tag.to_dict()) for tag in tags]
+
+    def list_link_kinds(self) -> list[LinkKindLabels]:
+        """List Holder's known link kinds and their forward and reverse labels."""
+        kinds = self._call(get_link_kinds)
+        return [cast("LinkKindLabels", kind.to_dict()) for kind in kinds]
+
+    def list_milestones_by_day(
+        self, project_id: str, first_day: str, last_day: str, *, role: str | None = None
+    ) -> list[Milestone]:
+        """List milestones with a calendar day in the inclusive range."""
+        rows = self._call(
+            get_projects_project_id_milestones_days,
+            project_id,
+            first_day=first_day,
+            last_day=last_day,
+            role=role,
+        )
+        return [cast("Milestone", row.to_dict()) for row in rows]
+
+    def list_milestones_by_instant(
+        self,
+        project_id: str,
+        first_instant: int,
+        last_instant: int,
+        *,
+        role: str | None = None,
+    ) -> list[Milestone]:
+        """List milestones with a Unix timestamp in the inclusive range."""
+        rows = self._call(
+            get_projects_project_id_milestones_instants,
+            project_id,
+            first_instant=first_instant,
+            last_instant=last_instant,
+            role=role,
+        )
+        return [cast("Milestone", row.to_dict()) for row in rows]
+
+    def get_calendar(
+        self,
+        project_id: str,
+        first_day: str,
+        last_day: str,
+        *,
+        time_zone: str | None = None,
+    ) -> Calendar:
+        """Read milestones and card changes over an inclusive window of days."""
+        result = self._call(
+            get_projects_project_id_calendar,
+            project_id,
+            first_day=first_day,
+            last_day=last_day,
+            time_zone=time_zone,
+        )
+        return cast("Calendar", result.to_dict())
+
+    def export_project_records(
+        self, project_id: str, *, include_content: bool = False
+    ) -> ProjectRecords:
+        """Collect detached records for a project's live cards.
+
+        Each read uses current data. Edits during export can affect the result.
+        Card bodies are optional.
+        """
+        return _export_project_records(self, project_id, include_content=include_content)
+
     def _call(
         self,
         endpoint: Any,
         *args: Any,
         write: bool = False,
         return_envelope: bool = False,
+        response_media_type: str | None = None,
         **kwargs: Any,
     ) -> Any:
         client = self._active()
@@ -180,6 +329,11 @@ class Holder:
                 raise error_type(
                     int(response.status_code), "http_error", "Daemon request failed"
                 )
+            if response_media_type is not None:
+                media_type = response.headers.get("content-type", "").split(";", 1)[0]
+                if response.status_code != 200 or media_type.strip().lower() != response_media_type:
+                    raise ProtocolError("Invalid daemon download response")
+                return response.content
             if (
                 response.parsed is None
                 or getattr(response.parsed, "ok", None) is not True
@@ -189,3 +343,31 @@ class Holder:
         raise AuthenticationError(
             401, "unauthorized", "Daemon rejected refreshed credentials"
         )
+
+
+@contextmanager
+def open_session(
+    *,
+    fallback_workspace: str | PathLike[str] | None = None,
+    url: str | None = None,
+    token: str | None = None,
+    holderctl: str = "holderctl",
+    timeout: float | httpx.Timeout = 10.0,
+    transport: httpx.BaseTransport | None = None,
+) -> Iterator[Holder | EmbeddedWorkspace]:
+    """Open a daemon session, with an optional private workspace for offline use.
+
+    Use the private workspace only if local discovery finds no installed daemon.
+    An explicit URL always selects HTTP. Backend selection ends at session entry.
+    """
+    daemon = Holder(
+        url=url, token=token, holderctl=holderctl, timeout=timeout, transport=transport
+    )
+    with ExitStack() as stack:
+        try:
+            session: Holder | EmbeddedWorkspace = stack.enter_context(daemon)
+        except DaemonUnavailableError:
+            if fallback_workspace is None or url is not None:
+                raise
+            session = stack.enter_context(open_workspace(fallback_workspace))
+        yield session

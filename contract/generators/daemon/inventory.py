@@ -41,6 +41,10 @@ MANUAL = {
         "AssetContent.cpp:get_resources_resource_id_assets_asset_id_content",
         "dispatch; IDs/placement query; download headers/stream",
     ),
+    "download_recovery_snapshot": (
+        "GeneratedRoutes.cpp:dispatch_misc_contract_route",
+        "project ID validation; bounded binary response",
+    ),
     "get_alive": ("Alive.h:check_alive", "dispatch; no-query check; response serialization"),
     "get_ping": ("Ping.h:get_ping", "dispatch; no-query check; text response"),
     "get_health": ("Health.cpp:get_health", "dispatch; no-query check; response serialization"),

@@ -149,6 +149,7 @@ set(HOLDER_CORE_SOURCES
   src/api/RuntimeHosts.cpp
   src/capi/holder.cpp
   src/capi/version.cpp
+  src/platform/ProfileLock.cpp
   src/ai/AiMessageFrontMatter.cpp
   src/ai/AiMessagePaths.cpp
   src/ai/AiMessageRepo.cpp

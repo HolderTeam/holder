@@ -4,7 +4,8 @@ from typing import Annotated
 
 from fastapi import Body, Path
 
-from authoring import Contract, Field, Int32
+from authoring import Bytes, Contract, Field, Int32
+from authoring.routes import ErrorResponse
 
 from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..projects.ids import ProjectId
@@ -38,6 +39,19 @@ def register(contract: Contract) -> None:
         cards and resources, holder://resource/ references in content and the card tree follow them. Lines
         are restored in any order. A line core cannot read fails the restore and leaves no project behind.
         The daemon does not serve this.
+        """
+
+    @contract.route("GET", "/projects/{project_id}/recovery-snapshot", core=False,
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted], responses={
+        413: {"model": ErrorResponse, "description": "The recovery snapshot exceeds 2 MiB."},
+    })
+    def download_recovery_snapshot(project_id: Annotated[ProjectId, Path()]) -> Bytes:
+        """Download a consistent recovery snapshot of the project's live cards.
+
+        Returns UTF-8 recovery snapshot lines, one versioned JSON record per card, up to 2 MiB.
+        An empty project returns zero bytes. The download includes readable Markdown bodies,
+        including plaintext from encrypted projects. It includes linked resource declarations
+        but omits asset bytes, credentials, Git history, trash, and AI threads and messages.
         """
 
     @contract.route("POST", "/projects/{project_id}/recovery-token/export",

@@ -3,8 +3,11 @@
 namespace holder::platform {
 
 Tx::Tx(Db& db)
+    : Tx(db, Mode::Write) {}
+
+Tx::Tx(Db& db, Mode mode)
     : db_(db) {
-  db_.exec("BEGIN IMMEDIATE;");
+  db_.exec(mode == Mode::Read ? "BEGIN DEFERRED;" : "BEGIN IMMEDIATE;");
 }
 
 Tx::~Tx() {

@@ -120,7 +120,8 @@ def test_unsupported_shapes_fail_generation(mutation, message):
 def test_inventory_requires_a_disposition_for_every_daemon_operation():
     result = contract()
     inventory = generate_inventory(result)
-    assert "1 complete, 43 partially generated AI boundaries, 23 remaining handwritten" in inventory
+    assert "1 complete, 43 partially generated AI boundaries, 24 remaining handwritten" in inventory
+    assert "| `download_recovery_snapshot` | `GET /projects/{project_id}/recovery-snapshot` |" in inventory
     for operation in result.operations:
         if operation.daemon_only:
             assert sum(line.startswith(f"| `{operation.name}` |") for line in inventory.splitlines()) == 1

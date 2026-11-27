@@ -26,6 +26,9 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/holder"]
 
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "_build_backend/embedded.py"
+
 [tool.hatch.version]
 path = "VERSION"
 pattern = '(?P<version>\S+)'

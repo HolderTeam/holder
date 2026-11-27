@@ -51,8 +51,16 @@ raise_holder_error(ContextObject *self, int result, holder_error *error)
         exception = state->holder_error;
     }
 
-    PyErr_SetString(exception, message);
+    PyObject *instance = PyObject_CallFunction(exception, "s", message);
     holder_error_destroy(error);
+    if (instance != NULL) {
+        PyObject *code = PyLong_FromLong(result);
+        if (code != NULL && PyObject_SetAttrString(instance, "native_status", code) == 0) {
+            PyErr_SetObject(exception, instance);
+        }
+        Py_XDECREF(code);
+        Py_DECREF(instance);
+    }
     return -1;
 }
 
@@ -121,6 +129,60 @@ card_record(const char *card_id, const char *project_id, const char *title,
         put_epoch(record, "updated_at", updated_at) < 0 ||
         put_optional_epoch(record, "deleted_at", deleted_at) < 0 ||
         (content != NULL && put_text(record, "content", content) < 0)) {
+        Py_DECREF(record);
+        return NULL;
+    }
+    return record;
+}
+
+static int
+put_string_list(PyObject *record, const char *name, holder_string_list values)
+{
+    PyObject *list = PyList_New(0);
+    if (list == NULL) return -1;
+    for (size_t i = 0; i < values.count; ++i) {
+        PyObject *item = PyUnicode_FromString(values.items[i]);
+        if (item == NULL || PyList_Append(list, item) < 0) {
+            Py_XDECREF(item);
+            Py_DECREF(list);
+            return -1;
+        }
+        Py_DECREF(item);
+    }
+    const int result = PyDict_SetItemString(record, name, list);
+    Py_DECREF(list);
+    return result;
+}
+
+static PyObject *
+full_card_record(const holder_card *card)
+{
+    PyObject *record = card_record(card->card_id, card->project_id, card->title,
+        card->rel_path, card->parent_card_id, card->sort_key, card->created_at,
+        card->updated_at, card->deleted_at, card->content);
+    if (record == NULL) return NULL;
+    PyObject *occurrences = PyList_New(0);
+    if (occurrences == NULL) {
+        Py_DECREF(record);
+        return NULL;
+    }
+    for (size_t i = 0; i < card->tag_occurrences.count; ++i) {
+        const holder_tag_occurrence *occurrence = &card->tag_occurrences.items[i];
+        PyObject *item = Py_BuildValue("{s:s,s:L,s:L}", "tag", occurrence->tag,
+            "byte_start", (long long)occurrence->byte_start,
+            "byte_end", (long long)occurrence->byte_end);
+        if (item == NULL || PyList_Append(occurrences, item) < 0) {
+            Py_XDECREF(item);
+            Py_DECREF(occurrences);
+            Py_DECREF(record);
+            return NULL;
+        }
+        Py_DECREF(item);
+    }
+    const int result = PyDict_SetItemString(record, "tag_occurrences", occurrences);
+    Py_DECREF(occurrences);
+    if (result < 0 || put_string_list(record, "tags", card->tags) < 0 ||
+        put_string_list(record, "removable_tags", card->removable_tags) < 0) {
         Py_DECREF(record);
         return NULL;
     }
@@ -263,6 +325,39 @@ Context_create_project(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
+Context_restore_recovery_snapshot(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    holder_recovery_snapshot_restore request = {
+        .privacy_mode = HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_PLAIN,
+        .commit_message = "Restore project recovery snapshot",
+    };
+    static char *keywords[] = {"snapshot", "name", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:restore_recovery_snapshot", keywords,
+                                    &request.snapshot, &request.project_name) ||
+        !ensure_context_open(self)) {
+        return NULL;
+    }
+
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    holder_error *error = NULL;
+    const holder_project *project = NULL;
+    const int result = holder_restore_recovery_snapshot(
+        self->context, &request, arena, &project, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+    PyObject *record = project_record(project->project_id, project->name, project->root_path,
+        project->git_remote_url, project->git_provider, project->privacy_mode,
+        project->project_key_id, project->created_at, project->updated_at);
+    holder_arena_free(arena);
+    return record;
+}
+
+static PyObject *
 Context_list_projects(ContextObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (!ensure_context_open(self)) {
@@ -315,25 +410,31 @@ Context_list_projects(ContextObject *self, PyObject *Py_UNUSED(ignored))
 }
 
 static PyObject *
-Context_create_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+create_card(ContextObject *self, PyObject *args, PyObject *kwargs, int complete_record)
 {
     const char *project_id = NULL;
     const char *title = NULL;
     const char *content = NULL;
     const char *parent_card_id = NULL;
+    double sort_key = 0;
+    long long created_timestamp = 0;
+    long long updated_timestamp = 0;
     static char *keywords[] = {
-        "project_id", "title", "content", "parent_card_id", NULL
+        "project_id", "title", "content", "parent_card_id", "sort_key", "created_at", "updated_at", NULL
     };
 
     if (!PyArg_ParseTupleAndKeywords(
             args,
             kwargs,
-            "ss|zz:create_card",
+            "ss|zz$dLL:create_card",
             keywords,
             &project_id,
             &title,
             &content,
-            &parent_card_id)) {
+            &parent_card_id,
+            &sort_key,
+            &created_timestamp,
+            &updated_timestamp)) {
         return NULL;
     }
     if (!ensure_context_open(self)) {
@@ -346,6 +447,13 @@ Context_create_card(ContextObject *self, PyObject *args, PyObject *kwargs)
     request.title = title;
     request.content = content;
     request.parent_card_id = parent_card_id;
+    const int64_t created_at = created_timestamp;
+    const int64_t updated_at = updated_timestamp;
+    if (kwargs != NULL) {
+        if (PyDict_GetItemString(kwargs, "sort_key") != NULL) request.sort_key = &sort_key;
+        if (PyDict_GetItemString(kwargs, "created_at") != NULL) request.created_at = &created_at;
+        if (PyDict_GetItemString(kwargs, "updated_at") != NULL) request.updated_at = &updated_at;
+    }
     const holder_card *card = NULL;
     holder_error *error = NULL;
     const int result = holder_create_card(self->context, project_id, &request,
@@ -356,11 +464,24 @@ Context_create_card(ContextObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
     holder_error_destroy(error);
-    PyObject *record = card_record(card->card_id, card->project_id, card->title,
-        card->rel_path, card->parent_card_id, card->sort_key, card->created_at,
-        card->updated_at, card->deleted_at, NULL);
+    PyObject *record = complete_record ? full_card_record(card) :
+        card_record(card->card_id, card->project_id, card->title, card->rel_path,
+            card->parent_card_id, card->sort_key, card->created_at, card->updated_at,
+            card->deleted_at, NULL);
     holder_arena_free(arena);
     return record;
+}
+
+static PyObject *
+Context_create_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return create_card(self, args, kwargs, 0);
+}
+
+static PyObject *
+Context_create_card_record(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return create_card(self, args, kwargs, 1);
 }
 
 /* Milestone dates and records in the contract's shape: each date has a role and exactly one of a
@@ -496,28 +617,37 @@ change_from_python(PyObject *changes, const char *name, holder_string_change *ou
 }
 
 static PyObject *
+link_record(const holder_link *link)
+{
+    static const char *source_types[] = {"", "card", "ai_message"};
+    static const char *target_types[] = {"", "card", "ai_message", "ai_thread", "resource"};
+    const unsigned source = (unsigned)link->source_type;
+    const unsigned target = (unsigned)link->target_type;
+    PyObject *record = PyDict_New();
+    if (record == NULL ||
+        put_text(record, "source_project_id", link->source_project_id) < 0 ||
+        put_text(record, "source_type", source < 3 ? source_types[source] : NULL) < 0 ||
+        put_text(record, "source_id", link->source_id) < 0 ||
+        put_text(record, "target_project_id", link->target_project_id) < 0 ||
+        put_text(record, "target_type", target < 5 ? target_types[target] : NULL) < 0 ||
+        put_text(record, "target_id", link->target_id) < 0 ||
+        put_text(record, "kind", link->kind) < 0 ||
+        put_text(record, "label", link->label) < 0 ||
+        put_epoch(record, "created_at", link->created_at) < 0) {
+        Py_XDECREF(record);
+        return NULL;
+    }
+    return record;
+}
+
+static PyObject *
 link_list_record(const holder_link_list *list)
 {
     PyObject *out = PyList_New(0);
     if (out == NULL) return NULL;
-    static const char *source_types[] = {"", "card", "ai_message"};
-    static const char *target_types[] = {"", "card", "ai_message", "ai_thread", "resource"};
     for (size_t i = 0; i < list->count; ++i) {
-        const holder_link *link = &list->items[i];
-        PyObject *record = PyDict_New();
-        const unsigned source = (unsigned)link->source_type;
-        const unsigned target = (unsigned)link->target_type;
-        if (record == NULL ||
-            put_text(record, "source_project_id", link->source_project_id) < 0 ||
-            put_text(record, "source_type", source < 3 ? source_types[source] : NULL) < 0 ||
-            put_text(record, "source_id", link->source_id) < 0 ||
-            put_text(record, "target_project_id", link->target_project_id) < 0 ||
-            put_text(record, "target_type", target < 5 ? target_types[target] : NULL) < 0 ||
-            put_text(record, "target_id", link->target_id) < 0 ||
-            put_text(record, "kind", link->kind) < 0 ||
-            put_text(record, "label", link->label) < 0 ||
-            put_epoch(record, "created_at", link->created_at) < 0 ||
-            PyList_Append(out, record) < 0) {
+        PyObject *record = link_record(&list->items[i]);
+        if (record == NULL || PyList_Append(out, record) < 0) {
             Py_XDECREF(record);
             Py_DECREF(out);
             return NULL;
@@ -528,12 +658,46 @@ link_list_record(const holder_link_list *list)
 }
 
 static PyObject *
+Context_list_link_kinds(ContextObject *self, PyObject *Py_UNUSED(ignored))
+{
+    if (!ensure_context_open(self)) return NULL;
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_link_kind_labels_list *kinds = NULL;
+    holder_error *error = NULL;
+    const int result = holder_list_link_kinds(self->context, arena, &kinds, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+
+    PyObject *records = PyList_New(0);
+    if (records != NULL) for (size_t i = 0; i < kinds->count; ++i) {
+        const holder_link_kind_labels *kind = &kinds->items[i];
+        PyObject *record = Py_BuildValue("{s:s,s:s,s:s}", "kind", kind->kind,
+            "forward_label", kind->forward_label, "reverse_label", kind->reverse_label);
+        if (record == NULL || PyList_Append(records, record) < 0) {
+            Py_XDECREF(record);
+            Py_CLEAR(records);
+            break;
+        }
+        Py_DECREF(record);
+    }
+    holder_arena_free(arena);
+    return records;
+}
+
+static PyObject *
 Context_list_links(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
     const char *project_id = NULL;
     const char *card_id = NULL;
-    static char *keywords[] = {"project_id", "card_id", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:list_links", keywords, &project_id, &card_id) ||
+    int include_deleted = 0;
+    static char *keywords[] = {"project_id", "card_id", "include_deleted", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|$p:list_links", keywords,
+                                    &project_id, &card_id, &include_deleted) ||
         !ensure_context_open(self)) {
         return NULL;
     }
@@ -541,7 +705,8 @@ Context_list_links(ContextObject *self, PyObject *args, PyObject *kwargs)
     if (arena == NULL) return PyErr_NoMemory();
     const holder_link_list *links = NULL;
     holder_error *error = NULL;
-    const int result = holder_list_card_links(self->context, project_id, card_id, false, arena, &links, &error);
+    const int result = holder_list_card_links(self->context, project_id, card_id,
+        include_deleted != 0, arena, &links, &error);
     if (result != HOLDER_OK) {
         raise_holder_error(self, result, error);
         holder_arena_free(arena);
@@ -554,24 +719,54 @@ Context_list_links(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
-Context_resolve_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+Context_list_card_backlinks(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
-    const char *project_id = NULL;
-    const char *card_id = NULL;
-    static char *keywords[] = {"project_id", "card_id", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:resolve_card", keywords,
-                                    &project_id, &card_id) || !ensure_context_open(self)) {
+    const char *project_id, *card_id;
+    const char *scope = "local";
+    int include_deleted = 0;
+    static char *keywords[] = {"project_id", "card_id", "scope", "include_deleted", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|$sp:list_card_backlinks", keywords,
+                                    &project_id, &card_id, &scope, &include_deleted) ||
+        !ensure_context_open(self)) return NULL;
+
+    holder_list_card_backlinks_scope selection;
+    if (strcmp(scope, "local") == 0) {
+        selection = HOLDER_LIST_CARD_BACKLINKS_SCOPE_LOCAL;
+    } else if (strcmp(scope, "external") == 0) {
+        selection = HOLDER_LIST_CARD_BACKLINKS_SCOPE_EXTERNAL;
+    } else if (strcmp(scope, "all_available") == 0) {
+        selection = HOLDER_LIST_CARD_BACKLINKS_SCOPE_ALL_AVAILABLE;
+    } else {
+        PyErr_SetString(PyExc_ValueError, "scope must be 'local', 'external', or 'all_available'");
         return NULL;
     }
-    holder_card_reference_resolve_request request = {0};
-    request.project_id = project_id;
-    request.reference = card_id;
-    request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_EITHER;
+
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_link_list *links = NULL;
+    holder_error *error = NULL;
+    const int result = holder_list_card_backlinks(self->context, project_id, card_id,
+        selection, include_deleted != 0, arena, &links, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+    PyObject *records = link_list_record(links);
+    holder_arena_free(arena);
+    return records;
+}
+
+static PyObject *
+resolve_card_reference(ContextObject *self, const holder_card_reference_resolve_request *request,
+                       bool omit_absent)
+{
     holder_arena *arena = holder_arena_new();
     if (arena == NULL) return PyErr_NoMemory();
     const holder_card_reference_resolve_data *resolved = NULL;
     holder_error *error = NULL;
-    const int result = holder_resolve_card_reference(self->context, &request,
+    const int result = holder_resolve_card_reference(self->context, request,
         arena, &resolved, &error);
     if (result != HOLDER_OK) {
         raise_holder_error(self, result, error);
@@ -584,7 +779,8 @@ Context_resolve_card(ContextObject *self, PyObject *args, PyObject *kwargs)
         ? "ambiguous" : "not_found";
     PyObject *record = PyDict_New();
     if (record == NULL || put_text(record, "status", status) < 0 ||
-        put_text(record, "match_kind", resolved->match_kind) < 0) {
+        ((!omit_absent || resolved->match_kind != NULL) &&
+         put_text(record, "match_kind", resolved->match_kind) < 0)) {
         Py_XDECREF(record);
         holder_arena_free(arena);
         return NULL;
@@ -630,7 +826,46 @@ Context_resolve_card(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
-Context_get_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+Context_resolve_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id = NULL;
+    const char *card_id = NULL;
+    static char *keywords[] = {"project_id", "card_id", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:resolve_card", keywords,
+                                    &project_id, &card_id) || !ensure_context_open(self)) {
+        return NULL;
+    }
+    holder_card_reference_resolve_request request = {0};
+    request.project_id = project_id;
+    request.reference = card_id;
+    request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_EITHER;
+    return resolve_card_reference(self, &request, false);
+}
+
+static PyObject *
+Context_resolve_card_reference(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *scope;
+    holder_card_reference_resolve_request request = {0};
+    static char *keywords[] = {"project_id", "reference", "scope", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sss:resolve_card_reference", keywords,
+                                    &request.project_id, &request.reference, &scope) ||
+        !ensure_context_open(self)) return NULL;
+    if (strcmp(scope, "live") == 0) {
+        request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_LIVE;
+    } else if (strcmp(scope, "trashed") == 0) {
+        request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_TRASHED;
+    } else if (strcmp(scope, "either") == 0) {
+        request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_EITHER;
+    } else {
+        PyErr_SetString(PyExc_ValueError, "scope must be 'live', 'trashed', or 'either'");
+        return NULL;
+    }
+    return resolve_card_reference(self, &request, true);
+}
+
+static PyObject *
+get_card_metadata(ContextObject *self, PyObject *args, PyObject *kwargs, bool include_trash)
 {
     const char *project_id = NULL;
     const char *card_id = NULL;
@@ -643,8 +878,9 @@ Context_get_card(ContextObject *self, PyObject *args, PyObject *kwargs)
     if (arena == NULL) return PyErr_NoMemory();
     const holder_card_metadata *card = NULL;
     holder_error *error = NULL;
-    const int result = holder_get_card_any_state(self->context, project_id, card_id,
-                                                  arena, &card, &error);
+    const int result = include_trash
+        ? holder_get_card_any_state(self->context, project_id, card_id, arena, &card, &error)
+        : holder_get_card_metadata(self->context, project_id, card_id, arena, &card, &error);
     if (result != HOLDER_OK) {
         raise_holder_error(self, result, error);
         holder_arena_free(arena);
@@ -656,6 +892,98 @@ Context_get_card(ContextObject *self, PyObject *args, PyObject *kwargs)
         card->updated_at, card->deleted_at, NULL);
     holder_arena_free(arena);
     return record;
+}
+
+static PyObject *
+Context_get_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return get_card_metadata(self, args, kwargs, true);
+}
+
+static PyObject *
+Context_get_card_metadata(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return get_card_metadata(self, args, kwargs, false);
+}
+
+static PyObject *
+Context_search_cards(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id, *query;
+    int limit = 20;
+    int offset = 0;
+    static char *keywords[] = {"project_id", "q", "limit", "offset", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|$ii:search_cards", keywords,
+                                    &project_id, &query, &limit, &offset) ||
+        !ensure_context_open(self)) return NULL;
+
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const int32_t page_limit = limit;
+    const holder_search_card_list *items = NULL;
+    holder_error *error = NULL;
+    const int result = holder_search_cards(self->context, project_id, query, &page_limit,
+        offset, arena, &items, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+
+    PyObject *records = PyList_New(0);
+    if (records != NULL) for (size_t i = 0; i < items->count; ++i) {
+        const holder_search_card *item = &items->items[i];
+        PyObject *record = Py_BuildValue("{s:s,s:s,s:L,s:L,s:s,s:d}",
+            "card_id", item->card_id, "title", item->title,
+            "updated_at", (long long)item->updated_at, "created_at", (long long)item->created_at,
+            "snippet", item->snippet, "rank", item->rank);
+        if (record == NULL || PyList_Append(records, record) < 0) {
+            Py_XDECREF(record);
+            Py_CLEAR(records);
+            break;
+        }
+        Py_DECREF(record);
+    }
+    holder_arena_free(arena);
+    return records;
+}
+
+static PyObject *
+Context_get_card_breadcrumbs(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id, *card_id;
+    static char *keywords[] = {"project_id", "card_id", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:get_card_breadcrumbs", keywords,
+                                    &project_id, &card_id) || !ensure_context_open(self)) return NULL;
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_card_breadcrumb_list *breadcrumbs = NULL;
+    holder_error *error = NULL;
+    const int result = holder_get_card_breadcrumbs(self->context, project_id, card_id,
+        arena, &breadcrumbs, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+
+    PyObject *records = PyList_New(0);
+    if (records != NULL) for (size_t i = 0; i < breadcrumbs->count; ++i) {
+        const holder_card_breadcrumb *step = &breadcrumbs->items[i];
+        const char *kind = step->kind == HOLDER_CARD_BREADCRUMB_KIND_PROJECT ? "project" : "card";
+        PyObject *record = Py_BuildValue("{s:s,s:s,s:s}",
+            "kind", kind, "id", step->id, "title", step->title);
+        if (record == NULL || PyList_Append(records, record) < 0) {
+            Py_XDECREF(record);
+            Py_CLEAR(records);
+            break;
+        }
+        Py_DECREF(record);
+    }
+    holder_arena_free(arena);
+    return records;
 }
 
 static PyObject *
@@ -686,6 +1014,30 @@ Context_get_project(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
+move_card(ContextObject *self, const char *project_id, const char *card_id,
+          const holder_card_move *move, bool complete_record)
+{
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_card *card = NULL;
+    holder_error *error = NULL;
+    const int result = holder_move_card(self->context, project_id, card_id,
+                                        move, arena, &card, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+    PyObject *record = complete_record ? full_card_record(card) :
+        card_record(card->card_id, card->project_id, card->title, card->rel_path,
+            card->parent_card_id, card->sort_key, card->created_at, card->updated_at,
+            card->deleted_at, NULL);
+    holder_arena_free(arena);
+    return record;
+}
+
+static PyObject *
 Context_move_card(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
     const char *project_id = NULL;
@@ -707,37 +1059,85 @@ Context_move_card(ContextObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
     move.target_card_id = target_card_id;
-    holder_arena *arena = holder_arena_new();
-    if (arena == NULL) return PyErr_NoMemory();
-    const holder_card *card = NULL;
-    holder_error *error = NULL;
-    const int result = holder_move_card(self->context, project_id, card_id,
-                                        &move, arena, &card, &error);
-    if (result != HOLDER_OK) {
-        raise_holder_error(self, result, error);
-        holder_arena_free(arena);
+    return move_card(self, project_id, card_id, &move, false);
+}
+
+static PyObject *
+Context_move_card_record(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id, *card_id, *intent;
+    const char *parent = NULL;
+    holder_card_move move = {0};
+    static char *keywords[] = {
+        "project_id", "card_id", "intent", "target_card_id", "parent_card_id", NULL
+    };
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sss|$sz:move_card", keywords,
+                                    &project_id, &card_id, &intent, &move.target_card_id,
+                                    &parent) || !ensure_context_open(self)) return NULL;
+
+    static const struct {
+        const char *name;
+        holder_card_move_intent intent;
+    } intents[] = {
+        {"into", HOLDER_CARD_MOVE_INTENT_INTO},
+        {"before", HOLDER_CARD_MOVE_INTENT_BEFORE},
+        {"after", HOLDER_CARD_MOVE_INTENT_AFTER},
+        {"left", HOLDER_CARD_MOVE_INTENT_LEFT},
+        {"right", HOLDER_CARD_MOVE_INTENT_RIGHT},
+        {"to_start", HOLDER_CARD_MOVE_INTENT_TO_START},
+        {"to_end", HOLDER_CARD_MOVE_INTENT_TO_END},
+        {"up_level", HOLDER_CARD_MOVE_INTENT_UP_LEVEL},
+    };
+    for (size_t i = 0; i < sizeof intents / sizeof intents[0]; ++i) {
+        if (strcmp(intent, intents[i].name) == 0) {
+            move.intent = intents[i].intent;
+            break;
+        }
+    }
+    if (move.intent == 0) {
+        PyErr_SetString(PyExc_ValueError, "unknown card move intent");
         return NULL;
     }
-    holder_error_destroy(error);
-    PyObject *record = card_record(card->card_id, card->project_id, card->title,
-        card->rel_path, card->parent_card_id, card->sort_key, card->created_at,
-        card->updated_at, card->deleted_at, NULL);
-    holder_arena_free(arena);
+    if (kwargs != NULL && PyDict_GetItemString(kwargs, "parent_card_id") != NULL) {
+        move.parent_card_id.change = parent == NULL ? HOLDER_CLEAR : HOLDER_SET;
+        move.parent_card_id.value = parent;
+    }
+    return move_card(self, project_id, card_id, &move, true);
+}
+
+static PyObject *
+trash_item_record(const holder_trash_item *item, bool complete_record)
+{
+    PyObject *record = PyDict_New();
+    if (record == NULL) return NULL;
+    if (put_text(record, "project_id", item->project_id) < 0 ||
+        put_text(record, "card_id", item->card_id) < 0) {
+        Py_DECREF(record);
+        return NULL;
+    }
+    if (complete_record &&
+        (put_text(record, "type", item->type == HOLDER_TRASH_ITEM_TYPE_CARD ? "card" : "ai_message") < 0 ||
+         put_text(record, "message_id", item->message_id) < 0 ||
+         put_text(record, "thread_id", item->thread_id) < 0 ||
+         put_text(record, "title", item->title) < 0 ||
+         put_text(record, "role", item->role) < 0 ||
+         put_epoch(record, "deleted_at", item->deleted_at) < 0 ||
+         put_optional_epoch(record, "created_at", item->created_at) < 0 ||
+         put_text(record, "rel_path", item->rel_path) < 0)) {
+        Py_DECREF(record);
+        return NULL;
+    }
     return record;
 }
 
 static PyObject *
-Context_list_trashed_cards(ContextObject *self, PyObject *args, PyObject *kwargs)
+list_trash(ContextObject *self, const char *project_id, const char *type, bool complete_record)
 {
-    const char *project_id = NULL;
-    static char *keywords[] = {"project_id", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s:list_trashed_cards", keywords,
-                                    &project_id) || !ensure_context_open(self)) return NULL;
     holder_arena *arena = holder_arena_new();
     if (arena == NULL) return PyErr_NoMemory();
     const holder_trash_item_list *items = NULL;
     holder_error *error = NULL;
-    const int result = holder_list_trash(self->context, project_id, "card", arena, &items, &error);
+    const int result = holder_list_trash(self->context, project_id, type, arena, &items, &error);
     if (result != HOLDER_OK) {
         raise_holder_error(self, result, error);
         holder_arena_free(arena);
@@ -747,10 +1147,8 @@ Context_list_trashed_cards(ContextObject *self, PyObject *args, PyObject *kwargs
     PyObject *records = PyList_New(0);
     if (records != NULL) for (size_t i = 0; i < items->count; ++i) {
         const holder_trash_item *item = &items->items[i];
-        PyObject *record = PyDict_New();
-        if (record == NULL || put_text(record, "project_id", item->project_id) < 0 ||
-            put_text(record, "card_id", item->card_id) < 0 ||
-            PyList_Append(records, record) < 0) {
+        PyObject *record = trash_item_record(item, complete_record);
+        if (record == NULL || PyList_Append(records, record) < 0) {
             Py_XDECREF(record);
             Py_CLEAR(records);
             break;
@@ -762,7 +1160,28 @@ Context_list_trashed_cards(ContextObject *self, PyObject *args, PyObject *kwargs
 }
 
 static PyObject *
-Context_restore_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+Context_list_trashed_cards(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id = NULL;
+    static char *keywords[] = {"project_id", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s:list_trashed_cards", keywords,
+                                    &project_id) || !ensure_context_open(self)) return NULL;
+    return list_trash(self, project_id, "card", false);
+}
+
+static PyObject *
+Context_list_trash(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id;
+    const char *type = NULL;
+    static char *keywords[] = {"project_id", "type", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|$z:list_trash", keywords,
+                                    &project_id, &type) || !ensure_context_open(self)) return NULL;
+    return list_trash(self, project_id, type, true);
+}
+
+static PyObject *
+restore_card(ContextObject *self, PyObject *args, PyObject *kwargs, bool complete_record)
 {
     const char *project_id = NULL, *card_id = NULL;
     static char *keywords[] = {"project_id", "card_id", NULL};
@@ -779,9 +1198,43 @@ Context_restore_card(ContextObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
     holder_error_destroy(error);
-    PyObject *record = card_record(card->card_id, card->project_id, card->title,
-        card->rel_path, card->parent_card_id, card->sort_key, card->created_at,
-        card->updated_at, card->deleted_at, NULL);
+    PyObject *record = complete_record ? full_card_record(card) :
+        card_record(card->card_id, card->project_id, card->title, card->rel_path,
+            card->parent_card_id, card->sort_key, card->created_at, card->updated_at,
+            card->deleted_at, NULL);
+    holder_arena_free(arena);
+    return record;
+}
+
+static PyObject *
+Context_restore_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return restore_card(self, args, kwargs, false);
+}
+
+static PyObject *
+Context_restore_card_record(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return restore_card(self, args, kwargs, true);
+}
+
+static PyObject *
+trash_card(ContextObject *self, const char *project_id, const char *card_id,
+           holder_trash_card_children children, bool complete_record)
+{
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_card *card = NULL;
+    holder_error *error = NULL;
+    const int result = holder_trash_card(self->context, project_id, card_id,
+        children, arena, &card, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+    PyObject *record = complete_record ? full_card_record(card) : Py_NewRef(Py_None);
     holder_arena_free(arena);
     return record;
 }
@@ -793,20 +1246,28 @@ Context_trash_card(ContextObject *self, PyObject *args, PyObject *kwargs)
     static char *keywords[] = {"project_id", "card_id", NULL};
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:trash_card", keywords,
                                     &project_id, &card_id) || !ensure_context_open(self)) return NULL;
-    holder_arena *arena = holder_arena_new();
-    if (arena == NULL) return PyErr_NoMemory();
-    const holder_card *card = NULL;
-    holder_error *error = NULL;
-    const int result = holder_trash_card(self->context, project_id, card_id,
-        HOLDER_TRASH_CARD_CHILDREN_DEFAULT, arena, &card, &error);
-    if (result != HOLDER_OK) {
-        raise_holder_error(self, result, error);
-        holder_arena_free(arena);
+    return trash_card(self, project_id, card_id, HOLDER_TRASH_CARD_CHILDREN_DEFAULT, false);
+}
+
+static PyObject *
+Context_trash_card_record(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id = NULL, *card_id = NULL;
+    const char *mode = "promote";
+    static char *keywords[] = {"project_id", "card_id", "children", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|$s:trash_card", keywords,
+                                    &project_id, &card_id, &mode) ||
+        !ensure_context_open(self)) return NULL;
+    holder_trash_card_children children;
+    if (strcmp(mode, "promote") == 0) {
+        children = HOLDER_TRASH_CARD_CHILDREN_PROMOTE;
+    } else if (strcmp(mode, "trash_subtree") == 0) {
+        children = HOLDER_TRASH_CARD_CHILDREN_TRASH_SUBTREE;
+    } else {
+        PyErr_SetString(PyExc_ValueError, "children must be 'promote' or 'trash_subtree'");
         return NULL;
     }
-    holder_error_destroy(error);
-    holder_arena_free(arena);
-    Py_RETURN_NONE;
+    return trash_card(self, project_id, card_id, children, true);
 }
 
 static PyObject *
@@ -916,7 +1377,7 @@ Context_list_editable_tags(ContextObject *self, PyObject *args, PyObject *kwargs
 }
 
 static PyObject *
-Context_list_project_tags(ContextObject *self, PyObject *args, PyObject *kwargs)
+list_project_tags(ContextObject *self, PyObject *args, PyObject *kwargs, bool allow_missing)
 {
     const char *project_id = NULL;
     static char *keywords[] = {"project_id", NULL};
@@ -929,7 +1390,7 @@ Context_list_project_tags(ContextObject *self, PyObject *args, PyObject *kwargs)
     const holder_tag_count_list *tags = NULL;
     holder_error *error = NULL;
     const int result = holder_list_project_tags(self->context, project_id, arena, &tags, &error);
-    if (result == HOLDER_ERROR_NOT_FOUND) {
+    if (allow_missing && result == HOLDER_ERROR_NOT_FOUND) {
         holder_error_destroy(error);
         holder_arena_free(arena);
         return PyList_New(0);
@@ -958,6 +1419,18 @@ Context_list_project_tags(ContextObject *self, PyObject *args, PyObject *kwargs)
     }
     holder_arena_free(arena);
     return records;
+}
+
+static PyObject *
+Context_list_project_tags(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return list_project_tags(self, args, kwargs, true);
+}
+
+static PyObject *
+Context_list_project_tag_counts(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return list_project_tags(self, args, kwargs, false);
 }
 
 static PyObject *
@@ -1113,7 +1586,95 @@ Context_remove_milestone(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
-Context_calendar_milestones(ContextObject *self, PyObject *args, PyObject *kwargs)
+milestone_query_result(ContextObject *self, int result, const holder_milestone_list *items,
+                       holder_error *error, holder_arena *arena)
+{
+    PyObject *records = NULL;
+    if (result == HOLDER_OK) {
+        holder_error_destroy(error);
+        records = milestone_list_record(items);
+    } else {
+        raise_holder_error(self, result, error);
+    }
+    holder_arena_free(arena);
+    return records;
+}
+
+static PyObject *
+Context_list_milestones_by_day(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id, *first_day, *last_day;
+    const char *role = NULL;
+    static char *keywords[] = {"project_id", "first_day", "last_day", "role", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sss|$z:list_milestones_by_day", keywords,
+        &project_id, &first_day, &last_day, &role) || !ensure_context_open(self)) return NULL;
+
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_milestone_list *items = NULL;
+    holder_error *error = NULL;
+    const int result = holder_list_milestones_by_day(self->context, project_id, first_day,
+        last_day, role, arena, &items, &error);
+    return milestone_query_result(self, result, items, error, arena);
+}
+
+static PyObject *
+Context_list_milestones_by_instant(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id;
+    long long first_instant, last_instant;
+    const char *role = NULL;
+    static char *keywords[] = {"project_id", "first_instant", "last_instant", "role", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sLL|$z:list_milestones_by_instant", keywords,
+        &project_id, &first_instant, &last_instant, &role) || !ensure_context_open(self)) return NULL;
+
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_milestone_list *items = NULL;
+    holder_error *error = NULL;
+    const int result = holder_list_milestones_by_instant(self->context, project_id,
+        first_instant, last_instant, role, arena, &items, &error);
+    return milestone_query_result(self, result, items, error, arena);
+}
+
+static PyObject *
+card_metadata_list_record(const holder_card_metadata_list *cards)
+{
+    PyObject *records = PyList_New(0);
+    if (records == NULL) return NULL;
+    for (size_t i = 0; i < cards->count; ++i) {
+        const holder_card_metadata *card = &cards->items[i];
+        PyObject *record = card_record(card->card_id, card->project_id, card->title,
+            card->rel_path, card->parent_card_id, card->sort_key, card->created_at,
+            card->updated_at, card->deleted_at, NULL);
+        if (record == NULL || PyList_Append(records, record) < 0) {
+            Py_XDECREF(record);
+            Py_DECREF(records);
+            return NULL;
+        }
+        Py_DECREF(record);
+    }
+    return records;
+}
+
+static PyObject *
+calendar_record(const holder_calendar *calendar, PyObject *milestones)
+{
+    PyObject *created = card_metadata_list_record(&calendar->created_cards);
+    if (created == NULL) return NULL;
+    PyObject *updated = card_metadata_list_record(&calendar->updated_cards);
+    PyObject *record = NULL;
+    if (updated != NULL) {
+        record = Py_BuildValue("{s:O,s:O,s:O}", "milestones", milestones,
+            "created_cards", created, "updated_cards", updated);
+    }
+    Py_DECREF(created);
+    Py_XDECREF(updated);
+    return record;
+}
+
+static PyObject *
+get_calendar(ContextObject *self, PyObject *args, PyObject *kwargs, bool complete_record)
 {
     const char *project_id = NULL;
     const char *first_day = NULL;
@@ -1149,15 +1710,32 @@ Context_calendar_milestones(ContextObject *self, PyObject *args, PyObject *kwarg
         }
         Py_DECREF(record);
     }
+    if (out != NULL && complete_record) {
+        PyObject *record = calendar_record(calendar, out);
+        Py_DECREF(out);
+        out = record;
+    }
     holder_arena_free(arena);
     return out;
+}
+
+static PyObject *
+Context_calendar_milestones(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return get_calendar(self, args, kwargs, false);
+}
+
+static PyObject *
+Context_get_calendar(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return get_calendar(self, args, kwargs, true);
 }
 
 typedef int (*tag_mutation)(holder_context *, const char *, const char *, const char *,
                             holder_arena *, const holder_card **, holder_error **);
 
 static PyObject *
-mutate_tag(ContextObject *self, PyObject *args, PyObject *kwargs, tag_mutation operation)
+mutate_tag(ContextObject *self, PyObject *args, PyObject *kwargs, tag_mutation operation, bool complete_record)
 {
     const char *project_id = NULL;
     const char *card_id = NULL;
@@ -1179,20 +1757,33 @@ mutate_tag(ContextObject *self, PyObject *args, PyObject *kwargs, tag_mutation o
         return NULL;
     }
     holder_error_destroy(error);
+    PyObject *record = complete_record ? full_card_record(card) : Py_NewRef(Py_None);
     holder_arena_free(arena);
-    Py_RETURN_NONE;
+    return record;
 }
 
 static PyObject *
 Context_add_tag(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
-    return mutate_tag(self, args, kwargs, holder_add_card_tag);
+    return mutate_tag(self, args, kwargs, holder_add_card_tag, false);
 }
 
 static PyObject *
 Context_remove_tag(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
-    return mutate_tag(self, args, kwargs, holder_remove_card_tag);
+    return mutate_tag(self, args, kwargs, holder_remove_card_tag, false);
+}
+
+static PyObject *
+Context_add_card_tag(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return mutate_tag(self, args, kwargs, holder_add_card_tag, true);
+}
+
+static PyObject *
+Context_remove_card_tag(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return mutate_tag(self, args, kwargs, holder_remove_card_tag, true);
 }
 
 static PyObject *
@@ -1264,6 +1855,27 @@ Context_cards_with_tag(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
+add_card_link(ContextObject *self, const char *project_id, const char *from_card_id,
+              const holder_new_link *link, bool return_record)
+{
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_link *created = NULL;
+    holder_error *error = NULL;
+    const int result = holder_add_card_link(self->context, project_id, from_card_id,
+        link, arena, &created, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+    PyObject *record = return_record ? link_record(created) : Py_NewRef(Py_None);
+    holder_arena_free(arena);
+    return record;
+}
+
+static PyObject *
 Context_add_link(ContextObject *self, PyObject *args, PyObject *kwargs)
 {
     const char *project_id = NULL;
@@ -1281,26 +1893,36 @@ Context_add_link(ContextObject *self, PyObject *args, PyObject *kwargs)
     if (!ensure_context_open(self)) {
         return NULL;
     }
-    holder_arena *arena = holder_arena_new();
-    if (arena == NULL) return PyErr_NoMemory();
     holder_new_link link = {0};
     link.target_type = HOLDER_NEW_LINK_TARGET_TYPE_CARD;
     link.target_id = to_card_id;
     link.target_project_id = target_project_id;
     link.kind = kind;
     link.label = label;
-    const holder_link *created = NULL;
+    return add_card_link(self, project_id, from_card_id, &link, false);
+}
+
+static PyObject *
+remove_card_link(ContextObject *self, const char *project_id, const char *from_card_id,
+                 holder_remove_card_link_target_type target_type, const char *to_card_id,
+                 const char *kind, const char *target_project_id, bool return_records)
+{
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_link_list *remaining = NULL;
     holder_error *error = NULL;
-    const int result = holder_add_card_link(self->context, project_id, from_card_id,
-        &link, arena, &created, &error);
+    const int result = holder_remove_card_link(self->context, project_id,
+        from_card_id, target_type, to_card_id,
+        kind, target_project_id, arena, &remaining, &error);
     if (result != HOLDER_OK) {
         raise_holder_error(self, result, error);
         holder_arena_free(arena);
         return NULL;
     }
     holder_error_destroy(error);
+    PyObject *records = return_records ? link_list_record(remaining) : Py_NewRef(Py_None);
     holder_arena_free(arena);
-    Py_RETURN_NONE;
+    return records;
 }
 
 static PyObject *
@@ -1320,21 +1942,69 @@ Context_remove_link(ContextObject *self, PyObject *args, PyObject *kwargs)
     if (!ensure_context_open(self)) {
         return NULL;
     }
-    holder_arena *arena = holder_arena_new();
-    if (arena == NULL) return PyErr_NoMemory();
-    const holder_link_list *remaining = NULL;
-    holder_error *error = NULL;
-    const int result = holder_remove_card_link(self->context, project_id,
-        from_card_id, HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_CARD, to_card_id,
-        kind, target_project_id, arena, &remaining, &error);
-    if (result != HOLDER_OK) {
-        raise_holder_error(self, result, error);
-        holder_arena_free(arena);
-        return NULL;
+    return remove_card_link(self, project_id, from_card_id, HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_CARD,
+        to_card_id, kind, target_project_id, false);
+}
+
+typedef struct {
+    const char *name;
+    holder_new_link_target_type add;
+    holder_remove_card_link_target_type remove;
+} link_target_type;
+
+static const link_target_type *
+parse_link_target_type(const char *name)
+{
+    static const link_target_type targets[] = {
+        {"card", HOLDER_NEW_LINK_TARGET_TYPE_CARD, HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_CARD},
+        {"ai_message", HOLDER_NEW_LINK_TARGET_TYPE_AI_MESSAGE, HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_MESSAGE},
+        {"ai_thread", HOLDER_NEW_LINK_TARGET_TYPE_AI_THREAD, HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_THREAD},
+        {"resource", HOLDER_NEW_LINK_TARGET_TYPE_RESOURCE, HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_RESOURCE},
+    };
+    for (size_t i = 0; i < sizeof targets / sizeof targets[0]; ++i) {
+        if (strcmp(name, targets[i].name) == 0) return &targets[i];
     }
-    holder_error_destroy(error);
-    holder_arena_free(arena);
-    Py_RETURN_NONE;
+    PyErr_SetString(PyExc_ValueError, "unknown link target type");
+    return NULL;
+}
+
+static PyObject *
+Context_add_card_link(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id, *card_id, *type;
+    long long timestamp = 0;
+    holder_new_link link = {0};
+    static char *keywords[] = {
+        "project_id", "card_id", "target_type", "target_id",
+        "target_project_id", "kind", "label", "created_at", NULL
+    };
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ssss|$sszL:add_card_link", keywords,
+        &project_id, &card_id, &type, &link.target_id, &link.target_project_id,
+        &link.kind, &link.label, &timestamp) || !ensure_context_open(self)) return NULL;
+
+    const link_target_type *target_type = parse_link_target_type(type);
+    if (target_type == NULL) return NULL;
+    link.target_type = target_type->add;
+    const int64_t created_at = timestamp;
+    if (kwargs != NULL && PyDict_GetItemString(kwargs, "created_at") != NULL) {
+        link.created_at = &created_at;
+    }
+    return add_card_link(self, project_id, card_id, &link, true);
+}
+
+static PyObject *
+Context_remove_card_link(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id, *card_id, *type, *target_id;
+    const char *kind = NULL, *target_project_id = NULL;
+    static char *keywords[] = {"project_id", "card_id", "target_type", "target_id", "kind", "target_project_id", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ssss|$sz:remove_card_link", keywords,
+        &project_id, &card_id, &type, &target_id, &kind, &target_project_id) ||
+        !ensure_context_open(self)) return NULL;
+    const link_target_type *target_type = parse_link_target_type(type);
+    if (target_type == NULL) return NULL;
+    return remove_card_link(self, project_id, card_id, target_type->remove,
+        target_id, kind, target_project_id, true);
 }
 
 static PyObject *
@@ -1420,11 +2090,13 @@ Context_list_cards_page(ContextObject *self, PyObject *args, PyObject *kwargs)
     int limit = 256;
     const char *cursor = NULL;
     int include_content = 0;
+    int include_child_count = 0;
     static char *keywords[] = {
-        "project_id", "parent_card_id", "roots", "tag", "order", "limit", "cursor", "include_content", NULL
+        "project_id", "parent_card_id", "roots", "tag", "order", "limit", "cursor", "include_content", "include_child_count", NULL
     };
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|$zpzsizp:list_cards_page", keywords, &project_id,
-                                    &parent_card_id, &roots, &tag, &order, &limit, &cursor, &include_content) ||
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|$zpzsizpp:list_cards_page", keywords, &project_id,
+                                    &parent_card_id, &roots, &tag, &order, &limit, &cursor, &include_content,
+                                    &include_child_count) ||
         !ensure_context_open(self)) {
         return NULL;
     }
@@ -1452,7 +2124,7 @@ Context_list_cards_page(ContextObject *self, PyObject *args, PyObject *kwargs)
     holder_error *error = NULL;
     const int32_t requested_limit = limit;
     const int result = holder_list_cards(self->context, project_id, parent, tag, card_order, &requested_limit,
-        cursor, include_content != 0, false, arena, &page, &error);
+        cursor, include_content != 0, include_child_count != 0, arena, &page, &error);
     if (result != HOLDER_OK) {
         raise_holder_error(self, result, error);
         holder_arena_free(arena);
@@ -1469,7 +2141,9 @@ Context_list_cards_page(ContextObject *self, PyObject *args, PyObject *kwargs)
         PyObject *record = card_record(card->card_id, card->project_id, card->title,
             card->rel_path, card->parent_card_id, card->sort_key, card->created_at,
             card->updated_at, card->deleted_at, include_content ? card->content : NULL);
-        if (record == NULL || PyList_Append(cards, record) < 0) {
+        if (record == NULL ||
+            (card->child_count != NULL && put_epoch(record, "child_count", *card->child_count) < 0) ||
+            PyList_Append(cards, record) < 0) {
             Py_XDECREF(record);
             Py_DECREF(cards);
             holder_arena_free(arena);
@@ -1574,6 +2248,75 @@ Context_update_card(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
+Context_get_live_card(ContextObject *self, PyObject *args)
+{
+    const char *project_id;
+    const char *card_id;
+    if (!PyArg_ParseTuple(args, "ss:get_live_card", &project_id, &card_id) ||
+        !ensure_context_open(self)) return NULL;
+
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_card *card = NULL;
+    holder_error *error = NULL;
+    const int result = holder_get_card(self->context, project_id, card_id, arena, &card, &error);
+    PyObject *record = NULL;
+    if (result == HOLDER_OK) {
+        holder_error_destroy(error);
+        record = full_card_record(card);
+    } else {
+        raise_holder_error(self, result, error);
+    }
+    holder_arena_free(arena);
+    return record;
+}
+
+static PyObject *
+Context_patch_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id;
+    const char *card_id;
+    holder_card_update update = {0};
+    const char *parent = NULL;
+    double sort_key = 0;
+    long long timestamp = 0;
+    static char *keywords[] = {
+        "project_id", "card_id", "title", "content", "parent_card_id", "sort_key", "updated_at", NULL
+    };
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|$sszdL:patch_card", keywords,
+        &project_id, &card_id, &update.title, &update.content, &parent, &sort_key, &timestamp) ||
+        !ensure_context_open(self)) return NULL;
+
+    if (kwargs != NULL && PyDict_GetItemString(kwargs, "parent_card_id") != NULL) {
+        update.parent_card_id.change = parent == NULL ? HOLDER_CLEAR : HOLDER_SET;
+        update.parent_card_id.value = parent;
+    }
+    if (kwargs != NULL && PyDict_GetItemString(kwargs, "sort_key") != NULL) {
+        update.sort_key = &sort_key;
+    }
+    const int64_t updated_at = timestamp;
+    if (kwargs != NULL && PyDict_GetItemString(kwargs, "updated_at") != NULL) {
+        update.updated_at = &updated_at;
+    }
+
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_card *card = NULL;
+    holder_error *error = NULL;
+    const int result = holder_update_card(self->context, project_id, card_id, &update,
+        arena, &card, &error);
+    PyObject *record = NULL;
+    if (result == HOLDER_OK) {
+        holder_error_destroy(error);
+        record = full_card_record(card);
+    } else {
+        raise_holder_error(self, result, error);
+    }
+    holder_arena_free(arena);
+    return record;
+}
+
+static PyObject *
 Context_get_closed(ContextObject *self, void *Py_UNUSED(closure))
 {
     return PyBool_FromLong(self->context == NULL);
@@ -1596,6 +2339,12 @@ static PyMethodDef Context_methods[] = {
      PyDoc_STR("Partially update a milestone: absent keeps a field, None clears it.")},
     {"remove_milestone", PyCFunction_CAST(Context_remove_milestone), METH_VARARGS | METH_KEYWORDS,
      PyDoc_STR("Remove a milestone and return the card's remaining milestones.")},
+    {"list_milestones_by_day", PyCFunction_CAST(Context_list_milestones_by_day), METH_VARARGS | METH_KEYWORDS,
+     "List project milestones by an inclusive range of calendar days."},
+    {"list_milestones_by_instant", PyCFunction_CAST(Context_list_milestones_by_instant), METH_VARARGS | METH_KEYWORDS,
+     "List project milestones by an inclusive range of Unix timestamps."},
+    {"get_calendar", PyCFunction_CAST(Context_get_calendar), METH_VARARGS | METH_KEYWORDS,
+     "Read project milestones and card changes over a date window."},
     {"calendar_milestones", PyCFunction_CAST(Context_calendar_milestones), METH_VARARGS | METH_KEYWORDS,
      PyDoc_STR("List a project's live milestones with a date in days in a time zone.")},
     {"list_tags", PyCFunction_CAST(Context_list_tags), METH_VARARGS | METH_KEYWORDS,
@@ -1622,6 +2371,8 @@ static PyMethodDef Context_methods[] = {
     {"__exit__", (PyCFunction)Context_exit, METH_VARARGS, NULL},
     {"create_project", PyCFunction_CAST(Context_create_project),
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Create a plain Holder project.")},
+    {"restore_recovery_snapshot", PyCFunction_CAST(Context_restore_recovery_snapshot),
+     METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Restore recovery snapshot lines into a new plain project.")},
     {"list_projects", (PyCFunction)Context_list_projects, METH_NOARGS,
      PyDoc_STR("List Holder projects.")},
     {"get_project", PyCFunction_CAST(Context_get_project),
@@ -1646,6 +2397,42 @@ static PyMethodDef Context_methods[] = {
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Permanently remove a card that is already in Trash.")},
     {"list_cards_page", PyCFunction_CAST(Context_list_cards_page), METH_VARARGS | METH_KEYWORDS,
      PyDoc_STR("Return one page of a project's live cards, by parent, tag and order.")},
+    {"add_card_link", PyCFunction_CAST(Context_add_card_link), METH_VARARGS | METH_KEYWORDS,
+     "Create a qualified link and return its record."},
+    {"remove_card_link", PyCFunction_CAST(Context_remove_card_link), METH_VARARGS | METH_KEYWORDS,
+     "Remove a qualified link and return the remaining visible links."},
+    {"list_link_kinds", PyCFunction_CAST(Context_list_link_kinds), METH_NOARGS,
+     "List the known link kinds with their labels."},
+    {"list_card_backlinks", PyCFunction_CAST(Context_list_card_backlinks), METH_VARARGS | METH_KEYWORDS,
+     "List the links to a live card."},
+    {"search_cards", PyCFunction_CAST(Context_search_cards), METH_VARARGS | METH_KEYWORDS,
+     "Search live cards in a project by relevance."},
+    {"resolve_card_reference", PyCFunction_CAST(Context_resolve_card_reference), METH_VARARGS | METH_KEYWORDS,
+     "Resolve a card reference within a project and deletion scope."},
+    {"get_card_metadata", PyCFunction_CAST(Context_get_card_metadata), METH_VARARGS | METH_KEYWORDS,
+     "Read live card metadata without loading the card body."},
+    {"get_card_breadcrumbs", PyCFunction_CAST(Context_get_card_breadcrumbs), METH_VARARGS | METH_KEYWORDS,
+     "Read the project-to-card path of a live card."},
+    {"get_live_card", PyCFunction_CAST(Context_get_live_card), METH_VARARGS,
+     "Read a live card with content and tags."},
+    {"add_card_tag", PyCFunction_CAST(Context_add_card_tag), METH_VARARGS | METH_KEYWORDS,
+     "Add a tag and return the card's complete record."},
+    {"remove_card_tag", PyCFunction_CAST(Context_remove_card_tag), METH_VARARGS | METH_KEYWORDS,
+     "Remove a tag and return the card's complete record."},
+    {"list_project_tag_counts", PyCFunction_CAST(Context_list_project_tag_counts), METH_VARARGS | METH_KEYWORDS,
+     "List project tag counts, raising if the project is missing."},
+    {"list_trash", PyCFunction_CAST(Context_list_trash), METH_VARARGS | METH_KEYWORDS,
+     "List the detached Trash records for a project."},
+    {"move_card_record", PyCFunction_CAST(Context_move_card_record), METH_VARARGS | METH_KEYWORDS,
+     "Move a card and return its complete record."},
+    {"trash_card_record", PyCFunction_CAST(Context_trash_card_record), METH_VARARGS | METH_KEYWORDS,
+     "Trash a card and return its complete record."},
+    {"restore_card_record", PyCFunction_CAST(Context_restore_card_record), METH_VARARGS | METH_KEYWORDS,
+     "Restore a card and return its complete record."},
+    {"create_card_record", PyCFunction_CAST(Context_create_card_record), METH_VARARGS | METH_KEYWORDS,
+     "Create a card and return its complete record."},
+    {"patch_card", PyCFunction_CAST(Context_patch_card), METH_VARARGS | METH_KEYWORDS,
+     "Update only the supplied fields of a live card."},
     {"get_card_content", PyCFunction_CAST(Context_get_card_content),
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Return a card's Markdown body.")},
     {"update_card", PyCFunction_CAST(Context_update_card),
@@ -1696,7 +2483,8 @@ holder_module_clear(PyObject *module)
 static int
 holder_module_exec(PyObject *module)
 {
-    if (PyModule_AddIntConstant(module, "CARD_PAGE_MAX_LIMIT", 1000) < 0) {
+    if (PyModule_AddIntConstant(module, "CARD_PAGE_MAX_LIMIT", 1000) < 0 ||
+        PyModule_AddIntConstant(module, "WORKSPACE_BRIDGE_VERSION", 1) < 0) {
         return -1;
     }
     holder_module_state *state = PyModule_GetState(module);

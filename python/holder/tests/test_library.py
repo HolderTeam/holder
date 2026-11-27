@@ -2,18 +2,27 @@
 
 import json
 import subprocess
+from contextlib import nullcontext
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock
 
 import httpx
 import pytest
 
-from holder import Card, Holder, Project
+from holder import (
+    Card,
+    Holder,
+    Project,
+    iter_card_records,
+    open_session,
+    open_workspace,
+)
 from holder.exceptions import (
     APIError,
     AuthenticationError,
     ClosedError,
     ConnectionError,
+    DaemonUnavailableError,
     NotFoundError,
     ProtocolError,
 )
@@ -298,6 +307,9 @@ def test_lazy_projects_pages_cache_queries_indexing_and_close():
         with pytest.raises(TypeError):
             h.projects.filter(unknown=True)
         assert not hasattr(h, "cards")
+        assert [row["project_id"] for row in h.list_projects()] == [
+            f"p-{i}" for i in range(205)
+        ]
         client = h._active().get_httpx_client()
     assert client.is_closed
     with pytest.raises(ClosedError):
@@ -759,3 +771,147 @@ def test_invalid_card_continuation_is_rejected(items, cursor):
             collection._next = "same"
         with pytest.raises(ProtocolError, match="did not advance"):
             list(collection)
+
+
+def test_card_record_export_follows_pages_lazily():
+    cursors = []
+
+    def respond(request):
+        assert request.url.path == "/projects/p-0/cards"
+        assert request.url.params["include_content"] == "true"
+        assert request.url.params["order"] == "card_id_asc"
+        cursor = request.url.params.get("cursor")
+        cursors.append(cursor)
+        return ok(
+            {
+                "items": [card_payload(len(cursors), content=True)],
+                "next_cursor": "page-two" if cursor is None else None,
+            }
+        )
+
+    with holder_for(respond) as session:
+        records = iter_card_records(session.card_operations, "p-0", include_content=True)
+        assert cursors == []
+        first = next(records)
+        assert cursors == [None]
+        (second,) = records
+
+    assert cursors == [None, "page-two"]
+    assert first["card_id"] != second["card_id"]
+    assert first["content"] == second["content"] == "current body"
+
+
+def test_card_record_export_rejects_repeated_cursor():
+    def respond(request):
+        assert request.url.params["include_content"] == "false"
+        return ok({"items": [card_payload()], "next_cursor": "stuck"})
+
+    with holder_for(respond) as session, pytest.raises(ProtocolError, match="did not advance"):
+        list(iter_card_records(session.card_operations, "p-0"))
+
+
+def test_open_session_prefers_local_daemon(monkeypatch, tmp_path):
+    cli = mock_cli(monkeypatch)
+    fallback = tmp_path / "private"
+    transport = httpx.MockTransport(lambda request: ok([project_payload(0)]))
+    with open_session(fallback_workspace=fallback, transport=transport) as session:
+        assert session.list_projects()[0]["project_id"] == "p-0"
+    assert cli.call_count == 2
+    assert not fallback.exists()
+
+
+@pytest.mark.parametrize("xdg_data_home", ["absolute", "relative"])
+def test_embedded_rejects_desktop_profile_without_daemon(monkeypatch, tmp_path, xdg_data_home):
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    if xdg_data_home == "absolute":
+        data_home = tmp_path / "xdg-data"
+        monkeypatch.setenv("XDG_DATA_HOME", str(data_home))
+    else:
+        data_home = home / ".local" / "share"
+        monkeypatch.setenv("XDG_DATA_HOME", "relative-data")
+
+    profile = data_home / "holder"
+    with pytest.raises(ValueError, match="desktop Holder profile"), open_workspace(profile):
+        pass
+    assert not profile.exists()
+
+
+def test_embedded_rejects_symlink_to_desktop_profile(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    profile = tmp_path / "holder"
+    profile.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(profile, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="desktop Holder profile"), open_workspace(alias):
+        pass
+    assert not (profile / "server").exists()
+
+
+def test_embedded_rejects_existing_daemon_profile_outside_current_data_home(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "current"))
+    profile = tmp_path / "previous" / "holder"
+    server_dir = profile / "server"
+    server_dir.mkdir(parents=True)
+    (server_dir / "holder.json").write_text("{}")
+
+    with pytest.raises(ValueError, match="desktop Holder profile"), open_workspace(profile):
+        pass
+    assert not (server_dir / "holder.db").exists()
+
+
+@pytest.mark.parametrize("unavailable", [FileNotFoundError(), 14])
+def test_open_session_uses_private_workspace_when_local_daemon_is_missing(
+    monkeypatch, tmp_path, unavailable
+):
+    runner = Mock(
+        side_effect=unavailable if isinstance(unavailable, OSError) else None,
+        return_value=subprocess.CompletedProcess([], 14, ""),
+    )
+    monkeypatch.setattr("holder.client.subprocess.run", runner)
+    workspace = object()
+    open_private = Mock(return_value=nullcontext(workspace))
+    monkeypatch.setattr("holder.client.open_workspace", open_private)
+    with pytest.raises(DaemonUnavailableError), open_session():
+        pass
+    with open_session(fallback_workspace=tmp_path) as session:
+        assert session is workspace
+    open_private.assert_called_once_with(tmp_path)
+
+
+@pytest.mark.parametrize("exit_code", [10, 12, 13])
+def test_open_session_surfaces_daemon_discovery_failures(monkeypatch, tmp_path, exit_code):
+    runner = Mock(return_value=subprocess.CompletedProcess([], exit_code, ""))
+    monkeypatch.setattr("holder.client.subprocess.run", runner)
+    fallback = tmp_path / "private"
+    with pytest.raises(ConnectionError, match=f"exit {exit_code}"), open_session(
+        fallback_workspace=fallback
+    ):
+        pass
+    assert not fallback.exists()
+
+
+def test_open_session_surfaces_explicit_http_failures(monkeypatch, tmp_path):
+    cli = mock_cli(monkeypatch)
+    fallback = tmp_path / "private"
+    transport = httpx.MockTransport(lambda request: failure(401))
+    with open_session(
+        url="http://holder.test",
+        token="credential",
+        fallback_workspace=fallback,
+        transport=transport,
+    ) as session, pytest.raises(AuthenticationError):
+        session.list_projects()
+    cli.assert_not_called()
+    assert not fallback.exists()
+
+
+def test_open_session_does_not_switch_after_entering(monkeypatch, tmp_path):
+    mock_cli(monkeypatch)
+    fallback = tmp_path / "private"
+    with pytest.raises(DaemonUnavailableError, match="operation failed"), open_session(
+        fallback_workspace=fallback
+    ):
+        raise DaemonUnavailableError("operation failed")
+    assert not fallback.exists()

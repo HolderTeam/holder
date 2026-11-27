@@ -6,14 +6,17 @@
 #include "api/CardAccess.h"
 #include "api/CardCursor.h"
 #include "api/CoreErrors.h"
+#include "api/RecoverySnapshots.h"
 
 #include "capi/Context.h"
 #include "card/CardRepo.h"
 #include "card/CardStore.h"
 #include "card/LinkRepo.h"
 #include "card/MilestoneRepo.h"
+#include "git/RepoLocks.h"
 #include "identity/Uuid.h"
 #include "model/MilestoneDate.h"
+#include "platform/Tx.h"
 #include "project/ProjectRepo.h"
 #include "resource/LocationRepo.h"
 #include "resource/LocationStore.h"
@@ -25,6 +28,7 @@
 #include <climits>
 #include <filesystem>
 #include <map>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <stdexcept>
@@ -738,6 +742,33 @@ Project restore(holder_context& context, const RecoverySnapshotRestore& request)
 }
 
 } // namespace
+
+std::string capture_recovery_snapshot(
+    holder_context& context,
+    const std::string& project_id,
+    std::size_t max_bytes
+) {
+  const auto project = holder::project::ProjectRepo(context.db).get(project_id);
+  if (!project) throw NotFound("project not found: " + project_id);
+  const auto mutex = holder::git::repo_mutex_for(project->root_path);
+  const std::lock_guard guard(*mutex);
+  holder::platform::Tx transaction(context.db, holder::platform::Tx::Mode::Read);
+
+  std::string snapshot;
+  std::optional<std::string> cursor;
+  do {
+    auto page = read(context, project_id, cursor, 128);
+    for (const auto& line : page.lines) {
+      if (line.size() >= max_bytes - snapshot.size())
+        throw std::length_error("project recovery snapshot exceeds the export size limit");
+      snapshot.append(line);
+      snapshot.push_back('\n');
+    }
+    cursor = std::move(page.next_cursor);
+  } while (cursor);
+  transaction.commit();
+  return snapshot;
+}
 
 RecoverySnapshotPage read_recovery_snapshot(
     holder_context& context,

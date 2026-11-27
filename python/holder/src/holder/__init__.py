@@ -1,7 +1,12 @@
 """Holder Python Library - control your knowledge using Python."""
 
+from ._workspace_contract import Calendar, CalendarMilestone, LinkKindLabels, TagCount
+from ._workspace_contract import Project as ProjectRecord
+from ._workspace_contract import TrashItem as TrashItemRecord
+from .cards import EmbeddedUnavailableError, open_workspace
 from .changes import ChangeCheckpoint, ChangeReady, EntityChange, ResyncRequired
-from .client import Holder
+from .client import Holder, open_session
+from .exports import ProjectRecords, TagMembership, iter_card_records
 from .intelligence_events import IntelligenceEvent, PullEventStream, RunStream
 from .models import (
     ActivityItem,
@@ -60,6 +65,8 @@ __all__ = [
     "AffectedObject",
     "Asset",
     "AssetPlacement",
+    "Calendar",
+    "CalendarMilestone",
     "CapturedExchange",
     "Card",
     "CardBreadcrumb",
@@ -75,6 +82,7 @@ __all__ = [
     "ChangeCheckpoint",
     "ChangeReady",
     "DiffLine",
+    "EmbeddedUnavailableError",
     "EncryptionCheck",
     "EntityChange",
     "HierarchyRepair",
@@ -83,6 +91,7 @@ __all__ = [
     "ImportJob",
     "IntelligenceEvent",
     "IntelligenceStatus",
+    "LinkKindLabels",
     "LocalModel",
     "Message",
     "MessageSearchResult",
@@ -94,6 +103,8 @@ __all__ = [
     "ProjectActivity",
     "ProjectGit",
     "ProjectIntelligence",
+    "ProjectRecord",
+    "ProjectRecords",
     "Provider",
     "PullChanges",
     "PullEventStream",
@@ -111,6 +122,12 @@ __all__ = [
     "StorageLocation",
     "SyncResult",
     "Tag",
+    "TagCount",
+    "TagMembership",
     "Thread",
     "TrashItem",
+    "TrashItemRecord",
+    "iter_card_records",
+    "open_session",
+    "open_workspace",
 ]

@@ -21,6 +21,12 @@
 #include <utility>
 #include <vector>
 
+#ifndef _WIN32
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
 namespace {
 
 std::string schema_sql() {
@@ -435,6 +441,183 @@ TEST_CASE(
   holder_context_destroy(reader);
   holder_context_destroy(writer);
 }
+
+TEST_CASE("Profile rebuild waits for every native context to close", "[capi][runtime]") {
+  const auto data_dir = holder::test::make_temp_dir().string();
+  const auto schema = schema_sql();
+  holder_context* first = nullptr;
+  holder_context* second = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(holder_context_open(data_dir.c_str(), schema.c_str(), &first, &error) == HOLDER_OK);
+  REQUIRE(holder_context_open(data_dir.c_str(), schema.c_str(), &second, &error) == HOLDER_OK);
+
+  auto* arena = holder_arena_new();
+  const holder_database_rebuild_report* report = nullptr;
+  auto rebuild = [&] {
+    return holder_database_rebuild(data_dir.c_str(), schema.c_str(), true, arena, &report, &error);
+  };
+  REQUIRE(rebuild() == HOLDER_ERROR_CONFLICT);
+  holder_error_destroy(error);
+  error = nullptr;
+
+  holder_context_destroy(first);
+  REQUIRE(rebuild() == HOLDER_ERROR_CONFLICT);
+  holder_error_destroy(error);
+  error = nullptr;
+
+  holder_context_destroy(second);
+  REQUIRE(rebuild() == HOLDER_OK);
+  holder_arena_free(arena);
+}
+
+#ifndef _WIN32
+TEST_CASE(
+    "Another process cannot open a workspace this one owns, and the reverse",
+    "[capi][runtime][profile]"
+) {
+  const auto data_dir = holder::test::make_temp_dir().string();
+  const auto schema = schema_sql();
+  const auto open_here = [&](holder_context** context, holder_error** error) {
+    return holder_context_open(data_dir.c_str(), schema.c_str(), context, error);
+  };
+
+  // A child process owns the workspace: this process is refused through the OS file lock, and
+  // gets in once the child has closed it.
+  int up[2];
+  int down[2];
+  REQUIRE(::pipe(up) == 0);
+  REQUIRE(::pipe(down) == 0);
+  const pid_t owner = ::fork();
+  REQUIRE(owner >= 0);
+  if (owner == 0) {
+    ::close(up[0]);
+    ::close(down[1]);
+    holder_context* context = nullptr;
+    holder_error* error = nullptr;
+    const char opened = open_here(&context, &error) == HOLDER_OK ? 'y' : 'n';
+    (void)::write(up[1], &opened, 1);
+    char release = 0;
+    (void)::read(down[0], &release, 1);
+    if (context != nullptr) holder_context_destroy(context);
+    ::_exit(opened == 'y' ? 0 : 1);
+  }
+  ::close(up[1]);
+  ::close(down[0]);
+  char opened = 0;
+  REQUIRE(::read(up[0], &opened, 1) == 1);
+  REQUIRE(opened == 'y');
+
+  holder_context* mine = nullptr;
+  holder_error* error = nullptr;
+  CHECK(open_here(&mine, &error) == HOLDER_ERROR_CONFLICT);
+  CHECK(mine == nullptr);
+  REQUIRE(error != nullptr);
+  CHECK(std::string(holder_error_message(error)) == "Holder workspace is in use");
+  holder_error_destroy(error);
+  error = nullptr;
+
+  const char release = 'x';
+  REQUIRE(::write(down[1], &release, 1) == 1);
+  int status = 0;
+  REQUIRE(::waitpid(owner, &status, 0) == owner);
+  REQUIRE(WIFEXITED(status));
+  CHECK(WEXITSTATUS(status) == 0);
+  ::close(up[0]);
+  ::close(down[1]);
+  REQUIRE(open_here(&mine, &error) == HOLDER_OK);
+
+  // This process owns it: a child is refused, even though it inherited this process's lock
+  // and its record of the open workspace through fork().
+  const pid_t contender = ::fork();
+  REQUIRE(contender >= 0);
+  if (contender == 0) {
+    holder_context* context = nullptr;
+    holder_error* child_error = nullptr;
+    ::_exit(open_here(&context, &child_error) == HOLDER_ERROR_CONFLICT ? 0 : 1);
+  }
+  REQUIRE(::waitpid(contender, &status, 0) == contender);
+  REQUIRE(WIFEXITED(status));
+  CHECK(WEXITSTATUS(status) == 0);
+  holder_context_destroy(mine);
+}
+#endif
+
+#ifndef _WIN32
+// The daemon takes server/holder.lock with Boost.Interprocess's file_lock
+// (daemon/src/platform/LockFile.cpp), which on POSIX is a whole-file fcntl(F_SETLK) record lock.
+// ProfileLock must keep conflicting with that lock, whatever it uses itself, so an embedded
+// context and a running daemon never share a workspace. Changing either side's lock means
+// changing this test too.
+TEST_CASE(
+    "A daemon's record lock and a native context refuse each other",
+    "[capi][runtime][profile]"
+) {
+  const auto data_dir = holder::test::make_temp_dir();
+  const auto lock_path = data_dir / "server" / "holder.lock";
+  std::filesystem::create_directories(lock_path.parent_path());
+  const auto schema = schema_sql();
+  const auto open_here = [&](holder_context** context, holder_error** error) {
+    return holder_context_open(data_dir.string().c_str(), schema.c_str(), context, error);
+  };
+  // What Boost's file_lock::try_lock does on POSIX.
+  const auto daemon_lock = [&] {
+    const int fd = ::open(lock_path.c_str(), O_CREAT | O_RDWR, 0600);
+    if (fd == -1) return -1;
+    struct flock region {};
+    region.l_type = F_WRLCK;
+    region.l_whence = SEEK_SET;
+    return ::fcntl(fd, F_SETLK, &region) == 0 ? fd : -1;
+  };
+
+  // A daemon holds the profile: a native context is refused until it lets go.
+  int up[2];
+  int down[2];
+  REQUIRE(::pipe(up) == 0);
+  REQUIRE(::pipe(down) == 0);
+  const pid_t daemon = ::fork();
+  REQUIRE(daemon >= 0);
+  if (daemon == 0) {
+    ::close(up[0]);
+    ::close(down[1]);
+    const char locked = daemon_lock() != -1 ? 'y' : 'n';
+    (void)::write(up[1], &locked, 1);
+    char release = 0;
+    (void)::read(down[0], &release, 1);
+    ::_exit(locked == 'y' ? 0 : 1);
+  }
+  ::close(up[1]);
+  ::close(down[0]);
+  char locked = 0;
+  REQUIRE(::read(up[0], &locked, 1) == 1);
+  REQUIRE(locked == 'y');
+
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  CHECK(open_here(&context, &error) == HOLDER_ERROR_CONFLICT);
+  CHECK(context == nullptr);
+  holder_error_destroy(error);
+  error = nullptr;
+
+  const char release = 'x';
+  REQUIRE(::write(down[1], &release, 1) == 1);
+  int status = 0;
+  REQUIRE(::waitpid(daemon, &status, 0) == daemon);
+  REQUIRE(WIFEXITED(status));
+  CHECK(WEXITSTATUS(status) == 0);
+  ::close(up[0]);
+  ::close(down[1]);
+
+  // A native context holds the profile: a daemon starting now can't take its lock.
+  REQUIRE(open_here(&context, &error) == HOLDER_OK);
+  const pid_t starting = ::fork();
+  REQUIRE(starting >= 0);
+  if (starting == 0) ::_exit(daemon_lock() == -1 ? 0 : 1);
+  REQUIRE(::waitpid(starting, &status, 0) == starting);
+  REQUIRE(WIFEXITED(status));
+  CHECK(WEXITSTATUS(status) == 0);
+  holder_context_destroy(context);
+}
+#endif
 
 TEST_CASE("The generated C API reports database failures as runtime errors", "[capi][runtime]") {
   const auto data_dir = holder::test::make_temp_dir();

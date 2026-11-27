@@ -5615,6 +5615,65 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /projects/{project_id}/recovery-snapshot:
+    get:
+      summary: Download a consistent recovery snapshot of the project's live cards.
+      description: 'Returns UTF-8 recovery snapshot lines, one versioned JSON record per card, up to 2
+        MiB.
+
+        An empty project returns zero bytes. The download includes readable Markdown bodies,
+
+        including plaintext from encrypted projects. It includes linked resource declarations
+
+        but omits asset bytes, credentials, Git history, trash, and AI threads and messages.'
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/octet-stream: {}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '413':
+          description: The recovery snapshot exceeds 2 MiB.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/recovery-token/export:
     post:
       summary: Wrap an encrypted project's key in a portable token protected by a PIN.
