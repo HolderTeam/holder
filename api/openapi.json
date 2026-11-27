@@ -10449,7 +10449,7 @@
     "/projects/{project_id}/recovery-snapshot": {
       "get": {
         "summary": "Download a consistent recovery snapshot of the project's live cards.",
-        "description": "Returns UTF-8 recovery snapshot lines, one versioned JSON record per card, up to 2 MiB.\nAn empty project returns zero bytes. The download includes readable Markdown bodies,\nincluding plaintext from encrypted projects. It includes linked resource declarations\nbut omits asset bytes, credentials, Git history, trash, and AI threads and messages.",
+        "description": "Returns UTF-8 recovery snapshot lines, one versioned JSON record per card. The default\nresponse is capped at 2 MiB. With stream=true, the daemon captures to a temporary file\nbefore transferring it, and the total size is limited by available storage.\nAn empty project returns zero bytes. The download includes readable Markdown bodies,\nincluding plaintext from encrypted projects. It includes linked resource declarations\nbut omits asset bytes, credentials, Git history, trash, and AI threads and messages.",
         "parameters": [
           {
             "name": "project_id",
@@ -10457,6 +10457,16 @@
             "required": true,
             "schema": {
               "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Stream"
             }
           }
         ],

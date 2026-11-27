@@ -4222,6 +4222,37 @@ int holder_restore_recovery_bundle(
   });
 }
 
+int holder_restore_recovery_snapshot_file(
+    holder_context* context,
+    const char* snapshot_path,
+    const char* project_name,
+    const char* asset_directory,
+    holder_arena* arena,
+    const holder_project** out_project,
+    holder_error** out_error
+) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project != nullptr, "out_project must not be null");
+    *out_project = nullptr;
+    const auto snapshot_path_value = text(snapshot_path, "snapshot_path", 1, SIZE_MAX);
+    const auto project_name_value = text(project_name, "project_name", 1, SIZE_MAX);
+    const auto asset_directory_value =
+        optional_text(asset_directory, "asset_directory", 1, SIZE_MAX);
+    auto* out = make<holder_project>(arena);
+    *out = to_c(
+        arena,
+        contract::restore_recovery_snapshot_file(
+            *context,
+            snapshot_path_value,
+            project_name_value,
+            asset_directory_value
+        )
+    );
+    *out_project = out;
+  });
+}
+
 int holder_export_project_recovery_token(
     holder_context* context,
     const char* project_id,

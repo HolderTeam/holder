@@ -259,26 +259,23 @@ AsyncWriteResult async_write_response(
     on_io_start(io_handle);
   }
   boost::asio::post(state->strand, [state, promise, on_io_done, io_handle]() mutable {
-    http::async_write(
-        state->response.socket,
-        state->response.res,
-        boost::asio::bind_executor(
-            state->strand,
-            [state,
-             promise,
-             on_io_done,
-             io_handle](boost::system::error_code ec, std::size_t) mutable {
-              std::unique_lock<std::mutex> lock(state->mu);
-              state->done = true;
-              AsyncWriteResult result{ec, std::move(state->response.socket)};
-              lock.unlock();
-              if (on_io_done) {
-                on_io_done(io_handle);
-              }
-              promise->set_value(std::move(result));
-            }
-        )
+    auto finish = boost::asio::bind_executor(
+        state->strand,
+        [state, promise, on_io_done, io_handle](boost::system::error_code ec, std::size_t) {
+          std::unique_lock<std::mutex> lock(state->mu);
+          state->done = true;
+          AsyncWriteResult result{ec, std::move(state->response.socket)};
+          lock.unlock();
+          if (on_io_done) {
+            on_io_done(io_handle);
+          }
+          promise->set_value(std::move(result));
+        }
     );
+    if (state->response.file)
+      http::async_write(state->response.socket, *state->response.file, std::move(finish));
+    else
+      http::async_write(state->response.socket, state->response.res, std::move(finish));
   });
   return future.get();
 }
@@ -437,6 +434,7 @@ bool Session::ensure_request_loaded() {
 
 std::optional<Session::PreparedResponse> Session::process_loaded_request() {
   Response res;
+  std::optional<GeneratedFileResponse> file;
   support::StreamServer stream;
   if (!is_public_generated_route(req_) && !support::is_authorized_bearer(req_, auth_token_)) {
     res = support::error_response(
@@ -459,7 +457,8 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
                  card_store_,
                  events_,
                  &stream,
-                 &socket_
+                 &socket_,
+                 &file
              )) {
     // Generated, or a 405 for a declared path with another method. A stream the generated
     // route has checked is written here, on this request's socket.
@@ -475,6 +474,7 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
       std::move(res),
       request_started_,
       classify_request_lane(req_, path_),
+      std::move(file),
   };
   return prepared;
 }
@@ -486,7 +486,7 @@ void Session::write_prepared_response(
 ) {
   const auto method = std::string(prepared.req.method_string());
   const auto target = std::string(prepared.req.target());
-  const auto status = prepared.res.result_int();
+  const auto status = prepared.file ? prepared.file->result_int() : prepared.res.result_int();
   const auto lane = prepared.lane;
   const auto request_started = prepared.request_started;
 

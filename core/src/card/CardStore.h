@@ -76,6 +76,12 @@ struct BatchCardInput {
   std::vector<holder::model::Milestone> milestones;
 };
 
+struct BatchCardPlacement {
+  std::string card_id;
+  std::optional<std::string> parent_card_id;
+  std::optional<double> sort_key;
+};
+
 struct CompleteCardRecord {
   holder::model::Card card;
   std::string content;
@@ -129,6 +135,15 @@ class CardStore {
       const std::function<std::string()>& uuid_v4,
       const std::string& commit_message,
       const std::map<std::string, std::string>& resource_id_remap = {}
+  );
+  // Read full records on demand in parent-first order, using a compact index of placements.
+  void create_batch(
+      const std::string& project_id,
+      const std::vector<BatchCardPlacement>& placements,
+      const std::function<const BatchCardInput&(std::size_t)>& read,
+      const std::function<std::string()>& uuid_v4,
+      const std::string& commit_message,
+      const std::map<std::string, std::string>& resource_id_remap
   );
   void update_content(
       const std::string& card_id,

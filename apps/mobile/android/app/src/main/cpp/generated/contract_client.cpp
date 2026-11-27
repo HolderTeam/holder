@@ -4577,6 +4577,29 @@ Java_team_holder_android_contract_Recovery_restoreRecoveryBundle(JNIEnv* env, jo
 }
 
 extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_contract_Recovery_restoreRecoverySnapshotFile(JNIEnv* env, jobject, jlong context_handle, jstring a_snapshot_path, jstring a_project_name, jstring a_asset_directory) {
+  if (!context_handle) { fail(env, "context is required"); return nullptr; }
+  Keep keep;
+  const char* p_snapshot_path = nullptr;
+  if (!c_text(env, a_snapshot_path, keep, p_snapshot_path)) return nullptr;
+  const char* p_project_name = nullptr;
+  if (!c_text(env, a_project_name, keep, p_project_name)) return nullptr;
+  const char* p_asset_directory = nullptr;
+  if (!c_text(env, a_asset_directory, keep, p_asset_directory)) return nullptr;
+  Arena arena;
+  if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
+  const holder_project* out = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_restore_recovery_snapshot_file(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      p_snapshot_path,
+      p_project_name,
+      p_asset_directory,
+      arena.value, &out, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
+  return to_java_holder_project(env, (*out));
+}
+
+extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_contract_Recovery_exportProjectRecoveryToken(JNIEnv* env, jobject, jlong context_handle, jstring a_project_id, jobject a_request) {
   if (!context_handle) { fail(env, "context is required"); return nullptr; }
   Keep keep;

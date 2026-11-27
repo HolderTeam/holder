@@ -1,3 +1,9 @@
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#endif
+
 #include "api/GeneratedRoutes.h"
 
 #include "api/Alive.h"
@@ -30,20 +36,103 @@
 #include <boost/beast/http.hpp>
 #include <nlohmann/json.hpp>
 
+#include <cerrno>
 #include <chrono>
+#include <cstdlib>
 #include <exception>
+#include <filesystem>
 #include <limits>
 #include <optional>
 #include <regex>
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <utility>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 
 namespace holder::api {
 namespace {
 
 namespace http = boost::beast::http;
+
+GeneratedFileResponse prepare_recovery_download(
+    holder_context& core,
+    const std::string& id,
+    const std::function<std::string()>& uuid_v4
+) {
+  // The spool contains plaintext. Remove its directory entry before capturing on POSIX
+  // and let Windows delete it on close. In both cases the response owns the open handle.
+  boost::beast::file temporary;
+#ifdef _WIN32
+  const auto path = std::filesystem::temp_directory_path() / ("holder-recovery-" + uuid_v4());
+  const auto handle = CreateFileW(
+      path.c_str(),
+      GENERIC_READ | GENERIC_WRITE | DELETE,
+      0,
+      nullptr,
+      CREATE_NEW,
+      FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE,
+      nullptr
+  );
+  if (handle == INVALID_HANDLE_VALUE)
+    throw std::system_error(
+        static_cast<int>(GetLastError()),
+        std::system_category(),
+        "create recovery snapshot spool"
+    );
+  temporary.native_handle(handle);
+#else
+  (void)uuid_v4;
+  auto path = (std::filesystem::temp_directory_path() / "holder-recovery-XXXXXX").string();
+#ifdef __linux__
+  const auto fd = ::mkostemp(path.data(), O_CLOEXEC);
+#else
+  const auto fd = ::mkstemp(path.data());
+#endif
+  if (fd < 0)
+    throw std::system_error(errno, std::generic_category(), "create recovery snapshot spool");
+  temporary.native_handle(fd);
+  if (::unlink(path.c_str()) != 0)
+    throw std::system_error(errno, std::generic_category(), "unlink recovery snapshot spool");
+#ifndef __linux__
+  if (::fcntl(fd, F_SETFD, FD_CLOEXEC) != 0)
+    throw std::system_error(errno, std::generic_category(), "secure recovery snapshot spool");
+#endif
+#endif
+  const auto write_all = [&](std::string_view bytes) {
+    while (!bytes.empty()) {
+      boost::system::error_code error;
+      const auto count = temporary.write(bytes.data(), bytes.size(), error);
+      if (error) throw boost::system::system_error(error, "write recovery snapshot spool");
+      if (count == 0) throw std::runtime_error("could not write recovery snapshot spool");
+      bytes.remove_prefix(count);
+    }
+  };
+  holder::contract::write_recovery_snapshot(core, id, [&](std::string_view line) {
+    write_all(line);
+    write_all("\n");
+  });
+  boost::system::error_code error;
+  temporary.seek(0, error);
+  if (error) throw boost::system::system_error(error, "rewind recovery snapshot spool");
+
+  GeneratedFileResponse response{http::status::ok, 11};
+  response.body().reset(std::move(temporary), error);
+  if (error) throw boost::system::system_error(error, "open recovery snapshot spool for transfer");
+  response.set(http::field::content_type, "application/octet-stream");
+  response.set(http::field::cache_control, "no-store");
+  response.keep_alive(false);
+  response.prepare_payload();
+  return response;
+}
 
 struct Context {
   holder::platform::Db& db;
@@ -371,7 +460,8 @@ bool dispatch_misc_contract_route(
     const GeneratedRequest& req,
     GeneratedResponse& res,
     Context& context,
-    support::StreamServer* stream
+    support::StreamServer* stream,
+    std::optional<GeneratedFileResponse>* file
 ) {
   const auto split = path.find('?');
   const auto route_path = path.substr(0, split);
@@ -421,7 +511,11 @@ bool dispatch_misc_contract_route(
       respond(get_health(context.db, context.started_at));
     } else if (method == "GET" && std::regex_match(route_path, match, recovery_snapshot)) {
       matched = true;
-      no_query();
+      const auto values = contract_http::decode_query(query_text);
+      contract_http::check_query_names(values, {"stream"});
+      const auto stream_value = values.find("stream");
+      const bool use_stream = stream_value != values.end() &&
+                              contract_http::decode_bool(stream_value->second, "stream");
       const auto project_id = contract_json::check_text(
           path_text(1),
           "project_id",
@@ -436,6 +530,13 @@ bool dispatch_misc_contract_route(
       );
       core.secret_store = context.secret_store;
       try {
+        if (use_stream) {
+          if (file == nullptr) throw std::logic_error("no one to serve a file response");
+          file->emplace(holder::contract::with_contract_errors([&] {
+            return prepare_recovery_download(core, project_id, context.uuid_v4);
+          }));
+          return true;
+        }
         constexpr std::size_t max_snapshot_bytes = 2 * 1024 * 1024;
         auto snapshot = holder::contract::with_contract_errors([&] {
           return holder::contract::capture_recovery_snapshot(core, project_id, max_snapshot_bytes);
@@ -669,7 +770,8 @@ bool dispatch_generated_routes(
     holder::card::CardStore* card_store,
     holder::api::support::EventService* events,
     support::StreamServer* stream,
-    boost::asio::ip::tcp::socket* socket
+    boost::asio::ip::tcp::socket* socket,
+    std::optional<GeneratedFileResponse>* file
 ) {
   const auto target = req.target();
   std::optional<support::RequestSocket> request_socket;
@@ -697,7 +799,7 @@ bool dispatch_generated_routes(
       return true;
     }
     if (dispatch_resource_contract_route(method, path, req, res, context, stream) ||
-        dispatch_misc_contract_route(method, path, req, res, context, stream))
+        dispatch_misc_contract_route(method, path, req, res, context, stream, file))
       return true;
     // AI handlers use the Python contract's generated daemon dispatcher and codec. Core backed
     // operations use the generated core dispatcher.

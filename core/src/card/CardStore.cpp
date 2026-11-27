@@ -75,7 +75,7 @@ void write_card_file(
 // The order create_batch writes items in, each parent before its children, and each item's
 // parent within the batch: none for a root, for a parent outside the batch, or to break a loop.
 std::pair<std::vector<std::size_t>, std::vector<std::optional<std::string>>> batch_order(
-    const std::vector<BatchCardInput>& items
+    const std::vector<BatchCardPlacement>& items
 ) {
   std::map<std::string, std::size_t> index;
   for (std::size_t i = 0; i < items.size(); ++i)
@@ -319,6 +319,30 @@ void CardStore::create_batch(
     const std::string& commit_message,
     const std::map<std::string, std::string>& resource_id_remap
 ) {
+  std::vector<BatchCardPlacement> placements;
+  placements.reserve(items.size());
+  for (const auto& item : items)
+    placements.push_back({item.card_id, item.parent_card_id, item.sort_key});
+  create_batch(
+      project_id,
+      placements,
+      [&](std::size_t index) -> const BatchCardInput& {
+        return items[index];
+      },
+      uuid_v4,
+      commit_message,
+      resource_id_remap
+  );
+}
+
+void CardStore::create_batch(
+    const std::string& project_id,
+    const std::vector<BatchCardPlacement>& placements,
+    const std::function<const BatchCardInput&(std::size_t)>& read,
+    const std::function<std::string()>& uuid_v4,
+    const std::string& commit_message,
+    const std::map<std::string, std::string>& resource_id_remap
+) {
   const auto project = require_project(project_id);
   auto operation = git_->lock_operation(project.root_path);
   git_->open_or_init(project.root_path);
@@ -328,10 +352,18 @@ void CardStore::create_batch(
   // fresh id (see BatchCardInput's doc comment), so link targets need remapping from the
   // snapshot's original card_id to the id it was actually written under here.
   std::map<std::string, std::string> id_remap;
-  for (const auto& item : items) {
+  for (const auto& item : placements) {
     id_remap[item.card_id] = holder::identity::generate_id(project.id_scheme);
   }
-  const auto [order, parents] = batch_order(items);
+  const auto [order, parents] = batch_order(placements);
+  // An explicit sort key cannot move other siblings. Such a batch (including recovery
+  // snapshots) can write each card immediately without retaining all links or bodies.
+  const bool write_immediately =
+      std::all_of(placements.begin(), placements.end(), [](const auto& item) {
+        return item.sort_key.has_value();
+      });
+  std::vector<std::string> staged_paths;
+  staged_paths.reserve(placements.size());
 
   struct PreparedCard {
     holder::model::Card card;
@@ -339,7 +371,7 @@ void CardStore::create_batch(
     std::vector<holder::model::Milestone> milestones;
   };
   std::vector<PreparedCard> prepared;
-  prepared.reserve(items.size());
+  if (!write_immediately) prepared.reserve(placements.size());
   std::map<std::string, std::size_t> prepared_by_id;
   std::map<std::string, holder::model::Card> existing_placements;
   bool respaced = false;
@@ -351,7 +383,7 @@ void CardStore::create_batch(
   holder::platform::Tx tx(db_);
 
   for (const auto index : order) {
-    const auto& item = items[index];
+    const auto& item = read(index);
     holder::model::Card card;
     card.card_id = id_remap.at(item.card_id);
     card.project_id = project_id;
@@ -360,8 +392,8 @@ void CardStore::create_batch(
     if (parents[index]) card.parent_card_id = id_remap.at(*parents[index]);
     card.created_at = item.created_at;
     card.updated_at = item.updated_at;
-    if (item.sort_key) {
-      card.sort_key = *item.sort_key;
+    if (placements[index].sort_key) {
+      card.sort_key = *placements[index].sort_key;
     } else {
       for (const auto& placed : append_card_placement(card_repo_, card)) {
         respaced = true;
@@ -432,8 +464,13 @@ void CardStore::create_batch(
     if (!milestones.empty()) {
       milestone_repo_.replace_for_card(project_id, card.card_id, milestones);
     }
-    prepared_by_id.emplace(card.card_id, prepared.size());
-    prepared.push_back({std::move(card), std::move(links), std::move(milestones)});
+    if (write_immediately) {
+      write_card_file(*git_, project, card, links, milestones, item.content);
+      staged_paths.push_back(card.rel_path);
+    } else {
+      prepared_by_id.emplace(card.card_id, prepared.size());
+      prepared.push_back({std::move(card), std::move(links), std::move(milestones)});
+    }
   }
 
   if (respaced) {
@@ -453,7 +490,7 @@ void CardStore::create_batch(
     }
     for (std::size_t i = 0; i < prepared.size(); ++i) {
       const auto& [card, links, milestones] = prepared[i];
-      const auto& content = items[order[i]].content;
+      const auto& content = read(order[i]).content;
       paths.push_back(card.rel_path);
       writes.emplace_back(
           card.rel_path,
@@ -464,11 +501,9 @@ void CardStore::create_batch(
     return;
   }
 
-  std::vector<std::string> staged_paths;
-  staged_paths.reserve(prepared.size());
   for (std::size_t i = 0; i < prepared.size(); ++i) {
     const auto& [card, links, milestones] = prepared[i];
-    write_card_file(*git_, project, card, links, milestones, items[order[i]].content);
+    write_card_file(*git_, project, card, links, milestones, read(order[i]).content);
     staged_paths.push_back(card.rel_path);
   }
   tx.commit();
@@ -483,7 +518,7 @@ void CardStore::create_batch(
 
   assert_project_staged_blobs_safe(project, staged_paths);
 
-  if (!items.empty()) {
+  if (!placements.empty()) {
     git_->commit(commit_message);
   }
 }

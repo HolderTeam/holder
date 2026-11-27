@@ -36,7 +36,7 @@ Routing and the listed checks/serialization are in `daemon/src/api/GeneratedRout
 | `start_asset_import` | `POST /imports` | `AssetImportWrite.cpp:post_imports` | dispatch; request fields; job response serialization |
 | `get_asset_import_job` | `GET /imports/{job_id}` | `AssetImportRead.cpp:get_import_job` | dispatch; job ID validation; job response serialization |
 | `get_resource_asset_content` | `GET /resources/{resource_id}/assets/{asset_id}/content` | `AssetContent.cpp:get_resources_resource_id_assets_asset_id_content` | dispatch; IDs/placement query; download headers/stream |
-| `download_recovery_snapshot` | `GET /projects/{project_id}/recovery-snapshot` | `GeneratedRoutes.cpp:dispatch_misc_contract_route` | project ID validation; bounded binary response |
+| `download_recovery_snapshot` | `GET /projects/{project_id}/recovery-snapshot` | `GeneratedRoutes.cpp:dispatch_misc_contract_route` | project ID and stream query validation; binary response or temporary-file transfer |
 | `get_alive` | `GET /alive` | `Alive.h:check_alive` | dispatch; no-query check; response serialization |
 | `get_ping` | `GET /ping` | `Ping.h:get_ping` | dispatch; no-query check; text response |
 | `get_health` | `GET /health` | `Health.cpp:get_health` | dispatch; no-query check; response serialization |

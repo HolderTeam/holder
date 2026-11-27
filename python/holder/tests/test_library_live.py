@@ -4,10 +4,12 @@ Set HOLDER_TEST_DAEMON to a built holderd executable. This never uses the user's
 normal daemon, database, or projects.
 """
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import UTC, date, datetime, timedelta, timezone
 from importlib import import_module
@@ -30,7 +32,7 @@ from holder import (
     to_networkx,
 )
 from holder.cards import Card, CardListItem, CardMetadata, Link, Milestone, SearchCard
-from holder.exceptions import APIError, ClosedError, NotFoundError
+from holder.exceptions import APIError, ClosedError, ConnectionError, NotFoundError
 
 DAEMON = os.environ.get("HOLDER_TEST_DAEMON")
 
@@ -537,6 +539,7 @@ def test_embedded_profile_ownership(daemon, tmp_path):
 from importlib import import_module
 from importlib.resources import files
 import sys
+import tempfile
 
 package, workspace = sys.argv[1:]
 native = import_module(f"{package}._native")
@@ -626,6 +629,190 @@ def test_recovery_snapshot_round_trip(daemon, tmp_path):
             )
             assert changed["content"] == "Edited offline"
         assert session.card_operations.get_card(source_id, source["card_id"])["content"] == "Live body"
+
+
+def test_copy_large_live_project_uses_captured_snapshot(daemon, tmp_path):
+    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
+        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+
+    url, token, raw, _ = daemon
+    source_id = create_project(raw, "Large snapshot")
+    body = "x" * (750 * 1024)
+    with (
+        Holder(url=url, token=token) as session,
+        open_workspace(tmp_path / "private-copy") as workspace,
+    ):
+        cards = session.card_operations
+        root = cards.create_card(source_id, {"title": "Root", "content": body})
+        for index in range(2):
+            cards.create_card(
+                source_id,
+                {
+                    "title": f"Child {index}",
+                    "content": body,
+                    "parent_card_id": root["card_id"],
+                },
+            )
+
+        def edit_after_capture(response):
+            if response.request.url.path.endswith("/recovery-snapshot"):
+                assert response.request.url.params["stream"] == "true"
+                assert int(response.headers["content-length"]) > 2 * 1024 * 1024
+                assert response.headers["cache-control"] == "no-store"
+                changed = raw.patch(
+                    f"/projects/{source_id}/cards/{root['card_id']}",
+                    json={"content": "New live body"},
+                )
+                assert changed.status_code == 200
+                create_card(raw, source_id, "added after capture")
+
+        session._active().get_httpx_client().event_hooks["response"].append(
+            edit_after_capture
+        )
+        project = session.copy_project_to(source_id, workspace, name="Offline copy")
+        assert project["project_id"] != source_id
+        items = workspace.card_operations.list_cards(
+            project["project_id"], include_content=True
+        )["items"]
+        copied = {item["title"]: item for item in items}
+        assert set(copied) == {"Root", "Child 0", "Child 1"}
+        assert all(item["content"] == body for item in items)
+        assert copied["Root"]["card_id"] != root["card_id"]
+        assert copied["Child 0"]["parent_card_id"] == copied["Root"]["card_id"]
+        assert cards.get_card(source_id, root["card_id"])["content"] == "New live body"
+
+
+@pytest.mark.parametrize("interrupted", [True, False])
+def test_project_copy_cleans_up_failed_transfer_or_restore(
+    tmp_path, monkeypatch, interrupted
+):
+    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
+        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+
+    class BadSnapshot(httpx.SyncByteStream):
+        def __iter__(self):
+            yield b"x" * (64 * 1024)
+            if interrupted:
+                raise httpx.ReadError("connection closed")
+
+    def respond(request):
+        assert request.url.params["stream"] == "true"
+        return httpx.Response(
+            200,
+            headers={"content-type": "application/octet-stream"},
+            stream=BadSnapshot(),
+        )
+
+    temporary = tmp_path / "spools"
+    temporary.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(temporary))
+    with (
+        Holder(
+            url="http://test.invalid",
+            token="test",
+            transport=httpx.MockTransport(respond),
+        ) as session,
+        open_workspace(tmp_path / "private-copy") as workspace,
+    ):
+        with pytest.raises(ConnectionError if interrupted else APIError):
+            session.copy_project_to("original", workspace, name="Failed copy")
+        assert workspace.list_projects() == []
+        assert list(temporary.iterdir()) == []
+
+
+def test_large_recovery_bundle_keeps_verified_attachments(daemon, tmp_path):
+    if not (find_spec("holder._embedded._native") or find_spec("holderkit")):
+        pytest.skip("Requires a native Holder wheel or a same-checkout Kit build")
+
+    url, token, raw, _ = daemon
+    project_id = create_project(raw, "Large project with attachments")
+    payload = b"Notebook attachment\n"
+    digest = hashlib.sha256(payload).hexdigest()
+    source = tmp_path / "attachment.txt"
+    source.write_bytes(payload)
+    location = raw.post(
+        "/locations",
+        json={
+            "project_id": project_id,
+            "name": "Test assets",
+            "provider": "local_directory",
+            "configuration": {},
+        },
+    )
+    assert location.status_code == 201, location.text
+    location_id = location.json()["data"]["location_id"]
+    bound = raw.put(
+        f"/locations/{location_id}/binding",
+        json={
+            "values": {"root_path": str(tmp_path / "source-assets")},
+            "preview": str(tmp_path / "source-assets"),
+        },
+    )
+    assert bound.status_code == 200, bound.text
+
+    archive_path = tmp_path / "project.zip"
+    body = "x" * (750 * 1024)
+    with Holder(url=url, token=token) as session:
+        cards = session.card_operations
+        for index in range(3):
+            card = cards.create_card(
+                project_id, {"title": f"Notes {index}", "content": body}
+            )
+        response = raw.post(
+            "/imports",
+            json={
+                "project_id": project_id,
+                "card_id": card["card_id"],
+                "location_id": location_id,
+                "source_path": str(source),
+            },
+        )
+        assert response.status_code == 202, response.text
+        job_id = response.json()["data"]["job_id"]
+        deadline = time.monotonic() + 5
+        while True:
+            status = raw.get(f"/imports/{job_id}")
+            status.raise_for_status()
+            job = status.json()["data"]
+            if job["status"] == "completed":
+                break
+            assert job["status"] != "failed" and time.monotonic() < deadline, job
+            time.sleep(0.02)
+        session.download_recovery_bundle(project_id, archive_path)
+
+    with ZipFile(archive_path) as archive:
+        assert archive.getinfo("snapshot.jsonl").file_size > 2 * 1024 * 1024
+        assert archive.read(f"assets/{digest}") == payload
+
+    private = tmp_path / "private-bundle"
+    with open_workspace(private) as workspace:
+        copied = workspace.restore_recovery_bundle(
+            archive_path, name="Offline attachments"
+        )
+        copy_id = copied["project_id"]
+        assert copy_id != project_id
+        records = workspace.export_project_records(copy_id, include_content=True)
+        assert len(records["cards"]) == 3
+        assert all(item["content"] == body for item in records["cards"])
+        (link,) = records["links"]
+        assert link["target_type"] == "resource"
+        assert link["target_id"] != job["resource_id"]
+        assert (private / "resource-store" / copy_id / digest).read_bytes() == payload
+
+        corrupt = tmp_path / "corrupt.zip"
+        with ZipFile(archive_path) as original, ZipFile(corrupt, "w") as damaged:
+            for entry in ("manifest.json", "snapshot.jsonl"):
+                damaged.writestr(entry, original.read(entry))
+            damaged.writestr(f"assets/{digest}", b"x" * len(payload))
+        with pytest.raises(APIError) as error:
+            workspace.restore_recovery_bundle(corrupt, name="Corrupt attachment")
+        assert error.value.code == "data_corrupted"
+        assert [project["project_id"] for project in workspace.list_projects()] == [
+            copy_id
+        ]
+        assert list((private / "resource-store").iterdir()) == [
+            private / "resource-store" / copy_id
+        ]
 
 
 @pytest.mark.parametrize("archive", [False, True], ids=["lines", "archive"])

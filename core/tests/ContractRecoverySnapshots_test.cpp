@@ -655,8 +655,19 @@ TEST_CASE("Restore refuses a snapshot it cannot read and leaves no project behin
 TEST_CASE("Restore removes the new project when writing the cards fails", "[recovery]") {
   Host host;
   const auto before = host.project_count();
-  host.git.fail_commit = "Restored from a recovery snapshot";
-  REQUIRE_THROWS(host.restore({line_of(bare_card("card-1", "Card"))}));
+  const auto file = host.dir / "snapshot.jsonl";
+  {
+    std::ofstream output(file, std::ios::binary);
+    output << line_of(bare_card("card-1", "Card")) << '\n';
+    REQUIRE(output.good());
+  }
+  host.git.fail_commit = "Restore project recovery snapshot";
+  REQUIRE_THROWS(contract::restore_recovery_snapshot_file(
+      host.context,
+      file.string(),
+      "Restored",
+      std::nullopt
+  ));
   REQUIRE(host.project_count() == before);
   // Nothing is left under the projects directory but the source project.
   REQUIRE(

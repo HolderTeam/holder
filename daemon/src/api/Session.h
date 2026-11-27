@@ -52,6 +52,7 @@ class Session {
     Response res;
     std::chrono::steady_clock::time_point request_started;
     RequestLane lane = RequestLane::Foreground;
+    std::optional<boost::beast::http::response<boost::beast::http::file_body>> file = std::nullopt;
   };
 
   Session(

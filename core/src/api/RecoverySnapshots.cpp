@@ -29,10 +29,12 @@
 #include <algorithm>
 #include <climits>
 #include <filesystem>
+#include <fstream>
 #include <map>
 #include <mutex>
 #include <optional>
 #include <set>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -586,11 +588,11 @@ holder::model::ResourceBundle to_model(
   return bundle;
 }
 
-holder::card::BatchCardInput to_model(const RecoverySnapshotCard& card) {
+holder::card::BatchCardInput to_model(RecoverySnapshotCard card) {
   holder::card::BatchCardInput item;
   item.card_id = card.card_id;
   item.title = card.title;
-  item.content = card.content;
+  item.content = std::move(card.content);
   item.created_at = card.created_at;
   item.updated_at = card.updated_at;
   item.parent_card_id = card.parent_card_id;
@@ -613,25 +615,6 @@ holder::card::BatchCardInput to_model(const RecoverySnapshotCard& card) {
     item.milestones.push_back(std::move(out));
   }
   return item;
-}
-
-std::vector<RecoverySnapshotCard> decode_snapshot(const std::string& snapshot) {
-  std::vector<RecoverySnapshotCard> cards;
-  std::set<std::string> card_ids;
-  std::size_t start = 0;
-  while (start <= snapshot.size()) {
-    auto end = snapshot.find('\n', start);
-    if (end == std::string::npos) end = snapshot.size();
-    auto line = snapshot.substr(start, end - start);
-    if (!line.empty() && line.back() == '\r') line.pop_back();
-    if (!line.empty()) {
-      cards.push_back(decode_line(line));
-      if (!card_ids.insert(cards.back().card_id).second)
-        throw InvalidArgument("a recovery snapshot holds a card twice: " + cards.back().card_id);
-    }
-    start = end + 1;
-  }
-  return cards;
 }
 
 void replace_all(std::string& text, const std::string& from, const std::string& to) {
@@ -670,47 +653,81 @@ RecoverySnapshotPage read(
 
 Project restore(
     holder_context& context,
-    const RecoverySnapshotRestore& request,
+    const std::string& project_name,
+    const std::string& commit_message,
+    NewProjectPrivacyMode privacy_mode,
+    std::istream& snapshot,
     const std::optional<std::filesystem::path>& asset_directory = std::nullopt
 ) {
-  // Everything is read and checked before the project is made.
-  const auto cards = decode_snapshot(request.snapshot);
-  std::map<std::string, RecoverySnapshotLocation> locations;
-  std::map<std::string, RecoverySnapshotResource> resources;
-  for (const auto& card : cards) {
-    for (const auto& location : card.locations)
-      locations.emplace(location.location_id, location);
-    for (const auto& resource : card.resources)
-      resources.emplace(resource.resource_id, resource);
-  }
+  // Keep only the topology, declaration identifiers and file offsets in memory.
+  // The first declaration for each resource and location wins.
+  std::vector<std::streampos> offsets;
+  std::vector<holder::card::BatchCardPlacement> cards;
+  std::set<std::string> card_ids;
+  std::map<std::string, std::size_t> locations;
+  std::map<std::string, std::size_t> resources;
+  std::set<std::size_t> location_records;
+  std::set<std::size_t> resource_records;
+  std::set<std::string> required_locations;
   std::map<std::string, long long> payloads;
-  for (const auto& [id, resource] : resources) {
-    for (const auto& asset : resource.assets) {
-      if (asset_directory) {
-        const auto& digest = asset.plaintext_sha256;
-        if (asset.byte_size < 0 || digest.size() != 64 || !std::ranges::all_of(digest, [](char c) {
-              return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
-            }))
-          throw InvalidArgument("invalid recovery bundle asset metadata");
-        const auto [existing, inserted] = payloads.emplace(digest, asset.byte_size);
-        if (!inserted && existing->second != asset.byte_size)
-          throw InvalidArgument("conflicting recovery bundle asset sizes");
-      } else {
-        for (const auto& placement : asset.placements)
-          if (!locations.contains(placement.location_id))
-            throw InvalidArgument(
-                "a resource's placement names a storage location the snapshot does not hold: " +
-                placement.location_id
-            );
+  std::string line;
+  while (snapshot) {
+    const auto offset = snapshot.tellg();
+    if (!std::getline(snapshot, line)) break;
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line.empty()) continue;
+    auto card = decode_line(line);
+    const auto index = offsets.size();
+    if (!card_ids.insert(card.card_id).second)
+      throw InvalidArgument("a recovery snapshot holds a card twice: " + card.card_id);
+    offsets.push_back(offset);
+    cards.push_back({std::move(card.card_id), std::move(card.parent_card_id), card.sort_key});
+    for (const auto& location : card.locations)
+      if (locations.try_emplace(location.location_id, index).second) location_records.insert(index);
+    for (const auto& resource : card.resources) {
+      if (!resources.try_emplace(resource.resource_id, index).second) continue;
+      resource_records.insert(index);
+      for (const auto& asset : resource.assets) {
+        if (asset_directory) {
+          const auto& digest = asset.plaintext_sha256;
+          if (asset.byte_size < 0 || digest.size() != 64 ||
+              !std::ranges::all_of(digest, [](char c) {
+                return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+              }))
+            throw InvalidArgument("invalid recovery bundle asset metadata");
+          const auto [existing, inserted] = payloads.emplace(digest, asset.byte_size);
+          if (!inserted && existing->second != asset.byte_size)
+            throw InvalidArgument("conflicting recovery bundle asset sizes");
+        } else {
+          for (const auto& placement : asset.placements)
+            required_locations.insert(placement.location_id);
+        }
       }
     }
   }
+  if (snapshot.bad() || !snapshot.eof()) throw Error("could not read recovery snapshot");
+  for (const auto& id : required_locations) {
+    if (!locations.contains(id))
+      throw InvalidArgument(
+          "a resource's placement names a storage location the snapshot does not hold: " + id
+      );
+  }
+  card_ids.clear();
+  required_locations.clear();
+  const auto read_card = [&](std::size_t index) {
+    snapshot.clear();
+    snapshot.seekg(offsets[index]);
+    if (!std::getline(snapshot, line)) throw Error("could not read recovery snapshot card");
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    auto card = decode_line(line);
+    if (card.card_id != cards[index].card_id)
+      throw Error("recovery snapshot changed during restore");
+    return card;
+  };
 
   NewProject project;
-  project.name = request.project_name;
-  project.privacy_mode = request.privacy_mode == RecoverySnapshotRestorePrivacyMode::EncryptedGit
-                             ? NewProjectPrivacyMode::EncryptedGit
-                             : NewProjectPrivacyMode::Plain;
+  project.name = project_name;
+  project.privacy_mode = privacy_mode;
   const auto created = create_project(context, project);
   const auto storage_root = context.data_dir / "resource-store";
   try {
@@ -745,52 +762,67 @@ Project restore(
             );
       }
     } else {
-      for (const auto& [old_id, location] : locations) {
-        auto model = to_model(location, created.project_id);
-        model.location_id = location_ids[old_id] = holder::identity::uuid_v4();
-        holder::resource::LocationStore(context.db, nullptr, context.git).put(model);
+      holder::resource::LocationStore location_store(context.db, nullptr, context.git);
+      for (const auto index : location_records) {
+        const auto card = read_card(index);
+        for (const auto& location : card.locations) {
+          const auto found = locations.find(location.location_id);
+          if (found == locations.end() || found->second != index) continue;
+          locations.erase(found);
+          auto model = to_model(location, created.project_id);
+          model.location_id = location_ids[location.location_id] = holder::identity::uuid_v4();
+          location_store.put(model);
+        }
       }
     }
     std::map<std::string, std::string> resource_ids;
-    for (const auto& [old_id, resource] : resources) {
-      auto bundle = to_model(resource, created.project_id);
-      bundle.resource.resource_id = resource_ids[old_id] = holder::identity::uuid_v4();
-      for (auto& asset : bundle.assets) {
-        asset.asset_id = holder::identity::uuid_v4();
-        asset.resource_id = bundle.resource.resource_id;
-        if (asset_directory) {
-          asset.placements = {
-              {holder::identity::uuid_v4(),
-               asset.asset_id,
-               local_location_id,
-               created.project_id + "/" + asset.plaintext_sha256,
-               "plain",
-               asset.byte_size,
-               asset.plaintext_sha256,
-               asset.created_at}
-          };
-          continue;
+    holder::resource::ResourceStore resource_store(context.db, nullptr, context.git);
+    for (const auto index : resource_records) {
+      const auto card = read_card(index);
+      for (const auto& resource : card.resources) {
+        const auto found = resources.find(resource.resource_id);
+        if (found == resources.end() || found->second != index) continue;
+        resources.erase(found);
+        auto bundle = to_model(resource, created.project_id);
+        bundle.resource.resource_id = resource_ids[resource.resource_id] =
+            holder::identity::uuid_v4();
+        for (auto& asset : bundle.assets) {
+          asset.asset_id = holder::identity::uuid_v4();
+          asset.resource_id = bundle.resource.resource_id;
+          if (asset_directory) {
+            asset.placements = {
+                {holder::identity::uuid_v4(),
+                 asset.asset_id,
+                 local_location_id,
+                 created.project_id + "/" + asset.plaintext_sha256,
+                 "plain",
+                 asset.byte_size,
+                 asset.plaintext_sha256,
+                 asset.created_at}
+            };
+            continue;
+          }
+          for (auto& placement : asset.placements) {
+            placement.placement_id = holder::identity::uuid_v4();
+            placement.asset_id = asset.asset_id;
+            placement.location_id = location_ids.at(placement.location_id);
+          }
         }
-        for (auto& placement : asset.placements) {
-          placement.placement_id = holder::identity::uuid_v4();
-          placement.asset_id = asset.asset_id;
-          placement.location_id = location_ids.at(placement.location_id);
-        }
+        resource_store.put(bundle);
       }
-      holder::resource::ResourceStore(context.db, nullptr, context.git).put(bundle);
     }
-    std::vector<holder::card::BatchCardInput> items;
-    for (const auto& card : cards) {
-      auto item = to_model(card);
-      for (const auto& [old_id, new_id] : resource_ids)
-        replace_all(item.content, "holder://resource/" + old_id, "holder://resource/" + new_id);
-      items.push_back(std::move(item));
-    }
+    holder::card::BatchCardInput item;
     card_store(context).create_batch(
         created.project_id,
-        items,
+        cards,
+        [&](std::size_t index) -> const holder::card::BatchCardInput& {
+          item = to_model(read_card(index));
+          for (const auto& [old_id, new_id] : resource_ids)
+            replace_all(item.content, "holder://resource/" + old_id, "holder://resource/" + new_id);
+          return item;
+        },
         holder::identity::uuid_v4,
-        request.commit_message,
+        commit_message,
         resource_ids
     );
   } catch (...) {
@@ -807,12 +839,11 @@ Project restore(
   return get_project(context, created.project_id);
 }
 
-} // namespace
-
-std::string capture_recovery_snapshot(
+void visit_recovery_snapshot(
     holder_context& context,
     const std::string& project_id,
-    std::size_t max_bytes
+    const std::function<void(std::size_t)>& check_body,
+    const std::function<void(std::string_view)>& write
 ) {
   const auto project = holder::project::ProjectRepo(context.db).get(project_id);
   if (!project) throw NotFound("project not found: " + project_id);
@@ -820,11 +851,6 @@ std::string capture_recovery_snapshot(
   const std::lock_guard guard(*mutex);
   holder::platform::Tx transaction(context.db, holder::platform::Tx::Mode::Read);
 
-  std::string snapshot;
-  const auto check_budget = [&](std::size_t bytes) {
-    if (bytes >= max_bytes - snapshot.size())
-      throw std::length_error("project recovery snapshot exceeds the export size limit");
-  };
   auto store = card_store(context);
   holder::card::CardPageQuery query;
   query.order = holder::card::CardPageOrder::UpdatedDesc;
@@ -837,16 +863,46 @@ std::string capture_recovery_snapshot(
         [&](const holder::model::Card& card, std::string&& content) {
           // JSON escapes can only add bytes to the body; reject an obvious overflow
           // before gathering related records or encoding the line.
-          check_budget(content.size());
-          auto line = encode_line(to_snapshot(context, *project, card, std::move(content)));
-          check_budget(line.size());
-          snapshot.append(line);
-          snapshot.push_back('\n');
+          check_body(content.size());
+          write(encode_line(to_snapshot(context, *project, card, std::move(content))));
         }
     );
   } while (query.cursor);
   transaction.commit();
+}
+
+} // namespace
+
+std::string capture_recovery_snapshot(
+    holder_context& context,
+    const std::string& project_id,
+    std::size_t max_bytes
+) {
+  std::string snapshot;
+  const auto check_budget = [&](std::size_t bytes) {
+    if (bytes >= max_bytes - snapshot.size())
+      throw std::length_error("project recovery snapshot exceeds the export size limit");
+  };
+  visit_recovery_snapshot(context, project_id, check_budget, [&](std::string_view line) {
+    check_budget(line.size());
+    snapshot.append(line);
+    snapshot.push_back('\n');
+  });
   return snapshot;
+}
+
+void write_recovery_snapshot(
+    holder_context& context,
+    const std::string& project_id,
+    const std::function<void(std::string_view)>& write
+) {
+  visit_recovery_snapshot(
+      context,
+      project_id,
+      [](std::size_t) {
+      },
+      write
+  );
 }
 
 RecoverySnapshotPage read_recovery_snapshot(
@@ -862,7 +918,33 @@ RecoverySnapshotPage read_recovery_snapshot(
 
 Project restore_recovery_snapshot(holder_context& context, const RecoverySnapshotRestore& request) {
   return with_contract_errors([&] {
-    return restore(context, request);
+    std::istringstream input(request.snapshot);
+    const auto privacy = request.privacy_mode == RecoverySnapshotRestorePrivacyMode::EncryptedGit
+                             ? NewProjectPrivacyMode::EncryptedGit
+                             : NewProjectPrivacyMode::Plain;
+    return restore(context, request.project_name, request.commit_message, privacy, input);
+  });
+}
+
+Project restore_recovery_snapshot_file(
+    holder_context& context,
+    std::string snapshot_path,
+    std::string project_name,
+    std::optional<std::string> asset_directory
+) {
+  return with_contract_errors([&] {
+    std::ifstream input(std::filesystem::u8path(snapshot_path), std::ios::binary);
+    if (!input) throw InvalidArgument("could not open the recovery snapshot file");
+    if (asset_directory && (context.data_dir.empty() || !context.registry_path.empty()))
+      throw InvalidArgument("recovery bundles require a private workspace");
+    return restore(
+        context,
+        project_name,
+        asset_directory ? "Restore project recovery bundle" : "Restore project recovery snapshot",
+        NewProjectPrivacyMode::Plain,
+        input,
+        asset_directory ? std::optional{std::filesystem::u8path(*asset_directory)} : std::nullopt
+    );
   });
 }
 
@@ -875,7 +957,15 @@ Project restore_recovery_bundle(
     if (context.data_dir.empty() || !context.registry_path.empty() ||
         request.privacy_mode != RecoverySnapshotRestorePrivacyMode::Plain)
       throw InvalidArgument("recovery bundles require a private workspace and a plain project");
-    return restore(context, request, std::filesystem::path(std::move(asset_directory)));
+    std::istringstream input(request.snapshot);
+    return restore(
+        context,
+        request.project_name,
+        request.commit_message,
+        NewProjectPrivacyMode::Plain,
+        input,
+        std::filesystem::u8path(asset_directory)
+    );
   });
 }
 

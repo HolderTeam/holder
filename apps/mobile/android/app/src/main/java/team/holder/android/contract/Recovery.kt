@@ -284,6 +284,20 @@ object Recovery {
         assetDirectory: String,
     ): Project
 
+    /**
+     * Restore a local recovery JSON Lines file into a new unencrypted project.
+     * Uses the same ID remapping as restore_recovery_snapshot. The caller keeps the
+     * file unchanged for the duration of the call and owns its cleanup. Supply an
+     * asset directory with SHA-256-named plaintext files to verify and restore
+     * local copies of the assets in a private workspace.
+     */
+    external fun restoreRecoverySnapshotFile(
+        contextHandle: Long,
+        snapshotPath: String,
+        projectName: String,
+        assetDirectory: String? = null,
+    ): Project
+
     /** Wrap an encrypted project's key in a portable token protected by a PIN. */
     external fun exportProjectRecoveryToken(
         contextHandle: Long,

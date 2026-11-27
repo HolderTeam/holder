@@ -2,14 +2,14 @@
 
 from typing import Annotated
 
-from fastapi import Body, Path
+from fastapi import Body, Path, Query
 
 from authoring import Bytes, Contract, Field, Int32
 from authoring.routes import ErrorResponse
 
 from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..projects.ids import ProjectId
-from ..projects.models import Project
+from ..projects.models import Project, ProjectName
 from .errors import RecoveryTokenInvalid
 from .models import (
     ProjectRecoveryTokenExportResult,
@@ -52,14 +52,31 @@ def register(contract: Contract) -> None:
         and replaces source placements with local ones. A failed restore leaves no project.
         """
 
+    @contract.core_operation(errors=[DataCorrupted])
+    def restore_recovery_snapshot_file(
+        snapshot_path: Annotated[str, Field(min_length=1)], project_name: ProjectName,
+        asset_directory: Annotated[str, Field(min_length=1)] | None = None,
+    ) -> Project:
+        """Restore a local recovery JSON Lines file into a new unencrypted project.
+
+        Uses the same ID remapping as restore_recovery_snapshot. The caller keeps the
+        file unchanged for the duration of the call and owns its cleanup. Supply an
+        asset directory with SHA-256-named plaintext files to verify and restore
+        local copies of the assets in a private workspace.
+        """
+
     @contract.route("GET", "/projects/{project_id}/recovery-snapshot", core=False,
                     errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted], responses={
         413: {"model": ErrorResponse, "description": "The recovery snapshot exceeds 2 MiB."},
     })
-    def download_recovery_snapshot(project_id: Annotated[ProjectId, Path()]) -> Bytes:
+    def download_recovery_snapshot(
+        project_id: Annotated[ProjectId, Path()], stream: Annotated[bool, Query()] = False,
+    ) -> Bytes:
         """Download a consistent recovery snapshot of the project's live cards.
 
-        Returns UTF-8 recovery snapshot lines, one versioned JSON record per card, up to 2 MiB.
+        Returns UTF-8 recovery snapshot lines, one versioned JSON record per card. The default
+        response is capped at 2 MiB. With stream=true, the daemon captures to a temporary file
+        before transferring it, and the total size is limited by available storage.
         An empty project returns zero bytes. The download includes readable Markdown bodies,
         including plaintext from encrypted projects. It includes linked resource declarations
         but omits asset bytes, credentials, Git history, trash, and AI threads and messages.

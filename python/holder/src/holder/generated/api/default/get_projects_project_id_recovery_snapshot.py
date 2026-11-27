@@ -8,18 +8,27 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
 from ...streams import AsyncByteStream, ByteStream
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     project_id: str,
+    *,
+    stream: bool | Unset = False,
 ) -> dict[str, Any]:
+
+    params: dict[str, Any] = {}
+
+    params["stream"] = stream
+
+    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/projects/{project_id}/recovery-snapshot".format(
             project_id=quote(str(project_id), safe=""),
         ),
+        "params": params,
     }
 
     return _kwargs
@@ -88,16 +97,20 @@ def sync_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
+    stream: bool | Unset = False,
 ) -> Response[Any | ErrorResponse]:
     """Download a consistent recovery snapshot of the project's live cards.
 
-     Returns UTF-8 recovery snapshot lines, one versioned JSON record per card, up to 2 MiB.
+     Returns UTF-8 recovery snapshot lines, one versioned JSON record per card. The default
+    response is capped at 2 MiB. With stream=true, the daemon captures to a temporary file
+    before transferring it, and the total size is limited by available storage.
     An empty project returns zero bytes. The download includes readable Markdown bodies,
     including plaintext from encrypted projects. It includes linked resource declarations
     but omits asset bytes, credentials, Git history, trash, and AI threads and messages.
 
     Args:
         project_id (str):
+        stream (bool | Unset):  Default: False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -109,6 +122,7 @@ def sync_detailed(
 
     kwargs = _get_kwargs(
         project_id=project_id,
+        stream=stream,
     )
 
     response = client.get_httpx_client().request(
@@ -122,16 +136,20 @@ def sync(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
+    stream: bool | Unset = False,
 ) -> Any | ErrorResponse | None:
     """Download a consistent recovery snapshot of the project's live cards.
 
-     Returns UTF-8 recovery snapshot lines, one versioned JSON record per card, up to 2 MiB.
+     Returns UTF-8 recovery snapshot lines, one versioned JSON record per card. The default
+    response is capped at 2 MiB. With stream=true, the daemon captures to a temporary file
+    before transferring it, and the total size is limited by available storage.
     An empty project returns zero bytes. The download includes readable Markdown bodies,
     including plaintext from encrypted projects. It includes linked resource declarations
     but omits asset bytes, credentials, Git history, trash, and AI threads and messages.
 
     Args:
         project_id (str):
+        stream (bool | Unset):  Default: False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -144,6 +162,7 @@ def sync(
     return sync_detailed(
         project_id=project_id,
         client=client,
+        stream=stream,
     ).parsed
 
 
@@ -151,16 +170,20 @@ async def asyncio_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
+    stream: bool | Unset = False,
 ) -> Response[Any | ErrorResponse]:
     """Download a consistent recovery snapshot of the project's live cards.
 
-     Returns UTF-8 recovery snapshot lines, one versioned JSON record per card, up to 2 MiB.
+     Returns UTF-8 recovery snapshot lines, one versioned JSON record per card. The default
+    response is capped at 2 MiB. With stream=true, the daemon captures to a temporary file
+    before transferring it, and the total size is limited by available storage.
     An empty project returns zero bytes. The download includes readable Markdown bodies,
     including plaintext from encrypted projects. It includes linked resource declarations
     but omits asset bytes, credentials, Git history, trash, and AI threads and messages.
 
     Args:
         project_id (str):
+        stream (bool | Unset):  Default: False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -172,6 +195,7 @@ async def asyncio_detailed(
 
     kwargs = _get_kwargs(
         project_id=project_id,
+        stream=stream,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -183,16 +207,20 @@ async def asyncio(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
+    stream: bool | Unset = False,
 ) -> Any | ErrorResponse | None:
     """Download a consistent recovery snapshot of the project's live cards.
 
-     Returns UTF-8 recovery snapshot lines, one versioned JSON record per card, up to 2 MiB.
+     Returns UTF-8 recovery snapshot lines, one versioned JSON record per card. The default
+    response is capped at 2 MiB. With stream=true, the daemon captures to a temporary file
+    before transferring it, and the total size is limited by available storage.
     An empty project returns zero bytes. The download includes readable Markdown bodies,
     including plaintext from encrypted projects. It includes linked resource declarations
     but omits asset bytes, credentials, Git history, trash, and AI threads and messages.
 
     Args:
         project_id (str):
+        stream (bool | Unset):  Default: False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -206,6 +234,7 @@ async def asyncio(
         await asyncio_detailed(
             project_id=project_id,
             client=client,
+            stream=stream,
         )
     ).parsed
 
@@ -214,16 +243,20 @@ def stream(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
+    stream: bool | Unset = False,
 ) -> ByteStream:
     """Download a consistent recovery snapshot of the project's live cards.
 
-     Returns UTF-8 recovery snapshot lines, one versioned JSON record per card, up to 2 MiB.
+     Returns UTF-8 recovery snapshot lines, one versioned JSON record per card. The default
+    response is capped at 2 MiB. With stream=true, the daemon captures to a temporary file
+    before transferring it, and the total size is limited by available storage.
     An empty project returns zero bytes. The download includes readable Markdown bodies,
     including plaintext from encrypted projects. It includes linked resource declarations
     but omits asset bytes, credentials, Git history, trash, and AI threads and messages.
 
     Args:
         project_id (str):
+        stream (bool | Unset):  Default: False.
 
     Raises:
         StreamError: If the server answers with an error status instead of the stream.
@@ -237,6 +270,7 @@ def stream(
         client.get_httpx_client(),
         _get_kwargs(
             project_id=project_id,
+            stream=stream,
         ),
         lambda response: _parse_response(client=client, response=response),
     )
@@ -246,16 +280,20 @@ def astream(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
+    stream: bool | Unset = False,
 ) -> AsyncByteStream:
     """Download a consistent recovery snapshot of the project's live cards.
 
-     Returns UTF-8 recovery snapshot lines, one versioned JSON record per card, up to 2 MiB.
+     Returns UTF-8 recovery snapshot lines, one versioned JSON record per card. The default
+    response is capped at 2 MiB. With stream=true, the daemon captures to a temporary file
+    before transferring it, and the total size is limited by available storage.
     An empty project returns zero bytes. The download includes readable Markdown bodies,
     including plaintext from encrypted projects. It includes linked resource declarations
     but omits asset bytes, credentials, Git history, trash, and AI threads and messages.
 
     Args:
         project_id (str):
+        stream (bool | Unset):  Default: False.
 
     Raises:
         StreamError: If the server answers with an error status instead of the stream.
@@ -269,6 +307,7 @@ def astream(
         client.get_async_httpx_client(),
         _get_kwargs(
             project_id=project_id,
+            stream=stream,
         ),
         lambda response: _parse_response(client=client, response=response),
     )

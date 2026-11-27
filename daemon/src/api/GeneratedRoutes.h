@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <functional>
+#include <optional>
 #include <string>
 
 namespace holder::platform {
@@ -34,12 +35,14 @@ namespace holder::api {
 
 using GeneratedRequest = boost::beast::http::request<boost::beast::http::string_body>;
 using GeneratedResponse = boost::beast::http::response<boost::beast::http::string_body>;
+using GeneratedFileResponse = boost::beast::http::response<boost::beast::http::file_body>;
 
 // Whether this request may reach a public operation without a bearer token.
 bool is_public_generated_route(const GeneratedRequest& req);
 
 // Returns false only when no generated operation matches the request. A route the daemon
 // writes itself, such as an event stream, leaves res alone and its server in *stream.
+// A file download can prepare a response and leave its transfer to the session writer.
 bool dispatch_generated_routes(
     const GeneratedRequest& req,
     GeneratedResponse& res,
@@ -53,7 +56,8 @@ bool dispatch_generated_routes(
     holder::card::CardStore* card_store = nullptr,
     holder::api::support::EventService* events = nullptr,
     support::StreamServer* stream = nullptr,
-    boost::asio::ip::tcp::socket* socket = nullptr
+    boost::asio::ip::tcp::socket* socket = nullptr,
+    std::optional<GeneratedFileResponse>* file = nullptr
 );
 
 } // namespace holder::api

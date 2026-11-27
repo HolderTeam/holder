@@ -2858,6 +2858,24 @@ int holder_restore_recovery_bundle(
     holder_error** out_error
 );
 
+/* Restore a local recovery JSON Lines file into a new unencrypted project.
+ * Uses the same ID remapping as restore_recovery_snapshot. The caller keeps the
+ * file unchanged for the duration of the call and owns its cleanup. Supply an
+ * asset directory with SHA-256-named plaintext files to verify and restore
+ * local copies of the assets in a private workspace.
+ * asset_directory: May be NULL.
+ * Errors: HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_restore_recovery_snapshot_file(
+    holder_context* context,
+    const char* snapshot_path,
+    const char* project_name,
+    const char* asset_directory,
+    holder_arena* arena,
+    const holder_project** out_project,
+    holder_error** out_error
+);
+
 /* Wrap an encrypted project's key in a portable token protected by a PIN.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
  * HOLDER_ERROR_DATA_CORRUPTED.

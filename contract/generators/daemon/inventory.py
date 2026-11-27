@@ -43,7 +43,7 @@ MANUAL = {
     ),
     "download_recovery_snapshot": (
         "GeneratedRoutes.cpp:dispatch_misc_contract_route",
-        "project ID validation; bounded binary response",
+        "project ID and stream query validation; binary response or temporary-file transfer",
     ),
     "get_alive": ("Alive.h:check_alive", "dispatch; no-query check; response serialization"),
     "get_ping": ("Ping.h:get_ping", "dispatch; no-query check; text response"),
