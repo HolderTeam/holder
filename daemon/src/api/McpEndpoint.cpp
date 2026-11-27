@@ -212,8 +212,10 @@ GeneratedResponse handle(
     return error(http::status::bad_request, id, -32602, "MCP params must be an object.");
   }
   const auto meta = params.value("_meta", json::object());
-  if (requested_version.empty() || header(request, "Mcp-Method") != method || !meta.is_object() ||
-      meta.value("io.modelcontextprotocol/protocolVersion", json()) != requested_version) {
+  const auto body_version = meta.find("io.modelcontextprotocol/protocolVersion");
+  if (requested_version.empty() || header(request, "Mcp-Method") != method ||
+      body_version == meta.end() || !body_version->is_string() ||
+      std::string_view(body_version->get_ref<const std::string&>()) != requested_version) {
     return error(
         http::status::bad_request,
         id,

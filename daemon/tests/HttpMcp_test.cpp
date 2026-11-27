@@ -124,6 +124,15 @@ TEST_CASE("Live MCP shares daemon reads and applies its own access policy", "[ht
   const auto mismatched = exchange(bound.port, request);
   CHECK(mismatched.result() == http::status::bad_request);
   CHECK(json::parse(mismatched.body()).at("error").at("code") == -32020);
+
+  request = mcp_request("tools/list");
+  auto invalid_version = json::parse(request.body());
+  invalid_version["params"]["_meta"]["io.modelcontextprotocol/protocolVersion"] = 123;
+  request.body() = invalid_version.dump();
+  request.prepare_payload();
+  const auto non_string = exchange(bound.port, request);
+  CHECK(non_string.result() == http::status::bad_request);
+  CHECK(json::parse(non_string.body()).at("error").at("code") == -32020);
 }
 
 TEST_CASE("Live MCP is opt-in", "[http][mcp]") {
