@@ -1,7 +1,6 @@
 package team.holder.android
 
 import android.os.Build
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
@@ -20,7 +19,7 @@ class ConflictNoticeTest {
     val noRestoredBackup = NoRestoredBackupRule()
 
     @get:Rule(order = 1)
-    val composeRule = createAndroidComposeRule<MainActivity>()
+    val composeRule = holderAndroidComposeRule<MainActivity>()
 
     private val timeoutMs = if (Build.VERSION.SDK_INT <= 28) 300_000L else 60_000L
 

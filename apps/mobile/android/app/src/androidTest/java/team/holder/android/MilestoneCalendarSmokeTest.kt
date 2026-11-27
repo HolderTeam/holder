@@ -1,7 +1,6 @@
 package team.holder.android
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -33,7 +32,7 @@ import team.holder.android.ui.screens.CalendarScreen
 @RunWith(AndroidJUnit4::class)
 class MilestoneCalendarSmokeTest {
     @get:Rule
-    val composeRule = createComposeRule()
+    val composeRule = holderComposeRule()
 
     // This screen's only async work is one HolderNative.listMilestonesInRange round trip inside
     // a LaunchedEffect -- no navigation animation or multi-screen composition to wait on -- so it

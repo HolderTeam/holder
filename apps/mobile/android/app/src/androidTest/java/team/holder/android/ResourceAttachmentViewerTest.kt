@@ -1,7 +1,6 @@
 package team.holder.android
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -28,7 +27,7 @@ import team.holder.android.ui.markdown.HolderMarkdownViewer
 @RunWith(AndroidJUnit4::class)
 class ResourceAttachmentViewerTest {
     @get:Rule
-    val composeRule = createComposeRule()
+    val composeRule = holderComposeRule()
 
     // rememberResourceAttachmentKind resolves asynchronously (a real HolderNative.getResource
     // JNI round trip inside a LaunchedEffect, starting from ResourceAttachmentKind.Loading) --
