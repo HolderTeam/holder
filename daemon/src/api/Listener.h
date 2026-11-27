@@ -26,6 +26,10 @@
 
 namespace holder::api {
 
+namespace mcp {
+struct Access;
+}
+
 class Listener {
  public:
   struct BoundInfo {
@@ -44,7 +48,8 @@ class Listener {
       holder::privacy::SecretStore* secret_store = nullptr,
       holder::git::GitOps* git_ops = nullptr,
       holder::llm::RunnerRegistry* runner_registry = nullptr,
-      holder::api::ConcurrencyProfile concurrency = {}
+      holder::api::ConcurrencyProfile concurrency = {},
+      const mcp::Access* mcp_access = nullptr
   );
 
   BoundInfo start();
@@ -81,6 +86,7 @@ class Listener {
   holder::git::GitOps* git_ops_ = nullptr;
   holder::llm::RunnerRegistry* runner_registry_ = nullptr;
   holder::api::ConcurrencyProfile concurrency_;
+  const mcp::Access* mcp_access_;
   std::mutex event_service_mutex_;
   std::shared_ptr<holder::api::support::EventService> events_;
   holder::git::GitOps* request_git_ops_ = nullptr;

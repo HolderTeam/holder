@@ -1,6 +1,7 @@
 #pragma once
 
 #include "api/ConcurrencyProfile.h"
+#include "api/McpEndpoint.h"
 #include "git/GitOps.h"
 #include "index/FtsIndexer.h"
 #include "llm/RunnerRegistry.h"
@@ -10,6 +11,7 @@
 
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace holder::card {
@@ -36,7 +38,8 @@ class HttpServer {
       holder::index::FtsIndexer* fts,
       holder::git::GitOps* git_ops = nullptr,
       holder::llm::RunnerRegistry* runner_registry = nullptr,
-      holder::api::ConcurrencyProfile concurrency = {}
+      holder::api::ConcurrencyProfile concurrency = {},
+      std::optional<mcp::Access> mcp_access = std::nullopt
   );
   ~HttpServer();
 
@@ -52,13 +55,14 @@ class HttpServer {
   holder::platform::Db& db_;
   std::string auth_token_;
   std::chrono::steady_clock::time_point started_at_;
-  std::unique_ptr<Listener> listener_;
   holder::llm::RunnerRegistry* runner_registry_ = nullptr;
   std::unique_ptr<holder::privacy::SecretStore> secret_store_;
   holder::card::CardStore* card_store_ = nullptr;
   holder::index::FtsIndexer* fts_ = nullptr;
   holder::git::GitOps* git_ops_ = nullptr;
   holder::api::ConcurrencyProfile concurrency_;
+  std::optional<mcp::Access> mcp_access_;
+  std::unique_ptr<Listener> listener_;
 };
 
 } // namespace holder::api

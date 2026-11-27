@@ -65,6 +65,20 @@ If the request exceeds these limits, the daemon sends a JSON error and closes
 that connection. An oversized target or request line returns `414 uri_too_long`.
 Oversized headers return `431 request_header_fields_too_large`.
 
+## Local MCP
+
+Set `HOLDER_MCP_PROJECT` to the ID of the project you want to share and
+`HOLDER_MCP_TOKEN` to a dedicated random bearer token (32 to 128 base64url
+characters) before starting `holderd`. The daemon serves `/mcp` on its normal
+loopback listener. Configure a native Streamable HTTP client that speaks
+protocol revision `2026-07-28` with that URL and token. Disable the endpoint
+by unsetting both variables and restarting the daemon.
+
+The token grants discovery, card search, card reads and resource metadata reads
+for the selected project. The REST API uses a separate credential. Search returns
+up to 100 matches per call and each tool call has a 256 KiB structured result
+limit. The endpoint serves finite JSON responses.
+
 ## Optional Runtime Dependencies
 
 - Ollama (for local model execution via AI routes)

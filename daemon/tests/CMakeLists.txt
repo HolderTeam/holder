@@ -84,6 +84,7 @@ add_executable(holder_daemon_tests
   HttpAiComplete_test.cpp
   HttpResources_test.cpp
   GoogleDriveOAuthRoutes_test.cpp
+  HttpMcp_test.cpp
   HttpTrash_test.cpp
   TrashRoutes_test.cpp
   HttpRebuild_test.cpp
@@ -168,6 +169,7 @@ add_executable(holder_daemon_tests
   ../src/llm/RunnerModelRef.cpp
   ../src/llm/RunnerRegistry.cpp
   ../src/api/HttpServer.cpp
+  ../src/api/McpEndpoint.cpp
   ../src/api/GeneratedRoutes.cpp
   ../src/api/Health.cpp
   ../src/api/LocationRead.cpp

@@ -382,6 +382,7 @@ add_executable(holderd
   src/llm/RunnerModelRef.cpp
   src/llm/RunnerRegistry.cpp
   src/api/HttpServer.cpp
+  src/api/McpEndpoint.cpp
   src/api/GeneratedRoutes.cpp
   src/api/Health.cpp
   src/api/LocationRead.cpp
@@ -469,7 +470,20 @@ add_custom_command(
   DEPENDS "${HOLDER_API_DIR}/openapi.yaml" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake"
   VERBATIM
 )
+set(HOLDER_MCP_TOOLS "${CMAKE_CURRENT_SOURCE_DIR}/src/api/generated/McpTools.json")
+add_custom_command(
+  OUTPUT "${HOLDER_GENERATED_INCLUDE_DIR}/McpToolsJson.h"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${HOLDER_GENERATED_INCLUDE_DIR}"
+  COMMAND ${CMAKE_COMMAND}
+    -DINPUT=${HOLDER_MCP_TOOLS}
+    -DOUTPUT=${HOLDER_GENERATED_INCLUDE_DIR}/McpToolsJson.h
+    -DNAME=mcp_tools_json
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake
+  DEPENDS "${HOLDER_MCP_TOOLS}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake"
+  VERBATIM
+)
 add_custom_target(holder_openapi_documents DEPENDS
+  "${HOLDER_GENERATED_INCLUDE_DIR}/McpToolsJson.h"
   "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiJson.h"
   "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiYaml.h"
 )
