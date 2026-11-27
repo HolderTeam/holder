@@ -5,6 +5,7 @@
 // The C entry points: argument checks, conversions and error codes.
 #include "Contract.h"
 #include "holder/holder_api.h"
+#include "privacy/ProjectKeyScope.h"
 
 #include <cmath>
 #include <cstddef>
@@ -159,6 +160,8 @@ double finite(double value, const char* name) {
 
 template <class Body> int run_guarded(holder_error** out_error, Body&& body) {
   if (out_error != nullptr) *out_error = nullptr;
+  // One keyring lookup per project key for the whole call, however many files it encrypts.
+  const holder::privacy::ProjectKeyScope project_keys;
   try {
     body();
     return HOLDER_OK;
