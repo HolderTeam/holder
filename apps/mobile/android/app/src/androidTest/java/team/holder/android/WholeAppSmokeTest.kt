@@ -5,7 +5,6 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -29,7 +28,7 @@ class WholeAppSmokeTest {
     val noRestoredBackup = NoRestoredBackupRule()
 
     @get:Rule(order = 1)
-    val composeRule = createAndroidComposeRule<MainActivity>()
+    val composeRule = holderAndroidComposeRule<MainActivity>()
 
     // Deliberately generous: this test's slow steps each wait on a real libholder round trip
     // (git-backed create/save) rendered by a software-GPU emulator under CI contention. The old

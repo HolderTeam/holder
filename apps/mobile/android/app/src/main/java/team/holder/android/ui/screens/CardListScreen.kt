@@ -1,5 +1,6 @@
 package team.holder.android.ui.screens
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -52,6 +55,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -63,6 +67,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -76,7 +81,10 @@ import team.holder.android.R
 import team.holder.android.ui.CardListOrder
 import team.holder.android.ui.CenteredMessage
 import team.holder.android.ui.LoadState
+import team.holder.android.ui.MoveIntoTarget
 import team.holder.android.ui.boardPathAfterReload
+import team.holder.android.ui.filterMoveIntoTargets
+import team.holder.android.ui.moveIntoTargets
 import team.holder.android.ui.plainListOrder
 import team.holder.android.ui.sortKeyOrderedSiblings
 
@@ -100,6 +108,7 @@ fun CardListScreen(
     // Null means "not searching" -- show the normal card list instead.
     var searchState by remember(projectId) { mutableStateOf<LoadState<List<HolderSearchResult>>?>(null) }
     var cardPendingDelete by remember { mutableStateOf<HolderCard?>(null) }
+    var cardPendingMoveInto by remember { mutableStateOf<HolderCard?>(null) }
     var menuOpenFor by remember { mutableStateOf<String?>(null) }
     // Guards a native write (delete or a Board move) against double-tap: a second tap can reach
     // the same dialog/menu-item action before recomposition dismisses it, re-running the write.
@@ -172,15 +181,18 @@ fun CardListScreen(
 
     // Every Board move -- menu-driven (Part A) or drag-driven (Part B) -- funnels through here:
     // one in-flight guard, one refresh-after, one place errors surface from.
-    fun performMove(card: HolderCard, intent: CardPlacementIntent, targetCardId: String? = null) {
+    fun performMove(card: HolderCard, intent: CardPlacementIntent, targetCardId: String? = null, movedMessage: String? = null) {
         if (isSubmitting) return
         isSubmitting = true
-        scope.launch {
+        // On the main thread, for the toast: under a Compose test the scope can resume
+        // elsewhere, and Android 12 and older refuse a toast off a Looper thread.
+        scope.launch(Dispatchers.Main.immediate) {
             val result = runCatching {
                 withContext(Dispatchers.IO) { HolderNative.moveCard(projectId, card.cardId, intent, targetCardId = targetCardId) }
             }
             isSubmitting = false
             result.onFailure { moveError = it.message ?: it::class.java.simpleName }
+            if (result.isSuccess && movedMessage != null) Toast.makeText(context, movedMessage, Toast.LENGTH_SHORT).show()
             refresh()
         }
     }
@@ -313,6 +325,10 @@ fun CardListScreen(
                             menuOpenFor = null
                             onCreateChildCard(it)
                         },
+                        onMoveIntoRequested = {
+                            menuOpenFor = null
+                            cardPendingMoveInto = it
+                        },
                         boardViewEnabled = boardViewEnabled,
                         listOrder = listOrder,
                         currentParentId = currentParentId,
@@ -349,6 +365,19 @@ fun CardListScreen(
             },
             dismissButton = {
                 TextButton(onClick = { cardPendingDelete = null }) { Text("Cancel") }
+            },
+        )
+    }
+
+    cardPendingMoveInto?.let { card ->
+        val allCards = (cardsState as? LoadState.Success)?.value.orEmpty()
+        MoveIntoDialog(
+            card = card,
+            targets = remember(card, allCards) { moveIntoTargets(card, allCards) },
+            onDismiss = { cardPendingMoveInto = null },
+            onPick = { target ->
+                cardPendingMoveInto = null
+                performMove(card, CardPlacementIntent.INTO, target.card.cardId, movedMessage = "Moved into ${target.card.title}")
             },
         )
     }
@@ -393,6 +422,7 @@ private fun CardListBody(
     onDismissMenu: () -> Unit,
     onDeleteRequested: (HolderCard) -> Unit,
     onCreateChildCardRequested: (HolderCard) -> Unit,
+    onMoveIntoRequested: (HolderCard) -> Unit,
     boardViewEnabled: Boolean,
     listOrder: CardListOrder,
     currentParentId: String?,
@@ -511,6 +541,10 @@ private fun CardListBody(
                                     DropdownMenuItem(
                                         text = { Text("Create Child Card") },
                                         onClick = { onCreateChildCardRequested(card) },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Move Into…") },
+                                        onClick = { onMoveIntoRequested(card) },
                                     )
                                     DropdownMenuItem(
                                         text = { Text("Move Up a Level") },
@@ -654,3 +688,58 @@ private fun SearchResultsList(
         }
     }
 }
+
+/** Board's "Move Into…": picks the card [card] goes under, from [targets] (see
+ * [moveIntoTargets]), with a filter for long projects. Each row shows the target's path, so two
+ * cards with one title can be told apart. Core puts the card last among the target's children. */
+@Composable
+private fun MoveIntoDialog(
+    card: HolderCard,
+    targets: List<MoveIntoTarget>,
+    onDismiss: () -> Unit,
+    onPick: (MoveIntoTarget) -> Unit,
+) {
+    var query by rememberSaveable { mutableStateOf("") }
+    val shown = remember(targets, query) { filterMoveIntoTargets(targets, query) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        // Shrinks to the space above the keyboard while the filter is typed in.
+        properties = DialogProperties(decorFitsSystemWindows = false),
+        modifier = Modifier.imePadding(),
+        title = { Text("Move “${card.title}” into…") },
+        text = {
+            Column {
+                if (targets.isEmpty()) {
+                    Text("There's no other card to move it into.")
+                } else {
+                    if (targets.size > MOVE_INTO_FILTER_FROM) {
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            placeholder = { Text("Filter cards") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        )
+                    }
+                    if (shown.isEmpty()) Text("No matching cards")
+                    LazyColumn(Modifier.heightIn(max = 400.dp)) {
+                        items(shown, key = { it.card.cardId }) { target ->
+                            ListItem(
+                                headlineContent = { Text(target.card.title) },
+                                supportingContent = if (target.path.isEmpty()) null else {
+                                    { Text("in ${target.pathLabel}") }
+                                },
+                                modifier = Modifier.clickable { onPick(target) },
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/** Fewer targets than this fit on screen, so the dialog shows no filter. */
+private const val MOVE_INTO_FILTER_FROM = 8
