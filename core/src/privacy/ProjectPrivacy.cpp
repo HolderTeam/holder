@@ -3,6 +3,7 @@
 #include "privacy/CryptoService.h"
 #include "privacy/PlatformKeyring.h"
 
+#include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/sha.h>
@@ -19,11 +20,13 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace holder::privacy {
@@ -119,11 +122,35 @@ PlatformKeyringSecretRef project_key_ref(const std::string& project_id, const st
   };
 }
 
+// The keys a ProjectKeyScope keeps, by (project ID, key ID), and how many scopes are open.
+struct ProjectKeyCache {
+  int depth = 0;
+  std::map<std::pair<std::string, std::string>, std::string> keys;
+};
+
+ProjectKeyCache& project_key_cache() {
+  thread_local ProjectKeyCache cache;
+  return cache;
+}
+
+void wipe(std::string& secret) {
+  if (!secret.empty()) OPENSSL_cleanse(secret.data(), secret.size());
+}
+
+void forget_cached_key(const std::string& project_id, const std::string& key_id) {
+  auto& cache = project_key_cache();
+  const auto found = cache.keys.find({project_id, key_id});
+  if (found == cache.keys.end()) return;
+  wipe(found->second);
+  cache.keys.erase(found);
+}
+
 void store_key_material(
     const std::string& project_id,
     const std::string& key_id,
     const std::string& key_material_b64
 ) {
+  forget_cached_key(project_id, key_id);
   if (const char* test_dir = std::getenv("HOLDER_TEST_KEYSTORE_DIR")) {
     store_key_test_override(std::filesystem::path(test_dir), key_id, key_material_b64);
     return;
@@ -136,7 +163,7 @@ void store_key_material(
   );
 }
 
-std::string load_key_material(const std::string& project_id, const std::string& key_id) {
+std::string fetch_key_material(const std::string& project_id, const std::string& key_id) {
   if (const char* test_dir = std::getenv("HOLDER_TEST_KEYSTORE_DIR")) {
     const auto in_path = std::filesystem::path(test_dir) / (key_id + ".key");
     std::ifstream in(in_path, std::ios::binary);
@@ -172,6 +199,16 @@ std::string load_key_material(const std::string& project_id, const std::string& 
   }
   return result.secret.value();
 } // LCOV_EXCL_LINE
+
+std::string load_key_material(const std::string& project_id, const std::string& key_id) {
+  auto& cache = project_key_cache();
+  if (cache.depth == 0) return fetch_key_material(project_id, key_id);
+  const auto key = std::make_pair(project_id, key_id);
+  if (const auto found = cache.keys.find(key); found != cache.keys.end()) return found->second;
+  auto material = fetch_key_material(project_id, key_id);
+  cache.keys.emplace(key, material);
+  return material;
+}
 
 bool has_envelope_header(const std::filesystem::path& path) {
   std::ifstream in(path, std::ios::binary);
@@ -252,6 +289,16 @@ DecryptedRecoveryTokenPayload decrypt_recovery_payload(
 }
 
 } // namespace
+
+ProjectKeyScope::ProjectKeyScope() { ++project_key_cache().depth; }
+
+ProjectKeyScope::~ProjectKeyScope() {
+  auto& cache = project_key_cache();
+  if (--cache.depth > 0) return;
+  for (auto& [ids, material] : cache.keys)
+    wipe(material);
+  cache.keys.clear();
+}
 
 std::array<unsigned char, 32> load_project_key_bytes(
     const std::string& project_id,

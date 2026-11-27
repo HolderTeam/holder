@@ -48,7 +48,7 @@ val holderNdkDir = androidSdkDir?.let { File(it, "ndk/$holderNdkVersion") }
 android {
     namespace = "team.holder.android"
     compileSdk {
-        version = release(37)
+        version = release(37) { minorApiLevel = 2 }
     }
     ndkVersion = holderNdkVersion
 
