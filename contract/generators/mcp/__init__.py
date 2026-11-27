@@ -10,15 +10,20 @@ from compiler.ir import ContractView
 
 from ..clang_format import clang_format
 from ..common import Unsupported, header_lines
-from ..core.types import CoreTypes
-from ..daemon.contract_json import field_decoder
+from ..core.types import CoreTypes, Slot, camel
+from ..daemon.contract_json import cpp_base, enum_lines, field_decoder
 from ..daemon.openapi import document
 
 PATH = "daemon/src/api/generated/McpTools.json"
 BINDINGS_PATH = "daemon/src/api/generated/McpBindings.h"
-# The live MCP adapter starts with these reads. The registry applies runtime permissions.
-TOOLS = ("get_card", "get_resource", "search_cards")
-SEARCH_LIMIT = 100
+# Select reads whose arguments and results stay inside the authorized project.
+TOOLS = (
+    "get_card", "get_card_breadcrumbs", "get_resource", "list_card_milestones",
+    "list_cards", "list_project_tags", "search_cards",
+)
+PAGE_LIMITS = {"list_cards": 100, "search_cards": 100}
+PAGE_DEFAULTS = {"list_cards": 50}
+FIXED_ARGUMENTS = {"list_cards": {"include_content": False}}
 COMPONENT_REF = "#/components/schemas/"
 
 
@@ -75,17 +80,27 @@ def generate_mcp_tools(contract: ContractView) -> str:
         response = route["responses"][str(binding.status)]["content"]["application/json"]["schema"]
         envelope = components[response["$ref"].removeprefix(COMPONENT_REF)]
         description = "\n\n".join(dict.fromkeys(filter(None, (operation.summary, operation.description))))
-        properties = {key: parameter["schema"] for key, parameter in parameters.items()}
-        if name == "search_cards":
+        fixed = FIXED_ARGUMENTS.get(name, {})
+        properties = {
+            key: dict(parameter["schema"]) for key, parameter in parameters.items()
+            if key not in fixed
+        }
+        if name in PAGE_LIMITS:
             limit = properties["limit"]
-            limit["maximum"] = min(SEARCH_LIMIT, limit.get("maximum", SEARCH_LIMIT))
+            maximum = PAGE_LIMITS[name]
+            limit["maximum"] = min(maximum, limit.get("maximum", maximum))
+        if name in PAGE_DEFAULTS:
+            properties["limit"]["default"] = PAGE_DEFAULTS[name]
+        if "include_content" in fixed:
+            description += "\n\nThis tool lists metadata. Use get_card to read one card body."
         tools.append({
             "name": name,
             "description": description,
             "inputSchema": standalone_schema({
                 "type": "object",
                 "properties": properties,
-                "required": [name for name, parameter in parameters.items() if parameter["required"]],
+                "required": [key for key, parameter in parameters.items()
+                             if key in properties and parameter["required"]],
                 "additionalProperties": False,
             }, components),
             "outputSchema": standalone_schema({
@@ -96,6 +111,31 @@ def generate_mcp_tools(contract: ContractView) -> str:
             }, components),
         })
     return json.dumps({"tools": tools}, ensure_ascii=False, indent=2) + "\n"
+
+
+def optional_string_choice(types: CoreTypes, operation: str, slot: Slot) -> list[str]:
+    """Decode a nullable string-or-literal parameter such as the card parent filter."""
+    name = slot.name
+    choices = [types.resolve(alternative).type for alternative in slot.type.alternatives]
+    literals = [literal for item in choices if item.kind == "literal" for literal in item.values]
+    strings = [item for item in choices if item.kind == "string"]
+    if (not slot.nullable or not slot.has_default or slot.default is not None
+            or len(strings) != 1 or not literals
+            or any(item.kind not in {"literal", "string"} for item in choices)
+            or any(not isinstance(literal, str) for literal in literals)):
+        raise Unsupported(f"{operation}.{name}: unsupported MCP union")
+    variant = "holder::contract::" + camel(operation) + camel(name)
+    decoded = field_decoder(types, replace(slot, type=strings[0]), name, "*value")
+    lines = [
+        f"    std::optional<{variant}> {name};",
+        f'    if (const auto value = arguments.find("{name}"); value != arguments.end() && !value->is_null()) {{',
+        f'      auto text = decode_field<std::string>(*value, "{name}");',
+    ]
+    for index, literal in enumerate(literals):
+        condition = "if" if index == 0 else "else if"
+        lines.append(f"      {condition} (text == {json.dumps(literal)}) {name} = {variant}{{{variant}{camel(literal)}{{}}}};")
+    lines += [f"      else {name} = {variant}{{{decoded}}};", "    }"]
+    return lines
 
 
 def generate_mcp_bindings(contract: ContractView) -> str:
@@ -109,6 +149,19 @@ def generate_mcp_bindings(contract: ContractView) -> str:
         "#include <functional>",
         "#include <string_view>",
         "#include <utility>",
+    ]
+    types = CoreTypes(contract)
+    slots_by_operation = {}
+    lines.append("namespace contract_json {")
+    for operation in operations:
+        slots = [types.parameter_slot(parameter) for parameter in operation.parameters]
+        for slot in slots:
+            if slot.type.kind == "literal":
+                slot.enum = camel(operation.name) + camel(slot.name)
+                lines.extend(enum_lines(slot))
+        slots_by_operation[operation.name] = slots
+    lines += [
+        "} // namespace contract_json",
         "namespace holder::api::mcp {",
         "// Authorization must throw on denial. Domain errors propagate to the protocol adapter.",
         "inline nlohmann::json call_read_tool(holder_context& context, std::string_view name,",
@@ -117,38 +170,62 @@ def generate_mcp_bindings(contract: ContractView) -> str:
         "  using namespace contract_json;",
         '  if (!arguments.is_object()) throw std::invalid_argument("tool arguments must be an object");',
     ]
-    types = CoreTypes(contract)
     for operation in operations:
-        slots = [types.parameter_slot(parameter) for parameter in operation.parameters]
+        slots = slots_by_operation[operation.name]
+        fixed = FIXED_ARGUMENTS.get(operation.name, {})
         if (operation.daemon_only or operation.context != "required"
                 or not any(slot.name == "project_id" and slot.type.kind == "string" for slot in slots)):
             raise Unsupported(f"{operation.name}: MCP requires a project-scoped Core operation")
         lines.append(f'  if (name == "{operation.name}") {{')
-        unknown = " && ".join(f'it.key() != "{slot.name}"' for slot in slots)
+        unknown = " && ".join(f'it.key() != "{slot.name}"' for slot in slots if slot.name not in fixed)
         lines.extend([
             "    for (auto it = arguments.begin(); it != arguments.end(); ++it) {",
             f'      if ({unknown}) throw std::invalid_argument("unknown tool argument");',
             "    }",
         ])
+        args = []
         for slot in slots:
-            if (slot.nullable or slot.type.kind not in {"string", "int32"}
-                    or any(getattr(slot.type, key) is not None for key in ("pattern", "gt", "lt"))):
+            if slot.type.kind == "union":
+                lines.extend(optional_string_choice(types, operation.name, slot))
+                args.append(f"std::move({slot.name})")
+                continue
+            if slot.type.kind not in {"string", "int32", "bool", "literal"} or any(
+                getattr(slot.type, key) is not None for key in ("pattern", "gt", "lt")
+            ):
                 raise Unsupported(f"{operation.name}.{slot.name}: unsupported MCP argument")
-            if slot.has_default:
-                if type(slot.default) is not int or slot.type.kind != "int32":
-                    raise Unsupported(f"{operation.name}.{slot.name}: unsupported MCP default")
-                source = f'arguments.value("{slot.name}", json({slot.default}))'
-            else:
-                lines.append(f'    if (!arguments.contains("{slot.name}")) '
-                             f'throw std::invalid_argument("{slot.name} is required");')
-                source = f'arguments.at("{slot.name}")'
-            if operation.name == "search_cards" and slot.name == "limit":
-                maximum = SEARCH_LIMIT if slot.type.le is None else min(SEARCH_LIMIT, slot.type.le)
+            if slot.name in fixed:
+                args.append(json.dumps(fixed[slot.name]))
+                continue
+            arg = slot.name
+            args.append(f"std::move({arg})" if slot.type.kind == "string" else arg)
+            if arg == "limit" and operation.name in PAGE_LIMITS:
+                cap = PAGE_LIMITS[operation.name]
+                maximum = cap if slot.type.le is None else min(cap, slot.type.le)
                 slot = replace(slot, type=slot.type.model_copy(update={"le": maximum}))
-            decode = field_decoder(types, slot, slot.name, source)
-            lines.append(f"    auto {slot.name} = {decode};")
+            if slot.nullable:
+                if not slot.has_default or slot.default is not None:
+                    raise Unsupported(f"{operation.name}.{arg}: MCP needs a null default")
+                base = cpp_base(types, slot.type, slot.enum)
+                decoded = field_decoder(types, slot, arg, "*value")
+                lines += [
+                    f"    std::optional<{base}> {arg};",
+                    f'    if (const auto value = arguments.find("{arg}"); value != arguments.end() && !value->is_null())',
+                    f"      {arg} = {decoded};",
+                ]
+                continue
+            if slot.has_default:
+                default = PAGE_DEFAULTS.get(operation.name, slot.default) if arg == "limit" else slot.default
+                if type(default) not in {int, str, bool}:
+                    raise Unsupported(f"{operation.name}.{arg}: unsupported MCP default")
+                source = f'arguments.value("{arg}", json({json.dumps(default)}))'
+            else:
+                lines.append(f'    if (!arguments.contains("{arg}")) '
+                             f'throw std::invalid_argument("{arg} is required");')
+                source = f'arguments.at("{arg}")'
+            decode = field_decoder(types, slot, arg, source)
+            lines.append(f"    auto {arg} = {decode};")
         lines.append("    authorize_project(project_id);")
-        args = ", ".join(f"std::move({slot.name})" if slot.type.kind == "string" else slot.name for slot in slots)
+        args = ", ".join(args)
         lines.append(f'    return json{{{{"data", encode(holder::contract::{operation.name}(context, {args}))}}}};')
         lines.append("  }")
     lines += ['  throw std::invalid_argument("unknown MCP tool");', "}", "} // namespace holder::api::mcp", ""]

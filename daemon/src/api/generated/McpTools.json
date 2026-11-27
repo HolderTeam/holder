@@ -205,6 +205,86 @@
       }
     },
     {
+      "name": "get_card_breadcrumbs",
+      "description": "Read a live card's path from its project root.\n\nThe project comes first, then live ancestor cards and the requested card. A missing or trashed\ncard is not found; a broken or cyclic ancestor chain is invalid.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId"
+          },
+          "card_id": {
+            "$ref": "#/$defs/CardId"
+          }
+        },
+        "required": [
+          "project_id",
+          "card_id"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/CardBreadcrumb"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "CardBreadcrumb": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "project",
+                  "card"
+                ],
+                "title": "Kind",
+                "description": "Whether this step names the project or a card."
+              },
+              "id": {
+                "type": "string",
+                "title": "Id",
+                "description": "The project or card ID."
+              },
+              "title": {
+                "type": "string",
+                "title": "Title",
+                "description": "The project or card title."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "kind",
+              "id",
+              "title"
+            ],
+            "title": "CardBreadcrumb",
+            "description": "One project or live card in a card's path from its project root."
+          }
+        }
+      }
+    },
+    {
       "name": "get_resource",
       "description": "Fetch a resource.\n\nA resource in another project is not found.",
       "inputSchema": {
@@ -452,6 +532,500 @@
             ],
             "title": "AssetPlacement",
             "description": "One stored copy of an asset."
+          }
+        }
+      }
+    },
+    {
+      "name": "list_card_milestones",
+      "description": "List a card's milestones.\n\nBy when they were made, then by ID. A card in the trash or in another project is not found.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId"
+          },
+          "card_id": {
+            "$ref": "#/$defs/CardId"
+          }
+        },
+        "required": [
+          "project_id",
+          "card_id"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/Milestone"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "Milestone": {
+            "properties": {
+              "milestone_id": {
+                "$ref": "#/$defs/MilestoneId",
+                "description": "The milestone's ID."
+              },
+              "project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project of the card the milestone is on."
+              },
+              "card_id": {
+                "$ref": "#/$defs/CardId",
+                "description": "The card the milestone is on."
+              },
+              "dates": {
+                "items": {
+                  "$ref": "#/$defs/MilestoneDate"
+                },
+                "type": "array",
+                "title": "Dates",
+                "description": "The milestone's dates, in the order they were given."
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/MilestoneText"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "What kind of milestone it is; null when it has none."
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/MilestoneText"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A note on the milestone; null when it has none."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the milestone was made."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the milestone was last changed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "milestone_id",
+              "project_id",
+              "card_id",
+              "dates",
+              "kind",
+              "description",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "Milestone",
+            "description": "A milestone on a card: its dates, which may repeat a role or be none, and what it is."
+          },
+          "MilestoneId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "MilestoneDate": {
+            "properties": {
+              "role": {
+                "$ref": "#/$defs/MilestoneRole",
+                "description": "What the date is for."
+              },
+              "date": {
+                "$ref": "#/$defs/Day",
+                "description": "The calendar day; present when the date is a day."
+              },
+              "datetime": {
+                "$ref": "#/$defs/DateTime",
+                "description": "The instant; present when the date is an instant."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "title": "MilestoneDate",
+            "description": "One of a milestone's dates: a role and exactly one of a day or an instant."
+          },
+          "MilestoneRole": {
+            "type": "string",
+            "minLength": 1
+          },
+          "Day": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 10
+          },
+          "DateTime": {
+            "type": "string",
+            "maxLength": 25,
+            "minLength": 20
+          },
+          "MilestoneText": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "list_cards",
+      "description": "Page through a project's live cards.\n\nTag result views use updated_desc, which puts the latest card update first and breaks ties by descending card ID.\nRebuilding the projection from the same card files preserves this order.\n\nFilters combine. Each page reads current data; iterating is not a snapshot.\n\nThis tool lists metadata. Use get_card to read one card body.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "const": "roots",
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/CardId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Omit for every level; roots selects root cards; a card ID selects its children.",
+            "title": "Parent"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Tag"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only cards with this tag.",
+            "title": "Tag"
+          },
+          "order": {
+            "enum": [
+              "card_id_asc",
+              "updated_desc",
+              "sort_key_asc"
+            ],
+            "type": "string",
+            "description": "updated_desc breaks ties by descending card ID; sort_key_asc follows sibling order.",
+            "default": "card_id_asc",
+            "title": "Order"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 100,
+            "minimum": 1,
+            "description": "At most 1000 when include_content is true.",
+            "format": "int32",
+            "default": 50,
+            "title": "Limit"
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The previous page's next_cursor. Keep the project, filters and order unchanged.",
+            "title": "Cursor"
+          },
+          "include_child_count": {
+            "type": "boolean",
+            "description": "Include each card's count of live children.",
+            "default": false,
+            "title": "Include Child Count"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "Tag": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/CardListItemPage"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "CardListItemPage": {
+            "properties": {
+              "items": {
+                "items": {
+                  "$ref": "#/$defs/CardListItem"
+                },
+                "type": "array",
+                "title": "Items",
+                "description": "The page's items."
+              },
+              "next_cursor": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Next Cursor",
+                "description": "Pass back to get the next page; null on the last page."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "items",
+              "next_cursor"
+            ],
+            "title": "CardListItemPage"
+          },
+          "CardListItem": {
+            "properties": {
+              "card_id": {
+                "$ref": "#/$defs/CardId",
+                "description": "The card's ID."
+              },
+              "project_id": {
+                "$ref": "#/$defs/ProjectId",
+                "description": "The project the card belongs to."
+              },
+              "title": {
+                "type": "string",
+                "title": "Title",
+                "description": "The card's title."
+              },
+              "rel_path": {
+                "type": "string",
+                "title": "Rel Path",
+                "description": "The card's file, relative to the project's root."
+              },
+              "parent_card_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/CardId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The card's parent; null for a root card."
+              },
+              "sort_key": {
+                "type": "number",
+                "format": "double",
+                "title": "Sort Key",
+                "description": "The card's place among its siblings; lower comes first."
+              },
+              "created_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Created At",
+                "description": "When the card was created."
+              },
+              "updated_at": {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64",
+                "title": "Updated At",
+                "description": "When the card was last changed."
+              },
+              "deleted_at": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "maximum": 9223372036854775807,
+                    "minimum": -9223372036854775808,
+                    "format": "int64"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Deleted At",
+                "description": "When the card was moved to the trash; null when it is not in the trash."
+              },
+              "child_count": {
+                "type": "integer",
+                "maximum": 2147483647,
+                "minimum": -2147483648,
+                "format": "int32",
+                "title": "Child Count",
+                "description": "The card's live children; present when asked for."
+              },
+              "content": {
+                "type": "string",
+                "title": "Content",
+                "description": "The card's body; present when asked for."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "card_id",
+              "project_id",
+              "title",
+              "rel_path",
+              "parent_card_id",
+              "sort_key",
+              "created_at",
+              "updated_at",
+              "deleted_at"
+            ],
+            "title": "CardListItem",
+            "description": "A card in a listing."
+          },
+          "CardId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "list_project_tags",
+      "description": "List a project's tags.\n\nEach tag carried by a live card in the project, with how many carry it, by descending count and then by tag.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "$ref": "#/$defs/ProjectId"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "ProjectId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/TagCount"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "TagCount": {
+            "properties": {
+              "tag": {
+                "$ref": "#/$defs/Tag",
+                "description": "The tag, normalized: in lower case."
+              },
+              "card_count": {
+                "type": "integer",
+                "maximum": 2147483647,
+                "minimum": 1,
+                "format": "int32",
+                "title": "Card Count",
+                "description": "The live cards in the project that carry the tag: at least one, or the tag is not listed."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "tag",
+              "card_count"
+            ],
+            "title": "TagCount",
+            "description": "A tag and how many of a project's live cards carry it."
+          },
+          "Tag": {
+            "type": "string",
+            "minLength": 1
           }
         }
       }

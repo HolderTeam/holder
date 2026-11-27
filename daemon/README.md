@@ -74,10 +74,16 @@ loopback listener. Configure a native Streamable HTTP client that speaks
 protocol revision `2026-07-28` with that URL and token. Disable the endpoint
 by unsetting both variables and restarting the daemon.
 
-The token grants discovery, card search, card reads and resource metadata reads
-for the selected project. The REST API uses a separate credential. Search returns
-up to 100 matches per call and each tool call has a 256 KiB structured result
-limit. The endpoint serves finite JSON responses.
+The selected project can be browsed with `list_cards` and searched with
+`search_cards`. Use `get_card` for a card body, `get_card_breadcrumbs` for
+its position, `list_card_milestones` for its dates, and `list_project_tags`
+for tag counts. `get_resource` reads resource metadata. The REST API uses
+a separate credential.
+
+`list_cards` returns metadata and defaults to 50 cards. Keep the filters and
+order unchanged when passing the next cursor. Listing and search accept up
+to 100 results per call. Each tool call has a 256 KiB structured result limit.
+The endpoint serves finite JSON responses.
 
 For clients configured with a command, launch the installed `holder-mcp`
 executable with arguments `--port 11499` (use the running daemon's actual port)

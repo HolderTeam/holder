@@ -60,6 +60,7 @@ TEST_CASE("Live MCP shares daemon reads and applies its own access policy", "[ht
   holder::card::CardStore cards(db, &fts);
   holder::test::create_card_fixture(cards, "card-1", "allowed", "Card", "Hello", 10);
   holder::test::create_card_fixture(cards, "card-2", "other", "Other", "Private", 11);
+  holder::test::create_card_fixture(cards, "card-3", "allowed", "Second", "More", 12);
 
   holder::api::HttpServer server(
       "127.0.0.1",
@@ -80,7 +81,7 @@ TEST_CASE("Live MCP shares daemon reads and applies its own access policy", "[ht
   auto request = mcp_request("server/discover");
   CHECK(result(exchange(bound.port, request)).at("supportedVersions").at(0) == version);
   const auto listed = result(exchange(bound.port, mcp_request("tools/list")));
-  CHECK(listed.at("tools").size() == 3);
+  CHECK(listed.at("tools").size() == 7);
   CHECK(listed.at("ttlMs") == 0);
   CHECK(listed.at("cacheScope") == "private");
 
@@ -105,6 +106,35 @@ TEST_CASE("Live MCP shares daemon reads and applies its own access policy", "[ht
   );
   CHECK(mcp_card.at("structuredContent").at("data") == rest_card.at("data"));
   CHECK(read_card("other", "card-2").at("isError") == true);
+
+  const auto list_cards = [&](json arguments) {
+    return result(exchange(
+        bound.port,
+        mcp_request("tools/call", {{"name", "list_cards"}, {"arguments", arguments}})
+    ));
+  };
+  auto filters = json{{"project_id", "allowed"}, {"limit", 1}, {"include_child_count", true}};
+  const auto first_page = list_cards(filters).at("structuredContent").at("data");
+  REQUIRE(first_page.at("items").size() == 1);
+  const auto& first = first_page.at("items").at(0);
+  CHECK(first.at("card_id") == "card-1");
+  CHECK(first.at("child_count") == 0);
+  CHECK_FALSE(first.contains("content"));
+  filters["cursor"] = first_page.at("next_cursor");
+  const auto second_page = list_cards(filters).at("structuredContent").at("data");
+  REQUIRE(second_page.at("items").size() == 1);
+  CHECK(second_page.at("items").at(0).at("card_id") == "card-3");
+  CHECK(second_page.at("next_cursor").is_null());
+
+  const auto updated = list_cards(
+      {{"project_id", "allowed"}, {"order", "updated_desc"}, {"parent", "roots"}, {"tag", nullptr}}
+  );
+  CHECK(updated.at("structuredContent").at("data").at("items").at(0).at("card_id") == "card-3");
+  CHECK(list_cards({{"project_id", "other"}}).at("isError") == true);
+  CHECK(list_cards({{"project_id", "allowed"}, {"limit", 101}}).at("isError") == true);
+  CHECK(list_cards({{"project_id", "allowed"}, {"include_content", true}}).at("isError") == true);
+  CHECK(list_cards({{"project_id", "allowed"}, {"include_child_count", 1}}).at("isError") == true);
+  CHECK(list_cards({{"project_id", "allowed"}, {"order", "unknown"}}).at("isError") == true);
 
   request.set(http::field::authorization, "Bearer rest-test-token");
   CHECK(exchange(bound.port, request).result() == http::status::unauthorized);
