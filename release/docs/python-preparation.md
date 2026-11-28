@@ -22,7 +22,7 @@ Linux, macOS and Windows. Successful outputs are:
 
 | Package | Artifacts | Contents |
 | --- | --- | --- |
-| holder-python | `holder-python-distributions`, `holder-python-release-manifest` | 12 native wheels, a universal wheel and an sdist; source, SDK identities and file hashes |
+| holder-python | `holder-python-distributions`, `holder-python-release-manifest` | 15 native wheels, a universal wheel and an sdist; source, SDK identities and file hashes |
 
 The coordinator checks successful run/source/attempt identity and unexpired
 artifact ownership, downloads accepted artifact IDs and verifies archive hashes,

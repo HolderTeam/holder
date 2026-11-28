@@ -32,12 +32,12 @@ def tar_bytes(files):
     return stream.getvalue()
 
 
-def distribution_files(package, selection, *, desktop_wheels=False):
+def distribution_files(package, selection, *, desktop_wheels=False, python_abis=packages.HOLDER_PYTHON_ABIS):
     result = {}
     name = 'holder-kit' if package == 'kit' else 'holder-python'
     stem = name.replace('-', '_') + '-0.2.6'
     metadata = f'Name: {name}\nVersion: 0.2.6\nLicense-File: third-party/test.txt\n\nTest package\n'
-    for filename in packages.filenames(package, '0.2.6', desktop_wheels=desktop_wheels):
+    for filename in packages.filenames(package, '0.2.6', desktop_wheels=desktop_wheels, python_abis=python_abis):
         if filename.endswith('.whl'):
             output = io.BytesIO()
             with zipfile.ZipFile(output, 'w') as archive:
@@ -67,7 +67,7 @@ def distribution_files(package, selection, *, desktop_wheels=False):
     return result
 
 
-def release_manifest(package, files, selection, *, desktop_wheels=False):
+def release_manifest(package, files, selection, *, desktop_wheels=False, python_abis=packages.HOLDER_PYTHON_ABIS):
     document = {'source': CANDIDATE, 'version': '0.2.6', 'files': [
         {'name': name, 'sha256': hashlib.sha256(data).hexdigest(), 'size': len(data)}
         for name, data in sorted(files.items())]}
@@ -78,6 +78,8 @@ def release_manifest(package, files, selection, *, desktop_wheels=False):
     else:
         document['core'] = packages.python_core_evidence(selection, '0.2.6', CANDIDATE,
                                                          desktop_wheels=desktop_wheels)
+        if python_abis != packages.HOLDER_PYTHON_ABIS:
+            document['wheel_abis'] = list(python_abis)
     return document
 
 
@@ -271,13 +273,14 @@ class DistributionEvidenceTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.selection = fixtures.Fixture(self.root).selection
 
-    def write(self, package, *, desktop_wheels=False):
+    def write(self, package, *, desktop_wheels=False, python_abis=packages.HOLDER_PYTHON_ABIS):
         directory = self.root / package
         directory.mkdir()
-        files = distribution_files(package, self.selection, desktop_wheels=desktop_wheels)
+        files = distribution_files(package, self.selection, desktop_wheels=desktop_wheels, python_abis=python_abis)
         for name, data in files.items():
             (directory / name).write_bytes(data)
-        return directory, release_manifest(package, files, self.selection, desktop_wheels=desktop_wheels)
+        return directory, release_manifest(package, files, self.selection,
+                                           desktop_wheels=desktop_wheels, python_abis=python_abis)
 
     def verify(self, directory, package, document):
         return packages.verify(directory, package, '0.2.6', CANDIDATE, document, self.selection)
@@ -315,7 +318,7 @@ class DistributionEvidenceTests(unittest.TestCase):
         self.assertEqual(json.loads(output.read_text()), document)
 
     def test_holder_python_desktop_manifest_records_each_sdk_and_requires_all_wheels(self):
-        directory, document = self.write('python', desktop_wheels=True)
+        directory, document = self.write('python', desktop_wheels=True, python_abis=packages.HOLDER_PYTHON_DESKTOP_ABIS)
         selection = self.root / 'core-selection.json'
         selection.write_text(json.dumps(self.selection))
         output = self.root / 'release-manifest.json'
@@ -327,9 +330,14 @@ class DistributionEvidenceTests(unittest.TestCase):
             packages.main()
         actual = json.loads(output.read_text())
         self.assertEqual(actual, document)
-        self.assertEqual(len(self.verify(directory, 'python', actual)), 14)
+        self.assertEqual(len(self.verify(directory, 'python', actual)), 17)
         self.assertEqual(set(actual['core']['sdk_assets']), {'linux', 'macos', 'windows'})
-        next(directory.glob('*win_amd64.whl')).unlink()
+        self.assertEqual(actual['wheel_abis'], ['cp311', 'cp312', 'cp313', 'cp314', 'cp315'])
+        self.assertEqual(len(list(directory.glob('*-cp315-cp315-*.whl'))), 3)
+        tampered = {**actual, 'wheel_abis': ['cp315']}
+        with self.assertRaisesRegex(ValueError, 'Unexpected Holder Python desktop wheel ABI set'):
+            self.verify(directory, 'python', tampered)
+        next(directory.glob('*-cp315-cp315-win_amd64.whl')).unlink()
         with self.assertRaisesRegex(ValueError, 'Incomplete'):
             self.verify(directory, 'python', actual)
 

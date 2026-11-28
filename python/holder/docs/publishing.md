@@ -1,7 +1,7 @@
 # Publishing Holder for Python
 
 The distribution is `holder-python`, and users import `holder`. The release
-workflow builds embedded wheels for CPython 3.11 through 3.14 on x86-64 Linux
+workflow builds embedded wheels for CPython 3.11 through 3.15 on x86-64 Linux
 with glibc 2.39 or newer, macOS 15 or newer on ARM64, and Windows on x86-64.
 On other supported platforms pip selects the universal HTTP wheel. The source
 archive also builds the HTTP package by default. All files share the
