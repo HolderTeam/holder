@@ -96,6 +96,10 @@ def now():
     return datetime.now(timezone.utc)
 
 
+def python_package_targets(record):
+    return tuple(record.get('python_package_targets', PACKAGES))
+
+
 def linux_release_files(record):
     files = [file for file in record['linux_signed']['files'] if file['name'] in promotion_tool.names(record['version'])]
     require(len(files) == 4 and {file['name'] for file in files} == promotion_tool.names(record['version']),
@@ -139,7 +143,7 @@ class GitHub:
 
     def packages(self, record):
         with tempfile.TemporaryDirectory(prefix='holder-python-inputs-') as directory:
-            return package_tool.collect(record, manifest_tool.GitHub(directory))
+            return package_tool.collect(record, manifest_tool.GitHub(directory), python_package_targets(record))
 
     def publication(self, record, name):
         step = record['steps'][name]
@@ -566,10 +570,11 @@ class Coordinator:
         self.advance()
         if self.record['status'] != 'candidate_staged':
             return
-        for name in PACKAGES:
+        targets = python_package_targets(self.record)
+        for name in targets:
             if name not in self.record['steps']:
                 self.start(name)
-        if not self.observe(PACKAGES):
+        if not self.observe(targets):
             self.record['status'] = 'packages_building'
             self.persist()
             return
@@ -579,7 +584,7 @@ class Coordinator:
             self.persist()
         packages = self.record['python_packages']
         require(digest(packages) == self.record['python_packages_sha256'], 'Saved Python release set changed')
-        require(set(packages) == set(PACKAGES), 'Python release set is incomplete')
+        require(set(packages) == set(targets), 'Python release set is incomplete')
         for name, evidence in packages.items():
             step = self.record['steps'][name]
             artifacts = {item['name']: item for item in step['artifacts']}
@@ -610,9 +615,11 @@ class Coordinator:
         require(self.record.get('python_packages') and
                 digest(self.record['python_packages']) == self.record['python_packages_sha256'],
                 'Publication requires an unchanged prepared Python release set')
+        targets = python_package_targets(self.record)
+        require(set(self.record['python_packages']) == set(targets), 'Python release set is incomplete')
         self.require_release_tag()
         document = {'schema': 1, **{key: self.record[key] for key in ('repository', 'candidate', 'version', 'python_packages')},
-            'steps': {name: self.record['steps'][name] for name in PACKAGES},
+            'steps': {name: self.record['steps'][name] for name in targets},
             'manifest': {'evidence': {'core_selection': self.record['manifest']['evidence']['core_selection']}}}
         if 'python_publication_inputs' not in self.record:
             name = f'{self.record["version"]}-candidate-{self.record["number"]}'
@@ -635,6 +642,7 @@ class Coordinator:
                 'Publication receipt differs from prepared release')
 
     def advance_publication(self, package, destination):
+        require(package in python_package_targets(self.record), 'Package is outside this Python release set')
         self.prepare_publication()
         name = f'{package}_{destination}'
         completed = self.record.setdefault('publications', {}).get(name)
@@ -899,7 +907,9 @@ class Coordinator:
         validate_record(self.record)
         require(self.record['repository'] == 'HolderTeam/holder', 'The Holder PPA is associated with HolderTeam/holder releases')
         self.require_release_tag()
-        keys = {package + ':' + series for series in ppa_tool.SERIES for package in ppa_tool.BINARIES}
+        sources = ppa_tool.BINARIES if 'kit' in python_package_targets(self.record) else ppa_tool.RELEASE_PACKAGES
+        keys = {package + ':' + series for series in ppa_tool.SERIES for package in sources}
+        require(set(revisions or {}) <= keys, 'Invalid PPA revision target')
         ppa = self.record.get('ppa')
         if ppa is None:
             plan = {'schema': 1, 'archive': ppa_tool.ARCHIVE,
@@ -916,7 +926,6 @@ class Coordinator:
                 set(plan['architectures']) <= set(ppa_tool.ARCHITECTURES), 'Invalid PPA architecture coverage')
         require(architectures is None or sorted(set(architectures)) == plan['architectures'],
                 'PPA architecture coverage differs from the saved plan')
-        require(set(revisions or {}) <= keys, 'Invalid PPA revision target')
         for target in ppa['targets'].values():
             if target.get('completed'):
                 require(digest(target['completed']['receipt']) == target['completed']['sha256'], 'Saved PPA completion receipt changed')
@@ -1064,8 +1073,9 @@ def destination_summary(record):
     if selected:
         lines = ['Selected release destinations: ' + ', '.join(selected)]
     else:
-        selected = [name for name in DESTINATIONS if 'testpypi' not in name or
-                    name.replace('-', '_') in record.get('publications', {})]
+        selected = [name for name in DESTINATIONS
+                    if ('kit' in python_package_targets(record) or not name.startswith('kit-')) and
+                    ('testpypi' not in name or name.replace('-', '_') in record.get('publications', {}))]
         lines = ['Release scope is unrecorded. Showing the normal destinations and any recorded TestPyPI publications.',
                  'Select the intended destinations with `scope --include <destinations> --record <candidate.json>`.']
     lines += ['', 'Destination outcomes below use the saved evidence and last recorded checks.', '',
@@ -1229,6 +1239,7 @@ def initialize(github, repository, candidate, version, number, windows_signed):
             'Candidate root VERSION differs from expected product version')
     return {'schema': 1, 'repository': repository, 'candidate': candidate, 'version': version,
             'number': number, 'windows_sign_test_installer': windows_signed,
+            'python_package_targets': ['python'],
             'build_ref': f'rc/{version}-candidate-{number}', 'status': 'new', 'steps': {}}
 
 
@@ -1241,10 +1252,17 @@ def validate_record(record):
     require(record['build_ref'] == f'rc/{record["version"]}-candidate-{record["number"]}',
             'Saved build branch differs from candidate identity')
     require(isinstance(record['windows_sign_test_installer'], bool), 'Invalid Windows staging policy')
+    if 'python_package_targets' in record:
+        require(record['python_package_targets'] == ['python'], 'Invalid saved Python package targets')
+        require(not {'kit', 'kit_pypi', 'kit_testpypi'}.intersection(
+            set(record['steps']) | set(record.get('publications', {}))),
+                'Saved Python package targets differ from dispatched workflows')
     if 'release_scope' in record:
         scope = record['release_scope']
         require(isinstance(scope, list) and scope and all(isinstance(name, str) and name in DESTINATIONS for name in scope) and
                 len(scope) == len(set(scope)), 'Invalid saved release destination scope')
+        require('kit' in python_package_targets(record) or not {'kit-pypi', 'kit-testpypi'}.intersection(scope),
+                'Kit publication is outside this Python release set')
     require(set(record['steps']) <= set(WORKFLOWS), 'Unsupported preparation workflow in release record')
     if record.get('python_publication_inputs'):
         snapshot = record['python_publication_inputs']
@@ -1364,7 +1382,11 @@ def main():
                                     args.version, args.number, args.windows_sign_test_installer != 'false')
                 save(args.record, record)
             if args.command == 'scope':
-                record['release_scope'] = list(dict.fromkeys(args.include))
+                scope = list(dict.fromkeys(args.include))
+                require('kit' in python_package_targets(record) or
+                        not {'kit-pypi', 'kit-testpypi'}.intersection(scope),
+                        'Kit publication is outside this Python release set')
+                record['release_scope'] = scope
                 save(args.record, record)
                 report = summary(record)
                 args.record.with_suffix('.summary.md').write_text(report)
@@ -1374,6 +1396,9 @@ def main():
                 coordinator = Coordinator(args.record, record, github)
                 try:
                     record.pop('error', None)
+                    if args.command == 'publish-python':
+                        require(args.package in python_package_targets(record),
+                                'Package is outside this Python release set')
                     if args.retry:
                         if args.command == 'publish-python':
                             coordinator.prepare_publication()

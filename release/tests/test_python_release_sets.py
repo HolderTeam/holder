@@ -32,12 +32,12 @@ def tar_bytes(files):
     return stream.getvalue()
 
 
-def distribution_files(package, selection, *, desktop_wheels=False):
+def distribution_files(package, selection, *, desktop_wheels=False, python_abis=packages.HOLDER_PYTHON_ABIS):
     result = {}
     name = 'holder-kit' if package == 'kit' else 'holder-python'
     stem = name.replace('-', '_') + '-0.2.6'
     metadata = f'Name: {name}\nVersion: 0.2.6\nLicense-File: third-party/test.txt\n\nTest package\n'
-    for filename in packages.filenames(package, '0.2.6', desktop_wheels=desktop_wheels):
+    for filename in packages.filenames(package, '0.2.6', desktop_wheels=desktop_wheels, python_abis=python_abis):
         if filename.endswith('.whl'):
             output = io.BytesIO()
             with zipfile.ZipFile(output, 'w') as archive:
@@ -54,8 +54,10 @@ def distribution_files(package, selection, *, desktop_wheels=False):
                     archive.writestr('holder/_embedded/_native' + suffix, 'fixture extension')
                     archive.writestr('holder/_embedded/_schema.sql', 'fixture schema')
                     if platform == 'windows':
-                        archive.writestr('holder/_embedded/.libs/test.dll', 'fixture library')
-                        archive.writestr('holder/_embedded/_licenses/test.txt', 'fixture licence')
+                        archive.writestr(stem + '.dist-info/DELVEWHEEL', 'fixture repair marker')
+                        archive.writestr('holder_python.libs/test.dll', 'fixture library')
+                        for notice in ('microsoft-runtime.txt', 'vcpkg/test.txt'):
+                            archive.writestr(stem + '.dist-info/licenses/third-party/' + notice, 'fixture licence')
                     elif platform == 'macos':
                         archive.writestr('holder/.dylibs/libtest.dylib', 'fixture library')
                         archive.writestr(stem + '.dist-info/licenses/third-party/test.txt', 'fixture licence')
@@ -65,7 +67,7 @@ def distribution_files(package, selection, *, desktop_wheels=False):
     return result
 
 
-def release_manifest(package, files, selection, *, desktop_wheels=False):
+def release_manifest(package, files, selection, *, desktop_wheels=False, python_abis=packages.HOLDER_PYTHON_ABIS):
     document = {'source': CANDIDATE, 'version': '0.2.6', 'files': [
         {'name': name, 'sha256': hashlib.sha256(data).hexdigest(), 'size': len(data)}
         for name, data in sorted(files.items())]}
@@ -76,6 +78,8 @@ def release_manifest(package, files, selection, *, desktop_wheels=False):
     else:
         document['core'] = packages.python_core_evidence(selection, '0.2.6', CANDIDATE,
                                                          desktop_wheels=desktop_wheels)
+        if python_abis != packages.HOLDER_PYTHON_ABIS:
+            document['wheel_abis'] = list(python_abis)
     return document
 
 
@@ -93,7 +97,7 @@ class PackageGitHub(FakeGitHub):
     def packages(self, record):
         self.collections += 1
         self.payloads.runs.update(copy.deepcopy(self.runs))
-        return packages.collect(record, self.payloads)
+        return packages.collect(record, self.payloads, tool.python_package_targets(record))
 
 
 class PackageCoordinatorTests(unittest.TestCase):
@@ -102,6 +106,9 @@ class PackageCoordinatorTests(unittest.TestCase):
 
     def setUp(self):
         preparation.CoordinatorTests.setUp(self)
+        # Most cases exercise an existing paired candidate.
+        self.record.pop('python_package_targets')
+        tool.save(self.path, self.record)
         clock = patch.object(packages.manifest_tool, 'datetime', wraps=datetime)
         clock.start().now.return_value = NOW
         self.addCleanup(clock.stop)
@@ -150,6 +157,25 @@ class PackageCoordinatorTests(unittest.TestCase):
         prepared = self.record['python_packages']['python']
         self.assertEqual(len(prepared['files']), 14)
         self.assertEqual(set(prepared['manifest']['core']['sdk_assets']), {'linux', 'macos', 'windows'})
+
+    def test_new_candidates_prepare_and_publish_holder_python_only(self):
+        self.github = PackageGitHub(self.directory.name, desktop_wheels=True)
+        self.record = tool.initialize(self.github, REPOSITORY, CANDIDATE, '0.2.6', 1, True)
+        tool.save(self.path, self.record)
+        self.coordinator = tool.Coordinator(self.path, self.record, self.github)
+        self.reach_packages()
+        self.assertEqual(len(self.github.dispatches('release-kit-pypi.yml')), 0)
+        self.reload()
+        self.github.finish('python')
+        self.coordinator.advance_packages()
+        self.assertEqual(self.record['status'], 'packages_prepared')
+        self.assertEqual(set(self.record['python_packages']), {'python'})
+        self.assertNotIn('Kit on PyPI', tool.summary(self.record))
+        with self.assertRaisesRegex(ValueError, 'outside this Python release set'):
+            self.coordinator.advance_publication('kit', 'pypi')
+        with patch.object(self.coordinator, 'require_release_tag'), patch.object(self.coordinator, 'ensure_metadata'):
+            self.coordinator.prepare_publication()
+        self.assertEqual(set(self.record['python_publication_inputs']['document']['steps']), {'python'})
 
     def test_failed_package_retry_keeps_successful_sibling_and_sdk_builds(self):
         self.reach_packages()
@@ -247,13 +273,14 @@ class DistributionEvidenceTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.selection = fixtures.Fixture(self.root).selection
 
-    def write(self, package, *, desktop_wheels=False):
+    def write(self, package, *, desktop_wheels=False, python_abis=packages.HOLDER_PYTHON_ABIS):
         directory = self.root / package
         directory.mkdir()
-        files = distribution_files(package, self.selection, desktop_wheels=desktop_wheels)
+        files = distribution_files(package, self.selection, desktop_wheels=desktop_wheels, python_abis=python_abis)
         for name, data in files.items():
             (directory / name).write_bytes(data)
-        return directory, release_manifest(package, files, self.selection, desktop_wheels=desktop_wheels)
+        return directory, release_manifest(package, files, self.selection,
+                                           desktop_wheels=desktop_wheels, python_abis=python_abis)
 
     def verify(self, directory, package, document):
         return packages.verify(directory, package, '0.2.6', CANDIDATE, document, self.selection)
@@ -291,7 +318,7 @@ class DistributionEvidenceTests(unittest.TestCase):
         self.assertEqual(json.loads(output.read_text()), document)
 
     def test_holder_python_desktop_manifest_records_each_sdk_and_requires_all_wheels(self):
-        directory, document = self.write('python', desktop_wheels=True)
+        directory, document = self.write('python', desktop_wheels=True, python_abis=packages.HOLDER_PYTHON_DESKTOP_ABIS)
         selection = self.root / 'core-selection.json'
         selection.write_text(json.dumps(self.selection))
         output = self.root / 'release-manifest.json'
@@ -303,9 +330,14 @@ class DistributionEvidenceTests(unittest.TestCase):
             packages.main()
         actual = json.loads(output.read_text())
         self.assertEqual(actual, document)
-        self.assertEqual(len(self.verify(directory, 'python', actual)), 14)
+        self.assertEqual(len(self.verify(directory, 'python', actual)), 17)
         self.assertEqual(set(actual['core']['sdk_assets']), {'linux', 'macos', 'windows'})
-        next(directory.glob('*win_amd64.whl')).unlink()
+        self.assertEqual(actual['wheel_abis'], ['cp311', 'cp312', 'cp313', 'cp314', 'cp315'])
+        self.assertEqual(len(list(directory.glob('*-cp315-cp315-*.whl'))), 3)
+        tampered = {**actual, 'wheel_abis': ['cp315']}
+        with self.assertRaisesRegex(ValueError, 'Unexpected Holder Python desktop wheel ABI set'):
+            self.verify(directory, 'python', tampered)
+        next(directory.glob('*-cp315-cp315-win_amd64.whl')).unlink()
         with self.assertRaisesRegex(ValueError, 'Incomplete'):
             self.verify(directory, 'python', actual)
 
@@ -327,7 +359,7 @@ class DistributionEvidenceTests(unittest.TestCase):
             for name, data in entries.items():
                 if not name.endswith('.dll'):
                     archive.writestr(name, data)
-        with self.assertRaisesRegex(ValueError, 'missing DLLs or dependency licences'):
+        with self.assertRaisesRegex(ValueError, 'missing repaired DLLs or dependency licences'):
             self.verify(directory, 'python', document)
 
     def test_actual_kit_manifest_producer_agrees_with_the_coordinator_verifier(self):

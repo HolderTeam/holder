@@ -1141,7 +1141,7 @@ jobs:
         set -euo pipefail
         work="$(cygpath -m "$RUNNER_TEMP")/holder-python-windows"
         sdk="$HOLDER_CORE_SDK"
-        python -m pip install 'build>=1.2,<2'
+        python -m pip install 'build>=1.2,<2' wheel delvewheel
         cmake -S python/kit -B "$work/build" -G Ninja \
           -DCMAKE_BUILD_TYPE="$HOLDER_CORE_BUILD_TYPE" \
           -DPython_EXECUTABLE="$(python -c 'import pathlib,sys; print(pathlib.Path(sys.executable).as_posix())')" \
@@ -1152,10 +1152,15 @@ jobs:
         cmake --build "$work/build"
         cmake --install "$work/build" --component holder_native
         HOLDER_PYTHON_EMBEDDED_STAGE="$work/stage" \
-          python -m build --wheel --outdir "$work/wheels" python/holder
-        python -m pip install "$work/wheels/"*win_amd64.whl
-        python python/holder/scripts/test-installed-wheel.py --embedded \
-          --version "$(tr -d '\r\n' < VERSION)" --core-build-type "$HOLDER_CORE_BUILD_TYPE"
+          python -m build --wheel --outdir "$work/raw" python/holder
+        python python/kit/scripts/wheel-notices.py --output "$work/noticed" "$work/raw/"*.whl
+        python -m delvewheel repair --add-path "$sdk/bin" -w "$work/wheels" "$work/noticed/"*.whl
+        python -m venv "$work/test"
+        test_python="$work/test/Scripts/python.exe"
+        "$test_python" -m pip install "$work/wheels/"*win_amd64.whl
+        env -u HOLDER_CORE_SDK -u CMAKE_ARGS "$test_python" -I \
+          python/holder/scripts/test-installed-wheel.py --embedded --repaired-windows \
+            --version "$(tr -d '\r\n' < VERSION)" --core-build-type "$HOLDER_CORE_BUILD_TYPE"
     - name: Build and install Holder Kit
       run: |
         python -m pip install --upgrade pip
@@ -1352,6 +1357,7 @@ jobs:
         python:
         - '3.11'
         - '3.14'
+        - '3.15'
     defaults:
       run:
         working-directory: python/holder

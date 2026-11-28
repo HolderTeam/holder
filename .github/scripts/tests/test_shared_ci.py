@@ -18,6 +18,39 @@ JOBS = GRAPH['jobs']
 
 
 class SharedCITests(unittest.TestCase):
+    def test_launchpad_default_leaves_kit_for_explicit_repairs(self):
+        workflow = yaml.safe_load((CI.WORKFLOWS / 'release-launchpad.yml').read_text())
+        source = workflow[True]['workflow_dispatch']['inputs']['packages']
+        self.assertEqual(source['default'], 'all')
+        self.assertIn('kit', source['options'])
+        matrix = workflow['jobs']['upload']['strategy']['matrix']['package']
+        self.assertTrue(matrix.endswith("|| '[\"core\", \"daemon\", \"desktop\"]') }}"))
+
+    def test_standalone_kit_builds_manually_and_publishes_only_prepared_files(self):
+        workflow = yaml.safe_load((CI.WORKFLOWS / 'release-kit-pypi.yml').read_text())
+        self.assertEqual(set(workflow[True]), {'workflow_dispatch'})
+        jobs = workflow['jobs']
+        self.assertEqual(jobs['publish']['needs'], 'prepared')
+        self.assertIn("inputs.prepared_release_ref != ''", jobs['prepared']['if'])
+        publish_dirs = [step['with']['packages-dir'] for step in jobs['publish']['steps']
+                        if step.get('uses', '').startswith('pypa/gh-action-pypi-publish@')]
+        self.assertEqual(publish_dirs, ['pending/', 'pending/'])
+
+        prepare = next(step['run'] for step in jobs['prepare']['steps'] if step.get('id') == 'config')
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root / 'python' / 'kit'
+            directory.mkdir(parents=True)
+            (root / 'VERSION').write_text('0.2.7\n')
+            for destination, prepared_ref, valid in (('none', '', True), ('pypi', '', False),
+                                                     ('testpypi', '', False), ('none', 'sha', False)):
+                with self.subTest(destination=destination, prepared_ref=prepared_ref):
+                    env = {**os.environ, 'DESTINATION': destination,
+                           'PREPARED_PATH': 'saved.json' if prepared_ref else '', 'PREPARED_REF': prepared_ref,
+                           'RELEASE_MANIFEST': '', 'RELEASE_MANIFEST_REF': '', 'GITHUB_OUTPUT': str(root / 'output')}
+                    result = subprocess.run(['bash', '-e', '-c', prepare], cwd=directory, env=env, capture_output=True)
+                    self.assertEqual(result.returncode == 0, valid, result.stderr)
+
     def selected(self, paths, event='pull_request', before='a' * 40):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

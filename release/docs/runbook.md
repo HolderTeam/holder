@@ -107,7 +107,7 @@ Record the intended destinations after the candidate record exists.
 ```sh
 python3 release/scripts/release.py scope \
   --record release/records/<version>-candidate-1.json \
-  --include linux macos windows sdk kit-pypi python-pypi ppa website
+  --include linux macos windows sdk python-pypi ppa website
 python3 release/scripts/release.py status \
   --record release/records/<version>-candidate-1.json
 ```
@@ -229,7 +229,7 @@ already produced for this release. Reuse recent platform/upgrade evidence where
 it still applies, and repeat manual checks affected by the changes. Do not run
 another complete build matrix just to call it a rehearsal. The normal Python
 publication workflows build and validate distributions before uploading them.
-The coordinator can now prepare both Python sets once and retain their verified
+The coordinator prepares the Holder Python release and retains its verified
 identities alongside the staged candidate:
 
 ```sh
@@ -237,8 +237,8 @@ python3 release/scripts/release.py packages \
   --record release/records/0.2.6-candidate-1.json --wait
 ```
 
-Kit reuses the candidate's exact Release SDK archives. The record retains both
-packages' artifact IDs, archive and file hashes, source/SDK identity and expiry;
+Holder Python reuses the candidate's exact Release SDK archives. The record
+retains artifact IDs, archive and file hashes, source/SDK identity and expiry;
 the summary lists the files. See [Python preparation](python-preparation.md) for
 resume and targeted retry commands and [Python publication](python-publication.md)
 for the upload handoff. Manual publishing dispatches rebuild unless given the
@@ -248,7 +248,7 @@ Standalone build-only inputs remain available when needed:
 | Workflow | Build-only inputs | Outputs |
 | --- | --- | --- |
 | [Kit to PyPI](../../.github/workflows/release-kit-pypi.yml) | `destination=none`; optional generated `release_manifest` and immutable `release_manifest_ref` for pinned SDK reuse | `kit-release-distributions`, `kit-release-manifest` (18 platform/interpreter wheels plus sdist) |
-| [Holder Python to PyPI](../../.github/workflows/release-holder-python-pypi.yml) | `destination=none`, `preview_number=0` | `holder-python-distributions`, `holder-python-release-manifest` (wheel and sdist) |
+| [Holder Python to PyPI](../../.github/workflows/release-holder-python-pypi.yml) | `destination=none`, `preview_number=0` | `holder-python-distributions`, `holder-python-release-manifest` (native wheels, universal wheel and sdist) |
 
 Retain distribution manifests/digests from whichever runs are used. For Ubuntu
 packaging changes, reuse `Release / Launchpad`'s pull-request checks: they build
@@ -262,9 +262,9 @@ upload to a separate index, and the workflows currently differ:
   and `ref=main`; this uploads `<version>.post<number>`. That ref must still name
   the intended source. If `main` has advanced, a preview is evidence about that
   newer revision, not the frozen candidate.
-- Kit requires the matching `holder-v<version>` tag for both TestPyPI and PyPI;
-  there is no corresponding preview-number input. Do not create a test tag
-  in that namespace just to reach TestPyPI, because of the Launchpad trigger.
+- Resuming an earlier prepared Kit release requires its immutable prepared
+  inputs and matching `holder-v<version>` tag. Use the Holder Python preview
+  for new TestPyPI checks.
 
 Choose the relevant checks below and record results on disposable profiles or
 machines. The [0.2.6 record](releases/0.2.6.md) supplies actual publication evidence;
@@ -381,15 +381,14 @@ Launchpad binary builds or website updates.
 | Destination | Current operation | Completion evidence |
 | --- | --- | --- |
 | Ubuntu PPA | `Release / Launchpad` uploads on the pushed `holder-v*` tag; `release.py observe-ppa --record <candidate.json> --wait` checks the exact packages for noble and resolute | Recorded source publications, remote builds and APT index entries for the selected architecture coverage; separately verify installs and supported upgrades |
-| Kit | `release.py publish-python --record <candidate.json> --package kit --destination pypi --wait` | Prepared files fetched/verified without rebuilding, expected index hashes and publication receipt |
 | Holder Python | `release.py publish-python --record <candidate.json> --package python --destination pypi --wait` | Prepared wheel/sdist on the index with matching hashes and publication receipt |
 
 The matching release tag must already point to the prepared source. The command
 does not create it. Each package/destination is separately resumable and recorded;
 matching existing files are reused and conflicting bytes stop publication. See
 [Python publication](python-publication.md) for inputs, receipts, partial upload
-recovery and expiry handling. Existing manual package dispatches retain their
-build-and-publish behavior when prepared-release inputs are omitted; with both
+recovery and expiry handling. Manual Holder Python dispatches retain their
+build-and-publish behavior when prepared-release inputs are omitted. With both
 `prepared_release_path` and immutable `prepared_release_ref`, they publish the
 recorded files without rebuilding. Retain the source/core provenance, file hashes
 and actual index/installation evidence for whichever path is used.
@@ -403,13 +402,15 @@ package-only backfill exception is not a general release route. See the
 
 Launchpad accepts source uploads before all dependent builds are ready. Use
 [the PPA observer](launchpad-availability.md) to record each exact source/series
-version, remote builds and APT index entries. Wait for matching core development
-packages and then daemon/Kit packages. Record installed test results separately.
+version, remote builds and APT index entries. Wait for the matching core development
+packages and then the daemon. Record installed test results separately. Earlier
+saved releases also wait for Kit when it is in their plan.
 A packaging-only repair can be dispatched on the intended source ref
 with `packages=<affected package>`, `series=<affected series>`,
 `version=<expected product version>` and a fresh positive `package_revision`.
-That manual dispatch uploads to the PPA; it is not a build-only switch. Core/Kit
-orig tarballs are shared across series/revisions for an upstream version:
+That manual dispatch uploads to the PPA. Use `packages=kit` only for a repair
+to an earlier Kit release. Core and Kit orig tarballs are shared across series
+and revisions for an upstream version, so
 packaging revision changes do not permit replacing different upstream source.
 Select the repaired version with `observe-ppa --ppa-revision <package>:<series>=<revision>`;
 the prior observation remains in history and other targets are unchanged.

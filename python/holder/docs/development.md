@@ -66,7 +66,7 @@ notices. The Python CI workflow builds and tests this wheel from a fresh
 install. For a local smoke test on a newer Linux distribution, use
 `--bundle-only` to bundle the libraries and keep the original Linux tag.
 The [PyPI release workflow](publishing.md) builds the universal wheel and the
-supported native Linux wheels.
+supported native wheels for Linux, macOS, and Windows.
 
 ## Build a Windows wheel from source
 
@@ -75,7 +75,10 @@ Use 64-bit CPython and MSVC with a verified Windows core SDK. The
 and uses the vcpkg toolchain from the SDK. The `holder_native` CMake component
 stages the extension, schema, SDK metadata, runtime DLLs, and dependency
 licences. Set `HOLDER_PYTHON_EMBEDDED_STAGE` to that stage when building the
-wheel. The installed-wheel check opens and reopens a private workspace.
+wheel. The CI job then moves the supplier notices into the wheel's licence
+metadata and uses `delvewheel` to bundle and rename the dependent DLLs. The
+installed-wheel check opens and reopens a private workspace in a fresh virtual
+environment.
 
 ## Build a macOS wheel from source
 

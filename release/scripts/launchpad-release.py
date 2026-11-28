@@ -18,6 +18,7 @@ SERIES = ('noble', 'resolute')
 ARCHITECTURES = ('amd64', 'arm64', 'armhf', 'ppc64el', 'riscv64', 's390x')
 BINARIES = {'core': ('libholder0', 'libholder-dev'), 'daemon': ('holder-daemon',),
             'kit': ('python3-holder-kit',), 'desktop': ('holder', 'holder-desktop')}
+RELEASE_PACKAGES = ('core', 'daemon', 'desktop')
 WAITING = {'Needs building', 'Dependency wait', 'Currently building', 'Uploading build', 'Gathering build output'}
 
 
@@ -201,12 +202,16 @@ def main():
     parser.add_argument('--version', required=True)
     parser.add_argument('--ppa-revision', action='append', default=[])
     parser.add_argument('--ppa-architecture', action='append', choices=ARCHITECTURES)
+    parser.add_argument('--include-kit', action='store_true', help='inspect an earlier release that included Holder Kit')
     args = parser.parse_args()
     selected = revisions(args.ppa_revision)
+    sources = BINARIES if args.include_kit else RELEASE_PACKAGES
+    require(all(key.split(':', 1)[0] in sources for key in selected),
+            'Pass --include-kit to inspect a Kit revision')
     client = Client()
     result = {}
     for series in SERIES:
-        for package in BINARIES:
+        for package in sources:
             key = package + ':' + series
             result[key] = client.observe(package, series, package_version(args.version, selected.get(key, 1), series),
                                          sorted(set(args.ppa_architecture or ['amd64'])))

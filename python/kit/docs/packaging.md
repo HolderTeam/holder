@@ -101,13 +101,12 @@ Select the wheel matching the interpreter and platform. Older glibc, musl
 Linux, other architectures and other Python implementations require an
 explicit [native source build](building.md).
 
-The manual workflow's `destination` defaults to `none`, which builds and tests
-candidates. `pypi` or `testpypi` publishes only after all distribution checks
-pass, using the corresponding GitHub environment and Trusted Publishing.
-Holder Kit is released with the rest of Holder, at the same version: publishing
-must run from the release's `holder-v<version>` tag, and requires the version in
-the repository's `VERSION` and core's version to equal it. Pull requests build candidates without
-publishing.
+The manual workflow's `destination=none` builds and tests Kit. Pull requests
+exercise the standalone package through Kit CI. PyPI and TestPyPI accept only
+Kit files from a previously prepared release, using the matching
+`holder-v<version>` tag and the immutable prepared release inputs.
+[Holder Python](../../holder/docs/publishing.md) is the Python distribution for
+new release candidates.
 
 ## Ubuntu packages
 

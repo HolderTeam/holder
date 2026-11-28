@@ -1,18 +1,20 @@
 # Publishing Holder for Python
 
 The distribution is `holder-python`, and users import `holder`. The release
-includes embedded wheels for CPython 3.11 through 3.14 on x86-64 Linux with
-glibc 2.39 or newer. On other supported platforms pip selects the universal
-HTTP wheel. The source archive also builds the HTTP package by default.
-All files share the repository's root `VERSION`.
+workflow builds embedded wheels for CPython 3.11 through 3.15 on x86-64 Linux
+with glibc 2.39 or newer, macOS 15 or newer on ARM64, and Windows on x86-64.
+On other supported platforms pip selects the universal HTTP wheel. The source
+archive also builds the HTTP package by default. All files share the
+repository's root `VERSION`.
 
 [`Release / Holder Python to PyPI`](../../../.github/workflows/release-holder-python-pypi.yml)
 builds the distribution set, checks its metadata, and verifies that pip
 prefers the native wheel on matching runners and selects the universal wheel
 for an unsupported native target. Each native wheel must open and reopen a
-private workspace in a clean Debian runtime. The workflow records the
-verified Release core SDK alongside the hashes of the published files.
-Candidate preparation uses the Linux SDK pinned by the release coordinator.
+private workspace. Linux runs the test in a clean Debian container. macOS
+and Windows run it in fresh virtual environments on their own runners. The
+workflow records the verified Release core SDKs alongside the file hashes.
+Candidate preparation uses the SDKs pinned by the release coordinator.
 The workflow saves the files as the `holder-python-distributions` artifact. A
 pull request or a manual run with `destination=none` only builds. Publishing
 uses Trusted Publishing. PyPI requires a manual run from the

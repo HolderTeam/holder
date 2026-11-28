@@ -20,15 +20,16 @@ ARTIFACTS = {'kit': ('kit-release-distributions', 'kit-release-manifest'),
 WORKFLOWS = {'kit': 'release-kit-pypi.yml', 'python': 'release-holder-python-pypi.yml'}
 PLATFORMS = {'manylinux_2_39_x86_64': 'linux', 'win_amd64': 'windows', 'macosx_15_0_arm64': 'macos'}
 HOLDER_PYTHON_ABIS = ('cp311', 'cp312', 'cp313', 'cp314')
+HOLDER_PYTHON_DESKTOP_ABIS = (*HOLDER_PYTHON_ABIS, 'cp315')
 HOLDER_PYTHON_LINUX_TAG = 'manylinux_2_39_x86_64'
 SDK_ARCHITECTURES = {'linux': 'x86_64', 'windows': 'x86_64', 'macos': 'arm64'}
 
 
-def filenames(package, version, *, desktop_wheels=False):
+def filenames(package, version, *, desktop_wheels=False, python_abis=HOLDER_PYTHON_ABIS):
     if package == 'python':
         tags = PLATFORMS if desktop_wheels else (HOLDER_PYTHON_LINUX_TAG,)
         return {f'holder_python-{version}-{abi}-{abi}-{tag}.whl'
-                for abi in HOLDER_PYTHON_ABIS for tag in tags} | {
+                for abi in python_abis for tag in tags} | {
                     f'holder_python-{version}-py3-none-any.whl', f'holder_python-{version}.tar.gz'}
     return {f'holder_kit-{version}-{python}-{python}-{platform}.whl'
             for python in ('cp310', 'cp311', 'cp312', 'cp313', 'cp314', 'cp315')
@@ -63,8 +64,9 @@ def python_core_evidence(selection, version, candidate, *, desktop_wheels=False)
     return record
 
 
-def check(directory, package, version, selection=None, *, desktop_wheels=False):
-    expected = filenames(package, version, desktop_wheels=desktop_wheels)
+def check(directory, package, version, selection=None, *, desktop_wheels=False,
+          python_abis=HOLDER_PYTHON_ABIS):
+    expected = filenames(package, version, desktop_wheels=desktop_wheels, python_abis=python_abis)
     require({file.name for file in directory.iterdir()} == expected, 'Incomplete or unexpected Python distribution set')
     name = 'holder-kit' if package == 'kit' else 'holder-python'
     stem = name.replace('-', '_') + '-' + version
@@ -91,9 +93,13 @@ def check(directory, package, version, selection=None, *, desktop_wheels=False):
                                 files.count(core_entry) == files.count(schema_entry) == 1,
                                 'Native Holder Python wheel is missing its extension, schema or SDK metadata')
                         if platform == 'windows':
-                            require(any(path.startswith(prefix + '.libs/') and path.endswith('.dll') for path in files) and
-                                    any(path.startswith(prefix + '_licenses/') and not path.endswith('/') for path in files),
-                                    'Windows Holder Python wheel is missing DLLs or dependency licences')
+                            notices = stem + '.dist-info/licenses/third-party/'
+                            require(stem + '.dist-info/DELVEWHEEL' in files and
+                                    not any(path.startswith(prefix + '.libs/') for path in files) and
+                                    any(path.startswith('holder_python.libs/') and path.endswith('.dll') for path in files) and
+                                    notices + 'microsoft-runtime.txt' in files and
+                                    any(path.startswith(notices + 'vcpkg/') and path.endswith('.txt') for path in files),
+                                    'Windows Holder Python wheel is missing repaired DLLs or dependency licences')
                         elif platform == 'macos':
                             require(any(path.endswith('.dylib') for path in files) and
                                     any(path.startswith(stem + '.dist-info/licenses/third-party/') and
@@ -128,11 +134,20 @@ def check(directory, package, version, selection=None, *, desktop_wheels=False):
              'size': (directory / filename).stat().st_size} for filename in sorted(expected)]
 
 
+def holder_wheel_targets(package, document):
+    desktop_wheels = package == 'python' and 'sdk_assets' in document.get('core', {})
+    if 'wheel_abis' not in document:
+        return desktop_wheels, HOLDER_PYTHON_ABIS
+    require(desktop_wheels and document['wheel_abis'] == list(HOLDER_PYTHON_DESKTOP_ABIS),
+            'Unexpected Holder Python desktop wheel ABI set')
+    return desktop_wheels, HOLDER_PYTHON_DESKTOP_ABIS
+
+
 def verify(directory, package, version, candidate, document, selection=None):
     require(document['source'] == candidate and document['version'] == version,
             'Distribution manifest differs from candidate source/version')
-    desktop_wheels = package == 'python' and 'sdk_assets' in document.get('core', {})
-    files = check(directory, package, version, selection, desktop_wheels=desktop_wheels)
+    desktop_wheels, python_abis = holder_wheel_targets(package, document)
+    files = check(directory, package, version, selection, desktop_wheels=desktop_wheels, python_abis=python_abis)
     require(document['files'] == files, 'Distribution file hashes differ from the manifest')
     if package == 'kit':
         require(selection['commit'] == candidate and selection['version'] == version, 'Pinned core identity differs')
@@ -170,8 +185,8 @@ def collect(record, github, names=None):
         values, manifest_hash = github.read(record['repository'], manifest_item, ['release-manifest.json'])
         document = json.loads(values['release-manifest.json'])
         item = select(dist_name)
-        desktop_wheels = package == 'python' and 'sdk_assets' in document.get('core', {})
-        expected = filenames(package, record['version'], desktop_wheels=desktop_wheels)
+        desktop_wheels, python_abis = holder_wheel_targets(package, document)
+        expected = filenames(package, record['version'], desktop_wheels=desktop_wheels, python_abis=python_abis)
         _, archive_hash = github.read(record['repository'], item, [], expected)
         directory = github.directory / package
         directory.mkdir()
@@ -207,11 +222,14 @@ def main():
     manifest_tool.provenance.commit(args.candidate)
     require(re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:\.post[0-9]+)?', args.version), 'Invalid package version')
     selection = json.loads(args.selection.read_text())
+    python_abis = HOLDER_PYTHON_DESKTOP_ABIS if args.desktop_wheels else HOLDER_PYTHON_ABIS
     document = {'source': args.candidate, 'version': args.version,
                 'files': check(args.directory, 'python', args.version, selection,
-                               desktop_wheels=args.desktop_wheels),
+                               desktop_wheels=args.desktop_wheels, python_abis=python_abis),
                 'core': python_core_evidence(selection, args.version, args.candidate,
                                              desktop_wheels=args.desktop_wheels)}
+    if args.desktop_wheels:
+        document['wheel_abis'] = list(python_abis)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(document, indent=2) + '\n')
 

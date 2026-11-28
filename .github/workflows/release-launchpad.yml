@@ -1,13 +1,11 @@
 name: Release / Launchpad
 
 # Uploads the Ubuntu source packages for a Holder release to ppa:holderteam/holder:
-# holder-core (libholder0, libholder-dev), holder-daemon, holder-kit (python3-holder-kit) and
-# holder-desktop (holder-desktop, holder), for each series. A holder-v* tag uploads all four.
-# Launchpad orders the builds: holder-daemon and holder-kit wait for libholder-dev from the same
-# upload. holder-desktop needs nothing from the others to build, and requires the holder-daemon of
-# its release or newer to install. A manual run can upload one package, for a packaging-only fix
-# with a new Debian revision. Pull requests that change the packaging build the source packages
-# unsigned and stop there, so the upload path is tested without publishing anything.
+# A holder-v* tag uploads holder-core (libholder0, libholder-dev), holder-daemon and
+# holder-desktop (holder-desktop, holder) for each series. Launchpad builds holder-daemon
+# against the matching libholder-dev. The desktop requires holder-daemon of its release
+# or newer at install time. A manual run can upload one package, including holder-kit
+# for a packaging repair to an earlier release. Pull requests only build unsigned sources.
 
 on:
   push:
@@ -21,12 +19,11 @@ on:
       - .github/workflows/release-launchpad.yml
       - core/packaging/linux/debian/**
       - daemon/packaging/linux/**
-      - python/kit/packaging/linux/**
       - apps/desktop/gtk/packaging/linux/**
   workflow_dispatch:
     inputs:
       packages:
-        description: Source packages to upload
+        description: Source packages to upload (all selects core, daemon and desktop)
         type: choice
         options: [all, core, daemon, kit, desktop]
         default: all
@@ -53,7 +50,7 @@ jobs:
       fail-fast: false
       matrix:
         series: ${{ fromJSON(inputs.series && inputs.series != 'both' && format('["{0}"]', inputs.series) || '["noble", "resolute"]') }}
-        package: ${{ fromJSON(inputs.packages && inputs.packages != 'all' && format('["{0}"]', inputs.packages) || '["core", "daemon", "kit", "desktop"]') }}
+        package: ${{ fromJSON(inputs.packages && inputs.packages != 'all' && format('["{0}"]', inputs.packages) || '["core", "daemon", "desktop"]') }}
     defaults:
       run:
         working-directory: ${{ fromJSON('{"core":"core","daemon":"daemon","kit":"python/kit","desktop":"apps/desktop/gtk"}')[matrix.package] }}
