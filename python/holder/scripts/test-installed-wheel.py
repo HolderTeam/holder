@@ -3,6 +3,7 @@
 import argparse
 import importlib.util
 import json
+import pickle
 import sys
 from importlib.metadata import distribution
 from pathlib import Path
@@ -35,6 +36,11 @@ def main() -> None:
     if args.embedded:
         from holder._embedded import _native
 
+        assert _native.__name__ == embedded
+        assert _native.Context.__module__ == _native.HolderError.__module__ == embedded
+        error = pickle.loads(pickle.dumps(_native.HolderError("native error")))
+        assert type(error) is _native.HolderError and str(error) == "native error"
+        assert "holderkit" not in sys.modules
         assert _native.WORKSPACE_BRIDGE_VERSION == 1
         manifest = installed.locate_file("holder/_embedded/_core_build.json")
         core = json.loads(manifest.read_text(encoding="utf-8"))

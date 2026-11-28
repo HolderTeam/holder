@@ -2549,8 +2549,7 @@ static PyType_Slot Context_slots[] = {
     {0, NULL}
 };
 
-static PyType_Spec Context_spec = {
-    .name = "holderkit._native.Context",
+static const PyType_Spec Context_spec = {
     .basicsize = sizeof(ContextObject),
     .itemsize = 0,
     .flags = Py_TPFLAGS_DEFAULT,
@@ -2576,13 +2575,19 @@ holder_module_clear(PyObject *module)
 static int
 holder_module_exec(PyObject *module)
 {
+    const char *module_name = PyModule_GetName(module);
+    if (module_name == NULL) {
+        return -1;
+    }
+    const int bundled = strcmp(module_name, "holder._embedded._native") == 0;
+
     if (PyModule_AddIntConstant(module, "CARD_PAGE_MAX_LIMIT", 1000) < 0 ||
         PyModule_AddIntConstant(module, "WORKSPACE_BRIDGE_VERSION", 1) < 0) {
         return -1;
     }
     holder_module_state *state = PyModule_GetState(module);
     state->holder_error = PyErr_NewException(
-        "holderkit._native.HolderError",
+        bundled ? "holder._embedded._native.HolderError" : "holderkit._native.HolderError",
         PyExc_RuntimeError,
         NULL
     );
@@ -2593,7 +2598,9 @@ holder_module_exec(PyObject *module)
         return -1;
     }
 
-    PyObject *context_type = PyType_FromModuleAndSpec(module, &Context_spec, NULL);
+    PyType_Spec context_spec = Context_spec;
+    context_spec.name = bundled ? "holder._embedded._native.Context" : "holderkit._native.Context";
+    PyObject *context_type = PyType_FromModuleAndSpec(module, &context_spec, NULL);
     if (context_type == NULL) {
         return -1;
     }
@@ -2611,7 +2618,7 @@ static PyModuleDef_Slot holder_module_slots[] = {
 
 static struct PyModuleDef holder_module = {
     PyModuleDef_HEAD_INIT,
-    .m_name = "holderkit._native",
+    .m_name = "_native",
     .m_doc = "Native CPython bindings for embedded libholder.",
     .m_size = sizeof(holder_module_state),
     .m_methods = NULL,
