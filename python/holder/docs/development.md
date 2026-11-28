@@ -66,7 +66,7 @@ notices. The Python CI workflow builds and tests this wheel from a fresh
 install. For a local smoke test on a newer Linux distribution, use
 `--bundle-only` to bundle the libraries and keep the original Linux tag.
 The [PyPI release workflow](publishing.md) builds the universal wheel and the
-supported native Linux wheels.
+supported native wheels for Linux, macOS, and Windows.
 
 ## Build a Windows wheel from source
 

@@ -1,7 +1,7 @@
 name: Release / Holder Python to PyPI
 run-name: ${{ inputs.release_request || github.event.pull_request.title || github.workflow }}
 
-# Build native Linux wheels, the universal wheel and source archive.
+# Build native desktop wheels, the universal wheel and source archive.
 # PyPI publishing requires a matching root VERSION and a release tag. TestPyPI
 # previews use a fresh post-release version from main without changing repository versions.
 on:
@@ -12,6 +12,8 @@ on:
       - python/kit/CMakeLists.txt
       - python/kit/src/**
       - python/kit/scripts/repair-linux-wheel.py
+      - python/kit/scripts/wheel-notices.py
+      - python/kit/scripts/licenses/**
       - .github/workflows/core-sdk.yml
       - .github/actions/core-sdk/**
       - release/scripts/fetch-candidate-sdk.py
@@ -159,19 +161,31 @@ jobs:
     uses: ./.github/workflows/core-sdk.yml
     with:
       build_type: Release
-      platforms: '["linux"]'
+      platforms: '["linux", "macos", "windows"]'
 
   native:
     if: ${{ !cancelled() && needs.portable.result == 'success' && (needs.core-sdk.result == 'success' || (needs.core-sdk.result == 'skipped' && inputs.release_manifest != '')) }}
     needs: [portable, core-sdk]
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         python: ['3.11', '3.12', '3.13', '3.14']
+        platform: [linux, macos, windows]
+        include:
+          - platform: linux
+            runner: ubuntu-24.04
+            tag: manylinux_2_39_x86_64
+          - platform: macos
+            runner: macos-15
+            tag: macosx_15_0_arm64
+          - platform: windows
+            runner: windows-2025
+            tag: win_amd64
     defaults:
       run:
         working-directory: ${{ github.workspace }}
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -179,54 +193,88 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python }}
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: matrix.platform == 'windows'
       - uses: ./.github/actions/core-sdk
         with:
           commit: ${{ inputs.release_manifest != '' && github.sha || needs.core-sdk.outputs.commit }}
           build-type: Release
           release-manifest: ${{ inputs.release_manifest }}
           release-manifest-ref: ${{ inputs.release_manifest_ref }}
-      - name: Install native build dependencies
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build pkg-config \
             patchelf libssl-dev nlohmann-json3-dev libyaml-cpp-dev libspdlog-dev \
             libsqlite3-dev libsodium-dev libgit2-dev libmd4c-dev libsecret-1-dev
-          python -m pip install 'build>=1.2,<2' wheel 'auditwheel==6.8.2' twine
-      - name: Stage the extension and build the manylinux wheel
+          python -m pip install 'auditwheel==6.8.2'
+      - name: Install macOS build dependencies
+        if: matrix.platform == 'macos'
+        run: |
+          brew install cmake ninja pkg-config nlohmann-json yaml-cpp spdlog sqlite \
+            libsodium libgit2 md4c openssl@3
+          python -m pip install delocate
+          echo 'MACOSX_DEPLOYMENT_TARGET=15.0' >> "$GITHUB_ENV"
+      - name: Install Windows repair tools
+        if: matrix.platform == 'windows'
+        run: python -m pip install delvewheel
+      - name: Stage the extension and build the native wheel
         env:
           HOLDER_PYTHON_PREVIEW_NUMBER: ${{ inputs.preview_number || '0' }}
         run: |
           set -euo pipefail
-          cmake -S python/kit -B out/kit -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DPython_EXECUTABLE="$(command -v python)" -DCMAKE_INSTALL_PREFIX="$PWD/out/stage" \
-            -DHOLDER_KIT_INSTALL_DIR=holder/_embedded
+          python -m pip install 'build>=1.2,<2' wheel twine
+          work="$PWD/out"
+          args=(-DCMAKE_BUILD_TYPE=Release -DHOLDER_KIT_INSTALL_DIR=holder/_embedded)
+          case "$RUNNER_OS" in
+            macOS)
+              openssl="$(brew --prefix openssl@3)"
+              args+=(-DCMAKE_OSX_ARCHITECTURES=arm64
+                "-DCMAKE_PREFIX_PATH=$(brew --prefix);$openssl" "-DOPENSSL_ROOT_DIR=$openssl") ;;
+            Windows)
+              work="$(cygpath -m "$work")"
+              sdk="$HOLDER_CORE_SDK"
+              args+=("-DCMAKE_TOOLCHAIN_FILE=$sdk/vcpkg/scripts/buildsystems/vcpkg.cmake"
+                "-DVCPKG_INSTALLED_DIR=$sdk/vcpkg/installed" -DVCPKG_TARGET_TRIPLET=x64-windows
+                -DVCPKG_MANIFEST_MODE=OFF -DVCPKG_APPLOCAL_DEPS=OFF) ;;
+          esac
+          cmake -S python/kit -B out/kit -G Ninja \
+            -DPython_EXECUTABLE="$(python -c 'import pathlib,sys; print(pathlib.Path(sys.executable).as_posix())')" \
+            -DCMAKE_INSTALL_PREFIX="$work/stage" "${args[@]}"
           cmake --build out/kit
           cmake --install out/kit --component holder_native
           python python/holder/scripts/pypi_readme.py --commit "$GITHUB_SHA"
-          HOLDER_PYTHON_EMBEDDED_STAGE="$PWD/out/stage" \
-            python -m build --wheel --outdir "$PWD/out/raw" python/holder
-          python python/kit/scripts/repair-linux-wheel.py --output out/wheel out/raw/*.whl
+          HOLDER_PYTHON_EMBEDDED_STAGE="$work/stage" \
+            python -m build --wheel --outdir "$work/raw" python/holder
+          if [ "$RUNNER_OS" = Linux ]; then
+            python python/kit/scripts/repair-linux-wheel.py --output out/wheel out/raw/*.whl
+          else
+            python python/kit/scripts/wheel-notices.py --output out/noticed out/raw/*.whl
+            if [ "$RUNNER_OS" = macOS ]; then
+              delocate-wheel --require-archs arm64 -v -w out/wheel out/noticed/*.whl
+            else
+              python -m delvewheel repair --add-path "$HOLDER_CORE_SDK/bin" -w out/wheel out/noticed/*.whl
+            fi
+          fi
           python -m twine check --strict out/wheel/*.whl
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: holder-python-portable
           path: out/wheel
-      - name: Verify pip selects the correct wheel for each target
+      - name: Verify pip selects the native wheel
         env:
           PACKAGE_VERSION: ${{ needs.portable.outputs.version }}
-          PYTHON_VERSION: ${{ matrix.python }}
+          PLATFORM_TAG: ${{ matrix.tag }}
         run: |
           set -euo pipefail
           python -m pip download --no-index --no-deps --only-binary=:all: \
             --find-links out/wheel --dest out/selected "holder-python==$PACKAGE_VERSION"
-          wheels=(out/selected/*manylinux_2_39_x86_64.whl)
+          wheels=(out/selected/*-"$PLATFORM_TAG".whl)
           test "${#wheels[@]}" -eq 1
           test -f "${wheels[0]}"
-          python -m pip download --no-index --no-deps --only-binary=:all: \
-            --find-links out/wheel --dest out/fallback --implementation cp \
-            --python-version "$PYTHON_VERSION" --platform win_amd64 "holder-python==$PACKAGE_VERSION"
-          test -f "out/fallback/holder_python-$PACKAGE_VERSION-py3-none-any.whl"
       - name: Install and exercise the native wheel on a clean Debian runtime
+        if: matrix.platform == 'linux'
         env:
           PACKAGE_VERSION: ${{ needs.portable.outputs.version }}
           PYTHON_VERSION: ${{ matrix.python }}
@@ -237,13 +285,31 @@ jobs:
             "python:${PYTHON_VERSION}-slim-trixie" \
             sh -ec 'python -m pip install /wheels/*.whl &&
               python -I /test-installed-wheel.py --version "$PACKAGE_VERSION" --embedded'
+      - name: Exercise the native wheel in a fresh virtual environment
+        if: matrix.platform != 'linux'
+        env:
+          PACKAGE_VERSION: ${{ needs.portable.outputs.version }}
+        run: |
+          set -euo pipefail
+          python -m venv out/wheel-test
+          args=(--embedded)
+          if [ "$RUNNER_OS" = Windows ]; then
+            test_python=out/wheel-test/Scripts/python.exe
+            args+=(--repaired-windows)
+          else
+            test_python=out/wheel-test/bin/python
+          fi
+          "$test_python" -m pip install out/selected/*.whl
+          env -u HOLDER_CORE_SDK -u CMAKE_ARGS -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH \
+            "$test_python" -I python/holder/scripts/test-installed-wheel.py \
+              --version "$PACKAGE_VERSION" "${args[@]}"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: holder-python-native-${{ matrix.python }}
-          path: out/wheel/*manylinux_2_39_x86_64.whl
+          name: holder-python-native-${{ matrix.platform }}-${{ matrix.python }}
+          path: out/selected/*.whl
           if-no-files-found: error
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: matrix.python == '3.12'
+        if: matrix.platform == 'linux' && matrix.python == '3.12' && inputs.release_manifest != ''
         with:
           name: holder-python-core-selection
           path: out/core-selection.json
@@ -271,6 +337,12 @@ jobs:
           path: python/holder/dist
           merge-multiple: true
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: inputs.release_manifest == ''
+        with:
+          name: core-selection
+          path: python/holder/out
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: inputs.release_manifest != ''
         with:
           name: holder-python-core-selection
           path: python/holder/out
@@ -280,7 +352,11 @@ jobs:
         run: |
           python ../../release/scripts/python-distributions.py --directory dist \
             --version "$PACKAGE_VERSION" --candidate "$GITHUB_SHA" --selection out/core-selection.json \
-            --output out/release-manifest.json
+            --output out/release-manifest.json --desktop-wheels
+          python -m pip download --no-index --no-deps --only-binary=:all: \
+            --find-links dist --dest out/fallback --implementation cp \
+            --python-version 3.12 --platform win_arm64 "holder-python==$PACKAGE_VERSION"
+          test -f "out/fallback/holder_python-$PACKAGE_VERSION-py3-none-any.whl"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: holder-python-distributions
