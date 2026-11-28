@@ -778,6 +778,17 @@ def test_large_recovery_bundle_keeps_verified_attachments(daemon, tmp_path):
                 break
             assert job["status"] != "failed" and time.monotonic() < deadline, job
             time.sleep(0.02)
+        metadata = {"author": ["Ada", "Grace"], "subject": ["Notebook"]}
+        updated = raw.patch(
+            f"/projects/{project_id}/resources/{job['resource_id']}",
+            json={"metadata": metadata},
+        )
+        updated.raise_for_status()
+        resource = session.get_resource(project_id, job["resource_id"])
+        assert resource == updated.json()["data"]
+        assert resource["metadata"] == metadata
+        assert session.list_resources(project_id) == [resource]
+        assert session.list_card_resources(project_id, card["card_id"]) == [resource]
         session.download_recovery_bundle(project_id, archive_path)
 
     with ZipFile(archive_path) as archive:
@@ -797,6 +808,27 @@ def test_large_recovery_bundle_keeps_verified_attachments(daemon, tmp_path):
         (link,) = records["links"]
         assert link["target_type"] == "resource"
         assert link["target_id"] != job["resource_id"]
+        offline_resource = workspace.get_resource(copy_id, link["target_id"])
+        assert workspace.list_resources(copy_id) == [offline_resource]
+        assert workspace.list_card_resources(copy_id, link["source_id"]) == [
+            offline_resource
+        ]
+        unattached = next(
+            item for item in records["cards"] if item["card_id"] != link["source_id"]
+        )
+        assert workspace.list_card_resources(copy_id, unattached["card_id"]) == []
+        assert offline_resource["label"] == resource["label"]
+        assert offline_resource["type"] == resource["type"]
+        assert offline_resource["metadata"] == metadata
+        (asset,) = offline_resource["assets"]
+        assert asset["original_filename"] == source.name
+        assert asset["byte_size"] == len(payload)
+        assert asset["plaintext_sha256"] == digest
+        (placement,) = asset["placements"]
+        assert placement["encoding"] == "plain"
+        assert placement["stored_byte_size"] == len(payload)
+        with pytest.raises(NotFoundError):
+            workspace.get_resource(copy_id, job["resource_id"])
         assert (private / "resource-store" / copy_id / digest).read_bytes() == payload
 
         corrupt = tmp_path / "corrupt.zip"

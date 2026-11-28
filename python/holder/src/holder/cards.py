@@ -40,6 +40,7 @@ from ._workspace_contract import (
     TrashItemType,
 )
 from ._workspace_contract import Project as ProjectRecord
+from ._workspace_contract import Resource as ResourceRecord
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .exceptions import APIError, ClosedError, HolderError, NotFoundError
 from .exports import ProjectRecords, _export_project_records
@@ -469,6 +470,25 @@ class EmbeddedWorkspace:
     def get_project(self, project_id: str) -> ProjectRecord:
         """Fetch a detached project record by its ID."""
         return cast("ProjectRecord", self._call("get_project", project_id))
+
+    def list_resources(self, project_id: str) -> list[ResourceRecord]:
+        """List a project's resources and their asset metadata."""
+        return cast("list[ResourceRecord]", self._call("list_resources", project_id))
+
+    def get_resource(self, project_id: str, resource_id: str) -> ResourceRecord:
+        """Fetch a resource and its asset metadata, scoped to its project."""
+        return cast(
+            "ResourceRecord", self._call("get_resource", project_id, resource_id)
+        )
+
+    def list_card_resources(
+        self, project_id: str, card_id: str
+    ) -> list[ResourceRecord]:
+        """List the resources attached to a live card."""
+        return cast(
+            "list[ResourceRecord]",
+            self._call("list_card_resources", project_id, card_id),
+        )
 
     def create_plain_project(self, *, name: str) -> ProjectRecord:
         """Create a project whose files are stored without encryption."""

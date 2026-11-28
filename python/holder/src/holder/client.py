@@ -23,6 +23,7 @@ from ._workspace_contract import (
     TrashItemType,
 )
 from ._workspace_contract import Project as ProjectRecord
+from ._workspace_contract import Resource as ResourceRecord
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .cards import CardOperations, EmbeddedWorkspace, _DaemonCards, open_workspace
 from .changes import Changes
@@ -43,9 +44,12 @@ from .generated.api.default import (
     get_projects,
     get_projects_project_id,
     get_projects_project_id_calendar,
+    get_projects_project_id_cards_card_id_resources,
     get_projects_project_id_milestones_days,
     get_projects_project_id_milestones_instants,
     get_projects_project_id_recovery_snapshot,
+    get_projects_project_id_resources,
+    get_projects_project_id_resources_resource_id,
     get_projects_project_id_tags,
     get_resources_resource_id_assets_asset_id_content,
     get_trash,
@@ -190,6 +194,27 @@ class Holder:
         """Fetch a detached project record by its ID."""
         project = self._call(get_projects_project_id, project_id)
         return cast("ProjectRecord", project.to_dict())
+
+    def list_resources(self, project_id: str) -> list[ResourceRecord]:
+        """List a project's resources and their asset metadata."""
+        resources = self._call(get_projects_project_id_resources, project_id)
+        return [cast("ResourceRecord", resource.to_dict()) for resource in resources]
+
+    def get_resource(self, project_id: str, resource_id: str) -> ResourceRecord:
+        """Fetch a resource and its asset metadata, scoped to its project."""
+        resource = self._call(
+            get_projects_project_id_resources_resource_id, project_id, resource_id
+        )
+        return cast("ResourceRecord", resource.to_dict())
+
+    def list_card_resources(
+        self, project_id: str, card_id: str
+    ) -> list[ResourceRecord]:
+        """List the resources attached to a live card."""
+        resources = self._call(
+            get_projects_project_id_cards_card_id_resources, project_id, card_id
+        )
+        return [cast("ResourceRecord", resource.to_dict()) for resource in resources]
 
     def download_recovery_snapshot(self, project_id: str) -> str:
         """Download a project's live recovery snapshot as UTF-8 JSON Lines.

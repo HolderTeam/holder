@@ -9,6 +9,7 @@ from ._workspace_contract import (
     TrashDeleteResult,
 )
 from ._workspace_contract import Project as ProjectRecord
+from ._workspace_contract import Resource as ResourceRecord
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .analysis import ProjectDataFrames, to_dataframes, to_networkx
 from .cards import EmbeddedUnavailableError, open_workspace
@@ -140,6 +141,7 @@ __all__ = [
     "RepairedCard",
     "Resource",
     "ResourceBacklinkCollection",
+    "ResourceRecord",
     "ResyncRequired",
     "Run",
     "RunStream",
