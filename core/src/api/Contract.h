@@ -1781,14 +1781,14 @@ AssetImport import_asset_file(holder_context& context, const AssetImportRequest&
 /// Write an asset's bytes from one of its placements to a local file.
 /// The stored copy is fetched through this device's provider for its storage location, checked
 /// against the asset's size and hash, and decrypted in an encrypted project. Bytes that fail the
-/// check are data corrupted, and nothing is left at the destination. The daemon does not serve
-/// this: it streams asset content over HTTP.
+/// check are data corrupted, and any existing destination is preserved. Without a placement ID,
+/// this uses the first stored placement. The daemon streams asset content over HTTP.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
 AssetFile retrieve_asset_file(
     holder_context& context,
     std::string resource_id,
     std::string asset_id,
-    std::string placement_id,
+    std::optional<std::string> placement_id,
     std::string destination_path
 );
 

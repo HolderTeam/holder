@@ -13,7 +13,7 @@ from typing import Any, BinaryIO, Self, cast
 
 import httpx
 
-from ._streams import stream_failure
+from ._streams import stream_failure, write_asset_chunks
 from ._workspace_contract import (
     Calendar,
     LinkKindLabels,
@@ -23,6 +23,7 @@ from ._workspace_contract import (
     TrashItemType,
 )
 from ._workspace_contract import Project as ProjectRecord
+from ._workspace_contract import Resource as ResourceRecord
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .cards import CardOperations, EmbeddedWorkspace, _DaemonCards, open_workspace
 from .changes import Changes
@@ -43,9 +44,12 @@ from .generated.api.default import (
     get_projects,
     get_projects_project_id,
     get_projects_project_id_calendar,
+    get_projects_project_id_cards_card_id_resources,
     get_projects_project_id_milestones_days,
     get_projects_project_id_milestones_instants,
     get_projects_project_id_recovery_snapshot,
+    get_projects_project_id_resources,
+    get_projects_project_id_resources_resource_id,
     get_projects_project_id_tags,
     get_resources_resource_id_assets_asset_id_content,
     get_trash,
@@ -191,6 +195,27 @@ class Holder:
         project = self._call(get_projects_project_id, project_id)
         return cast("ProjectRecord", project.to_dict())
 
+    def list_resources(self, project_id: str) -> list[ResourceRecord]:
+        """List a project's resources and their asset metadata."""
+        resources = self._call(get_projects_project_id_resources, project_id)
+        return [cast("ResourceRecord", resource.to_dict()) for resource in resources]
+
+    def get_resource(self, project_id: str, resource_id: str) -> ResourceRecord:
+        """Fetch a resource and its asset metadata, scoped to its project."""
+        resource = self._call(
+            get_projects_project_id_resources_resource_id, project_id, resource_id
+        )
+        return cast("ResourceRecord", resource.to_dict())
+
+    def list_card_resources(
+        self, project_id: str, card_id: str
+    ) -> list[ResourceRecord]:
+        """List the resources attached to a live card."""
+        resources = self._call(
+            get_projects_project_id_cards_card_id_resources, project_id, card_id
+        )
+        return [cast("ResourceRecord", resource.to_dict()) for resource in resources]
+
     def download_recovery_snapshot(self, project_id: str) -> str:
         """Download a project's live recovery snapshot as UTF-8 JSON Lines.
 
@@ -283,12 +308,7 @@ class Holder:
             ) as stream:
                 if stream.response.status_code != 200:
                     raise ProtocolError("Invalid asset download response")
-                written = 0
-                for chunk in stream.iter_bytes():
-                    if destination.write(chunk) != len(chunk):
-                        raise OSError("Incomplete write while downloading asset")
-                    written += len(chunk)
-                return written
+                return write_asset_chunks(stream.iter_bytes(), destination)
         except StreamError as error:
             raise stream_failure(error, "Invalid asset download response") from None
         except httpx.TransportError:

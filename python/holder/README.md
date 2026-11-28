@@ -190,6 +190,16 @@ that link and get the remaining outgoing links. Specify `kind` or
 `session.list_link_kinds()` returns the built-in kinds and their forward and
 reverse labels. You can also use custom kinds.
 
+Use `session.list_resources(project_id)` to list a project's resources,
+`session.get_resource(project_id, resource_id)` to follow a resource ID, or
+`session.list_card_resources(project_id, card_id)` to read the resources attached
+to a live card. Both the daemon and embedded sessions return `ResourceRecord`
+dictionaries with metadata, asset details, and storage placements.
+Use `session.download_asset(resource_id, asset_id, output)` to copy verified
+attachment bytes to an open binary file. Pass `placement_id` to select a
+specific stored copy. This also works offline for attachments restored from a
+recovery bundle.
+
 Use `cards.list_card_milestones(project_id, card_id)` to read a card's
 milestones. To add one, pass an ordered list of dates to
 `cards.add_card_milestone(project_id, card_id, {"dates": [{"role": "due",

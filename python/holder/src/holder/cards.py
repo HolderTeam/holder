@@ -7,10 +7,12 @@ from importlib import import_module
 from importlib.resources import files
 from os import PathLike, fspath, getenv
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from threading import Lock
-from typing import TYPE_CHECKING, Literal, Protocol, Self, TypedDict, cast
+from typing import TYPE_CHECKING, BinaryIO, Literal, Protocol, Self, TypedDict, cast
 from weakref import WeakValueDictionary
 
+from ._streams import write_asset_chunks
 from ._workspace_contract import (
     NATIVE_ERRORS,
     Calendar,
@@ -40,6 +42,7 @@ from ._workspace_contract import (
     TrashItemType,
 )
 from ._workspace_contract import Project as ProjectRecord
+from ._workspace_contract import Resource as ResourceRecord
 from ._workspace_contract import TrashItem as TrashItemRecord
 from .exceptions import APIError, ClosedError, HolderError, NotFoundError
 from .exports import ProjectRecords, _export_project_records
@@ -469,6 +472,52 @@ class EmbeddedWorkspace:
     def get_project(self, project_id: str) -> ProjectRecord:
         """Fetch a detached project record by its ID."""
         return cast("ProjectRecord", self._call("get_project", project_id))
+
+    def list_resources(self, project_id: str) -> list[ResourceRecord]:
+        """List a project's resources and their asset metadata."""
+        return cast("list[ResourceRecord]", self._call("list_resources", project_id))
+
+    def get_resource(self, project_id: str, resource_id: str) -> ResourceRecord:
+        """Fetch a resource and its asset metadata, scoped to its project."""
+        return cast(
+            "ResourceRecord", self._call("get_resource", project_id, resource_id)
+        )
+
+    def list_card_resources(
+        self, project_id: str, card_id: str
+    ) -> list[ResourceRecord]:
+        """List the resources attached to a live card."""
+        return cast(
+            "list[ResourceRecord]",
+            self._call("list_card_resources", project_id, card_id),
+        )
+
+    def download_asset(
+        self,
+        resource_id: str,
+        asset_id: str,
+        destination: BinaryIO,
+        *,
+        placement_id: str | None = None,
+    ) -> int:
+        """Write a verified asset's plaintext bytes to an open binary file.
+
+        Selects the first stored placement by default. Returns the number of
+        bytes written. If copying to the destination fails, discard any bytes
+        already written to it.
+        """
+        with TemporaryDirectory(prefix="holder-asset-") as directory:
+            path = Path(directory) / "verified-asset"
+            self._call(
+                "retrieve_asset_file",
+                resource_id,
+                asset_id,
+                placement_id or None,
+                str(path),
+            )
+            with path.open("rb") as source:
+                chunks = iter(lambda: source.read(64 * 1024), b"")
+                return write_asset_chunks(chunks, destination)
 
     def create_plain_project(self, *, name: str) -> ProjectRecord:
         """Create a project whose files are stored without encryption."""

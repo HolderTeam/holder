@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <optional>
 #include <string>
 
 namespace {
@@ -182,11 +183,14 @@ TEST_CASE("An imported file is attached to its card and written back out unchang
 
   const auto destination = (host.dir / "out" / "photo.jpg").string();
   std::filesystem::create_directories(host.dir / "out");
+  std::optional<std::string> placement_id;
+  SECTION("explicit placement") { placement_id = host.placement(imported); }
+  SECTION("default placement") {}
   const auto file = contract::retrieve_asset_file(
       host.context,
       imported.resource_id,
       imported.asset_id,
-      host.placement(imported),
+      placement_id,
       destination
   );
   REQUIRE(file.path == destination);

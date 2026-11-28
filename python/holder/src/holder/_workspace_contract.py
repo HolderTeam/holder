@@ -17,6 +17,9 @@ MilestoneRole = str
 Day = str
 DateTime = str
 MilestoneText = str
+ResourceId = str
+ResourceType = str
+ResourceMetadata = dict[str, list[str]]
 
 T = TypeVar("T")
 
@@ -276,6 +279,42 @@ class Calendar(TypedDict):
     milestones: list[CalendarMilestone]
     created_cards: list[CardMetadata]
     updated_cards: list[CardMetadata]
+
+
+class AssetPlacement(TypedDict):
+    """One stored copy of an asset."""
+
+    placement_id: str
+    location_id: str
+    encoding: Literal["plain", "holder_asset_v1"]
+    stored_byte_size: int
+    created_at: int
+
+
+class ResourceAsset(TypedDict):
+    """A file that belongs to a resource."""
+
+    asset_id: str
+    original_filename: str
+    media_type: str
+    byte_size: int
+    plaintext_sha256: str
+    placements: list[AssetPlacement]
+    created_at: int
+    updated_at: int
+
+
+class Resource(TypedDict):
+    """A resource in a project, with its files."""
+
+    resource_id: ResourceId
+    project_id: ProjectId
+    type: ResourceType
+    label: str
+    metadata: ResourceMetadata
+    assets: list[ResourceAsset]
+    created_at: int
+    updated_at: int
 
 
 class CardOperations(Protocol):

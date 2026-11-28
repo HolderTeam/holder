@@ -2500,8 +2500,9 @@ int holder_import_asset_file(
 /* Write an asset's bytes from one of its placements to a local file.
  * The stored copy is fetched through this device's provider for its storage location, checked
  * against the asset's size and hash, and decrypted in an encrypted project. Bytes that fail the
- * check are data corrupted, and nothing is left at the destination. The daemon does not serve
- * this: it streams asset content over HTTP.
+ * check are data corrupted, and any existing destination is preserved. Without a placement ID,
+ * this uses the first stored placement. The daemon streams asset content over HTTP.
+ * placement_id: May be NULL.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING,
  * HOLDER_ERROR_DATA_CORRUPTED.
  */

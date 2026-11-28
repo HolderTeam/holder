@@ -1067,6 +1067,190 @@ Context_get_project(ContextObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
+placement_record(const holder_asset_placement *placement)
+{
+    const char *encoding;
+    switch (placement->encoding) {
+    case HOLDER_ASSET_PLACEMENT_ENCODING_PLAIN:
+        encoding = "plain";
+        break;
+    case HOLDER_ASSET_PLACEMENT_ENCODING_HOLDER_ASSET_V1:
+        encoding = "holder_asset_v1";
+        break;
+    default:
+        PyErr_SetString(PyExc_ValueError, "Unknown Holder asset placement encoding");
+        return NULL;
+    }
+    return Py_BuildValue("{s:s,s:s,s:s,s:L,s:L}", "placement_id", placement->placement_id,
+        "location_id", placement->location_id, "encoding", encoding,
+        "stored_byte_size", (long long)placement->stored_byte_size,
+        "created_at", (long long)placement->created_at);
+}
+
+/* Append a newly created record and release its local reference. */
+static int
+append_record(PyObject *list, PyObject *record)
+{
+    if (record == NULL) return -1;
+    int result = PyList_Append(list, record);
+    Py_DECREF(record);
+    return result;
+}
+
+static PyObject *
+asset_record(const holder_resource_asset *asset)
+{
+    PyObject *placements = PyList_New(0);
+    if (placements == NULL) return NULL;
+    for (size_t i = 0; i < asset->placements.count; ++i) {
+        if (append_record(placements, placement_record(&asset->placements.items[i])) < 0) {
+            Py_DECREF(placements);
+            return NULL;
+        }
+    }
+    PyObject *record = Py_BuildValue("{s:s,s:s,s:s,s:L,s:s,s:O,s:L,s:L}",
+        "asset_id", asset->asset_id, "original_filename", asset->original_filename,
+        "media_type", asset->media_type, "byte_size", (long long)asset->byte_size,
+        "plaintext_sha256", asset->plaintext_sha256, "placements", placements,
+        "created_at", (long long)asset->created_at, "updated_at", (long long)asset->updated_at);
+    Py_DECREF(placements);
+    return record;
+}
+
+static PyObject *
+resource_record(const holder_resource *resource)
+{
+    PyObject *metadata = PyDict_New();
+    if (metadata == NULL) return NULL;
+    PyObject *assets = PyList_New(0);
+    PyObject *record = NULL;
+    if (assets == NULL) goto finish;
+
+    for (size_t i = 0; i < resource->metadata.count; ++i) {
+        const holder_resource_metadata_entry *entry = &resource->metadata.items[i];
+        if (put_string_list(metadata, entry->key, entry->values) < 0) goto finish;
+    }
+    for (size_t i = 0; i < resource->assets.count; ++i) {
+        if (append_record(assets, asset_record(&resource->assets.items[i])) < 0) goto finish;
+    }
+    record = Py_BuildValue("{s:s,s:s,s:s,s:s,s:O,s:O,s:L,s:L}",
+        "resource_id", resource->resource_id, "project_id", resource->project_id,
+        "type", resource->type, "label", resource->label, "metadata", metadata, "assets", assets,
+        "created_at", (long long)resource->created_at, "updated_at", (long long)resource->updated_at);
+
+finish:
+    Py_DECREF(metadata);
+    Py_XDECREF(assets);
+    return record;
+}
+
+static PyObject *
+Context_get_resource(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id;
+    const char *resource_id;
+    static char *keywords[] = {"project_id", "resource_id", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:get_resource", keywords,
+                                    &project_id, &resource_id) || !ensure_context_open(self)) {
+        return NULL;
+    }
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_resource *resource = NULL;
+    holder_error *error = NULL;
+    const int result = holder_get_resource(self->context, project_id, resource_id, arena,
+                                           &resource, &error);
+    PyObject *record = NULL;
+    if (result == HOLDER_OK) {
+        holder_error_destroy(error);
+        record = resource_record(resource);
+    } else {
+        raise_holder_error(self, result, error);
+    }
+    holder_arena_free(arena);
+    return record;
+}
+
+static PyObject *
+read_resource_list(ContextObject *self, const char *project_id, const char *card_id)
+{
+    if (!ensure_context_open(self)) return NULL;
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_resource_list *resources = NULL;
+    holder_error *error = NULL;
+    const int result = card_id == NULL
+        ? holder_list_resources(self->context, project_id, arena, &resources, &error)
+        : holder_list_card_resources(self->context, project_id, card_id, arena, &resources, &error);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        holder_arena_free(arena);
+        return NULL;
+    }
+    holder_error_destroy(error);
+    PyObject *records = PyList_New(0);
+    if (records != NULL) {
+        for (size_t i = 0; i < resources->count; ++i) {
+            if (append_record(records, resource_record(&resources->items[i])) < 0) {
+                Py_CLEAR(records);
+                break;
+            }
+        }
+    }
+    holder_arena_free(arena);
+    return records;
+}
+
+static PyObject *
+Context_list_resources(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id;
+    static char *keywords[] = {"project_id", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s:list_resources", keywords, &project_id)) {
+        return NULL;
+    }
+    return read_resource_list(self, project_id, NULL);
+}
+
+static PyObject *
+Context_list_card_resources(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *project_id;
+    const char *card_id;
+    static char *keywords[] = {"project_id", "card_id", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss:list_card_resources", keywords,
+                                    &project_id, &card_id)) {
+        return NULL;
+    }
+    return read_resource_list(self, project_id, card_id);
+}
+
+static PyObject *
+Context_retrieve_asset_file(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *resource_id, *asset_id, *placement_id, *destination_path;
+    static char *keywords[] = {"resource_id", "asset_id", "placement_id", "destination_path", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sszs:retrieve_asset_file", keywords,
+                                    &resource_id, &asset_id, &placement_id, &destination_path) ||
+        !ensure_context_open(self)) {
+        return NULL;
+    }
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_asset_file *file = NULL;
+    holder_error *error = NULL;
+    const int result = holder_retrieve_asset_file(self->context, resource_id, asset_id,
+        placement_id, destination_path, arena, &file, &error);
+    holder_arena_free(arena);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        return NULL;
+    }
+    holder_error_destroy(error);
+    Py_RETURN_NONE;
+}
+
+static PyObject *
 move_card(ContextObject *self, const char *project_id, const char *card_id,
           const holder_card_move *move, bool complete_record)
 {
@@ -2468,6 +2652,14 @@ static PyMethodDef Context_methods[] = {
      PyDoc_STR("List Holder projects.")},
     {"get_project", PyCFunction_CAST(Context_get_project),
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Get one project by exact ID.")},
+    {"list_resources", PyCFunction_CAST(Context_list_resources),
+     METH_VARARGS | METH_KEYWORDS, PyDoc_STR("List a project's resources.")},
+    {"get_resource", PyCFunction_CAST(Context_get_resource),
+     METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Read a resource by project and resource ID.")},
+    {"list_card_resources", PyCFunction_CAST(Context_list_card_resources),
+     METH_VARARGS | METH_KEYWORDS, PyDoc_STR("List a card's attached resources.")},
+    {"retrieve_asset_file", PyCFunction_CAST(Context_retrieve_asset_file),
+     METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Verify and write an asset to a local file.")},
     {"create_card", PyCFunction_CAST(Context_create_card),
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Create a card and return its metadata.")},
     {"list_cards", PyCFunction_CAST(Context_list_cards),

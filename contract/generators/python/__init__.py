@@ -25,6 +25,8 @@ def annotation(ref: TypeRef) -> str:
             return f"{annotation(ref.value)} | None"
         case "list":
             return f"list[{annotation(ref.items)}]"
+        case "map":
+            return f"dict[str, {annotation(ref.values)}]"
         case "literal":
             return f"Literal[{', '.join(map(json.dumps, ref.values))}]"
         case "union":
@@ -55,10 +57,10 @@ def generate_python_workspace(ir: ContractView) -> str:
         "from typing import Generic, Literal, NotRequired, Protocol, TypedDict, TypeVar",
         "",
     ]
-    for name in ("ProjectId", "ProjectName", "GitRemoteUrl", "PrivacyMode", "CardId", "Tag", "TrashItemType", "LinkKind", "LinkTargetType", "LinkTargetId", "MilestoneId", "MilestoneRole", "Day", "DateTime", "MilestoneText"):
+    for name in ("ProjectId", "ProjectName", "GitRemoteUrl", "PrivacyMode", "CardId", "Tag", "TrashItemType", "LinkKind", "LinkTargetType", "LinkTargetId", "MilestoneId", "MilestoneRole", "Day", "DateTime", "MilestoneText", "ResourceId", "ResourceType", "ResourceMetadata"):
         lines.append(f"{name} = {annotation(ir.alias(name))}")
     lines.extend(["", 'T = TypeVar("T")'])
-    for name in ("CardMetadata", "CardBreadcrumb", "TagOccurrence", "CardListItem", "Card", "NewCard", "CardUpdate", "CardMove", "Page", "Project", "TrashItem", "TrashDeleteResult", "TagCount", "CardReferenceResolveRequest", "CardReferenceCandidate", "CardReferenceResolveData", "SearchCard", "Link", "NewLink", "LinkKindLabels", "MilestoneDate", "Milestone", "NewMilestone", "MilestoneUpdate", "CalendarMilestone", "Calendar"):
+    for name in ("CardMetadata", "CardBreadcrumb", "TagOccurrence", "CardListItem", "Card", "NewCard", "CardUpdate", "CardMove", "Page", "Project", "TrashItem", "TrashDeleteResult", "TagCount", "CardReferenceResolveRequest", "CardReferenceCandidate", "CardReferenceResolveData", "SearchCard", "Link", "NewLink", "LinkKindLabels", "MilestoneDate", "Milestone", "NewMilestone", "MilestoneUpdate", "CalendarMilestone", "Calendar", "AssetPlacement", "ResourceAsset", "Resource"):
         record = ir.record(name)
         bases = [record.base or "TypedDict"]
         if record.type_parameters:

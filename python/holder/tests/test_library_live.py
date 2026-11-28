@@ -15,6 +15,7 @@ from datetime import UTC, date, datetime, timedelta, timezone
 from importlib import import_module
 from importlib.resources import files
 from importlib.util import find_spec
+from io import BytesIO
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -726,7 +727,7 @@ def test_large_recovery_bundle_keeps_verified_attachments(daemon, tmp_path):
 
     url, token, raw, _ = daemon
     project_id = create_project(raw, "Large project with attachments")
-    payload = b"Notebook attachment\n"
+    payload = b"Notebook attachment\n" * 4096
     digest = hashlib.sha256(payload).hexdigest()
     source = tmp_path / "attachment.txt"
     source.write_bytes(payload)
@@ -778,6 +779,22 @@ def test_large_recovery_bundle_keeps_verified_attachments(daemon, tmp_path):
                 break
             assert job["status"] != "failed" and time.monotonic() < deadline, job
             time.sleep(0.02)
+        metadata = {"author": ["Ada", "Grace"], "subject": ["Notebook"]}
+        updated = raw.patch(
+            f"/projects/{project_id}/resources/{job['resource_id']}",
+            json={"metadata": metadata},
+        )
+        updated.raise_for_status()
+        resource = session.get_resource(project_id, job["resource_id"])
+        assert resource == updated.json()["data"]
+        assert resource["metadata"] == metadata
+        assert session.list_resources(project_id) == [resource]
+        assert session.list_card_resources(project_id, card["card_id"]) == [resource]
+        output = BytesIO()
+        assert session.download_asset(
+            resource["resource_id"], job["asset_id"], output
+        ) == len(payload)
+        assert output.getvalue() == payload
         session.download_recovery_bundle(project_id, archive_path)
 
     with ZipFile(archive_path) as archive:
@@ -797,7 +814,50 @@ def test_large_recovery_bundle_keeps_verified_attachments(daemon, tmp_path):
         (link,) = records["links"]
         assert link["target_type"] == "resource"
         assert link["target_id"] != job["resource_id"]
-        assert (private / "resource-store" / copy_id / digest).read_bytes() == payload
+        offline_resource = workspace.get_resource(copy_id, link["target_id"])
+        assert workspace.list_resources(copy_id) == [offline_resource]
+        assert workspace.list_card_resources(copy_id, link["source_id"]) == [
+            offline_resource
+        ]
+        unattached = next(
+            item for item in records["cards"] if item["card_id"] != link["source_id"]
+        )
+        assert workspace.list_card_resources(copy_id, unattached["card_id"]) == []
+        assert offline_resource["label"] == resource["label"]
+        assert offline_resource["type"] == resource["type"]
+        assert offline_resource["metadata"] == metadata
+        (asset,) = offline_resource["assets"]
+        assert asset["original_filename"] == source.name
+        assert asset["byte_size"] == len(payload)
+        assert asset["plaintext_sha256"] == digest
+        (placement,) = asset["placements"]
+        assert placement["encoding"] == "plain"
+        assert placement["stored_byte_size"] == len(payload)
+        with pytest.raises(NotFoundError):
+            workspace.get_resource(copy_id, job["resource_id"])
+
+        for placement_id in (None, placement["placement_id"]):
+            output = BytesIO()
+            assert workspace.download_asset(
+                link["target_id"], asset["asset_id"], output, placement_id=placement_id
+            ) == len(payload)
+            assert output.getvalue() == payload
+
+        output = BytesIO(b"keep this")
+        with pytest.raises(NotFoundError):
+            workspace.download_asset(
+                link["target_id"], asset["asset_id"], output, placement_id="missing"
+            )
+        assert output.getvalue() == b"keep this"
+
+        stored_asset = private / "resource-store" / copy_id / digest
+        assert stored_asset.read_bytes() == payload
+        stored_asset.write_bytes(b"x" * len(payload))
+        with pytest.raises(APIError) as error:
+            workspace.download_asset(link["target_id"], asset["asset_id"], output)
+        assert error.value.code == "data_corrupted"
+        assert output.getvalue() == b"keep this"
+        stored_asset.write_bytes(payload)
 
         corrupt = tmp_path / "corrupt.zip"
         with ZipFile(archive_path) as original, ZipFile(corrupt, "w") as damaged:
