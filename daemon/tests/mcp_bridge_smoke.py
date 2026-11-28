@@ -70,7 +70,7 @@ def test_available_daemon(port, env, card):
         assert {tool["name"] for tool in result(process, 2)["tools"]} == {
             "get_calendar", "get_card", "get_card_breadcrumbs", "get_resource", "list_card_backlinks",
             "list_card_links", "list_card_milestones", "list_card_resources", "list_cards",
-            "list_project_tags", "search_cards",
+            "list_project_tags", "list_resource_backlinks", "list_resources", "list_trash", "search_cards",
         }
         send(process, "tools/call", 3, _meta=metadata, name="get_card",
              arguments={"project_id": PROJECT, "card_id": card["card_id"]})
@@ -79,6 +79,10 @@ def test_available_daemon(port, env, card):
         replies = {reply["id"]: reply["result"] for reply in (receive(process), receive(process))}
         assert replies[3]["structuredContent"]["data"] == card
         assert replies[4]["isError"] is True
+        send(process, "tools/call", "write-disabled", _meta=metadata, name="create_card",
+             arguments={"card": {"title": "Must stay read-only"}})
+        denied = receive(process)
+        assert denied["id"] == "write-disabled" and denied["error"]["code"] == -32602
         shutdown(process)
 
     with bridge(port, env) as process:
@@ -88,7 +92,7 @@ def test_available_daemon(port, env, card):
         send(process, "notifications/initialized")
         send(process, "tools/list", 2)
         discovered = result(process, 2)
-        assert len(discovered["tools"]) == 11 and "resultType" not in discovered
+        assert len(discovered["tools"]) == 14 and "resultType" not in discovered
         send(process, "tools/call", 3, name="get_card",
              arguments={"project_id": PROJECT, "card_id": card["card_id"]})
         assert result(process, 3)["structuredContent"]["data"] == card
@@ -104,6 +108,154 @@ def test_available_daemon(port, env, card):
     with bridge(port, dict(env, HOLDER_MCP_TOKEN=secrets.token_urlsafe(32))) as process:
         send(process, "server/discover", 1, _meta=metadata)
         assert receive(process)["error"]["message"].startswith("Holder MCP access was rejected")
+        shutdown(process)
+
+
+def test_write_tools(port, env, rest):
+    metadata = {
+        "io.modelcontextprotocol/protocolVersion": VERSION,
+        "io.modelcontextprotocol/clientCapabilities": {},
+    }
+    with bridge(port, env) as process:
+        send(process, "tools/list", 1, _meta=metadata)
+        tools = {tool["name"]: tool for tool in result(process, 1)["tools"]}
+        for name in ("create_card", "add_card_milestone"):
+            assert tools[name]["annotations"]["readOnlyHint"] is False
+            assert tools[name]["annotations"]["idempotentHint"] is False
+
+        send(process, "tools/call", 2, _meta=metadata, name="create_card",
+             arguments={"project_id": "other", "card": {"title": "Denied"}})
+        denied = result(process, 2)
+        assert denied["isError"] is True
+        assert denied["content"][0]["text"] == "Access to this project was not granted."
+
+        send(process, "tools/call", 3, _meta=metadata, name="create_card",
+             arguments={"card": {"title": "Write through MCP"}})
+        card = result(process, 3)["structuredContent"]["data"]
+        assert card["project_id"] == PROJECT and card["title"] == "Write through MCP"
+        path = f"/projects/{PROJECT}/cards/{card['card_id']}"
+
+        send(process, "tools/call", 4, _meta=metadata, name="add_card_milestone",
+             arguments={"card_id": card["card_id"], "milestone": {"dates": [{"role": "due", "date": "2026-12-04"}]}})
+        milestone = result(process, 4)["structuredContent"]["data"]
+        assert milestone["card_id"] == card["card_id"]
+        assert milestone["dates"] == [{"role": "due", "date": "2026-12-04"}]
+        persisted_card = rest(path)
+        assert persisted_card["card_id"] == card["card_id"] and persisted_card["title"] == card["title"]
+        assert rest(f"{path}/milestones") == [milestone]
+        send(process, "tools/call", 5, _meta=metadata, name="update_card",
+             arguments={"card_id": card["card_id"], "update": {"title": "Renamed", "content": "Release notes"}})
+        updated = result(process, 5)["structuredContent"]["data"]
+        assert updated["title"] == "Renamed" and updated["content"] == "Release notes"
+
+        send(process, "tools/call", 6, _meta=metadata, name="update_card_milestone",
+             arguments={"card_id": card["card_id"], "milestone_id": milestone["milestone_id"],
+                        "update": {"dates": [{"role": "due", "date": "2026-12-11"}]}})
+        changed = result(process, 6)["structuredContent"]["data"]
+        assert changed["milestone_id"] == milestone["milestone_id"]
+        assert changed["dates"] == [{"role": "due", "date": "2026-12-11"}]
+        assert rest(f"{path}/milestones") == [changed]
+
+        send(process, "tools/call", 7, _meta=metadata, name="add_card_tag",
+             arguments={"card_id": card["card_id"], "tag": "release"})
+        assert result(process, 7)["structuredContent"]["data"]["tags"] == ["release"]
+        send(process, "tools/call", 8, _meta=metadata, name="remove_card_tag",
+             arguments={"card_id": card["card_id"], "tag": "release"})
+        assert result(process, 8)["structuredContent"]["data"]["tags"] == []
+
+        parent = rest(f"/projects/{PROJECT}/cards", {"title": "Parent"})
+        send(process, "tools/call", 9, _meta=metadata, name="move_card",
+             arguments={"card_id": card["card_id"],
+                        "move": {"intent": "into", "target_card_id": parent["card_id"]}})
+        moved = result(process, 9)["structuredContent"]["data"]
+        assert moved["parent_card_id"] == parent["card_id"]
+        assert rest(path) == moved
+        link = {"target_type": "card", "target_id": parent["card_id"]}
+        foreign = {**link, "target_project_id": "other"}
+        rest(f"{path}/links", foreign)
+        for request_id, name, arguments in (
+            (10, "add_card_link", {"link": foreign}),
+            (11, "remove_card_link", foreign),
+        ):
+            send(process, "tools/call", request_id, _meta=metadata, name=name,
+                 arguments={"card_id": card["card_id"], **arguments})
+            denied = result(process, request_id)
+            assert denied["isError"] is True
+            assert denied["content"][0]["text"] == "MCP links must stay inside the authorized project"
+
+        send(process, "tools/call", 12, _meta=metadata, name="add_card_link",
+             arguments={"card_id": card["card_id"], "link": link})
+        added = result(process, 12)["structuredContent"]["data"]
+        assert added["target_project_id"] == PROJECT and added["target_id"] == parent["card_id"]
+        send(process, "tools/call", 13, _meta=metadata, name="remove_card_link",
+             arguments={"card_id": card["card_id"], **link})
+        assert result(process, 13)["structuredContent"]["data"] == []
+        assert [item["target_project_id"] for item in rest(f"{path}/links")] == ["other"]
+
+        send(process, "tools/call", 14, _meta=metadata, name="remove_card_milestone",
+             arguments={"card_id": card["card_id"], "milestone_id": milestone["milestone_id"]})
+        assert result(process, 14)["structuredContent"]["data"] == []
+        assert rest(f"{path}/milestones") == []
+        send(process, "tools/call", "subtree", _meta=metadata, name="trash_card",
+             arguments={"card_id": parent["card_id"], "children": "trash_subtree"})
+        assert result(process, "subtree")["isError"] is True
+        assert rest(path)["parent_card_id"] == parent["card_id"]
+
+        send(process, "tools/call", 15, _meta=metadata, name="trash_card",
+             arguments={"card_id": parent["card_id"]})
+        trashed = result(process, 15)["structuredContent"]["data"]
+        assert trashed["card_id"] == parent["card_id"] and trashed["deleted_at"] is not None
+        assert rest(path)["parent_card_id"] is None
+
+        send(process, "tools/call", 16, _meta=metadata, name="list_trash", arguments={})
+        items = result(process, 16)["structuredContent"]["data"]
+        assert [(item["type"], item["card_id"]) for item in items] == [("card", parent["card_id"])]
+
+        send(process, "tools/call", 17, _meta=metadata, name="restore_card",
+             arguments={"card_id": parent["card_id"]})
+        restored = result(process, 17)["structuredContent"]["data"]
+        assert restored["deleted_at"] is None
+        assert rest(f"/projects/{PROJECT}/cards/{parent['card_id']}") == restored
+        assert rest(path)["parent_card_id"] is None
+        assert rest(f"/trash?project_id={PROJECT}&type=card") == []
+        resource_schema = tools["create_resource"]["inputSchema"]["properties"]["resource"]
+        assert "resource_id" not in resource_schema["properties"]
+        assert resource_schema["additionalProperties"] is False
+        route = f"/projects/{PROJECT}/resources"
+        send(process, "tools/call", 18, _meta=metadata, name="create_resource",
+             arguments={"resource": {"type": "book", "label": "Reference"}})
+        resource = result(process, 18)["structuredContent"]["data"]
+        resource_path = f"{route}/{resource['resource_id']}"
+
+        send(process, "tools/call", 19, _meta=metadata, name="update_resource",
+             arguments={"resource_id": resource["resource_id"], "update": {"label": "Release reference"}})
+        updated = result(process, 19)["structuredContent"]["data"]
+        assert updated["label"] == "Release reference" and rest(resource_path) == updated
+        send(process, "tools/call", 20, _meta=metadata, name="list_resources", arguments={})
+        assert result(process, 20)["structuredContent"]["data"] == [updated]
+
+        attachment = {"card_id": card["card_id"], "resource_id": resource["resource_id"]}
+        send(process, "tools/call", 21, _meta=metadata, name="attach_card_resource", arguments=attachment)
+        assert result(process, 21)["structuredContent"]["data"] == [updated]
+        send(process, "tools/call", 22, _meta=metadata, name="list_resource_backlinks",
+             arguments={"resource_id": resource["resource_id"]})
+        backlinks = result(process, 22)["structuredContent"]["data"]
+        assert [(item["source_id"], item["kind"]) for item in backlinks] == [(card["card_id"], "attachment")]
+        send(process, "tools/call", 23, _meta=metadata, name="detach_card_resource", arguments=attachment)
+        assert result(process, 23)["structuredContent"]["data"] == []
+        assert rest(f"{path}/resources") == [] and rest(resource_path) == updated
+
+        rest("/projects", {"name": "Another project", "project_id": "other", "privacy_mode": "plain"})
+        foreign_resource = rest("/projects/other/resources", {"type": "book", "label": "Private reference"})
+        send(process, "tools/call", 24, _meta=metadata, name="attach_card_resource",
+             arguments={**attachment, "resource_id": foreign_resource["resource_id"]})
+        assert result(process, 24)["isError"] is True
+        assert rest(f"{path}/resources") == []
+        send(process, "tools/call", 25, _meta=metadata, name="create_resource",
+             arguments={"resource": {"resource_id": foreign_resource["resource_id"], "type": "book", "label": "Denied"}})
+        denied = result(process, 25)
+        assert denied["isError"] is True
+        assert denied["content"][0]["text"] == "Holder assigns the resource ID for this MCP tool"
         shutdown(process)
 
 
@@ -141,12 +293,15 @@ def test_cancellation(env):
                 shutdown(process)
 
 
-with tempfile.TemporaryDirectory(prefix="holder-mcp-test-") as temp:
-    root = Path(temp)
+def test_daemon(root, *, allow_writes):
+    root.mkdir()
     env = dict(os.environ, XDG_DATA_HOME=str(root / "data"), XDG_CONFIG_HOME=str(root / "config"),
                XDG_CACHE_HOME=str(root / "cache"), HOLDER_PROJECTS_ROOT=str(root / "projects"),
                HOLDER_TEST_KEYSTORE_DIR=str(root / "keystore"),
                HOLDER_MCP_PROJECT=PROJECT, HOLDER_MCP_TOKEN=secrets.token_urlsafe(32))
+    env.pop("HOLDER_MCP_ALLOW_WRITES", None)
+    if allow_writes:
+        env["HOLDER_MCP_ALLOW_WRITES"] = "1"
     log_path = root / "daemon.stderr.log"
     with log_path.open("wb") as log, subprocess.Popen(
         [str(DAEMON), "--port", "0"], cwd=DAEMON.parent, env=env,
@@ -171,15 +326,19 @@ with tempfile.TemporaryDirectory(prefix="holder-mcp-test-") as temp:
             info = json.loads(info_path.read_text(encoding="utf-8"))
             port = info["port"]
 
-            def post(path, body):
-                request = Request(f"http://127.0.0.1:{port}{path}", json.dumps(body).encode(), headers={
+            def rest(path, body=None):
+                payload = None if body is None else json.dumps(body).encode()
+                request = Request(f"http://127.0.0.1:{port}{path}", payload, headers={
                     "Authorization": f"Bearer {info['auth_token']}", "Content-Type": "application/json",
                 })
                 with urlopen(request, timeout=5) as response:
                     return json.load(response)["data"]
 
-            post("/projects", {"name": "MCP test", "project_id": PROJECT, "privacy_mode": "plain"})
-            test_available_daemon(port, env, post(f"/projects/{PROJECT}/cards", {"title": "Bridge test"}))
+            rest("/projects", {"name": "MCP test", "project_id": PROJECT, "privacy_mode": "plain"})
+            if allow_writes:
+                test_write_tools(port, env, rest)
+            else:
+                test_available_daemon(port, env, rest(f"/projects/{PROJECT}/cards", {"title": "Bridge test"}))
         finally:
             if daemon.poll() is None:
                 daemon.terminate()
@@ -191,4 +350,10 @@ with tempfile.TemporaryDirectory(prefix="holder-mcp-test-") as temp:
         })
         assert receive(process)["error"]["code"] == -32000
         shutdown(process)
-    test_cancellation(env)
+    if not allow_writes:
+        test_cancellation(env)
+
+
+with tempfile.TemporaryDirectory(prefix="holder-mcp-test-") as temp:
+    test_daemon(Path(temp) / "read", allow_writes=False)
+    test_daemon(Path(temp) / "write", allow_writes=True)

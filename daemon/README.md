@@ -80,14 +80,24 @@ its position, `list_card_milestones` for its dates, and `list_project_tags`
 for tag counts. Use `get_calendar` for milestones and card activity within a
 date range. `list_card_links` and `list_card_backlinks` return links
 whose endpoints both belong to the selected project. `get_resource` reads
-resource metadata and `list_card_resources` finds the resources attached to
-a card. Omit `project_id` to use the project granted to the token. The REST
-API uses a separate credential.
+resource metadata, `list_resources` lists project resources, and
+`list_resource_backlinks` finds links to a resource. Use `list_card_resources`
+for attachments on a card. `list_trash` lists trashed cards. Omit `project_id`
+to use the project granted to the token. The REST API uses a separate credential.
 
 `list_cards` returns metadata and defaults to 50 cards. Keep the filters and
 order unchanged when passing the next cursor. Listing and search accept up
 to 100 results per call. Each tool call has a 256 KiB structured result limit.
 The endpoint serves finite JSON responses.
+
+Set `HOLDER_MCP_ALLOW_WRITES=1` before starting the daemon to let that
+token also create, edit, move and tag cards, manage milestones, and add or
+remove links within the selected project. The token can also create and edit
+resource metadata, attach or detach resources, and move a card to Trash or
+restore it. Trashing one card promotes its live children, and restoring the
+card keeps those children in their new places. Creating a card or resource,
+or adding a milestone, generates a new ID each time. If the connection
+drops after sending a write, check the project before repeating the call.
 
 For clients configured with a command, launch the installed `holder-mcp`
 executable with arguments `--port 11499` (use the running daemon's actual port)

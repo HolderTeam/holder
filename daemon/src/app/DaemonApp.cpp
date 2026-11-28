@@ -249,7 +249,18 @@ int run_daemon(int argc, char* argv[]) {
       );
       return 2;
     }
-    mcp_access = holder::api::mcp::Access{std::string(token), mcp_project, CARD_SERVER_VERSION};
+    const auto* mcp_writes = std::getenv("HOLDER_MCP_ALLOW_WRITES");
+    const std::string_view writes = mcp_writes ? mcp_writes : "";
+    if (mcp_writes && writes != "0" && writes != "1") {
+      spdlog::error("HOLDER_MCP_ALLOW_WRITES must be 0 or 1.");
+      return 2;
+    }
+    mcp_access = holder::api::mcp::Access{
+        std::string(token),
+        mcp_project,
+        CARD_SERVER_VERSION,
+        writes == "1"
+    };
   }
 
   holder::core::SignalHandler signals;

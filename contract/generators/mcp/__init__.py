@@ -20,16 +20,45 @@ BINDINGS_PATH = "daemon/src/api/generated/McpBindings.h"
 TOOLS = (
     "get_calendar", "get_card", "get_card_breadcrumbs", "get_resource", "list_card_backlinks",
     "list_card_links", "list_card_milestones", "list_card_resources", "list_cards", "list_project_tags",
-    "search_cards",
+    "list_resource_backlinks", "list_resources", "list_trash", "search_cards",
 )
+WRITE_TOOLS = {
+    "add_card_link": "POST",
+    "add_card_milestone": "POST",
+    "add_card_tag": "PUT",
+    "attach_card_resource": "PUT",
+    "create_card": "POST",
+    "create_resource": "POST",
+    "detach_card_resource": "DELETE",
+    "move_card": "POST",
+    "remove_card_link": "DELETE",
+    "remove_card_milestone": "DELETE",
+    "remove_card_tag": "DELETE",
+    "restore_card": "POST",
+    "trash_card": "DELETE",
+    "update_card": "PATCH",
+    "update_card_milestone": "PATCH",
+    "update_resource": "PATCH",
+}
+DESTRUCTIVE_HINT_TOOLS = {
+    "add_card_link", "remove_card_link", "remove_card_milestone", "remove_card_tag", "trash_card", "update_card",
+    "update_card_milestone", "update_resource", "detach_card_resource",
+}
+IDEMPOTENT_WRITE_TOOLS = {
+    "add_card_link", "add_card_tag", "attach_card_resource", "detach_card_resource", "remove_card_link",
+    "remove_card_milestone", "remove_card_tag",
+}
 PAGE_LIMITS = {"list_cards": 100, "search_cards": 100}
 PAGE_DEFAULTS = {"list_cards": 50}
 FIXED_ARGUMENTS = {
     "list_cards": {"include_content": False},
     "list_card_links": {"include_deleted": False},
     "list_card_backlinks": {"include_deleted": False, "scope": "local"},
+    "list_resource_backlinks": {"include_deleted": False},
+    "list_trash": {"type": "card"},
+    "trash_card": {"children": "promote"},
 }
-LOCAL_LINK_TOOLS = {"list_card_links", "list_card_backlinks"}
+LOCAL_LINK_LIST_TOOLS = {"list_card_links", "list_card_backlinks", "list_resource_backlinks", "remove_card_link"}
 COMPONENT_REF = "#/components/schemas/"
 
 
@@ -70,17 +99,31 @@ def generate_mcp_tools(contract: ContractView) -> str:
     schemas = document(contract)
     components = schemas["components"]["schemas"]
     tools = []
-    for name in TOOLS:
+    for name in sorted((*TOOLS, *WRITE_TOOLS)):
         operation = contract.operation(name)
         bindings = [binding for binding in contract.http if binding.operation == name]
         if len(bindings) != 1:
             raise ValueError(f"MCP tool {name} requires one daemon binding")
         binding = bindings[0]
-        if binding.method.upper() != "GET" or binding.response_mode != "envelope" or binding.body or binding.headers:
-            raise ValueError(f"MCP tool {name} requires a JSON read with path or query parameters")
+        write = name in WRITE_TOOLS
+        expected_method = WRITE_TOOLS.get(name, "GET")
+        if (binding.method.upper() != expected_method or binding.response_mode != "envelope"
+                or (not write and binding.body) or binding.headers):
+            raise ValueError(f"MCP tool {name} needs an envelope with the expected method and body")
 
-        route = schemas["paths"][binding.path]["get"]
+        route = schemas["paths"][binding.path][expected_method.lower()]
         parameters = {parameter["name"]: parameter for parameter in route.get("parameters", [])}
+        if binding.body:
+            body = route["requestBody"]["content"]["application/json"]["schema"]
+            if name == "create_resource":
+                record = components[body["$ref"].removeprefix(COMPONENT_REF)]
+                body = {**record, "properties": {key: value for key, value in record["properties"].items()
+                                                  if key != "resource_id"}}
+            parameters[binding.body] = {
+                "schema": body,
+                # Keep the tool's typed record explicit. {} is valid when Core allows an empty update.
+                "required": True,
+            }
         if parameters.keys() != {parameter.name for parameter in operation.parameters}:
             raise ValueError(f"MCP tool {name} does not describe every operation argument")
         response = route["responses"][str(binding.status)]["content"]["application/json"]["schema"]
@@ -100,11 +143,21 @@ def generate_mcp_tools(contract: ContractView) -> str:
             properties["limit"]["default"] = PAGE_DEFAULTS[name]
         if "include_content" in fixed:
             description += "\n\nThis tool lists metadata. Use get_card to read one card body."
-        if name in LOCAL_LINK_TOOLS:
+        if name in LOCAL_LINK_LIST_TOOLS:
             description += "\n\nBoth ends must belong to the authorized project. Entries in Trash are excluded."
+        if name == "list_trash":
+            description = "List trashed cards in the authorized project."
+        if name == "create_resource":
+            description = "Create a resource in the authorized project. Holder assigns the resource ID."
+        if name == "trash_card":
+            description += "\n\nLive children are promoted into the card's place."
+        if name == "add_card_link":
+            description += "\n\nOmit the target project to link within the authorized project."
         tools.append({
             "name": name,
             "description": description,
+            "annotations": {"readOnlyHint": not write, "destructiveHint": name in DESTRUCTIVE_HINT_TOOLS,
+                            "idempotentHint": not write or name in IDEMPOTENT_WRITE_TOOLS, "openWorldHint": False},
             "inputSchema": standalone_schema({
                 "type": "object",
                 "properties": properties,
@@ -149,9 +202,9 @@ def optional_string_choice(types: CoreTypes, operation: str, slot: Slot) -> list
 
 def generate_mcp_bindings(contract: ContractView) -> str:
     """Bind each allowed tool to its typed core operation and use the daemon JSON codec."""
-    operations = [contract.operation(name) for name in TOOLS]
+    operations = [contract.operation(name) for name in sorted((*TOOLS, *WRITE_TOOLS))]
     lines = header_lines((op.source for op in operations if op.source),
-                         "Live MCP read tool bindings.", "cpp")
+                         "Live MCP tool bindings.", "cpp")
     lines += [
         "#pragma once",
         '#include "api/generated/ContractJson.h"',
@@ -174,11 +227,15 @@ def generate_mcp_bindings(contract: ContractView) -> str:
     lines += [
         "} // namespace contract_json",
         "namespace holder::api::mcp {",
+        "inline bool is_write_tool(std::string_view name) {",
+        "  return " + " || ".join(f'name == "{name}"' for name in WRITE_TOOLS) + ";",
+        "}",
         "// Authorization must throw on denial. Domain errors propagate to the protocol adapter.",
-        "inline nlohmann::json call_read_tool(holder_context& context, std::string_view name,",
+        "inline nlohmann::json invoke_tool(holder_context& context, std::string_view name,",
         "    const nlohmann::json& arguments,",
         "    std::string_view default_project,",
-        "    const std::function<void(std::string_view)>& authorize_project) {",
+        "    const std::function<void(std::string_view)>& authorize_project,",
+        "    bool allow_writes = false) {",
         "  using namespace contract_json;",
         '  if (!arguments.is_object()) throw std::invalid_argument("tool arguments must be an object");',
     ]
@@ -189,6 +246,8 @@ def generate_mcp_bindings(contract: ContractView) -> str:
                 or not any(slot.name == "project_id" and slot.type.kind == "string" for slot in slots)):
             raise Unsupported(f"{operation.name}: MCP requires a project-scoped Core operation")
         lines.append(f'  if (name == "{operation.name}") {{')
+        if operation.name in WRITE_TOOLS:
+            lines.append('    if (!allow_writes) throw std::invalid_argument("MCP write access was not granted");')
         unknown = " && ".join(f'it.key() != "{slot.name}"' for slot in slots if slot.name not in fixed)
         lines.extend([
             "    for (auto it = arguments.begin(); it != arguments.end(); ++it) {",
@@ -201,7 +260,7 @@ def generate_mcp_bindings(contract: ContractView) -> str:
                 lines.extend(optional_string_choice(types, operation.name, slot))
                 args.append(f"std::move({slot.name})")
                 continue
-            if slot.type.kind not in {"string", "int32", "bool", "literal"} or any(
+            if slot.type.kind not in {"string", "int32", "bool", "literal", "named"} or any(
                 getattr(slot.type, key) is not None for key in ("pattern", "gt", "lt")
             ):
                 raise Unsupported(f"{operation.name}.{slot.name}: unsupported MCP argument")
@@ -215,7 +274,7 @@ def generate_mcp_bindings(contract: ContractView) -> str:
                     args.append(json.dumps(value))
                 continue
             arg = slot.name
-            keep_project = arg == "project_id" and operation.name in LOCAL_LINK_TOOLS
+            keep_project = arg == "project_id" and operation.name in LOCAL_LINK_LIST_TOOLS
             args.append(f"std::move({arg})" if slot.type.kind == "string" and not keep_project else arg)
             if arg == "limit" and operation.name in PAGE_LIMITS:
                 cap = PAGE_LIMITS[operation.name]
@@ -246,9 +305,21 @@ def generate_mcp_bindings(contract: ContractView) -> str:
             decode = field_decoder(types, slot, arg, source)
             lines.append(f"    auto {arg} = {decode};")
         lines.append("    authorize_project(project_id);")
+        if operation.name == "create_resource":
+            lines.extend([
+                "    if (resource.resource_id)",
+                '      throw std::invalid_argument("Holder assigns the resource ID for this MCP tool");',
+            ])
+        target_project = {"add_card_link": "link.target_project_id", "remove_card_link": "target_project_id"}.get(
+            operation.name)
+        if target_project:
+            lines.extend([
+                f"    if ({target_project} && *{target_project} != project_id)",
+                '      throw std::invalid_argument("MCP links must stay inside the authorized project");',
+            ])
         args = ", ".join(args)
         call = f"holder::contract::{operation.name}(context, {args})"
-        if operation.name in LOCAL_LINK_TOOLS:
+        if operation.name in LOCAL_LINK_LIST_TOOLS:
             lines += [
                 f"    auto links = {call};",
                 "    std::erase_if(links, [&project_id](const auto& link) {",

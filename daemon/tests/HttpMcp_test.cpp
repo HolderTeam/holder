@@ -81,7 +81,7 @@ TEST_CASE("Live MCP shares daemon reads and applies its own access policy", "[ht
   auto request = mcp_request("server/discover");
   CHECK(result(exchange(bound.port, request)).at("supportedVersions").at(0) == version);
   const auto listed = result(exchange(bound.port, mcp_request("tools/list")));
-  CHECK(listed.at("tools").size() == 11);
+  CHECK(listed.at("tools").size() == 14);
   CHECK(listed.at("ttlMs") == 0);
   CHECK(listed.at("cacheScope") == "private");
 
