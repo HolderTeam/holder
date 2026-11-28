@@ -1226,6 +1226,31 @@ Context_list_card_resources(ContextObject *self, PyObject *args, PyObject *kwarg
 }
 
 static PyObject *
+Context_retrieve_asset_file(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *resource_id, *asset_id, *placement_id, *destination_path;
+    static char *keywords[] = {"resource_id", "asset_id", "placement_id", "destination_path", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sszs:retrieve_asset_file", keywords,
+                                    &resource_id, &asset_id, &placement_id, &destination_path) ||
+        !ensure_context_open(self)) {
+        return NULL;
+    }
+    holder_arena *arena = holder_arena_new();
+    if (arena == NULL) return PyErr_NoMemory();
+    const holder_asset_file *file = NULL;
+    holder_error *error = NULL;
+    const int result = holder_retrieve_asset_file(self->context, resource_id, asset_id,
+        placement_id, destination_path, arena, &file, &error);
+    holder_arena_free(arena);
+    if (result != HOLDER_OK) {
+        raise_holder_error(self, result, error);
+        return NULL;
+    }
+    holder_error_destroy(error);
+    Py_RETURN_NONE;
+}
+
+static PyObject *
 move_card(ContextObject *self, const char *project_id, const char *card_id,
           const holder_card_move *move, bool complete_record)
 {
@@ -2633,6 +2658,8 @@ static PyMethodDef Context_methods[] = {
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Read a resource by project and resource ID.")},
     {"list_card_resources", PyCFunction_CAST(Context_list_card_resources),
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("List a card's attached resources.")},
+    {"retrieve_asset_file", PyCFunction_CAST(Context_retrieve_asset_file),
+     METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Verify and write an asset to a local file.")},
     {"create_card", PyCFunction_CAST(Context_create_card),
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Create a card and return its metadata.")},
     {"list_cards", PyCFunction_CAST(Context_list_cards),

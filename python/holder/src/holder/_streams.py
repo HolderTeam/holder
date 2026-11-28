@@ -1,8 +1,10 @@
-"""Library errors for the generated client's streams."""
+"""Binary stream writing and translation of errors from the generated client."""
 
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
+from typing import BinaryIO
 
 from .exceptions import (
     APIError,
@@ -13,6 +15,15 @@ from .exceptions import (
 )
 from .generated.models import ErrorResponse
 from .generated.streams import StreamError
+
+
+def write_asset_chunks(chunks: Iterable[bytes], destination: BinaryIO) -> int:
+    written = 0
+    for chunk in chunks:
+        if destination.write(chunk) != len(chunk):
+            raise OSError("Incomplete write while downloading asset")
+        written += len(chunk)
+    return written
 
 
 def stream_failure(error: StreamError, unexpected: str) -> HolderError:

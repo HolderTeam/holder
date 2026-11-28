@@ -39,15 +39,15 @@ def register(contract: Contract) -> None:
     def retrieve_asset_file(
         resource_id: ResourceId,
         asset_id: Annotated[str, Field(min_length=1)],
-        placement_id: Annotated[str, Field(min_length=1)],
+        placement_id: Annotated[str, Field(min_length=1)] | None,
         destination_path: Annotated[str, Field(min_length=1)],
     ) -> AssetFile:
         """Write an asset's bytes from one of its placements to a local file.
 
         The stored copy is fetched through this device's provider for its storage location, checked
         against the asset's size and hash, and decrypted in an encrypted project. Bytes that fail the
-        check are data corrupted, and nothing is left at the destination. The daemon does not serve
-        this: it streams asset content over HTTP.
+        check are data corrupted, and any existing destination is preserved. Without a placement ID,
+        this uses the first stored placement. The daemon streams asset content over HTTP.
         """
 
     @contract.route("GET", "/projects/{project_id}/resources", errors=[NotFound])

@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -79,7 +80,7 @@ AssetFile retrieve(
     holder_context& context,
     const std::string& resource_id,
     const std::string& asset_id,
-    const std::string& placement_id,
+    const std::optional<std::string>& placement_id,
     const std::string& destination_path
 ) {
   const auto bundle = holder::resource::ResourceRepo(context.db).get_bundle(resource_id);
@@ -91,17 +92,20 @@ AssetFile retrieve(
   if (asset == bundle->assets.end()) throw NotFound("asset not found in resource: " + asset_id);
   const auto placement =
       std::find_if(asset->placements.begin(), asset->placements.end(), [&](const auto& item) {
-        return item.placement_id == placement_id;
+        return !placement_id || item.placement_id == *placement_id;
       });
   if (placement == asset->placements.end())
-    throw NotFound("placement not found in asset: " + placement_id);
+    throw NotFound(
+        placement_id ? "placement not found in asset: " + *placement_id
+                     : "asset has no stored placements"
+    );
   const auto location = holder::resource::LocationRepo(context.db).get(placement->location_id);
   if (!location || location->project_id != bundle->resource.project_id)
     throw NotFound("storage location not found in project: " + placement->location_id);
 
   const auto provider = holder::capi::storage_provider(context, location->provider);
-  const std::filesystem::path destination(destination_path);
-  service(context).retrieve(resource_id, asset_id, placement_id, *provider, destination);
+  const auto destination = std::filesystem::u8path(destination_path);
+  service(context).retrieve(resource_id, asset_id, placement->placement_id, *provider, destination);
   return {destination_path, asset->original_filename, asset->media_type, asset->byte_size};
 }
 
@@ -117,7 +121,7 @@ AssetFile retrieve_asset_file(
     holder_context& context,
     std::string resource_id,
     std::string asset_id,
-    std::string placement_id,
+    std::optional<std::string> placement_id,
     std::string destination_path
 ) {
   return with_asset_errors([&] {

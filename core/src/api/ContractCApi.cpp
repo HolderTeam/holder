@@ -3672,7 +3672,7 @@ int holder_retrieve_asset_file(
     *out_asset_file = nullptr;
     const auto resource_id_value = text(resource_id, "resource_id", 4, SIZE_MAX);
     const auto asset_id_value = text(asset_id, "asset_id", 1, SIZE_MAX);
-    const auto placement_id_value = text(placement_id, "placement_id", 1, SIZE_MAX);
+    const auto placement_id_value = optional_text(placement_id, "placement_id", 1, SIZE_MAX);
     const auto destination_path_value = text(destination_path, "destination_path", 1, SIZE_MAX);
     auto* out = make<holder_asset_file>(arena);
     *out = to_c(

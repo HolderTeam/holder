@@ -7,10 +7,12 @@ from importlib import import_module
 from importlib.resources import files
 from os import PathLike, fspath, getenv
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from threading import Lock
-from typing import TYPE_CHECKING, Literal, Protocol, Self, TypedDict, cast
+from typing import TYPE_CHECKING, BinaryIO, Literal, Protocol, Self, TypedDict, cast
 from weakref import WeakValueDictionary
 
+from ._streams import write_asset_chunks
 from ._workspace_contract import (
     NATIVE_ERRORS,
     Calendar,
@@ -489,6 +491,33 @@ class EmbeddedWorkspace:
             "list[ResourceRecord]",
             self._call("list_card_resources", project_id, card_id),
         )
+
+    def download_asset(
+        self,
+        resource_id: str,
+        asset_id: str,
+        destination: BinaryIO,
+        *,
+        placement_id: str | None = None,
+    ) -> int:
+        """Write a verified asset's plaintext bytes to an open binary file.
+
+        Selects the first stored placement by default. Returns the number of
+        bytes written. If copying to the destination fails, discard any bytes
+        already written to it.
+        """
+        with TemporaryDirectory(prefix="holder-asset-") as directory:
+            path = Path(directory) / "verified-asset"
+            self._call(
+                "retrieve_asset_file",
+                resource_id,
+                asset_id,
+                placement_id or None,
+                str(path),
+            )
+            with path.open("rb") as source:
+                chunks = iter(lambda: source.read(64 * 1024), b"")
+                return write_asset_chunks(chunks, destination)
 
     def create_plain_project(self, *, name: str) -> ProjectRecord:
         """Create a project whose files are stored without encryption."""

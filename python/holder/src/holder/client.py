@@ -13,7 +13,7 @@ from typing import Any, BinaryIO, Self, cast
 
 import httpx
 
-from ._streams import stream_failure
+from ._streams import stream_failure, write_asset_chunks
 from ._workspace_contract import (
     Calendar,
     LinkKindLabels,
@@ -308,12 +308,7 @@ class Holder:
             ) as stream:
                 if stream.response.status_code != 200:
                     raise ProtocolError("Invalid asset download response")
-                written = 0
-                for chunk in stream.iter_bytes():
-                    if destination.write(chunk) != len(chunk):
-                        raise OSError("Incomplete write while downloading asset")
-                    written += len(chunk)
-                return written
+                return write_asset_chunks(stream.iter_bytes(), destination)
         except StreamError as error:
             raise stream_failure(error, "Invalid asset download response") from None
         except httpx.TransportError:

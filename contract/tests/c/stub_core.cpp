@@ -430,7 +430,7 @@ AssetImport import_asset_file(holder_context& context, const AssetImportRequest&
 }
 
 AssetFile retrieve_asset_file(holder_context& context, std::string resource_id, std::string asset_id,
-                              std::string placement_id, std::string destination_path) {
+                              std::optional<std::string> placement_id, std::string destination_path) {
   (void)context, (void)resource_id, (void)asset_id, (void)placement_id;
   return {destination_path, "file", "application/octet-stream", 0};
 }

@@ -148,14 +148,14 @@ object Resources {
      * Write an asset's bytes from one of its placements to a local file.
      * The stored copy is fetched through this device's provider for its storage location, checked
      * against the asset's size and hash, and decrypted in an encrypted project. Bytes that fail the
-     * check are data corrupted, and nothing is left at the destination. The daemon does not serve
-     * this: it streams asset content over HTTP.
+     * check are data corrupted, and any existing destination is preserved. Without a placement ID,
+     * this uses the first stored placement. The daemon streams asset content over HTTP.
      */
     external fun retrieveAssetFile(
         contextHandle: Long,
         resourceId: String,
         assetId: String,
-        placementId: String,
+        placementId: String? = null,
         destinationPath: String,
     ): AssetFile
 
