@@ -262,9 +262,9 @@ upload to a separate index, and the workflows currently differ:
   and `ref=main`; this uploads `<version>.post<number>`. That ref must still name
   the intended source. If `main` has advanced, a preview is evidence about that
   newer revision, not the frozen candidate.
-- Kit requires the matching `holder-v<version>` tag for both TestPyPI and PyPI;
-  there is no corresponding preview-number input. Do not create a test tag
-  in that namespace just to reach TestPyPI, because of the Launchpad trigger.
+- Resuming an earlier prepared Kit release requires its immutable prepared
+  inputs and matching `holder-v<version>` tag. Use the Holder Python preview
+  for new TestPyPI checks.
 
 Choose the relevant checks below and record results on disposable profiles or
 machines. The [0.2.6 record](releases/0.2.6.md) supplies actual publication evidence;
@@ -387,8 +387,8 @@ The matching release tag must already point to the prepared source. The command
 does not create it. Each package/destination is separately resumable and recorded;
 matching existing files are reused and conflicting bytes stop publication. See
 [Python publication](python-publication.md) for inputs, receipts, partial upload
-recovery and expiry handling. Existing manual package dispatches retain their
-build-and-publish behavior when prepared-release inputs are omitted; with both
+recovery and expiry handling. Manual Holder Python dispatches retain their
+build-and-publish behavior when prepared-release inputs are omitted. With both
 `prepared_release_path` and immutable `prepared_release_ref`, they publish the
 recorded files without rebuilding. Retain the source/core provenance, file hashes
 and actual index/installation evidence for whichever path is used.

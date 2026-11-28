@@ -1,33 +1,10 @@
 name: Release / Kit to PyPI
-run-name: ${{ inputs.release_request || github.event.pull_request.title || github.workflow }}
+run-name: ${{ inputs.release_request || github.workflow }}
 
-# Builds Holder Kit's wheels (CPython 3.10-3.15 on Linux, Windows and macOS) and source archive,
-# and publishes them to TestPyPI or PyPI. Build-only candidate preparation can use the exact
-# Release SDKs pinned by its generated manifest; other runs use Core / SDK in this workflow.
-# Publishing requires the holder-v<version> tag, with Kit, core and
-# the repository all at that version.
+# Manual build-only workflow and publication of previously prepared Kit releases.
+# New release candidates publish Holder Python instead.
 
 on:
-  pull_request:
-    paths:
-      - VERSION
-      - python/_build_support.py
-      - python/kit/_build_backend/**
-      - .github/workflows/release-kit-pypi.yml
-      - .github/workflows/core-sdk.yml
-      - .github/actions/core-sdk/**
-      - release/scripts/fetch-candidate-sdk.py
-      - release/scripts/python-distributions.py
-      - release/scripts/publish-python.py
-      - release/staging/scripts/**
-      - python/kit/pyproject.toml
-      - python/kit/CMakeLists.txt
-      - python/kit/src/**
-      - python/kit/scripts/*wheel*.py
-      - python/kit/scripts/check-release-distributions.py
-      - python/kit/scripts/pypi_readme.py
-      - python/kit/README.md
-      - python/kit/docs/**
   workflow_dispatch:
     inputs:
       release_request:
@@ -51,7 +28,7 @@ on:
         type: string
         default: ''
       destination:
-        description: Build only, or publish from a holder-v<version> tag after validation
+        description: Build only, or publish previously prepared files from a holder-v<version> tag
         type: choice
         options: [none, testpypi, pypi]
         default: none
@@ -66,7 +43,7 @@ defaults:
 
 jobs:
   prepare:
-    if: inputs.prepared_release_ref == ''
+    if: inputs.prepared_release_ref == '' || inputs.destination == 'none'
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.config.outputs.version }}
@@ -91,11 +68,10 @@ jobs:
           from pathlib import Path
           version = Path('../../VERSION').read_text().strip()
           assert bool(os.environ['PREPARED_PATH']) == bool(os.environ['PREPARED_REF']), 'Provide both prepared release inputs'
+          assert os.environ['DESTINATION'] == 'none', 'Kit publishing requires previously prepared release inputs'
+          assert not os.environ['PREPARED_REF'], 'Prepared Kit release inputs require a publication destination'
           pinned = os.environ['RELEASE_MANIFEST']
           assert bool(pinned) == bool(os.environ['RELEASE_MANIFEST_REF']), 'Provide both candidate manifest inputs'
-          assert not pinned or os.environ['DESTINATION'] == 'none', 'Candidate SDK reuse is build-only'
-          if os.environ['DESTINATION'] != 'none':
-              assert os.environ['GITHUB_REF'] == f'refs/tags/holder-v{version}', 'Publishing requires the holder-v<version> tag'
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write(f'version={version}\n')
           PY
@@ -338,7 +314,7 @@ jobs:
           path: python/kit/out/release-manifest.json
 
   prepared:
-    if: github.event_name == 'workflow_dispatch' && inputs.prepared_release_ref != ''
+    if: inputs.prepared_release_ref != '' && inputs.destination != 'none'
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -376,8 +352,8 @@ jobs:
           overwrite: true
 
   publish:
-    if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && inputs.destination != 'none' && (needs.distributions.result == 'success' || needs.prepared.result == 'success') }}
-    needs: [distributions, prepared]
+    if: needs.prepared.result == 'success'
+    needs: prepared
     runs-on: ubuntu-24.04
     environment: ${{ inputs.destination }}
     permissions:
@@ -385,11 +361,9 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: inputs.prepared_release_ref != ''
         with:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        if: inputs.prepared_release_ref != ''
         with:
           python-version: '3.12'
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -397,32 +371,28 @@ jobs:
           name: kit-release-distributions
           path: dist
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        if: inputs.prepared_release_ref != ''
         with:
           name: prepared-publication-input
           path: out
       - name: Check existing index files and select missing uploads
-        if: inputs.prepared_release_ref != ''
         id: plan
         working-directory: ${{ github.workspace }}
         run: python release/scripts/publish-python.py plan --receipt out/publication-input.json
       - name: Publish to TestPyPI
-        if: inputs.destination == 'testpypi' && (inputs.prepared_release_ref == '' || steps.plan.outputs.remaining != '0')
+        if: inputs.destination == 'testpypi' && steps.plan.outputs.remaining != '0'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
-          packages-dir: ${{ inputs.prepared_release_ref != '' && 'pending/' || 'dist/' }}
+          packages-dir: pending/
       - name: Publish to PyPI
-        if: inputs.destination == 'pypi' && (inputs.prepared_release_ref == '' || steps.plan.outputs.remaining != '0')
+        if: inputs.destination == 'pypi' && steps.plan.outputs.remaining != '0'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: ${{ inputs.prepared_release_ref != '' && 'pending/' || 'dist/' }}
+          packages-dir: pending/
       - name: Verify the published file set
-        if: inputs.prepared_release_ref != ''
         working-directory: ${{ github.workspace }}
         run: python release/scripts/publish-python.py verify --receipt out/publication-input.json --output out/publication.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: inputs.prepared_release_ref != ''
         with:
           name: kit-${{ inputs.destination }}-publication
           path: out/publication.json
