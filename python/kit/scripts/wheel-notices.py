@@ -36,8 +36,9 @@ def main() -> None:
             shutil.copytree(source, notices / "vcpkg")
             # delvewheel supplies a private dependency closure from the SDK.
             # Remove CMake's unmodified copies so there is only one runtime set.
-            shutil.rmtree(root / "holderkit/.libs")
-            shutil.rmtree(root / "holderkit/_licenses")
+            bridge = root / ("holderkit" if wheel.name.startswith("holder_kit-") else "holder/_embedded")
+            shutil.rmtree(bridge / ".libs")
+            shutil.rmtree(bridge / "_licenses")
             # The Windows repair also includes MSVCP140 from the runner's MSVC
             # installation. Keep its official notice locally so packaging does
             # not depend on the availability of Microsoft's document server.

@@ -91,9 +91,13 @@ def check(directory, package, version, selection=None, *, desktop_wheels=False):
                                 files.count(core_entry) == files.count(schema_entry) == 1,
                                 'Native Holder Python wheel is missing its extension, schema or SDK metadata')
                         if platform == 'windows':
-                            require(any(path.startswith(prefix + '.libs/') and path.endswith('.dll') for path in files) and
-                                    any(path.startswith(prefix + '_licenses/') and not path.endswith('/') for path in files),
-                                    'Windows Holder Python wheel is missing DLLs or dependency licences')
+                            notices = stem + '.dist-info/licenses/third-party/'
+                            require(stem + '.dist-info/DELVEWHEEL' in files and
+                                    not any(path.startswith(prefix + '.libs/') for path in files) and
+                                    any(path.startswith('holder_python.libs/') and path.endswith('.dll') for path in files) and
+                                    notices + 'microsoft-runtime.txt' in files and
+                                    any(path.startswith(notices + 'vcpkg/') and path.endswith('.txt') for path in files),
+                                    'Windows Holder Python wheel is missing repaired DLLs or dependency licences')
                         elif platform == 'macos':
                             require(any(path.endswith('.dylib') for path in files) and
                                     any(path.startswith(stem + '.dist-info/licenses/third-party/') and

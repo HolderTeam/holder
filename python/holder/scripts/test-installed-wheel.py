@@ -14,7 +14,9 @@ def main() -> None:
     parser.add_argument("--version", required=True)
     parser.add_argument("--embedded", action="store_true")
     parser.add_argument("--core-build-type", default="Release")
+    parser.add_argument("--repaired-windows", action="store_true")
     args = parser.parse_args()
+    assert not args.repaired_windows or (args.embedded and sys.platform == "win32")
 
     from holder import Holder, open_workspace
     from holder.generated.api.default import get_projects
@@ -40,8 +42,17 @@ def main() -> None:
         platform = {"linux": "linux", "darwin": "macos", "win32": "windows"}[sys.platform]
         assert core["platform"] == platform and core["build_type"] == args.core_build_type, core
         if platform == "windows":
-            libraries = installed.locate_file("holder/_embedded/.libs")
-            licenses = installed.locate_file("holder/_embedded/_licenses")
+            if args.repaired_windows:
+                metadata = f"holder_python-{args.version}.dist-info"
+                assert installed.locate_file(f"{metadata}/DELVEWHEEL").is_file()
+                assert not installed.locate_file("holder/_embedded/.libs").exists()
+                libraries = installed.locate_file("holder_python.libs")
+                licenses = installed.locate_file(f"{metadata}/licenses/third-party")
+                assert (licenses / "microsoft-runtime.txt").is_file()
+                licenses /= "vcpkg"
+            else:
+                libraries = installed.locate_file("holder/_embedded/.libs")
+                licenses = installed.locate_file("holder/_embedded/_licenses")
             assert any(libraries.glob("*.dll"))
             assert any(path.is_file() for path in licenses.rglob("*"))
         elif platform == "macos":

@@ -54,8 +54,10 @@ def distribution_files(package, selection, *, desktop_wheels=False):
                     archive.writestr('holder/_embedded/_native' + suffix, 'fixture extension')
                     archive.writestr('holder/_embedded/_schema.sql', 'fixture schema')
                     if platform == 'windows':
-                        archive.writestr('holder/_embedded/.libs/test.dll', 'fixture library')
-                        archive.writestr('holder/_embedded/_licenses/test.txt', 'fixture licence')
+                        archive.writestr(stem + '.dist-info/DELVEWHEEL', 'fixture repair marker')
+                        archive.writestr('holder_python.libs/test.dll', 'fixture library')
+                        for notice in ('microsoft-runtime.txt', 'vcpkg/test.txt'):
+                            archive.writestr(stem + '.dist-info/licenses/third-party/' + notice, 'fixture licence')
                     elif platform == 'macos':
                         archive.writestr('holder/.dylibs/libtest.dylib', 'fixture library')
                         archive.writestr(stem + '.dist-info/licenses/third-party/test.txt', 'fixture licence')
@@ -327,7 +329,7 @@ class DistributionEvidenceTests(unittest.TestCase):
             for name, data in entries.items():
                 if not name.endswith('.dll'):
                     archive.writestr(name, data)
-        with self.assertRaisesRegex(ValueError, 'missing DLLs or dependency licences'):
+        with self.assertRaisesRegex(ValueError, 'missing repaired DLLs or dependency licences'):
             self.verify(directory, 'python', document)
 
     def test_actual_kit_manifest_producer_agrees_with_the_coordinator_verifier(self):
