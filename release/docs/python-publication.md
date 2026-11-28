@@ -15,9 +15,6 @@ Publish one package to one explicit destination:
 ```sh
 python3 release/scripts/release.py publish-python \
   --record release/records/0.2.6-candidate-1.json \
-  --package kit --destination pypi --wait
-python3 release/scripts/release.py publish-python \
-  --record release/records/0.2.6-candidate-1.json \
   --package python --destination pypi --wait
 ```
 
@@ -26,10 +23,10 @@ commit on `release/python/0.2.6-candidate-1`, with a JSON file under
 `release/python-manifests/`. The application source/tag remains the original
 candidate. This metadata contains public source, run, artifact and checksum facts.
 
-The existing Kit/holder-python PyPI workflows run on the release tag. Their
-prepared path skips SDK and distribution builds, fetches the recorded artifact
+The Holder Python PyPI workflow runs on the release tag. Its prepared path
+skips SDK and distribution builds, fetches the recorded artifact
 IDs, checks run/source/attempt identity and archive hashes, then repeats the
-distribution metadata, file-hash and Kit SDK identity checks. Uploads retain the
+distribution metadata, file-hash and SDK identity checks. Uploads retain the
 existing workflow filenames, environments and Trusted Publisher action.
 
 Before uploading, the publisher checks the destination's
@@ -45,8 +42,9 @@ in the index. It retains a `<package>-<destination>-publication` artifact contai
 `publication.json`: source, original package run/artifact, prepared metadata
 commit, destination, complete file hashes and verification time. The coordinator
 checks that receipt and independently verifies the index, then records completion
-under `publications.kit_pypi` or `publications.python_pypi`. The local summary
-retains each completed destination and receipt hash.
+under `publications.python_pypi`. The local summary retains each completed
+destination and receipt hash. Earlier paired candidates retain their Kit
+evidence and can still use `--package kit` to resume publication.
 
 ## Resume and recover
 
@@ -61,7 +59,7 @@ For a failed run, inspect and correct the cause, then retry its failed jobs:
 ```sh
 python3 release/scripts/release.py publish-python \
   --record release/records/0.2.6-candidate-1.json \
-  --package kit --destination pypi --retry kit_pypi --wait
+  --package python --destination pypi --retry python_pypi --wait
 ```
 
 Use `python_pypi` for holder-python. Retry selection must match the explicit

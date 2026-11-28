@@ -107,7 +107,7 @@ Record the intended destinations after the candidate record exists.
 ```sh
 python3 release/scripts/release.py scope \
   --record release/records/<version>-candidate-1.json \
-  --include linux macos windows sdk kit-pypi python-pypi ppa website
+  --include linux macos windows sdk python-pypi ppa website
 python3 release/scripts/release.py status \
   --record release/records/<version>-candidate-1.json
 ```
@@ -229,7 +229,7 @@ already produced for this release. Reuse recent platform/upgrade evidence where
 it still applies, and repeat manual checks affected by the changes. Do not run
 another complete build matrix just to call it a rehearsal. The normal Python
 publication workflows build and validate distributions before uploading them.
-The coordinator can now prepare both Python sets once and retain their verified
+The coordinator prepares the Holder Python release and retains its verified
 identities alongside the staged candidate:
 
 ```sh
@@ -237,8 +237,8 @@ python3 release/scripts/release.py packages \
   --record release/records/0.2.6-candidate-1.json --wait
 ```
 
-Kit reuses the candidate's exact Release SDK archives. The record retains both
-packages' artifact IDs, archive and file hashes, source/SDK identity and expiry;
+Holder Python reuses the candidate's exact Release SDK archives. The record
+retains artifact IDs, archive and file hashes, source/SDK identity and expiry;
 the summary lists the files. See [Python preparation](python-preparation.md) for
 resume and targeted retry commands and [Python publication](python-publication.md)
 for the upload handoff. Manual publishing dispatches rebuild unless given the
@@ -248,7 +248,7 @@ Standalone build-only inputs remain available when needed:
 | Workflow | Build-only inputs | Outputs |
 | --- | --- | --- |
 | [Kit to PyPI](../../.github/workflows/release-kit-pypi.yml) | `destination=none`; optional generated `release_manifest` and immutable `release_manifest_ref` for pinned SDK reuse | `kit-release-distributions`, `kit-release-manifest` (18 platform/interpreter wheels plus sdist) |
-| [Holder Python to PyPI](../../.github/workflows/release-holder-python-pypi.yml) | `destination=none`, `preview_number=0` | `holder-python-distributions`, `holder-python-release-manifest` (wheel and sdist) |
+| [Holder Python to PyPI](../../.github/workflows/release-holder-python-pypi.yml) | `destination=none`, `preview_number=0` | `holder-python-distributions`, `holder-python-release-manifest` (native wheels, universal wheel and sdist) |
 
 Retain distribution manifests/digests from whichever runs are used. For Ubuntu
 packaging changes, reuse `Release / Launchpad`'s pull-request checks: they build
@@ -381,7 +381,6 @@ Launchpad binary builds or website updates.
 | Destination | Current operation | Completion evidence |
 | --- | --- | --- |
 | Ubuntu PPA | `Release / Launchpad` uploads on the pushed `holder-v*` tag; `release.py observe-ppa --record <candidate.json> --wait` checks the exact packages for noble and resolute | Recorded source publications, remote builds and APT index entries for the selected architecture coverage; separately verify installs and supported upgrades |
-| Kit | `release.py publish-python --record <candidate.json> --package kit --destination pypi --wait` | Prepared files fetched/verified without rebuilding, expected index hashes and publication receipt |
 | Holder Python | `release.py publish-python --record <candidate.json> --package python --destination pypi --wait` | Prepared wheel/sdist on the index with matching hashes and publication receipt |
 
 The matching release tag must already point to the prepared source. The command

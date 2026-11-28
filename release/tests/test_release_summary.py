@@ -21,6 +21,7 @@ class ReleaseSummaryTests(unittest.TestCase):
         return {'receipt': receipt, 'sha256': tool.digest(receipt)}
 
     def test_legacy_record_shows_pending_destinations_without_inventing_scope(self):
+        self.record.pop('python_package_targets')
         overview = self.overview()
         self.assertIn('scope is unrecorded', overview)
         self.assertIn('Linux AppImage | Preparation pending | `prepare`', overview)
@@ -30,6 +31,7 @@ class ReleaseSummaryTests(unittest.TestCase):
         self.assertNotIn('release_scope', self.record)
 
     def test_scope_command_changes_only_local_selection_and_preserves_receipts(self):
+        self.record.pop('python_package_targets')
         self.record['publications'] = {'kit_testpypi': self.ledger()}
         tool.save(self.path, self.record)
         before = copy.deepcopy(self.record)
@@ -61,6 +63,7 @@ class ReleaseSummaryTests(unittest.TestCase):
         self.assertIn('Linux AppImage | Evidence checksum mismatch', self.overview())
 
     def test_next_command_tracks_saved_handoff_and_package_inputs(self):
+        self.record.pop('python_package_targets')
         self.record['manifest'] = {}
         self.record['release_scope'] = ['linux', 'macos', 'kit-testpypi']
         self.record['status'] = 'awaiting_linux_signing_approval'

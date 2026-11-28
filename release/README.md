@@ -63,23 +63,18 @@ publishes them with an `sdk-index.json` of sizes, checksums and download URLs.
 The SDKs are therefore the core the shipped daemon was built against. A version
 already published there is never replaced.
 
-## Holder Kit on PyPI
-
-`Release / Kit to PyPI` builds Holder Kit's wheels and source archive against
-Release core SDKs from `core/` in the same commit, checks them, and publishes them
-to TestPyPI or PyPI through Trusted Publishing (the `testpypi` and `pypi`
-environments). It publishes only from the `holder-v<version>` tag, with Kit,
-core and `VERSION` all at that version. See
-[`python/kit/docs/packaging.md`](../python/kit/docs/packaging.md).
-
 ## Holder for Python on PyPI
 
-`Release / Holder Python to PyPI` builds and checks the `holder-python` wheel
+`Release / Holder Python to PyPI` builds and checks the `holder-python` wheels
 and source archive, then publishes from a matching `holder-v<version>` tag via
 Trusted Publishing. The initial `0.2.5` package-only backfill can use
 `holder-python-v0.2.5-r2` after TestPyPI previews from `main`. See
 [`python/holder/docs/publishing.md`](../python/holder/docs/publishing.md) for
 the one-time PyPI project setup and release steps.
+
+New release coordinator records prepare `holder-python` as the Python release.
+For earlier candidates, the [Holder Kit workflow](../python/kit/docs/packaging.md)
+is available to resume their recorded publications.
 
 ## Ubuntu packages
 

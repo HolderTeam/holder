@@ -65,6 +65,7 @@ def fetch(path, reference, repository, candidate, ref, version, package, destina
     record = json.loads(base64.b64decode(response['content']))
     require(record['schema'] == 1 and record['repository'] == repository and record['candidate'] == candidate and
             record['version'] == version, 'Prepared release differs from tagged source/version')
+    require(package in record['python_packages'], 'Package is outside this prepared Python release set')
     evidence = record['python_packages'][package]
     actual = packages.collect(record, github, [package])[package]
     require(actual == evidence, 'Downloaded package evidence differs from the prepared release')

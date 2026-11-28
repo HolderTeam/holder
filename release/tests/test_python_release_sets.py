@@ -95,7 +95,7 @@ class PackageGitHub(FakeGitHub):
     def packages(self, record):
         self.collections += 1
         self.payloads.runs.update(copy.deepcopy(self.runs))
-        return packages.collect(record, self.payloads)
+        return packages.collect(record, self.payloads, tool.python_package_targets(record))
 
 
 class PackageCoordinatorTests(unittest.TestCase):
@@ -104,6 +104,9 @@ class PackageCoordinatorTests(unittest.TestCase):
 
     def setUp(self):
         preparation.CoordinatorTests.setUp(self)
+        # Most cases exercise an existing paired candidate.
+        self.record.pop('python_package_targets')
+        tool.save(self.path, self.record)
         clock = patch.object(packages.manifest_tool, 'datetime', wraps=datetime)
         clock.start().now.return_value = NOW
         self.addCleanup(clock.stop)
@@ -152,6 +155,25 @@ class PackageCoordinatorTests(unittest.TestCase):
         prepared = self.record['python_packages']['python']
         self.assertEqual(len(prepared['files']), 14)
         self.assertEqual(set(prepared['manifest']['core']['sdk_assets']), {'linux', 'macos', 'windows'})
+
+    def test_new_candidates_prepare_and_publish_holder_python_only(self):
+        self.github = PackageGitHub(self.directory.name, desktop_wheels=True)
+        self.record = tool.initialize(self.github, REPOSITORY, CANDIDATE, '0.2.6', 1, True)
+        tool.save(self.path, self.record)
+        self.coordinator = tool.Coordinator(self.path, self.record, self.github)
+        self.reach_packages()
+        self.assertEqual(len(self.github.dispatches('release-kit-pypi.yml')), 0)
+        self.reload()
+        self.github.finish('python')
+        self.coordinator.advance_packages()
+        self.assertEqual(self.record['status'], 'packages_prepared')
+        self.assertEqual(set(self.record['python_packages']), {'python'})
+        self.assertNotIn('Kit on PyPI', tool.summary(self.record))
+        with self.assertRaisesRegex(ValueError, 'outside this Python release set'):
+            self.coordinator.advance_publication('kit', 'pypi')
+        with patch.object(self.coordinator, 'require_release_tag'), patch.object(self.coordinator, 'ensure_metadata'):
+            self.coordinator.prepare_publication()
+        self.assertEqual(set(self.record['python_publication_inputs']['document']['steps']), {'python'})
 
     def test_failed_package_retry_keeps_successful_sibling_and_sdk_builds(self):
         self.reach_packages()
