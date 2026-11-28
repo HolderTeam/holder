@@ -907,7 +907,9 @@ class Coordinator:
         validate_record(self.record)
         require(self.record['repository'] == 'HolderTeam/holder', 'The Holder PPA is associated with HolderTeam/holder releases')
         self.require_release_tag()
-        keys = {package + ':' + series for series in ppa_tool.SERIES for package in ppa_tool.BINARIES}
+        sources = ppa_tool.BINARIES if 'kit' in python_package_targets(self.record) else ppa_tool.RELEASE_PACKAGES
+        keys = {package + ':' + series for series in ppa_tool.SERIES for package in sources}
+        require(set(revisions or {}) <= keys, 'Invalid PPA revision target')
         ppa = self.record.get('ppa')
         if ppa is None:
             plan = {'schema': 1, 'archive': ppa_tool.ARCHIVE,
@@ -924,7 +926,6 @@ class Coordinator:
                 set(plan['architectures']) <= set(ppa_tool.ARCHITECTURES), 'Invalid PPA architecture coverage')
         require(architectures is None or sorted(set(architectures)) == plan['architectures'],
                 'PPA architecture coverage differs from the saved plan')
-        require(set(revisions or {}) <= keys, 'Invalid PPA revision target')
         for target in ppa['targets'].values():
             if target.get('completed'):
                 require(digest(target['completed']['receipt']) == target['completed']['sha256'], 'Saved PPA completion receipt changed')

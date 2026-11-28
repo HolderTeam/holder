@@ -161,6 +161,8 @@ class PpaCoordinatorTests(unittest.TestCase):
 
     def setUp(self):
         preparation.CoordinatorTests.setUp(self)
+        self.record.pop('python_package_targets')
+        tool.save(self.path, self.record)
         self.archive = Archive()
         self.remote = {}
         for series in ppa.SERIES:
@@ -193,6 +195,24 @@ class PpaCoordinatorTests(unittest.TestCase):
         self.advance()
         self.assertEqual(saved, self.record['ppa']['targets'])
         self.assertIn('PPA architecture coverage: amd64', tool.summary(self.record))
+
+    def test_new_candidate_observes_only_the_current_ubuntu_packages(self):
+        self.record = tool.initialize(self.github, REPOSITORY, CANDIDATE, '0.2.6', 1, True)
+        tool.save(self.path, self.record)
+        self.coordinator = tool.Coordinator(self.path, self.record, self.github)
+        with self.assertRaisesRegex(ValueError, 'Invalid PPA revision target'):
+            self.advance({'kit:noble': 2})
+        self.assertNotIn('ppa', self.record)
+        self.advance()
+        self.assertEqual(self.record['status'], 'ppa_available')
+        self.assertEqual(set(self.record['ppa']['targets']), {
+            f'{package}:{series}' for package in ppa.RELEASE_PACKAGES for series in ppa.SERIES
+        })
+        self.assertEqual(len(self.record['ppa']['targets']), 6)
+        self.assertFalse(any('source_name=holder-kit' in url for url in self.archive.requests))
+        self.reload()
+        self.advance()
+        self.assertEqual(self.record['status'], 'ppa_available')
 
     def test_pending_source_and_failed_build_preserve_completed_siblings(self):
         missing = self.remote['kit:resolute']['source']

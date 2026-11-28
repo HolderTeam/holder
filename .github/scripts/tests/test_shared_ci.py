@@ -18,6 +18,14 @@ JOBS = GRAPH['jobs']
 
 
 class SharedCITests(unittest.TestCase):
+    def test_launchpad_default_leaves_kit_for_explicit_repairs(self):
+        workflow = yaml.safe_load((CI.WORKFLOWS / 'release-launchpad.yml').read_text())
+        source = workflow[True]['workflow_dispatch']['inputs']['packages']
+        self.assertEqual(source['default'], 'all')
+        self.assertIn('kit', source['options'])
+        matrix = workflow['jobs']['upload']['strategy']['matrix']['package']
+        self.assertTrue(matrix.endswith("|| '[\"core\", \"daemon\", \"desktop\"]') }}"))
+
     def test_standalone_kit_builds_manually_and_publishes_only_prepared_files(self):
         workflow = yaml.safe_load((CI.WORKFLOWS / 'release-kit-pypi.yml').read_text())
         self.assertEqual(set(workflow[True]), {'workflow_dispatch'})

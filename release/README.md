@@ -78,8 +78,9 @@ is available to resume their recorded publications.
 
 ## Ubuntu packages
 
-`Release / Launchpad` uploads the `holder-core`, `holder-daemon`, `holder-kit` and
+`Release / Launchpad` uploads the `holder-core`, `holder-daemon` and
 `holder-desktop` source packages to `ppa:holderteam/holder` for each `holder-v*` tag.
+Select `packages=kit` for a targeted packaging repair to an earlier Kit release.
 Use the [PPA observer](docs/launchpad-availability.md) to track exact remote
 builds and APT index availability after upload. Install and upgrade validation
 remains a separate check.

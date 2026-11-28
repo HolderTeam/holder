@@ -402,13 +402,15 @@ package-only backfill exception is not a general release route. See the
 
 Launchpad accepts source uploads before all dependent builds are ready. Use
 [the PPA observer](launchpad-availability.md) to record each exact source/series
-version, remote builds and APT index entries. Wait for matching core development
-packages and then daemon/Kit packages. Record installed test results separately.
+version, remote builds and APT index entries. Wait for the matching core development
+packages and then the daemon. Record installed test results separately. Earlier
+saved releases also wait for Kit when it is in their plan.
 A packaging-only repair can be dispatched on the intended source ref
 with `packages=<affected package>`, `series=<affected series>`,
 `version=<expected product version>` and a fresh positive `package_revision`.
-That manual dispatch uploads to the PPA; it is not a build-only switch. Core/Kit
-orig tarballs are shared across series/revisions for an upstream version:
+That manual dispatch uploads to the PPA. Use `packages=kit` only for a repair
+to an earlier Kit release. Core and Kit orig tarballs are shared across series
+and revisions for an upstream version, so
 packaging revision changes do not permit replacing different upstream source.
 Select the repaired version with `observe-ppa --ppa-revision <package>:<series>=<revision>`;
 the prior observation remains in history and other targets are unchanged.

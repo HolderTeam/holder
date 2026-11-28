@@ -19,7 +19,8 @@ packages, or change website availability. Omit `--wait` for one observation;
 interrupt a wait and resume with the same record. If a source has not appeared,
 inspect the existing upload job before assuming more waiting will help.
 
-The plan covers the four source packages in both `noble` and `resolute`, at
+The plan covers `holder-core`, `holder-daemon` and `holder-desktop` in both
+`noble` and `resolute`, at
 exact versions `<version>-1~<series>1` unless a packaging revision is explicitly
 selected. The default architecture coverage is `amd64`. For a broader check,
 select the intended architectures on the first observation, for example
@@ -34,14 +35,15 @@ checks the relevant public APT indexes. It reports:
 | State | What to check |
 | --- | --- |
 | `awaiting_source` | The exact active source version has not appeared. Inspect the upload job or wait for Launchpad to accept it. |
-| `awaiting_builds` | A build is unscheduled, queued, in progress or waiting for dependencies. Daemon and Kit may wait for the matching core development package. |
+| `awaiting_builds` | A build is unscheduled, queued, in progress or waiting for dependencies. The daemon may wait for the matching core development package. |
 | `build_failed` | Inspect the recorded build logs. Correct the cause through the existing Launchpad or packaging procedure, then resume observation. `--wait` stops on build failures. |
 | `awaiting_publication` | Builds succeeded but the exact source, binary publications or APT index entries are still pending. |
 | `available` | The source and all required binaries for the selected architectures are published and the exact package versions appear in the APT indexes. |
 
 The binary set is `libholder0`, `libholder-dev`, `holder-daemon`,
-`python3-holder-kit`, `holder-desktop` and the architecture-independent `holder`
-package. The observer follows the selected source publication to its builds and
+`holder-desktop` and the architecture-independent `holder` package. Earlier
+saved candidates also retain their `python3-holder-kit` checks. The observer
+follows the selected source publication to its builds and
 binaries, verifies the series, version and architecture, and records package
 filenames, sizes and SHA-256 values from the index. The local `ppa` ledger keeps
 an observation and a completion receipt for each source/series. A later check
@@ -52,6 +54,7 @@ available for review; run the same command again to refresh them.
 For a one-off public archive inspection without a release record, use
 `python3 release/scripts/launchpad-release.py --version <version>`. This prints
 observations without associating them with a Git tag or saving receipts.
+Pass `--include-kit` to inspect an earlier release that included Kit.
 
 ## Packaging repairs
 
